@@ -1,9 +1,9 @@
 """What family members changed, and putting it back (Cleanup → Recent changes, for admins).
 
-Every change a member makes (a face named, a tag, a date, someone added to a photo, a family link, a person's details)
-is kept with the rows it could touch as they were before and after. Undoing it puts the "before" rows back, but only
-while those rows are still as the change left them: a change made over it since is never overwritten (the undo says
-so instead). Rows a change added are found as the ids above the largest one before it, so someone who already existed
+Every change a member makes (a face named, a tag, a date, someone added to a photo, a family link, a person's details,
+something shared or no longer shared) is kept with the rows it could touch as they were before and after. Undoing it
+puts the "before" rows back, but only while those rows are still as the change left them: a change made over it since
+is never overwritten (the undo says so instead). Rows a change added are found as the ids above the largest one before it, so someone who already existed
 is never taken for someone new.
 
 A family change that lets an account see someone it couldn't before (a false link can: marking a brother's wife as
@@ -22,14 +22,14 @@ KEYS = {"face": ("id",), "image": ("id",), "image_tag": ("image_id", "tag_id"), 
         "image_person": ("image_id", "person_id"), "face_not_person": ("face_id", "person_id"),
         "parent": ("child_id", "parent_id"), "sibling": ("a", "b"), "partner": ("a", "b"),
         "relation": ("person_id", "of_id", "kind"), "person": ("id",), "event": ("id",), "person_name": ("id",),
-        "person_group": ("person_id", "name"), "document": ("image_id",), "citation": ("id",)}
+        "person_group": ("person_id", "name"), "document": ("image_id",), "citation": ("id",), "share": ("id",)}
 # what a change can alter of faces and photos (the rest is the worker's: embeddings, stage, sharpness...)
 COLUMNS = {"face": "id, image_id, person_id, assigned_by, assign_score, cluster_id, named_by",
            "image": "id, taken_at, taken_at_source, date_text, date_from, date_to, auto_taken_at, auto_taken_at_source"}
 UPDATE_ONLY = {"face", "image"}  # never added or deleted by a change
 # rows that others point to come back first and go last
 ORDER = ["person", "tag", "partner", "event", "document", "citation", "person_name", "person_group", "parent",
-         "sibling", "relation", "image", "face", "face_not_person", "image_tag", "image_person"]
+         "sibling", "relation", "image", "face", "face_not_person", "image_tag", "image_person", "share"]
 FAMILY = {"parent", "sibling", "partner", "relation", "person"}
 
 
@@ -72,7 +72,7 @@ def tracking(con: sqlite3.Connection, viewer: access.Viewer, kind: str, summary:
         yield
         con.commit()
         return
-    newest_before = {t: newest(con, t) for t in ("person", "tag", "event", "person_name", "citation")}
+    newest_before = {t: newest(con, t) for t in ("person", "tag", "event", "person_name", "citation", "share")}
     picked = specs(newest_before)
     before = capture(con, picked)
     people_before = _accounts_people(con) if FAMILY & {t for t, _, _ in picked} else None

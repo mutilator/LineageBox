@@ -21,7 +21,7 @@
   <p class="hint">Point at a button or box to see its key. Keys don't work while you're typing in a box: press Esc first.</p>
   <h3>Every page</h3>
   <dl class="pages-list">
-    {%- for href, name, what in help_menu if viewer.admin or href not in admin_pages %}<dt><a href="{{ href }}">{{ name }}</a></dt><dd>{{ what }}</dd>{% endfor %}
+    {%- for href, name, what in help_menu if href not in (member_pages if viewer.admin else admin_pages) %}<dt><a href="{{ href }}">{{ name }}</a></dt><dd>{{ what }}</dd>{% endfor %}
   </dl>
   {#- The AGPL's "Appropriate Legal Notices" (its sections 0 and 5d): the copyright, that there is no warranty, that
       LineageBox may be shared under the licence and where to read it. A changed copy has to keep showing them. #}

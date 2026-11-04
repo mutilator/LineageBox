@@ -23,6 +23,15 @@
 </section>
 {% endif %}
 
+{% if shared.folders or shared.tours or shared.photos %}
+<section class="shared-home">
+  <h2>Shared with you</h2>
+  {{ m.shared_with_you(shared, 8) }}
+  {%- set more = [shared.folders|length - 8, 0]|max + [shared.tours|length - 8, 0]|max + [shared.photos|length - 8, 0]|max %}
+  <p class="hint"><a href="/folders#shared">{% if more %}{{ more }} more shared with you{% else %}Everything shared with you{% endif %}</a></p>
+</section>
+{% endif %}
+
 <h2>New photos of the family</h2>
 {% if recent %}{{ m.grid(recent, "") }}{% else %}<p class="note">No photos of your family yet.</p>{% endif %}
 

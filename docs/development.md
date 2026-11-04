@@ -107,7 +107,9 @@ prebuilt arm64 wheels.
 1. Add the field to `Config` in `lineagebox/config.py`, and its `(section, key)` to `KEYS`. The environment variable
    `LINEAGEBOX_<SECTION>_<KEY>` follows from that.
 2. If the Settings page changes it, add a check to `_CHECKS` in `lineagebox/settings.py`, and the field to
-   `settings.html`.
+   `settings.html`. The page shows one part (`data-part`) at a time, picked in the menu at the side
+   (`_settings_nav.html`, whose links name each part's first panel): a new panel goes in a part, or in a new part
+   with its own link.
 3. Document it in [configuration.md](configuration.md), and in `docker/config.toml` and `.env.example` if installers
    are likely to set it.
 

@@ -8,6 +8,9 @@ For a member who is person P (docs/access-control.md, "Who a member sees"):
   not shown). Friends, pets and other relationships are outside it.
 - photos: those someone they can see is in (a face named by hand or recognised, or added to the photo by hand), and
   their own uploads. A photo an admin hid, or one in a hidden folder, is left out unless they uploaded it.
+- and what another account shared with them, or with everyone (sharing.py): a folder, a photo, or a tour with the photos
+  it shows its maker. Only shares that still hold count: from an account not switched off, of what is still theirs to
+  share (a member's own uploads and tours), and never a photo an admin hid.
 Admins see everything; so does everyone while accounts are off.
 
 The web app keeps a member to that in two ways: every route says who may use it, and a member's connection only
@@ -50,7 +53,9 @@ SCOPED = {
     "sibling": "a IN temp.seen_person AND b IN temp.seen_person",
     "partner": "a IN temp.seen_person AND b IN temp.seen_person",
     "relation": "person_id IN temp.seen_person AND of_id IN temp.seen_person",
-    "tour": "account_id = {account} OR (account_id IS NULL AND shared)",
+    "tour": "account_id = {account} OR id IN temp.seen_tour",
+    "tour_photo": "0",
+    "share": "account_id = {account}",
     "upload": "account_id = {account}",
     "account": "id = {account}",
     "session": "account_id = {account}",
@@ -74,6 +79,9 @@ class Viewer:
     images: frozenset[int] = frozenset()
     shas: frozenset[str] = frozenset()
     folders: frozenset[int] = frozenset()
+    granted: frozenset[int] = frozenset()  # of the photos, those they see only because they were shared with them
+    tours: frozenset[int] = frozenset()  # tours others shared with them
+    shared_folders: frozenset[str] = frozenset()  # paths of the folders shared with them, to browse
     seeing_as: bool = False  # an admin looking through this member's eyes: changes are refused
     lists: dict = field(default_factory=dict, compare=False, repr=False)  # the sets as JSON lists, for scope()
 
@@ -97,7 +105,8 @@ class Viewer:
 
 
 EVERYONE = Viewer()
-NOBODY = Viewer(admin=False, lists={"person": "[]", "image": "[]", "folder": "[]"})  # accounts on, not signed in
+NOBODY = Viewer(admin=False,  # accounts on, not signed in
+                lists={"person": "[]", "image": "[]", "folder": "[]", "tour": "[]"})
 
 
 def admin(account: dict) -> Viewer:
@@ -143,19 +152,26 @@ def people_for(g: family.Graph, pid: int | None, rules=(), added=()) -> set[int]
     return {p for p in seen if p in g.people}
 
 
+def hidden(con: sqlite3.Connection) -> tuple[str, list]:
+    """SQL for the photos an admin hid from members, one by one or by hiding a folder they have a copy in, and its
+    arguments. One SELECT, so that it can follow EXCEPT."""
+    folders = [r[0] for r in con.execute("SELECT path FROM main.folder WHERE hidden")]
+    sql = "SELECT id FROM main.image WHERE hidden"
+    if folders:
+        sql += (" OR id IN (SELECT v.image_id FROM main.file v WHERE "
+                + " OR ".join("v.path = ? OR v.path LIKE ? ESCAPE '!'" for _ in folders) + ")")
+    return sql, [a for p in folders for a in (p, under(p))]
+
+
 def images_for(con: sqlite3.Connection, people: set[int], account_id: int | None, upload_folder: str | None) -> set[int]:
     """The photos a member sees: someone they see is in it, by a face named by hand or recognised or added by hand,
     unless hidden by an admin; and their own uploads, hidden or not."""
-    hidden_folders = [r[0] for r in con.execute("SELECT path FROM folder WHERE hidden")]
-    hidden_files = " OR ".join("v.path = ? OR v.path LIKE ? ESCAPE '!'" for _ in hidden_folders)
-    hidden_args = [a for p in hidden_folders for a in (p, under(p))]
+    not_shown, args = hidden(con)
     of_people = con.execute(f"""
         WITH seen(id) AS (SELECT value FROM json_each(?))
         SELECT image_id FROM face WHERE person_id IN seen AND assigned_by IN ('user', 'auto')
         UNION SELECT image_id FROM image_person WHERE person_id IN seen
-        EXCEPT SELECT id FROM image WHERE hidden
-        {f"EXCEPT SELECT v.image_id FROM file v WHERE v.image_id IS NOT NULL AND ({hidden_files})"
-         if hidden_folders else ""}""", (json.dumps(sorted(people)), *hidden_args))
+        EXCEPT {not_shown}""", (json.dumps(sorted(people)), *args))
     out = {r[0] for r in of_people}
     if account_id is not None:
         out |= {r[0] for r in con.execute("SELECT image_id FROM upload WHERE account_id = ?", (account_id,))}
@@ -165,27 +181,93 @@ def images_for(con: sqlite3.Connection, people: set[int], account_id: int | None
     return out
 
 
-def folders_for(con: sqlite3.Connection, images: set[int], upload_folder: str | None) -> set[int]:
-    """The folders a member's photos are in, the folders above those (where places in folder names come from), and
-    their own uploads folder and everything in it. Members browse only their uploads folder (web/app.py)."""
+def folders_for(con: sqlite3.Connection, images: set[int], upload_folder: str | None, shared=()) -> set[int]:
+    """The folders a member's photos are in, the folders above those (where places in folder names come from), their
+    own uploads folder and everything in it, and the folders shared with them (`shared`, paths; the folders in those
+    come with their photos). Members browse only their uploads folder and those shared with them (routes/browse.py)."""
     parents = dict(con.execute("SELECT id, parent_id FROM folder"))
+    found = [r[0] for r in con.execute("""SELECT DISTINCT folder_id FROM file
+                                          WHERE image_id IN (SELECT value FROM json_each(?))""",
+                                       (json.dumps(sorted(images)),))]
+    if upload_folder:
+        found += [r[0] for r in con.execute("SELECT id FROM folder WHERE path = ? OR path LIKE ? ESCAPE '!'",
+                                            (upload_folder, under(upload_folder)))]
+    found += [r[0] for r in con.execute("SELECT id FROM folder WHERE path IN (SELECT value FROM json_each(?))",
+                                        (json.dumps(sorted(shared)),))]
     out = set()
-    for (fid,) in con.execute("""SELECT DISTINCT folder_id FROM file WHERE image_id IN (SELECT value FROM json_each(?))""",
-                              (json.dumps(sorted(images)),)):
+    for fid in found:
         while fid is not None and fid not in out:
             out.add(fid)
             fid = parents.get(fid)
-    if upload_folder:
-        for (fid,) in con.execute("SELECT id FROM folder WHERE path = ? OR path LIKE ? ESCAPE '!'",
-                                  (upload_folder, under(upload_folder))):
-            while fid is not None and fid not in out:
-                out.add(fid)
-                fid = parents.get(fid)
     return out
 
 
-def compute(con: sqlite3.Connection, account: dict) -> Viewer:
-    """Work out what an account sees, on a connection that sees everything."""
+@dataclass(frozen=True)
+class Shared:
+    """What other accounts shared with one: the photos, the tours, and the folders' paths."""
+    images: frozenset[int] = frozenset()
+    tours: frozenset[int] = frozenset()
+    folders: frozenset[str] = frozenset()
+
+
+def within(path: str | None, folder: str | None) -> bool:
+    """path is folder or somewhere in it."""
+    return path is not None and bool(folder) and (path == folder or path.startswith(folder + "/"))
+
+
+def active_shares(con: sqlite3.Connection, account_id: int) -> list[sqlite3.Row]:
+    """The shares with this account, or with everyone, that still hold: from another account that isn't switched off,
+    of what is still that account's to share. A member shares only their own uploads (in their uploads folder, or
+    recorded as theirs) and their own tours; an admin, anything. So an admin made a member, or an upload an admin moved
+    into the library, shares no more than it may."""
+    rows = con.execute("""
+        SELECT s.*, a.role AS by_role, a.upload_folder AS by_uploads, f.path AS folder_path,
+               t.account_id AS tour_maker
+        FROM main.share s JOIN main.account a ON a.id = s.account_id
+        LEFT JOIN main.folder f ON f.id = s.folder_id LEFT JOIN main.tour t ON t.id = s.tour_id
+        WHERE a.disabled_at IS NULL AND s.account_id != :me AND (s.with_id = :me OR s.with_id IS NULL)
+        ORDER BY s.id""", {"me": account_id}).fetchall()
+    return [r for r in rows if r["by_role"] == "admin" or theirs_to_share(con, r)]
+
+
+def theirs_to_share(con: sqlite3.Connection, share: sqlite3.Row) -> bool:
+    """Whether a member's share is of their own: a folder of their uploads, their own tour, or a photo they uploaded.
+    share has the sharer's uploads folder (by_uploads), the folder's path and the tour's maker (as active_shares)."""
+    if share["folder_id"] is not None:
+        return within(share["folder_path"], share["by_uploads"])
+    if share["tour_id"] is not None:
+        return share["tour_maker"] == share["account_id"]
+    return con.execute("""SELECT 1 FROM main.upload WHERE image_id = :i AND account_id = :a
+                          UNION SELECT 1 FROM main.file WHERE image_id = :i AND NOT missing
+                                                          AND path LIKE :under ESCAPE '!'""",
+                       {"i": share["image_id"], "a": share["account_id"],
+                             "under": under(share["by_uploads"]) if share["by_uploads"] else ""}).fetchone() is not None
+
+
+def shared_with(con: sqlite3.Connection, account_id: int) -> Shared:
+    """What other accounts shared with this one (active_shares), on a connection that sees everything: a folder's
+    photos (in it or below, now and later), one photo, or the photos a tour showed its maker when it was last saved,
+    shared or opened (tour_photo). Never a photo an admin hid."""
+    shares = active_shares(con, account_id)
+    images = {r["image_id"] for r in shares if r["image_id"] is not None}
+    folders = {r["folder_path"] for r in shares if r["folder_id"] is not None}
+    tours = {r["tour_id"] for r in shares if r["tour_id"] is not None}
+    for path in folders:
+        images |= {r[0] for r in con.execute("""SELECT image_id FROM main.file WHERE NOT missing AND image_id IS NOT NULL
+                                                AND path LIKE ? ESCAPE '!'""", (under(path) if path else "%",))}
+    if tours:
+        images |= {r[0] for r in con.execute("""SELECT image_id FROM main.tour_photo
+                                                WHERE tour_id IN (SELECT value FROM json_each(?))""",
+                                             (json.dumps(sorted(tours)),))}
+    if images:
+        not_shown, args = hidden(con)
+        images -= {r[0] for r in con.execute(not_shown, args)}
+    return Shared(frozenset(images), frozenset(tours), frozenset(folders))
+
+
+def compute(con: sqlite3.Connection, account: dict, shared: bool = True) -> Viewer:
+    """Work out what an account sees, on a connection that sees everything. shared False: without what others shared
+    with them, which is what a tour of theirs passes on when they share it (routes/tours.py)."""
     if account["role"] == "admin":
         return admin(account)
     g = family.load(con)
@@ -196,13 +278,17 @@ def compute(con: sqlite3.Connection, account: dict) -> Viewer:
                                        {"a": account["id"]})}
     people = people_for(g, account["person_id"], [tuple(r) for r in rules], added)
     images = images_for(con, people, account["id"], account["upload_folder"])
+    others = shared_with(con, account["id"]) if shared else Shared()
+    granted = others.images - images
+    images |= granted
     shas = {r[0] for r in con.execute("SELECT sha256 FROM image WHERE id IN (SELECT value FROM json_each(?))",
                                       (json.dumps(sorted(images)),))}
-    folders = folders_for(con, images, account["upload_folder"])
+    folders = folders_for(con, images, account["upload_folder"], others.folders)
     return Viewer(account=account, admin=False, people=frozenset(people), images=frozenset(images),
-                  shas=frozenset(shas), folders=frozenset(folders),
+                  shas=frozenset(shas), folders=frozenset(folders), granted=frozenset(granted), tours=others.tours,
+                  shared_folders=others.folders,
                   lists={"person": json.dumps(sorted(people)), "image": json.dumps(sorted(images)),
-                         "folder": json.dumps(sorted(folders))})
+                         "folder": json.dumps(sorted(folders)), "tour": json.dumps(sorted(others.tours))})
 
 
 class Viewers:
@@ -218,16 +304,17 @@ class Viewers:
         with self.lock:
             self.generation += 1
 
-    def get(self, con: sqlite3.Connection, account: dict) -> Viewer:
-        key = (account["id"], account["role"], account["person_id"], account["upload_folder"])
+    def get(self, con: sqlite3.Connection, account: dict, shared: bool = True) -> Viewer:
+        """shared False: without what others shared with them (compute)."""
+        key = (account["id"], account["role"], account["person_id"], account["upload_folder"], shared)
         with self.lock:
             found = self.kept.get(key)
             generation = self.generation
         if found and time.monotonic() - found[1] < REFRESH and found[2] == generation:
             return found[0]
-        viewer = compute(con, account)
+        viewer = compute(con, account, shared)
         with self.lock:
-            self.kept = {k: v for k, v in self.kept.items() if k[0] != account["id"]}
+            self.kept = {k: v for k, v in self.kept.items() if k[0] != account["id"] or k[-1] != shared}
             self.kept[key] = (viewer, time.monotonic(), generation)
         return viewer
 
@@ -239,7 +326,7 @@ def scope(con: sqlite3.Connection, viewer: Viewer) -> sqlite3.Connection:
     con.me = viewer.me
     if viewer.admin:
         return con
-    for name in ("person", "image", "folder"):
+    for name in ("person", "image", "folder", "tour"):
         con.execute(f"CREATE TEMP TABLE seen_{name}(id INTEGER PRIMARY KEY)")
         con.execute(f"INSERT INTO temp.seen_{name} SELECT value FROM json_each(?)", (viewer.lists[name],))
     for table, where in SCOPED.items():

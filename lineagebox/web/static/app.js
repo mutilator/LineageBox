@@ -807,3 +807,30 @@ document.getElementById("gedcom-upload")?.addEventListener("click", async () => 
   if (r.ok && result.go) location.href = result.go;
   else note.textContent = result.detail || `That didn't work (${r.status}).`;
 });
+
+// Settings: the menu at the side shows one part of the page at a time (each a data-part). Which one the address's #
+// says: the part holding that panel or heading (#https, #add, as other pages link to them), else the first part. Its
+// link in the menu is marked. Without this script every part shows, one under another, and the menu's links jump to
+// them.
+const settingsParts = [...document.querySelectorAll("[data-part]")];
+
+function showSettingsPart(e) {  // e: the # changed (a link in the menu); none: the page opened
+  if (!settingsParts.length) return;
+  let id = "";
+  try { id = decodeURIComponent(location.hash.slice(1)); } catch {}
+  const target = id ? document.getElementById(id) : null;
+  const part = target?.closest("[data-part]") ?? settingsParts[0];
+  settingsParts.forEach((p) => (p.hidden = p !== part));
+  document.querySelectorAll(".settings-nav a[href^='/settings#']").forEach((link) => {
+    const its = document.getElementById(link.hash.slice(1))?.closest("[data-part]");
+    if (its === part) link.setAttribute("aria-current", "page");
+    else link.removeAttribute("aria-current");
+  });
+  if (!target || (e && target === part.firstElementChild)) {
+    if (e) scrollTo(0, 0);  // a part picked in the menu shows from the top
+  } else {
+    target.scrollIntoView();  // as the browser does for a #, now that its part shows (#https, #add)
+  }
+}
+showSettingsPart();
+addEventListener("hashchange", showSettingsPart);

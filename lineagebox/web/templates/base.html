@@ -27,6 +27,8 @@
     {%- endif %}
     {%- if viewer.admin %}
     <a href="/"{% if nav == "folders" %} aria-current="page"{% endif %}>Folders</a>
+    {%- else %}
+    <a href="/folders"{% if nav == "folders" %} aria-current="page"{% endif %}>Folders</a>
     {%- endif %}
     <a href="/timeline"{% if nav == "timeline" %} aria-current="page"{% endif %}>Timeline</a>
     <a href="/map"{% if nav == "map" %} aria-current="page"{% endif %}>Map</a>

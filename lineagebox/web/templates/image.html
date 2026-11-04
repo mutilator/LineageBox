@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_macros.html" as m %}
 {% block title %}{{ img.date_text if img.taken_at_source == "user" else img.taken_at|date(false) }}{% endblock %}
 {% block body_class %}viewer-page{% endblock %}
 {% block head %}{% if next_sha %}<link rel="prefetch" href="/p/{{ next_sha }}">{% endif %}{% endblock %}
@@ -230,6 +231,14 @@
         </li>
       {%- endfor %}
       </ul>
+    </details>
+    {% endif %}
+
+    {% if sharing %}
+    <details class="info-panel"{% if sharing.shares %} open{% endif %}>
+      <summary><h2>Sharing</h2> <span class="hint inline">
+        {%- if sharing.shares %}shared with {{ sharing.shares|map(attribute="with")|join(", ") }}{% else %}not shared one by one{% endif %}</span></summary>
+      {{ m.share_panel(sharing, "this photo") }}
     </details>
     {% endif %}
 

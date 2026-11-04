@@ -7,11 +7,20 @@
 <h2>Your tours <small>{{ tours|length }}</small></h2>
 <div class="tour-list">
 {%- for t in tours %}
-  <a class="tour-card" href="/tour/{{ t.id }}"><b>{{ t.name }}</b><span class="hint">{{ t.about|join(" · ") }}</span></a>
+  <a class="tour-card" href="/tour/{{ t.id }}"><b>{{ t.name }}</b><span class="hint">{{ t.about|join(" · ") }}{% if t.shared %} · shared{% endif %}</span></a>
 {%- else %}
   <p class="note">No tours yet. Make one of the suggested ones, or start one below.</p>
 {%- endfor %}
 </div>
+
+{% if others %}
+<h2>Shared with you <small>{{ others|length }}</small></h2>
+<div class="tour-list">
+{%- for t in others %}
+  <a class="tour-card" href="/tour/{{ t.id }}"><b>{{ t.name }}</b><span class="hint">{% if t.from %}from {{ t.from }} · {% endif %}{{ t.about|join(" · ") }}</span></a>
+{%- endfor %}
+</div>
+{% endif %}
 
 <div id="suggested" data-later="/tours/suggested"><h2>Suggested tours</h2><p class="hint">Looking through your photos…</p></div>
 

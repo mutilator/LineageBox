@@ -2,14 +2,15 @@
 {% block title %}Settings{% endblock %}
 {% block main %}
 <h1>Settings</h1>
+<div class="settings-page">
+{% include "_settings_nav.html" %}
+<div class="settings-body">
 <p class="meta">Changes apply on the worker's next pass. Saving starts one right away, so a newly watched folder is
 scanned within a minute. Progress is on the <a href="/status">Status</a> page.</p>
-<p class="meta"><a href="/accounts">Family accounts</a>: {{ "on" if cfg.accounts_enabled else "off" }}. Family members
-sign in with Google and see their own part of the family; uploads, and who may see what.
-<a href="/settings/codes">Codes for signing in at home</a>: for admins, from an authenticator app, when the internet
-is down.</p>
 
-<div class="settings">
+{#- Each part (data-part) is one link of the menu at the side, which names its first panel; app.js shows one at a
+    time. Other pages link to the panels and headings by their ids, so keep those. #}
+<div class="settings" data-part>
 <section class="panel" id="folders">
   <h2>Watched folders</h2>
   <p class="hint">The worker looks through these folders and everything inside them for new, changed and deleted
@@ -65,6 +66,57 @@ is down.</p>
   <p class="hint">Only folders on this share can be watched. Folders elsewhere need another Docker mount.</p>
 </section>
 
+<section class="panel" id="scanning">
+  <h2>Scanning</h2>
+  <form data-api="/api/settings" data-settings data-show="#scan-saved">
+    <p><label>Photos read at a time
+      <input type="number" name="ingest_threads" min="1" max="16" value="{{ cfg.ingest_threads }}" class="num"></label>
+      <span class="hint">How many new photos are read, and sharpness-measured, at once. On a single hard
+      drive, 1 or 2 leaves room for copying files and browsing it; more reads a big batch of new photos faster when
+      nothing else is using the disk. Saving applies it within 15 seconds, even in the middle of a pass.</span></p>
+    <p><label for="ignore">Folder names to skip</label>
+      <textarea id="ignore" name="ignore_dirs" rows="4">{{ cfg.ignore_dirs|join("\n") }}</textarea>
+      <span class="hint">One per line; * matches anything. Photos in these folders, and in everything inside them, are
+      listed but not read. Used for folders of thumbnails and previews.</span></p>
+    <p><button type="submit" class="primary">Save</button> <span class="hint inline" id="scan-saved"></span></p>
+  </form>
+</section>
+
+<section class="panel" id="network">
+  <h2>On the network</h2>
+  <p class="hint">Where people's PCs find these folders, for "Copy network path" on a photo's page, and for pasting a
+  folder to watch: a Windows share such as <code>\\nas\photos</code>, or <code>smb://nas/photos</code>. Leave a folder
+  empty if it isn't shared. A folder inside one gets the rest of its path added.</p>
+  <form data-api="/api/settings/network-paths" data-settings data-show="#network-saved">
+    <dl class="net-paths">
+      {%- for folder in net_folders %}
+      <dt><code>{{ media_path(folder) }}</code></dt>
+      <dd><input name="net:{{ folder }}" value="{{ net_paths.get(folder, '') }}" class="wide"
+           placeholder="{{ '\\\\server\\share' }}" aria-label="Network path of {{ media_path(folder) }}"></dd>
+      {%- endfor %}
+    </dl>
+    <p><button type="submit" class="primary">Save</button> <span class="hint inline" id="network-saved"></span></p>
+  </form>
+</section>
+
+<section class="panel" id="config">
+  <h2>Set in the config file</h2>
+  <dl>
+    <dt>Photos</dt><dd><code>{{ media_path() }}</code>{% if on_network("") %} <span class="hint inline">on the network: {{ on_network("") }}</span>{% endif %}</dd>
+    {%- for name, problem in sources %}
+    <dt>{{ name }}</dt><dd><code>{{ media_path(name) }}</code>
+      {%- if on_network(name) %} <span class="hint inline">on the network: {{ on_network(name) }}</span>{% endif %}
+      {%- if problem %} <span class="hint inline">{{ problem }}</span>{% endif %}</dd>
+    {%- endfor %}
+    <dt>Catalog data</dt><dd><code>{{ data_dir }}</code></dd>
+    <dt>Who can use this site</dt><dd>{{ cfg.allowed_networks|join(", ") }}</dd>
+  </dl>
+  <p class="hint">These come from the config file or the container's <code>LINEAGEBOX_…</code> environment variables,
+  so a mistake cannot lock you out of this page.</p>
+</section>
+</div>
+
+<div class="settings" data-part>
 <section class="panel" id="schedule">
   <h2>Schedule</h2>
   <form data-api="/api/settings" data-settings data-show="#schedule-saved">
@@ -89,7 +141,9 @@ is down.</p>
     <p><button type="submit" class="primary">Save</button> <span class="hint inline" id="schedule-saved"></span></p>
   </form>
 </section>
+</div>
 
+<div class="settings" data-part>
 <section class="panel" id="ollama">
   <h2>AI (Ollama)</h2>
   {% if problems.ollama %}<p class="note problem">{{ problems.ollama.message }}</p>{% endif %}
@@ -150,24 +204,66 @@ is down.</p>
     <p><button type="submit" class="primary">Save</button> <span class="hint inline" id="faces-saved"></span></p>
   </form>
 </section>
+</div>
 
-<section class="panel" id="network">
-  <h2>On the network</h2>
-  <p class="hint">Where people's PCs find these folders, for "Copy network path" on a photo's page, and for pasting a
-  folder to watch: a Windows share such as <code>\\nas\photos</code>, or <code>smb://nas/photos</code>. Leave a folder
-  empty if it isn't shared. A folder inside one gets the rest of its path added.</p>
-  <form data-api="/api/settings/network-paths" data-settings data-show="#network-saved">
-    <dl class="net-paths">
-      {%- for folder in net_folders %}
-      <dt><code>{{ media_path(folder) }}</code></dt>
-      <dd><input name="net:{{ folder }}" value="{{ net_paths.get(folder, '') }}" class="wide"
-           placeholder="{{ '\\\\server\\share' }}" aria-label="Network path of {{ media_path(folder) }}"></dd>
-      {%- endfor %}
-    </dl>
-    <p><button type="submit" class="primary">Save</button> <span class="hint inline" id="network-saved"></span></p>
+<div class="settings" data-part>
+<section class="panel" id="map">
+  <h2>World map</h2>
+  <form data-api="/api/settings" data-settings data-show="#map-saved">
+    <p><label class="choice"><input type="checkbox" name="places_lookup"{% if cfg.places_lookup %} checked{% endif %}>
+      Find the places in folder names and life events on the map, with OpenStreetMap</label>
+      <span class="hint">This sends the place names (like "Grand Canyon, Arizona"), and nothing else, to
+      {{ cfg.places_url.split("/")[2] if "//" in cfg.places_url else cfg.places_url }}, a few a minute, as its
+      <a href="https://operations.osmfoundation.org/policies/nominatim/" target="_blank" rel="noopener">usage
+      policy</a> asks. Each name is looked up once. Photos with GPS are on the <a href="/map">map</a> either way, and the
+      map's background comes from OpenStreetMap's tile servers.</span></p>
+    <p><button type="submit" class="primary">Save</button> <span class="hint inline" id="map-saved"></span></p>
   </form>
 </section>
+</div>
 
+<div class="settings" data-part>
+<section class="panel" id="tours">
+  <h2>Photo tours</h2>
+  <p class="hint">Kinds of tour to pick from on the <a href="/tours">Tours</a> page. Whatever a kind leaves open (the
+  person, the year, the season, the relationship) is asked when a tour is made.</p>
+  <ul class="watched">
+    {%- for t in tour_types %}
+    <li><span><b>{{ t.name }}</b><span class="hint">names tours “{{ t.spec.title }}”</span></span>
+      <a href="/settings/tour-types/{{ t.id }}">Change</a></li>
+    {%- else %}
+    <li><span class="hint">No kinds of tour.</span></li>
+    {%- endfor %}
+  </ul>
+  <p><a class="button" href="/settings/tour-types/new">New kind of tour</a></p>
+</section>
+</div>
+
+<div class="settings" data-part>
+<section class="panel" id="cleanup">
+  <h2>Cleanup</h2>
+  <form data-api="/api/settings" data-settings data-show="#cleanup-saved">
+    <p><label>Blank and blurry lists photos below sharpness
+      <input type="number" name="blurry_below" min="1" max="500" step="any" value="{{ cfg.blurry_below|round(1) }}" class="num"></label></p>
+    <p class="hint">Below 10 is almost all black frames and lens-cap shots; up to 30 adds shaky and out-of-focus shots,
+    with some soft keepers. Higher lists more ordinary photos.</p>
+    <fieldset>
+      <legend>Turned photos</legend>
+      <label class="choice"><input type="radio" name="turn_suggest" value="sure"{% if cfg.turn_suggest == "sure" %} checked{% endif %}>
+        Only when sure: two or more faces agree, and the AI doesn't think otherwise</label>
+      <label class="choice"><input type="radio" name="turn_suggest" value="more"{% if cfg.turn_suggest == "more" %} checked{% endif %}>
+        Also less sure ones, to look at: one face, or the AI disagreeing</label>
+      <label class="choice"><input type="radio" name="turn_suggest" value="off"{% if cfg.turn_suggest == "off" %} checked{% endif %}>
+        Off</label>
+    </fieldset>
+    <p class="hint">Faces of people lying down or bent over can look like a turned photo. When the AI is on, it looks at
+    each photo both ways as a second opinion, during the describing hours.</p>
+    <p><button type="submit" class="primary">Save</button> <span class="hint inline" id="cleanup-saved"></span></p>
+  </form>
+</section>
+</div>
+
+<div class="settings" data-part>
 <section class="panel" id="address">
   <h2>Address and HTTPS</h2>
   <p class="hint">This page came over <b>{{ "HTTPS" if request.url.scheme == "https" else "plain HTTP" }}</b> as
@@ -229,21 +325,9 @@ is down.</p>
   stops loading puts the site back on plain HTTP, with the reason here. To turn HTTPS off without this page:
   <code>docker compose exec web python -m lineagebox https off</code>.</p>
 </section>
+</div>
 
-<section class="panel" id="map">
-  <h2>World map</h2>
-  <form data-api="/api/settings" data-settings data-show="#map-saved">
-    <p><label class="choice"><input type="checkbox" name="places_lookup"{% if cfg.places_lookup %} checked{% endif %}>
-      Find the places in folder names and life events on the map, with OpenStreetMap</label>
-      <span class="hint">This sends the place names (like "Grand Canyon, Arizona"), and nothing else, to
-      {{ cfg.places_url.split("/")[2] if "//" in cfg.places_url else cfg.places_url }}, a few a minute, as its
-      <a href="https://operations.osmfoundation.org/policies/nominatim/" target="_blank" rel="noopener">usage
-      policy</a> asks. Each name is looked up once. Photos with GPS are on the <a href="/map">map</a> either way, and the
-      map's background comes from OpenStreetMap's tile servers.</span></p>
-    <p><button type="submit" class="primary">Save</button> <span class="hint inline" id="map-saved"></span></p>
-  </form>
-</section>
-
+<div class="settings" data-part>
 <section class="panel" id="updates">
   <h2>Updates</h2>
   <form data-api="/api/settings" data-settings data-show="#updates-saved">
@@ -256,74 +340,7 @@ is down.</p>
     <p><button type="submit" class="primary">Save</button> <span class="hint inline" id="updates-saved"></span></p>
   </form>
 </section>
-
-<section class="panel" id="scanning">
-  <h2>Scanning</h2>
-  <form data-api="/api/settings" data-settings data-show="#scan-saved">
-    <p><label>Photos read at a time
-      <input type="number" name="ingest_threads" min="1" max="16" value="{{ cfg.ingest_threads }}" class="num"></label>
-      <span class="hint">How many new photos are read, and sharpness-measured, at once. On a single hard
-      drive, 1 or 2 leaves room for copying files and browsing it; more reads a big batch of new photos faster when
-      nothing else is using the disk. Saving applies it within 15 seconds, even in the middle of a pass.</span></p>
-    <p><label for="ignore">Folder names to skip</label>
-      <textarea id="ignore" name="ignore_dirs" rows="4">{{ cfg.ignore_dirs|join("\n") }}</textarea>
-      <span class="hint">One per line; * matches anything. Photos in these folders, and in everything inside them, are
-      listed but not read. Used for folders of thumbnails and previews.</span></p>
-    <p><button type="submit" class="primary">Save</button> <span class="hint inline" id="scan-saved"></span></p>
-  </form>
-</section>
-
-<section class="panel" id="cleanup">
-  <h2>Cleanup</h2>
-  <form data-api="/api/settings" data-settings data-show="#cleanup-saved">
-    <p><label>Blank and blurry lists photos below sharpness
-      <input type="number" name="blurry_below" min="1" max="500" step="any" value="{{ cfg.blurry_below|round(1) }}" class="num"></label></p>
-    <p class="hint">Below 10 is almost all black frames and lens-cap shots; up to 30 adds shaky and out-of-focus shots,
-    with some soft keepers. Higher lists more ordinary photos.</p>
-    <fieldset>
-      <legend>Turned photos</legend>
-      <label class="choice"><input type="radio" name="turn_suggest" value="sure"{% if cfg.turn_suggest == "sure" %} checked{% endif %}>
-        Only when sure: two or more faces agree, and the AI doesn't think otherwise</label>
-      <label class="choice"><input type="radio" name="turn_suggest" value="more"{% if cfg.turn_suggest == "more" %} checked{% endif %}>
-        Also less sure ones, to look at: one face, or the AI disagreeing</label>
-      <label class="choice"><input type="radio" name="turn_suggest" value="off"{% if cfg.turn_suggest == "off" %} checked{% endif %}>
-        Off</label>
-    </fieldset>
-    <p class="hint">Faces of people lying down or bent over can look like a turned photo. When the AI is on, it looks at
-    each photo both ways as a second opinion, during the describing hours.</p>
-    <p><button type="submit" class="primary">Save</button> <span class="hint inline" id="cleanup-saved"></span></p>
-  </form>
-</section>
-
-<section class="panel" id="tours">
-  <h2>Photo tours</h2>
-  <p class="hint">Kinds of tour to pick from on the <a href="/tours">Tours</a> page. Whatever a kind leaves open (the
-  person, the year, the season, the relationship) is asked when a tour is made.</p>
-  <ul class="watched">
-    {%- for t in tour_types %}
-    <li><span><b>{{ t.name }}</b><span class="hint">names tours “{{ t.spec.title }}”</span></span>
-      <a href="/settings/tour-types/{{ t.id }}">Change</a></li>
-    {%- else %}
-    <li><span class="hint">No kinds of tour.</span></li>
-    {%- endfor %}
-  </ul>
-  <p><a class="button" href="/settings/tour-types/new">New kind of tour</a></p>
-</section>
-
-<section class="panel">
-  <h2>Set in the config file</h2>
-  <dl>
-    <dt>Photos</dt><dd><code>{{ media_path() }}</code>{% if on_network("") %} <span class="hint inline">on the network: {{ on_network("") }}</span>{% endif %}</dd>
-    {%- for name, problem in sources %}
-    <dt>{{ name }}</dt><dd><code>{{ media_path(name) }}</code>
-      {%- if on_network(name) %} <span class="hint inline">on the network: {{ on_network(name) }}</span>{% endif %}
-      {%- if problem %} <span class="hint inline">{{ problem }}</span>{% endif %}</dd>
-    {%- endfor %}
-    <dt>Catalog data</dt><dd><code>{{ data_dir }}</code></dd>
-    <dt>Who can use this site</dt><dd>{{ cfg.allowed_networks|join(", ") }}</dd>
-  </dl>
-  <p class="hint">These come from the config file or the container's <code>LINEAGEBOX_…</code> environment variables,
-  so a mistake cannot lock you out of this page.</p>
-</section>
+</div>
+</div>
 </div>
 {% endblock %}

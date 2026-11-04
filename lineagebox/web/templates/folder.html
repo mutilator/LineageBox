@@ -1,30 +1,46 @@
 {% extends "base.html" %}
 {% set nav = "folders" %}
 {% import "_macros.html" as m %}
-{% block title %}{{ folder.name or "All folders" }}{% endblock %}
+{% set title = labels.get(folder.path) or folder.name or "All folders" %}
+{% block title %}{{ title }}{% endblock %}
 {% block main %}
 <nav class="crumbs">
+{%- if viewer.limited %}<a href="/folders">Folders</a><span class="sep">/</span>{% endif %}
 {%- for f in crumbs %}
-  {%- if not loop.last %}<a href="/folder/{{ f.id }}">{{ f.name or "All folders" }}</a><span class="sep">/</span>
-  {%- else %}<h1>{{ f.name or "All folders" }}</h1>{% endif %}
+  {%- if not loop.last %}<a href="/folder/{{ f.id }}">{{ labels.get(f.path) or f.name or "All folders" }}</a><span class="sep">/</span>
+  {%- else %}<h1>{{ title }}</h1>{% endif %}
 {%- endfor %}
 </nav>
 <p class="meta">
   {{ "{:,}".format(folder.total) }} photo{{ "" if folder.total == 1 else "s" }}
   {%- if folder.children and folder.own != folder.total %} here and in subfolders{% if folder.own %} · {{ "{:,}".format(folder.own) }} directly in this folder{% endif %}{% endif %}
-  {%- if images %} · {% if select %}<a href="/folder/{{ folder.id }}" data-key="s">Done selecting</a>{% else %}<a href="/folder/{{ folder.id }}?select=1" data-key="s" title="Tick photos to date them, tag them, add someone to them or move them to Removed">Select photos</a>{% endif %}{% endif %}
-  {%- if viewer.admin and signed_in %} · <button type="button" class="quiet" data-api="/api/folders/{{ folder.id }}/hidden" data-body='{{ {"hidden": not folder_hidden}|tojson }}' title="Family members never see what is in this folder or below it (except whoever uploaded it)">{{ "Show to family members again" if folder_hidden else "Hide from family members" }}</button>{% endif %}
+  {%- if images %} · {% if select %}<a href="/folder/{{ folder.id }}" data-key="s">Done selecting</a>{% else %}<a href="/folder/{{ folder.id }}?select=1" data-key="s" title="Tick photos to date them, tag them, add someone to them{% if own %} or move them to Removed{% endif %}">Select photos</a>{% endif %}{% endif %}
+  {%- if viewer.admin and signed_in %} · <button type="button" class="quiet" data-api="/api/folders/{{ folder.id }}/hidden" data-body='{{ {"hidden": not folder_hidden}|tojson }}' title="Family members never see what is in this folder or below it (except whoever uploaded it)">{{ "Show to family members again" if folder_hidden else "Hide from family members" }}</button>
+  · <a href="/folders" title="Everything family members and admins share">What is shared</a>{% endif %}
 </p>
+{% if from_whom %}<p class="note">{{ from_whom }} shared this folder with you.</p>{% endif %}
 {% if folder_hidden %}<p class="note">Hidden from family members: they don't see the photos in this folder or below it.</p>{% endif %}
 {% if folder.ignored %}
 <p class="note">This folder is ignored by the scan settings (it holds thumbnail or preview copies), so its files are not shown.</p>
+{% endif %}
+{% if sharing or removable %}
+<details class="info-panel folder-tools"{% if sharing and sharing.shares %} open{% endif %}>
+  <summary><h2>Sharing and removing</h2> <span class="hint inline">
+    {%- if sharing and sharing.shares %}shared with {{ sharing.shares|map(attribute="with")|join(", ") }}{% elif sharing %}not shared{% endif %}</span></summary>
+  {% if sharing %}{{ m.share_panel(sharing, "this folder") }}{% endif %}
+  {% if removable %}
+  <p><button type="button" class="quiet" data-api="/api/folders/{{ folder.id }}/remove" data-busy="Moving…"
+             data-confirm="Move {{ title }}{% if folder.total %} and its {{ '{:,}'.format(folder.total) }} photo{{ '' if folder.total == 1 else 's' }}{% endif %}{% if folder.children %}, with the folders in it,{% endif %} to the Removed folder? {% if viewer.admin %}It can be put back from Cleanup → Removed.{% else %}An admin can put it back.{% endif %}">Move this folder to Removed…</button>
+    <span class="hint inline">Everything in it goes, {% if viewer.admin %}even photos with no other copy{% else %}and it is no longer shared{% endif %}.</span></p>
+  {% endif %}
+</details>
 {% endif %}
 {% if subfolders %}
 <div class="folders">
 {%- for f in subfolders %}
   <a class="folder-card{% if f.ignored %} ignored{% endif %}" href="/folder/{{ f.id }}">
     {% if f.cover %}<img src="/t/{{ f.cover }}" loading="lazy" alt="">{% else %}<span class="ph"></span>{% endif %}
-    <span class="label"><span class="name">{{ f.name }}</span><span class="count">{% if f.ignored %}ignored{% else %}{{ "{:,}".format(f.total) }}{% endif %}</span></span>
+    <span class="label"><span class="name">{{ labels.get(f.path) or f.name }}</span><span class="count">{% if f.ignored %}ignored{% else %}{{ "{:,}".format(f.total) }}{% endif %}</span></span>
   </a>
 {%- endfor %}
 </div>
@@ -32,12 +48,13 @@
 {% if images %}
 {% if subfolders %}<h2>In this folder</h2>{% endif %}
 {% if select %}
-<form class="select-form" data-select-api="/api/images/remove" data-reason="folder: {{ folder.name }}" data-show=".select-bar .done">
+<form class="select-form"{% if own %} data-select-api="/api/folders/{{ folder.id }}/remove-files"{% endif %} data-reason="folder: {{ folder.name }}" data-show=".select-bar .done">
   {{ m.select_grid(images, ctx) }}
-  {{ m.bulk_bar() }}
+  {{ m.bulk_bar(remove="Move the ticked photos' files in this folder to the Removed folder (their copies elsewhere stay); they can be put back from Removed" if own else none) }}
 </form>
 {% else %}
 {{ m.grid(images, ctx) }}
 {% endif %}
 {% endif %}
+{% if not images and not subfolders and own %}<p class="note">Nothing in this folder any more.</p>{% endif %}
 {% endblock %}

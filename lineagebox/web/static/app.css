@@ -462,6 +462,18 @@ a.fcard:hover { text-decoration: none; border-color: var(--accent); }
              border-radius: 10px; color: var(--text); }
 .tour-card:hover { text-decoration: none; border-color: var(--accent); }
 .tour-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+
+/* sharing a folder, photo or tour (_macros.share_panel), and what is shared (Folders) */
+.share-list { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 6px; }
+.share-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.share-list.wide { max-width: 900px; }
+.share-list .share-photo img { display: block; width: 48px; height: 48px; object-fit: cover; border-radius: 4px; }
+.share-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; }
+.share-form select { max-width: 100%; }
+.folder-card .from { padding-top: 0; color: var(--muted); font-size: .82rem; }
+.shared-home { margin: 8px 0 28px; padding-left: 14px; border-left: 4px solid var(--accent); }
+.shared-home h2 { margin-top: 0; }
+.folder-tools { margin: 4px 0 18px; }
 .suggestions { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 12px;
                margin: 12px 0 8px; }
 .suggestion { display: grid; gap: 4px; align-content: start; padding: 10px; background: var(--surface);
@@ -627,3 +639,37 @@ kbd { display: inline-block; min-width: 1.4em; margin-right: 3px; padding: 0 5px
 .damaged { list-style: none; padding: 0; display: grid; gap: 8px; }
 .damaged li { display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; gap: 12px; align-items: center; }
 .damaged li a { overflow-wrap: anywhere; }
+
+/* Settings, Family accounts and Codes for signing in at home: the menu at the side (_settings_nav.html) and the part
+   it shows. app.js hides the other parts of Settings; on phones the menu is rows of buttons above the panels. */
+.settings-page { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 24px; align-items: start;
+                 margin-top: 12px; }
+.settings-nav { position: sticky; top: calc(var(--header-h) + 16px); max-height: calc(100dvh - var(--header-h) - 32px);
+                overflow-y: auto; }
+.settings-nav ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.settings-nav a { display: block; padding: 7px 12px; border-left: 3px solid transparent; border-radius: 0 8px 8px 0;
+                  color: var(--text); }
+.settings-nav a:hover { text-decoration: none; background: var(--surface); }
+.settings-nav a[aria-current] { border-left-color: var(--accent); background: var(--surface); font-weight: 600;
+                                box-shadow: 0 1px 4px rgb(0 0 0 / .08); }
+.settings-nav small { margin-left: 4px; color: var(--muted); font-weight: 400; }
+.settings-nav .nav-group { margin: 20px 0 4px; padding: 0 15px; color: var(--muted); font-size: .78rem;
+                           font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
+.settings-page [id] { scroll-margin-top: calc(var(--header-h) + 12px); }  /* not under the top bar */
+.settings select { font: inherit; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--line);
+                   background: var(--bg); color: var(--text); }
+.settings input { max-width: 100%; }
+.settings > .panel > h2 + .account-row { border-top: 0; }
+@media (max-width: 760px) {
+  .settings-page { grid-template-columns: minmax(0, 1fr); gap: 8px; margin-top: 8px; }
+  .settings-nav { position: static; max-height: none; overflow: visible; }
+  .settings-nav ul { display: flex; flex-wrap: wrap; gap: 6px; }
+  .settings-nav a { padding: 3px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface);
+                    font-size: .9rem; }
+  .settings-nav a[aria-current] { border-color: var(--accent); background: var(--accent); color: #fff;
+                                  box-shadow: none; }
+  .settings-nav a[aria-current] small { color: inherit; opacity: .85; }
+  .settings-nav .nav-group { margin: 10px 0 4px; padding: 0; }
+  .settings .net-paths { grid-template-columns: minmax(0, 1fr); }  /* each folder over its box; a long path wraps */
+  .settings .net-paths code { overflow-wrap: anywhere; }
+}

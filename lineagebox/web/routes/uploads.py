@@ -11,6 +11,7 @@ from lineagebox import access, accounts, activity, catalog, db, scan, tours, upl
 from lineagebox.web.common import (ADMIN, MEMBER, PRIVATE, ZIP_BYTES, ZIP_MOST, HiddenBody, _attachment, _from_app,
                                    _image_or_404, _uploads_root, _within)
 from lineagebox.web.deps import con, page, site, viewer, writer
+from lineagebox.web.routes.tours import shown
 from lineagebox.web.site import Site
 
 router = APIRouter()
@@ -138,14 +139,16 @@ async def download_ticked(request: Request, v=Depends(viewer), s: Site = Depends
 
 
 @router.get("/download/tour/{tour_id}")
-def download_tour(tour_id: int, v=Depends(viewer), c=Depends(con), s: Site = Depends(site)):
+def download_tour(tour_id: int, v=Depends(viewer), c=Depends(con), w=Depends(writer), s: Site = Depends(site)):
     if v.limited and not s.zip_tries.allow(str(v.account_id)):
         raise HTTPException(429, "That's a lot of downloads in one hour. Wait a while, then try again.")
     t = tours.tour(c, tour_id)
     if t is None:
         raise HTTPException(404, "No such tour")
-    chosen = tours.photos(c, t["spec"], s.live(c).blurry_below, seed=tour_id)
-    return zipped(s, c, [p["id"] for p in chosen], re.sub(r"[^\w -]+", "", t["name"]).strip() or "tour")
+    chosen, now = shown(s, v, c, w, t)
+    with s.own_con() as fresh:  # their view as it is now: a tour shared with them may just have picked new photos
+        return zipped(s, access.scope(fresh, now), [p["id"] for p in chosen],
+                      re.sub(r"[^\w -]+", "", t["name"]).strip() or "tour")
 
 
 @router.post("/api/images/{image_id}/hidden", dependencies=[Depends(_from_app)])

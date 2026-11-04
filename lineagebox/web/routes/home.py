@@ -1,12 +1,12 @@
-"""The start page, and the faces someone in the family asked about."""
+"""The start page, what others shared, and the faces someone in the family asked about."""
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 from lineagebox import access, catalog
-from lineagebox.web.common import MEMBER, _from_app
-from lineagebox.web.deps import con, page, viewer, writer
+from lineagebox.web.common import MEMBER, _from_app, _shared_with_me
+from lineagebox.web.deps import con, page, site, viewer, writer
 
 router = APIRouter()
 ACCESS = {
@@ -17,8 +17,8 @@ ACCESS = {
 
 
 def home_page(request: Request, v: access.Viewer, c) -> HTMLResponse:
-    """Home: faces someone asked about that the viewer may know, the newest photos of their family, and their own
-    latest uploads."""
+    """Home: faces someone asked about that the viewer may know, the newest photos of their family, what others
+    shared with them, and their own latest uploads."""
     recent = c.execute(f"""SELECT i.id, i.sha256, i.taken_at, i.taken_at_source, i.media, i.duration FROM image i
                            WHERE {catalog.VISIBLE} AND (i.dup_group_id IS NULL OR i.dup_group_id = i.id)
                            ORDER BY i.id DESC LIMIT 24""").fetchall()
@@ -30,8 +30,10 @@ def home_page(request: Request, v: access.Viewer, c) -> HTMLResponse:
                                   OR i.id IN (SELECT image_id FROM file WHERE path LIKE ? ESCAPE '!'))
                              ORDER BY i.id DESC LIMIT 12""", (v.account_id, catalog.under(folder))).fetchall()
     you = c.execute("SELECT name FROM person WHERE id = ?", (v.me,)).fetchone()
+    with site(request).own_con() as w:
+        shared = _shared_with_me(w, c, v)
     return page(request, "home.html", nav="home", recent=recent, mine=mine, questions=who_is_this(c, v),
-                first_name=you[0].split()[0] if you else None)
+                first_name=you[0].split()[0] if you else None, shared=shared)
 
 
 def who_is_this(c, v: access.Viewer, limit: int = 12) -> list[dict]:

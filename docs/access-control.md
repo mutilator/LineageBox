@@ -76,8 +76,33 @@ Siblings entered without parents share a stand-in parent (a negative id), so the
 friends and other relationships are outside the tree unless the member added them.
 
 The photos are those with a face of a visible person (named by hand or by recognition, not merely suggested), or a
-visible person added to the photo by hand, plus the member's own uploads, minus photos and folders an admin hid.
-Everything else follows from these two sets: tags, places, events, documents, tours, search and counts.
+visible person added to the photo by hand, plus the member's own uploads, minus photos and folders an admin hid. Then
+come the photos other accounts shared with them (below). Everything else follows from these two sets: tags, places,
+events, documents, tours, search and counts.
+
+### Shared photos
+
+An account can share a folder, a photo or a tour with one account or with everyone (`share`, `sharing.py`).
+`access.shared_with` adds to a member's photos:
+
+- a shared folder's photos, in it or below it, now and later;
+- a shared photo;
+- a shared tour's photos, as kept in `tour_photo`.
+
+A share counts only while it holds (`access.active_shares`): the account that shared it isn't switched off, and what it
+shares is still that account's to share. For a member, that means a folder in their uploads folder, a photo they
+uploaded (in that folder, or recorded in `upload`) and their own tour. This is checked every time a view is worked out,
+not only when the share is made, so a share outlives neither a change of role nor an upload an admin moved into the
+library. Photos an admin hid are taken out of what is shared, the sharer's own uploads included.
+
+A tour picks its photos afresh each time it opens, from what its maker sees. Those it is shared with see its photos as
+picked for the maker. They are worked out on a connection scoped to the maker's view *without* what was shared with the
+maker (`access.compute(..., shared=False)`), so nobody passes on what someone else shared with them only. They are kept
+in `tour_photo` whenever the tour is saved, shared or opened (`routes/tours.py` `shown`), and a change to them makes
+every view be worked out again.
+
+Members see only their own rows of `share`, and no rows of `tour_photo`. Which accounts a member may share with is
+limited to those of people they can see, so the list of accounts tells them nothing new.
 
 Each account's viewer is kept in memory. It is worked out again right after a change by anyone (any successful POST),
 and otherwise at most every 30 seconds, so the worker's new recognitions appear.
@@ -148,13 +173,15 @@ see.
 - Uploads go to `<watched folder>/<uploads_folder>/<person id>`, and the account is tied to that folder, so merging or
   renaming people never cuts a member off from their uploads.
 - Zip downloads are streamed, limited to 2,000 files or 10 GB, and hold only photos the viewer can see.
+- Members move their uploads to the Removed folder, a whole folder at a time (`/api/folders/{id}/remove`) or the ticked
+  photos' files in one folder; only in their uploads folder. A removed folder is no longer shared.
 - By design, an upload with exactly the same bytes as a photo already in the catalog *is* that photo, so the member
   who uploaded it sees it. That includes its description, tags and the names on it (people outside their branch
   without a link), and it applies even to a photo an admin hid. They already have the file, but that is more than
-  the file itself says.
+  the file itself says. Sharing it passes that photo on, but never a hidden one.
 
 ## Tests
 
 `tests/test_access.py` checks the people rules on a made-up family (`tests/family_fixture.py`).
 `tests/test_access_web.py` sweeps every GET route with every id, and every POST with hidden ids, for leaks. Run it
-after adding a page or an API.
+after adding a page or an API. `tests/test_sharing.py` checks what sharing lets through, and what it doesn't.

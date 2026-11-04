@@ -5,11 +5,14 @@ from urllib.parse import quote, urlencode
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from lineagebox import access, catalog, copies, documents, events, family, people, search, tagging, tours, writeback
+from lineagebox import (access, catalog, copies, documents, events, family, people, search, sharing, tagging, tours,
+                        writeback)
 from lineagebox.folders import FolderIndex
-from lineagebox.web.common import ADMIN, MEMBER, _covers, _kin_labels, _others_by_whose, _within
+from lineagebox.web.common import (ADMIN, MEMBER, _covers, _kin_labels, _others_by_whose, _share_panel, _upload_labels,
+                                   _within)
 from lineagebox.web.deps import con, page, paging, site, viewer, writer
 from lineagebox.web.routes.home import home_page
+from lineagebox.web.routes.tours import shown as tour_shown
 from lineagebox.web.site import Site
 
 router = APIRouter()
@@ -34,8 +37,8 @@ ACCESS = {
 
 
 @router.get("/", response_class=HTMLResponse)
-def home(request: Request, v=Depends(viewer), c=Depends(con)):
-    if v.limited:  # members start on Home: their Folders hold only their uploads
+def home(request: Request, v=Depends(viewer), c=Depends(con), s: Site = Depends(site)):
+    if v.limited:  # members start on Home: their Folders hold only their uploads and what is shared with them
         return home_page(request, v, c)
     root = catalog.root_folder_id(c)
     if root is None:
@@ -44,24 +47,43 @@ def home(request: Request, v=Depends(viewer), c=Depends(con)):
     folder = tree[root]
     while not folder.own and len(shown := [f for f in folder.children if f.total]) == 1:
         folder = shown[0]  # one watched folder: start in it rather than at the share
-    return folder_page(request, folder.id, v=v, c=c)
+    return folder_page(request, folder.id, v=v, c=c, w=c, s=s)  # an admin's connection is also their writer
 
 
 @router.get("/folder/{folder_id}", response_class=HTMLResponse)
-def folder_page(request: Request, folder_id: int, select: bool = False, v=Depends(viewer), c=Depends(con)):
+def folder_page(request: Request, folder_id: int, select: bool = False, v=Depends(viewer), c=Depends(con),
+                w=Depends(writer), s: Site = Depends(site)):
+    """A folder's photos and the folders in it. A member browses their own uploads, and the folders others shared
+    with them, each from its top; theirs they can also share and move to Removed (an admin: any folder)."""
     tree = catalog.folder_tree(c)
     folder = tree.get(folder_id)
     uploads = v.account["upload_folder"] if v.limited else None
-    if folder is None or v.limited and not _within(folder.path, uploads):
-        raise HTTPException(404, "No such folder")  # members browse only their own uploads
+    top = None  # where a member's browsing starts: their uploads, or a folder shared with them (the outermost)
+    if folder is not None and v.limited:
+        top = next((p for p in sorted(filter(None, (uploads, *v.shared_folders)), key=len)
+                    if _within(folder.path, p)), None)
+    if folder is None or v.limited and top is None:
+        raise HTTPException(404, "No such folder")
     crumbs = []
     node = folder
-    while node is not None and (v.admin or _within(node.path, uploads)):
+    while node is not None and (v.admin or _within(node.path, top)):
         crumbs.insert(0, node)
         node = tree.get(node.parent_id)
-    return page(request, "folder.html", folder=folder, crumbs=crumbs,
-                subfolders=[f for f in folder.children if f.total or f.ignored],
-                images=catalog.folder_images(c, folder_id), ctx=f"folder:{folder_id}", select=select,
+    subfolders = [f for f in folder.children if f.total or f.ignored]
+    shown = {f.path for f in (*crumbs, *subfolders)}
+    labels = {path: name for path, name in _upload_labels(w, v).items() if path in shown}
+    own = v.admin or _within(folder.path, uploads)
+    watched = s.live(c).folders
+    from_whom = None
+    if not own:  # who shared the folder they are in
+        from_whom = next((x["by_name"] for x in sharing.with_me(w, v.account_id)
+                          if x["kind"] == "folder" and x["item_id"] == crumbs[0].id), None)
+    return page(request, "folder.html", folder=folder, crumbs=crumbs, labels=labels, subfolders=subfolders,
+                images=catalog.folder_images(c, folder_id), ctx=f"folder:{folder_id}", select=select, own=own,
+                from_whom=from_whom, removable=own and folder.path != "" and not any(_within(p, folder.path)
+                                                                                    for p in watched),
+                sharing=_share_panel(w, v, "folder", folder_id) if own and folder.path and getattr(
+                    request.state, "account", None) else None,
                 folder_hidden=bool(c.execute("SELECT hidden FROM folder WHERE id = ?", (folder_id,)).fetchone()[0]))
 
 
@@ -116,7 +138,7 @@ def image_page(request: Request, image_id: int, ctx: str = "", v=Depends(viewer)
         files = [f for f in files if _within(f["path"], v.account["upload_folder"])]
     tour = tours.tour(c, int(ctx[5:])) if ctx.startswith("tour:") and ctx[5:].isdecimal() else None
     if tour:
-        ids = [p["id"] for p in tours.photos(c, tour["spec"], s.live(c).blurry_below, seed=tour["id"])]
+        ids = [p["id"] for p in tour_shown(s, v, c, w, tour)[0]]
     else:
         ids = search.context_ids(c, ctx) if ctx else []
     pos = ids.index(image_id) if image_id in ids else -1
@@ -167,7 +189,9 @@ def image_page(request: Request, image_id: int, ctx: str = "", v=Depends(viewer)
                 doc=doc, doc_kinds=documents.KINDS, citations=documents.citations(c, image_id) if doc else [],
                 cite_targets=documents.targets(c) if doc else [], suggested=suggested,
                 turn_problem=writeback.why_not(img), mine=v.admin or any(not f["missing"] for f in files),
-                download=download)
+                download=download,
+                sharing=_share_panel(w, v, "image", image_id) if getattr(request.state, "account", None) and (
+                    v.admin or any(not f["missing"] for f in files)) else None)
 
 
 @router.get("/tags", response_class=HTMLResponse)

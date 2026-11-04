@@ -26,6 +26,7 @@ EVERYWHERE = (("?", "open or close this help"), ("/", "search"),
 # one line on each page of the menu, for the help's "Every page" list
 MENU = (("/home", "Home", "faces someone asked about, the newest photos of the family, and your uploads"),
         ("/", "Folders", "your photos folder by folder, as they are on disk"),
+        ("/folders", "Folders", "your uploads, what others in the family share with you, and what you share"),
         ("/timeline", "Timeline", "photos by the year and month they were taken"),
         ("/map", "Map", "where photos were taken and where family lived, year by year"),
         ("/people", "People", "faces to name, and everyone named; type to find someone"),
@@ -34,7 +35,7 @@ MENU = (("/home", "Home", "faces someone asked about, the newest photos of the f
         ("/tags", "Tags", "keywords given by the AI or by you; open one to work on its photos"),
         ("/cleanup", "Cleanup", "duplicates, blurry and similar shots to move to the Removed folder"),
         ("/status", "Status", "what the worker is doing, downloads, and counts that link to their photos"),
-        ("/settings", "Settings", "watched folders, the schedule, AI, speech, faces and network paths"))
+        ("/settings", "Settings", "folders, the schedule, AI, speech and faces, the address, and family accounts"))
 
 SELECTING = ("Ticking photos: click a photo (or Tab to it and press Space) to tick it; ↗ opens it in a new tab. The bar at "
              "the bottom tags the ticked photos, adds someone to them, dates them, or moves them to the Removed folder, "
@@ -43,7 +44,15 @@ SELECTING = ("Ticking photos: click a photo (or Tab to it and press Space) to ti
 PAGES = {
     "home": Page("Home", (
         "Who is this?: faces someone in the family asked about. Type who it is, or Don't know to stop seeing it.",
-        "Below them, the photos of the family added most recently, and your own latest uploads.")),
+        "Below them, the folders, tours and photos others shared with you, then the photos of the family added most "
+        "recently, and your own latest uploads.")),
+    "folders": Page("Folders", (
+        "Your uploads: open one of your folders to see its photos, share it, or move it to the Removed folder. "
+        "Select photos in a folder to move only those.",
+        "Shared with you: folders, tours and photos others in the family shared with you or with everyone. You see "
+        "their photos as you see your own family's.",
+        "What you share: everything you shared and with whom. Stop sharing takes it back at once.",
+        "An admin sees here everything anyone shares.")),
     "error": Page("A page that can't be shown", (
         "What was asked for isn't here: a photo or person removed or merged since the link was made, one outside "
         "your part of the family, or an address typed wrong. The start page has everything you can see.",)),
@@ -53,7 +62,8 @@ PAGES = {
     "upload": Page("Uploading", (
         "Drop photos, videos or whole folders on the box, or pick them. They go into your own folder, and the worker "
         "reads them within a minute or so: then faces are found and named, and the AI describes them.",
-        "Whoever is in your photos sees them too. A photo with nobody in it is seen only by you (and the admins).",
+        "Whoever is in your photos sees them too. A photo with nobody in it is seen only by you (and the admins), "
+        "until you share it: open your uploads folder on Folders to share a folder, or a photo's page to share it.",
         "Name a folder to keep a lot together (Christmas 2025); dropped folders keep their own names.")),
     "cleanup_damaged": Page("Damaged files", (
         "Files a disk spoilt: cut short, with a blank stretch where a block couldn't be read, or with other bytes than "
@@ -84,11 +94,15 @@ PAGES = {
         "Make a code shows a QR code once: scan it with the app, then type the code the app shows to check it works. "
         "Keep the key somewhere safe. Making a new code, or taking it away, stops the old one working (a lost "
         "phone).")),
-    "folder": Page("Folders", (
-        "The watched folders as they are on disk. Open a folder to see its photos and the folders in it.",
-        "Photos found in more than one folder are the same photo: each shows wherever it has a copy.",
+    "folder": Page("A folder", (
+        "The folder as it is on disk: its photos and the folders in it. Photos found in more than one folder are the "
+        "same photo: each shows wherever it has a copy.",
         "Select photos ticks photos to date them all at once (scans from one roll of film), tag them or add someone "
-        "to them.", SELECTING)),
+        "to them. Moving ticked photos to Removed takes only their files in this folder; copies elsewhere stay.",
+        "Sharing and removing, at the top, of a folder that is yours (a family member's: their uploads): share it "
+        "with one family account or with everyone who has one, and they see its photos, those added later too. Move "
+        "this folder to Removed takes it with everything in it; it can be put back from Cleanup → Removed.",
+        SELECTING)),
     "timeline": Page("Timeline", (
         "Every year with photos, newest first. The bars show January to December, so busy and quiet months stand "
         "out. Open a year to see its photos month by month.",
@@ -154,9 +168,14 @@ PAGES = {
         "together, busy years and seasons, birthdays coming up, and occasions whose tags come back every year. "
         "Make this tour saves one; it can be changed or deleted like any other.",
         "Start one from a kind of tour (a person's year, a season, anniversaries, a family line); kinds can be "
-        "changed or added in Settings.")),
+        "changed or added in Settings.",
+        "Shared with you: tours others in the family made and shared with you. You see each as it shows its photos "
+        "to whoever made it.")),
     "tour": Page("A tour", (
-        "Its photos, best of each group of similar shots. Play shows them full screen.",), (
+        "Its photos, best of each group of similar shots. Play shows them full screen.",
+        "Sharing, at the bottom of your own tour: share it with one family account or with everyone who has one. "
+        "They see the photos it picks, also those of your family they couldn't see before, and the tour keeps "
+        "picking new ones for them. Photos others shared with you are not passed on."), (
         ("Space", "pause or go on (in the slideshow)"), ("← →", "previous or next photo (in the slideshow)"),
         ("Esc", "leave the slideshow"))),
     "tour_wizard": Page("Making a tour", (
@@ -191,7 +210,8 @@ PAGES = {
         "Settings, that is summer 1988). The automatic date is "
         "kept, and “use the automatic date” goes back to it.",
         "Is this a document? Mark scans of certificates, letters and records, then say whose record it is: it shows "
-        "on their page as a source."), (
+        "on their page as a source.",
+        "Sharing, for a photo you uploaded: share it with one family account or with everyone who has one."), (
         ("← →", "previous or next photo"), ("Esc", "back to where you came from"))),
     "cleanup": Page("Cleanup", (
         "Lists of photos you may not want: duplicate copies, nearly black or blurry ones, screenshots and the like. "
@@ -229,8 +249,10 @@ PAGES = {
         "Point at a line to see what it counts. Numbers that are links open those photos, such as all photos with "
         "GPS or all dated only by their file's time.")),
     "settings": Page("Settings", (
-        "Watched folders, when the worker runs, the AI (Ollama) and speech (Whisper) services and switches for "
-        "them, faces, the map's place lookups, and the network path each folder has on your network.",
+        "The menu at the side shows one part of Settings at a time (on a phone, it is above): the watched folders, "
+        "how they are read and their paths on your network; when the worker runs; the AI (Ollama), speech (Whisper) "
+        "and faces; the map's place lookups; kinds of tour; the cleanup lists; the address and HTTPS; updates; and "
+        "family accounts with the codes for signing in at home.",
         "Address and HTTPS: the host names LineageBox answers to, a reverse proxy in front of it, and its HTTPS "
         "certificate (files it can read, or uploaded). Switching HTTPS restarts the web server and moves the page "
         "to its new address.",

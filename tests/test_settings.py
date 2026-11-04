@@ -1,5 +1,6 @@
 """Watched folders, the Settings page, the describing schedule and the worker's passes."""
 import dataclasses
+import re
 from datetime import datetime, timedelta
 
 import pytest
@@ -171,6 +172,35 @@ def test_status_and_settings_pages(con, cfg, library):
     assert client.post("/api/worker/run", headers=APP).status_code == 200
     assert settings.get(con, "run_requested")
     assert client.get("/settings?browse=..").status_code == 200  # ignored, not followed
+
+
+def test_the_settings_menu(con, cfg):
+    """Settings, Family accounts and Codes share the menu at the side. Each of its Settings links names the first panel
+    of one part of the page (app.js shows one part at a time), and every panel or heading other pages link to is still
+    on the page, inside a part, so that the part holding it can be shown."""
+    client = TestClient(webapp.create_app(cfg), client=LAN)
+    pages = {path: client.get(path).text for path in ("/settings", "/accounts", "/settings/codes")}
+    for path, html in pages.items():
+        menu = html.split('<nav class="settings-nav"', 1)[1].split("</nav>", 1)[0]
+        assert 'href="/settings#ollama"' in menu and 'href="/accounts"' in menu and 'href="/settings/codes"' in menu
+        marked = re.findall(r'href="([^"]+)" aria-current="page"', menu)
+        assert marked == ([] if path == "/settings" else [path]), path  # on Settings, app.js marks the part shown
+    page = pages["/settings"].split('<dialog id="help"', 1)[0]
+    parts = page.split(" data-part>")[1:]
+    assert len(parts) > 5 and '<p class="meta"><a href="/accounts">' not in page  # the old links at the top
+    firsts = [re.search(r'<section class="panel" id="([a-z]+)"', part)[1] for part in parts]
+    menu = page.split('<nav class="settings-nav"', 1)[1].split("</nav>", 1)[0]
+    assert re.findall(r'href="/settings#([a-z]+)"', menu) == firsts
+
+    code = "".join(f.read_text(encoding="utf-8") for f in webapp.HERE.rglob("*.*") if f.suffix in (".html", ".py"))
+    linked = set(re.findall(r"/settings#([a-z]+)", code))
+    for service in settings.PROBLEM_SERVICES:  # the Status page links each service's problem to its panel
+        settings.set_problem(con, service, "Something is wrong.")
+    status = client.get("/status/live").text
+    linked |= set(re.findall(r'href="/settings#([a-z]+)"', status)) - {"videos"}  # ffmpeg: installed, not set here
+    assert {"add", "https", "schedule", "ollama", "whisper", "faces", "map", "tours", "cleanup", "updates"} <= linked
+    in_parts = {i for part in parts for i in re.findall(r' id="([a-z]+)"', part)}
+    assert linked <= in_parts, linked - in_parts
 
 
 def test_reading_threads_change_mid_pass(con, cfg, library, monkeypatch):

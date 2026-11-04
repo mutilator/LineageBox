@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-from lineagebox import access, catalog, cleanup, errors, faces, family, https, tours
+from lineagebox import access, catalog, cleanup, errors, faces, family, https, sharing, tours
 from lineagebox.config import Config
 
 HERE = Path(__file__).resolve().parent
@@ -200,9 +200,76 @@ def _own_files(c, v: access.Viewer, image_ids) -> list[int]:
 
 
 def _own_tour(c, v: access.Viewer, tour_id: int) -> None:
-    """A member changes only their own tours (the admins' shared ones are to watch)."""
+    """A member changes only their own tours (those others shared with them are to watch)."""
     if v.limited and ((t := tours.tour(c, tour_id)) is None or t["account_id"] != v.account_id):
         raise HTTPException(404, "No such tour")
+
+
+def _own_folder(c, v: access.Viewer, folder_id: int):
+    """A folder the viewer may change (move to Removed, share): any, for an admin; for a member, their uploads folder
+    or one in it. Others are refused as not there."""
+    row = c.execute("SELECT id, path, name, parent_id FROM folder WHERE id = ?", (folder_id,)).fetchone()
+    if row is None or v.limited and not _within(row["path"], v.account["upload_folder"]):
+        raise HTTPException(404, "No such folder among your uploads" if v.limited else "No such folder")
+    return row
+
+
+def _upload_labels(w, v: access.Viewer) -> dict[str, str]:
+    """The folder of each account's uploads (named by their person's number on disk) -> how it is shown: "Your
+    uploads", "Cora's uploads". On a connection that sees everyone; a member is shown only folders they may see."""
+    out = {}
+    for folder, name, account_id in w.execute("""SELECT a.upload_folder, p.name, a.id FROM main.account a
+                                                 LEFT JOIN main.person p ON p.id = a.person_id
+                                                 WHERE a.upload_folder IS NOT NULL"""):
+        out[folder] = "Your uploads" if account_id == v.account_id else f"{name or 'Someone'}'s uploads"
+    return out
+
+
+def _share_panel(w, v: access.Viewer, kind: str, item_id: int) -> dict:
+    """What the sharing panel (_macros.share_panel) shows of one folder, photo or tour: whom it is shared with (a
+    member sees only what they shared themselves), and whom else it may be shared with. On a connection that sees
+    everyone."""
+    shares = []
+    for s in sharing.of(w, kind, item_id):
+        if v.admin or s["by_id"] == v.account_id:
+            shares.append({**s, "with": sharing.EVERYONE if s["with_id"] is None else
+                           sharing.who(v, s["with_person"], s["with_name"], s["with_email"]),
+                           "by": None if s["by_id"] == v.account_id else
+                           sharing.who(v, s["by_person"], s["by_name"], s["by_email"])})
+    return {"kind": kind, "item_id": item_id, "shares": shares, "recipients": sharing.recipients(w, v),
+            "admin": v.admin}
+
+
+def _shared_with_me(w, c, v: access.Viewer) -> dict:
+    """What others share with a member, newest first, as they may see it: folders and tours (each with its count and
+    cover, a tour's from the photos it shares) and single photos, each with who shared it. Nothing for an admin, who
+    sees everything anyway."""
+    out = {"folders": [], "tours": [], "photos": []}
+    if not v.limited:
+        return out
+    tree, seen = None, set()
+    for s in sharing.with_me(w, v.account_id):
+        if (s["kind"], s["item_id"]) in seen:
+            continue
+        seen.add((s["kind"], s["item_id"]))
+        if s["kind"] == "folder":
+            tree = catalog.folder_tree(c) if tree is None else tree
+            f = tree.get(s["item_id"])
+            if f is not None and f.total:
+                label = f"{s['by_name']}'s uploads" if f.path == s["by_uploads"] else f.name
+                out["folders"].append({"folder": f, "label": label, "by": s["by_name"]})
+        elif s["kind"] == "tour":
+            if t := tours.tour(c, s["item_id"]):
+                shown = [(i, sha) for i, sha in w.execute("""SELECT i.id, i.sha256 FROM main.tour_photo p
+                                                             JOIN main.image i ON i.id = p.image_id
+                                                             WHERE p.tour_id = ? ORDER BY i.taken_at""", (t["id"],))
+                         if v.sees_image(i)]
+                out["tours"].append({"tour": t, "by": s["by_name"], "photos": len(shown),
+                                     "cover": shown[0][1] if shown else None})
+        elif row := c.execute(f"""SELECT i.id, i.sha256, i.taken_at, i.taken_at_source, i.media, i.duration FROM image i
+                                   WHERE i.id = ? AND {catalog.VISIBLE}""", (s["item_id"],)).fetchone():
+            out["photos"].append(row)
+    return out
 
 
 def _person_named(c, name: str, pid: int | None) -> int:
@@ -564,6 +631,14 @@ class RuleBody(BaseModel):
 
 class HiddenBody(BaseModel):
     hidden: bool = True
+
+
+class ShareBody(BaseModel):
+    """One folder, photo or tour (only one of the ids), and whom with: an account's id, or "everyone"."""
+    folder_id: int | None = None
+    image_id: int | None = None
+    tour_id: int | None = None
+    to: str = Field(min_length=1, max_length=20)
 
 
 class UndoSinceBody(BaseModel):

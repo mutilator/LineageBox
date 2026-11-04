@@ -1,0 +1,23 @@
+{#- The menu at the side of Settings, Family accounts and Codes for signing in at home, so the three read as one place.
+    Each Settings link names the first panel of its part: on the Settings page app.js shows only the part that the
+    address's # is in (#https, #add, as other pages link to them), and marks its link. Without the script every part
+    shows, one under another, and the links jump to them. The other two pages are marked here. #}
+<nav class="settings-nav" aria-label="Settings">
+  <ul>
+    <li><a href="/settings#folders">Folders</a></li>
+    <li><a href="/settings#schedule">Schedule</a></li>
+    <li><a href="/settings#ollama">AI, speech and faces</a></li>
+    <li><a href="/settings#map">Map</a></li>
+    <li><a href="/settings#tours">Tours</a></li>
+    <li><a href="/settings#cleanup">Cleanup</a></li>
+    <li><a href="/settings#address">Address and HTTPS</a></li>
+    <li><a href="/settings#updates">Updates</a></li>
+  </ul>
+  <p class="nav-group" id="settings-nav-accounts">Family accounts</p>
+  <ul aria-labelledby="settings-nav-accounts">
+    <li><a href="/accounts"{% if request.url.path == "/accounts" %} aria-current="page"{% endif %}>Accounts and sign-in
+      <small>{{ "on" if cfg.accounts_enabled else "off" }}</small></a></li>
+    <li><a href="/settings/codes"{% if request.url.path == "/settings/codes" %} aria-current="page"{% endif %}>Codes for
+      signing in at home</a></li>
+  </ul>
+</nav>

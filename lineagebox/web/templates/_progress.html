@@ -4,7 +4,7 @@
 {% macro mb(n) %}{{ "{:,.0f}".format(n / 1e6) }} MB{% endmacro %}
 {% for service, problem in p.problems.items() %}
 <p class="note problem"><b>{{ service }}:</b> {{ problem.message }} <span class="hint inline">since {{ clock(problem.at) }} ·
-  <a href="/settings#{{ service|lower }}">Settings</a></span></p>
+  <a href="/settings#{{ {"OpenStreetMap": "map"}.get(service, service|lower) }}">Settings</a></span></p>
 {% endfor %}
 {% for r in p.retrying %}
 <p class="note">{{ "{:,}".format(r.count) }} {{ r.what }} couldn't be done and are tried again later, a while longer

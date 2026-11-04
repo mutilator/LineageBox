@@ -50,6 +50,11 @@ its people are in. They name faces, add relatives and events, fix dates and uplo
 on a face asks everyone who can see the photo, and those faces lead their Home page. Admins see every change under
 **Cleanup → Recent changes**, with undo.
 
+Members also share: a folder of their uploads, one photo they uploaded, or a tour they made, with one relative's
+account or with everyone who has one. Whoever it is shared with sees those photos, including those from outside their
+own branch, and a shared folder keeps sharing what is added to it later. **Folders** lists a member's uploads, what is
+shared with them and what they share; admins find everything anyone shares there too, and can share any folder or tour.
+
 ## Finding photos
 
 ### Search
@@ -68,6 +73,8 @@ Examples: "goat", "emma zoo 2012", "christmas tree", "happy birthday". Results a
 ### Browsing
 
 - **Folders** shows the watched folders as they are on disk. A photo with copies in several folders shows in each.
+  At the top of a folder, **Sharing and removing** shares it with family accounts or moves the whole folder to
+  Removed (for a family member: a folder of their own uploads).
 - **Timeline** shows every year with photos. Its bars show January to December, so busy and quiet months stand out.
 - **Map** shows where photos were taken, from their GPS or from a place in their folder's name, along with family
   events that have a place. A slider picks the year.
@@ -108,7 +115,7 @@ automatic date** goes back. To date many photos at once (a roll of film), use **
 - tag them, or take a tag off;
 - add someone to them;
 - date them;
-- move them to Removed.
+- move them to Removed. On a folder's page that takes only their files in that folder; copies elsewhere stay.
 
 ## Tours
 
@@ -119,6 +126,8 @@ automatic date** goes back. To date many photos at once (a roll of film), use **
 - Photos are picked afresh each time a tour opens: one per group of similar shots, never blurry, with the clearest
   faces, from different days.
 - **Suggested tours** come from what the library holds, such as days that come back year after year.
+- With family accounts, a tour can be shared with a relative's account or with everyone who has one. They see the
+  photos it picks as it shows them to whoever made it, and it keeps picking new ones for them.
 
 ## Cleanup
 
@@ -178,27 +187,31 @@ format), and pointing at a line says what it counts. **Check now** starts a work
 Changes here apply without a restart. They are kept in the catalog, so the web UI and the worker both see them, and
 they win over `.env` and config files.
 
-- **Watched folders:** browse the photos and press **Watch**, or paste a network path. **Stop watching** hides a
-  folder's photos but keeps their descriptions and names in case it comes back.
+The menu at the side shows one part at a time (on a phone, it is above the settings):
+
+- **Folders:**
+  - **Watched folders:** browse the photos and press **Watch**, or paste a network path. **Stop watching** hides a
+    folder's photos but keeps their descriptions and names in case it comes back.
+  - **Scanning:** how many photos are read at once, and folder names to skip. A slow disk or share does better with
+    fewer.
+  - **On the network:** the network paths for **Copy network path**.
+  - **Set in the config file:** the photo folders, the catalog folder and the network allow list. They are set only in
+    the config, so a mistake on the page can't lock anyone out.
 - **Schedule:** how often to look for new photos, and when the AI may describe: any time, certain hours and days, or
   paused.
-- **AI (Ollama)** and **Speech in videos (Whisper):** on or off, the address, the model, how many at a time, and a
-  connection check.
-- **Faces:** on or off.
-- **On the network:** the network paths for **Copy network path**.
-- **Address and HTTPS:** host names, the reverse proxy and the HTTPS certificate ([remote access](remote-access.md)).
-- **World map:** looking up place names with OpenStreetMap's Nominatim. It is off until you turn it on, because it
-  sends the place names (and nothing else) to nominatim.openstreetmap.org. It looks up a few a minute and each name only
-  once, as Nominatim's [usage policy](https://operations.osmfoundation.org/policies/nominatim/) asks. That policy
-  allows light use only: turning it on is your decision, and an install with thousands of place names, or many
-  installs sharing one service, should use another Nominatim (`[places] url`, [configuration](configuration.md)).
-- **Scanning:** how many photos are read at once, and folder names to skip. A slow disk or share does better with fewer.
+- **AI, speech and faces:** **AI (Ollama)** and **Speech in videos (Whisper)**: on or off, the address, the model, how
+  many at a time, and a connection check. **Faces:** on or off.
+- **Map:** looking up place names with OpenStreetMap's Nominatim. It is off until you turn it on, because it sends the
+  place names (and nothing else) to nominatim.openstreetmap.org. It looks up a few a minute and each name only once, as
+  Nominatim's [usage policy](https://operations.osmfoundation.org/policies/nominatim/) asks. That policy allows light
+  use only: turning it on is your decision, and an install with thousands of place names, or many installs sharing one
+  service, should use another Nominatim (`[places] url`, [configuration](configuration.md)).
+- **Tours:** the kinds of tour.
 - **Cleanup:** the Blank and blurry cut-off, and how sure Turned photos must be.
-- **Photo tours:** the kinds of tour.
-- **Family accounts** and **Codes for signing in at home**, when accounts are used ([family accounts](family-accounts.md)).
-
-The photo folders, the catalog folder and the network allow list are set only in the config, so a mistake on the page
-can't lock anyone out.
+- **Address and HTTPS:** host names, the reverse proxy and the HTTPS certificate ([remote access](remote-access.md)).
+- **Updates:** whether to look for a newer version once a day.
+- **Family accounts:** **Accounts and sign-in**, and **Codes for signing in at home**, when accounts are used
+  ([family accounts](family-accounts.md)).
 
 ## Keyboard
 

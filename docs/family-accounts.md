@@ -23,7 +23,8 @@ A member's account is tied to their own person in the family tree. They see:
 Of the photos and videos, they see:
 
 - the ones someone they can see is in (a face named as them, or the person added to the photo by hand);
-- the ones they uploaded themselves.
+- the ones they uploaded themselves;
+- the ones someone shared with them (see [Sharing](#sharing)).
 
 A photo with nobody in it is seen only by whoever uploaded it, and by the admins. Everything already in the library
 belongs to the admins. Admins can also hide a photo, or a whole folder, from every member.
@@ -87,7 +88,33 @@ tries per 15 minutes. Making a new code, or taking the code away (a lost phone),
 Members upload photos, videos and whole folders from the **Upload** page. They go into
 `<first watched folder>/Family uploads/<person id>/`, and the worker reads them within a minute or so. The folder's
 name, which watched folder holds it, and the largest file allowed (4 GB by default) are settings on the Family accounts
-page. Members can remove only their own uploads, to the Removed folder.
+page.
+
+Members manage their uploads from **Folders**. They open one of their folders to move it, with everything in it, to the
+Removed folder, or tick photos in it to move only those. They can remove only their own uploads, and an admin can put
+anything back from **Cleanup → Removed**.
+
+## Sharing
+
+A member shares what is theirs: a folder of their uploads, one photo they uploaded, or a tour they made. An admin can
+share any folder, photo or tour. Each is shared with one member's account (a member picks among the people in their
+part of the family) or with everyone who has an account.
+
+- **A folder:** they see every photo in it and in the folders below it, including those added later. They can open the
+  folder on their own **Folders** page.
+- **A photo:** they see that photo.
+- **A tour:** they see the tour and the photos it picks, as it shows them to whoever made it, even photos of the maker's
+  family that are outside their own branch. The tour keeps picking new photos for them. Photos someone else shared
+  with the maker are not passed on.
+
+Whoever it is shared with sees those photos as they see their own family's: on Home, in search, on the timeline and
+the map. People in them from outside their branch are named without a link. A photo an admin hid is never shared, and
+nothing an account shared is shown while that account is switched off.
+
+The **Sharing** panel of a folder (at the top of its page), photo or tour (at the bottom) shows whom it is shared
+with, with **Stop sharing**.
+**Folders** lists everything a member shares; for an admin it lists everything anyone shares. Members' shares are on
+**Cleanup → Recent changes** too, with undo.
 
 ## Keeping an eye on changes
 

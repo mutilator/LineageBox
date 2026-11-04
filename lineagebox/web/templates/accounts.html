@@ -1,11 +1,16 @@
 {% extends "base.html" %}
 {% block title %}Family accounts{% endblock %}
 {% block main %}
-<nav class="crumbs"><a href="/settings">Settings</a><span class="sep">/</span><h1>Family accounts</h1></nav>
+<h1>Settings</h1>
+<div class="settings-page">
+{% include "_settings_nav.html" %}
+<div class="settings-body">
 <p class="meta">Family members sign in with Google. A member sees their own part of the family: their ancestors, every
 blood relative, the partners of those and their children, and their own partner's side; the photos those people are
-in; and what they upload. An admin sees and changes everything.</p>
+in; what they upload; and what others share with them. An admin sees and changes everything.
+<a href="/folders">What is shared</a> lists everything shared, by whom and with whom.</p>
 
+<div class="settings">
 <section class="panel" id="sign-in">
   <h2>Sign-in</h2>
   <form data-api="/api/settings/accounts" data-settings data-show="#accounts-saved">
@@ -82,4 +87,7 @@ in; and what they upload. An admin sees and changes everything.</p>
     <button type="submit">Add</button>
   </form>
 </section>
+</div>
+</div>
+</div>
 {% endblock %}

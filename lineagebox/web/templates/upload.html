@@ -27,7 +27,8 @@ accounts.</p>
 <p class="meta">{{ "{:,}".format(counts.files) }} file{{ "" if counts.files == 1 else "s" }}
   {%- if counts.waiting %} · {{ "{:,}".format(counts.waiting) }} waiting to be read{% endif %}
   · faces looked for in {{ "{:,}".format(counts.faces) }} · {{ "{:,}".format(counts.described) }} described
-  {%- if folder_id %} · <a href="/folder/{{ folder_id }}">your uploads folder</a>{% endif %}</p>
+  {%- if folder_id %} · <a href="/folder/{{ folder_id }}">your uploads folder</a>, where you can share them or move
+  them to Removed{% endif %}</p>
 {% if mine %}{{ m.grid(mine, "folder:%d"|format(folder_id) if folder_id else "") }}{% endif %}
 {% endif %}
 {% endif %}

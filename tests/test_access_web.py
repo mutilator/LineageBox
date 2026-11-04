@@ -6,7 +6,7 @@ import re
 import pytest
 from fastapi.testclient import TestClient
 
-from lineagebox import access, accounts, catalog, settings, tours
+from lineagebox import access, accounts, catalog, settings, sharing, tours
 from lineagebox.web import app as webapp
 from tests import family_fixture as fx
 from tests.conftest import LAN
@@ -23,11 +23,12 @@ def site(con, cfg, library):
            "Cora": fx.account(con, p["Cora"], "cora@example.com"),
            "Tina": fx.account(con, p["Tina"], "tina@example.com")}
     spec = tours.clean({"title": "Everything"})
+    rex = tours.clean({"title": "Rex", "who": {"mode": "person", "person_ids": [p["Rex"]]}})  # both members see him
     fam["tours"] = {"admins": tours.save_tour(con, None, None, spec, "Admins' own"),
-                    "shared": tours.save_tour(con, None, None, spec, "Shared with the family"),
+                    "shared": tours.save_tour(con, None, None, rex, "Shared with the family"),
                     "Cora": tours.save_tour(con, None, None, spec, "Cora's", who["Cora"]["id"]),
                     "Tina": tours.save_tour(con, None, None, spec, "Tina's", who["Tina"]["id"])}
-    con.execute("UPDATE tour SET shared = 1 WHERE id = ?", (fam["tours"]["shared"],))
+    sharing.share(con, who["Sam"]["id"], "tour", fam["tours"]["shared"], None)
     # an unnamed face beside Cora and Bart, and one in Zed's photo, grouped together by the clustering
     fam["open_face"] = con.execute("""INSERT INTO face(image_id, x1, y1, x2, y2, det_score, quality, embedding, cluster_id)
                                       VALUES (?, 0.7, 0.1, 0.9, 0.5, 0.9, 25, ?, 77)""",
@@ -223,7 +224,7 @@ def test_what_a_member_sees_of_a_photo(site, cfg, con):
 def _snapshot(con):
     tables = ("person", "face", "parent", "partner", "sibling", "relation", "image_tag", "tag", "image_person",
               "event", "person_name", "person_group", "document", "citation", "tour", "account", "access_rule",
-              "face_question", "face_not_person", "file")
+              "face_question", "face_not_person", "file", "share")
     out = {t: con.execute(f"SELECT * FROM {t} ORDER BY 1, 2").fetchall() for t in tables}
     out["image"] = con.execute("SELECT id, taken_at, taken_at_source, hidden FROM image ORDER BY id").fetchall()
     return {t: [tuple(r) for r in rows] for t, rows in out.items()}
@@ -242,7 +243,24 @@ def test_the_write_sweep(site, cfg, con):
     zfile = con.execute("SELECT id FROM file WHERE image_id = ?", (zed,)).fetchone()[0]
     cora_file = con.execute("SELECT id FROM file WHERE image_id = ?", (ph["cora_bart.jpg"],)).fetchone()[0]
     sel = {"image_ids": [ph["cora_bart.jpg"], zed]}
+    picnic = con.execute("SELECT folder_id FROM file WHERE image_id = ?", (ph["cora_bart.jpg"],)).fetchone()[0]
+    zed_folder = con.execute("SELECT folder_id FROM file WHERE image_id = ?", (zed,)).fetchone()[0]
+    admins_share = con.execute("SELECT id FROM share").fetchone()[0]
+    t = site["tours"]
     attempts = [
+        # sharing what isn't hers: a library folder, a photo she sees but didn't upload, a hidden one, others' tours,
+        # her own tour with an account that isn't there; stopping an admin's share; removing library folders
+        ("/api/shares", {"folder_id": picnic, "to": "everyone"}),
+        ("/api/shares", {"folder_id": zed_folder, "to": "everyone"}),
+        ("/api/shares", {"image_id": ph["cora_bart.jpg"], "to": "everyone"}),
+        ("/api/shares", {"image_id": zed, "to": "everyone"}),
+        ("/api/shares", {"tour_id": t["Tina"], "to": "everyone"}),
+        ("/api/shares", {"tour_id": t["admins"], "to": "everyone"}),
+        ("/api/shares", {"tour_id": t["shared"], "to": "everyone"}),
+        ("/api/shares", {"tour_id": t["Cora"], "to": "99999"}),
+        (f"/api/shares/{admins_share}/delete", None),
+        (f"/api/folders/{picnic}/remove", None), (f"/api/folders/{zed_folder}/remove", None),
+        (f"/api/folders/{picnic}/remove-files", {"image_ids": [ph["cora_bart.jpg"]]}),
         (f"/api/people/{zp}/link", {"word": "son", "name": "New Kid"}),
         (f"/api/people/{cora}/link", {"word": "son", "name": "New Kid", "with_parent": str(zp)}),
         (f"/api/images/{zed}/document", {"kind": "Letter", "title": "x"}),
@@ -290,6 +308,7 @@ def test_the_write_sweep(site, cfg, con):
         ("/api/images/keep", {"image_ids": [ph["cora_bart.jpg"]]}), ("/api/removed/empty", None),
         ("/api/places/fix", {"name": "x"}),
     ]
+    c.get("/home")  # her session's first use is written now (accounts.TOUCH_EVERY), not during the attempts
     before = _snapshot(con)
     for url, body in attempts:
         r = c.post(url, json=body, headers=APP)

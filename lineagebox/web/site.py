@@ -110,6 +110,7 @@ class Site:
                  help_menu=page_help.MENU)
         g["day_names"] = settings.DAY_NAMES
         g["admin_pages"] = ("/", "/status", "/settings")  # not in members' menus
+        g["member_pages"] = ("/folders",)  # nor this in admins': their Folders is the library's, at /
         g["page_sizes"] = PAGE_SIZES
         g["lineagebox_version"] = __version__
         # the help's link to the source code: the repository this copy's releases come from, so a fork's points to it

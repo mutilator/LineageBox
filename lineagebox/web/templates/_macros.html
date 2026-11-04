@@ -52,8 +52,9 @@
 {% endmacro %}
 
 {# What can be done to the photos ticked in a select_grid on a browsing page (a folder, a tag, a search, a status
-   category): tag them, add someone to them, date them, take the page's tag off them, or move them to Removed. #}
-{% macro bulk_bar(tag=none) %}
+   category): tag them, add someone to them, date them, take the page's tag off them, or move them to Removed
+   (remove: the title of that button, or none for a folder someone else shared). #}
+{% macro bulk_bar(tag=none, remove="Move the ticked photos' files to the Removed folder; they can be put back from Removed") %}
 <div class="select-bar bulk">
   <button type="button" data-select="all" data-key="a">Select all</button>
   <button type="button" data-select="none" data-key="n">Select none</button>
@@ -73,8 +74,70 @@
   {%- if tag %}
   <button type="submit" data-api="/api/selection/untag?{{ {'tag': tag}|urlencode }}" data-label="Take “{{ tag }}” off {n}" disabled title="Take this tag off the ticked photos; describing them again won't bring it back">Take “{{ tag }}” off 0</button>
   {%- endif %}
-  <button type="submit" data-label="Move {n} to Removed" disabled title="Move the ticked photos' files to the Removed folder; they can be put back from Removed">Move 0 to Removed</button>
+  {%- if remove %}
+  <button type="submit" data-label="Move {n} to Removed" disabled title="{{ remove }}">Move 0 to Removed</button>
+  {%- endif %}
   <button type="button" data-download title="The ticked photos' originals, as a zip">Download</button>
   <span class="done hint inline" role="status"></span>
+</div>
+{% endmacro %}
+
+{# What others shared with a member (common._shared_with_me), as on a folder's page: a card with a cover for each
+   folder and tour, then the photos shared one by one. most: how many of each to show (Home shows a few). #}
+{% macro shared_with_you(shared, most=100000) %}
+{%- if shared.folders or shared.tours %}
+<div class="folders">
+{%- for x in shared.folders[:most] %}
+  <a class="folder-card" href="/folder/{{ x.folder.id }}">
+    {% if x.folder.cover %}<img src="/t/{{ x.folder.cover }}" loading="lazy" alt="">{% else %}<span class="ph"></span>{% endif %}
+    <span class="label"><span class="name">{{ x.label }}</span><span class="count">{{ "{:,}".format(x.folder.total) }}</span></span>
+    <span class="label from">folder, from {{ x.by }}</span>
+  </a>
+{%- endfor %}
+{%- for x in shared.tours[:most] %}
+  <a class="folder-card" href="/tour/{{ x.tour.id }}">
+    {% if x.cover %}<img src="/t/{{ x.cover }}" loading="lazy" alt="">{% else %}<span class="ph"></span>{% endif %}
+    <span class="label"><span class="name">{{ x.tour.name }}</span>{% if x.photos %}<span class="count">{{ "{:,}".format(x.photos) }}</span>{% endif %}</span>
+    <span class="label from">▶ tour, from {{ x.by }}</span>
+  </a>
+{%- endfor %}
+</div>
+{%- endif %}
+{%- if shared.photos %}
+<h3>Photos shared one by one</h3>
+{{ grid(shared.photos[:most], "") }}
+{%- endif %}
+{% endmacro %}
+
+{# Sharing one folder, photo or tour (common._share_panel): whom it is shared with, each with Stop sharing, and a box
+   to share it with someone more. what: "this folder", "this photo", "this tour". #}
+{% macro share_panel(p, what) %}
+<div class="share-panel">
+  {%- if p.shares %}
+  <ul class="share-list">
+    {%- for s in p.shares %}
+    <li>Shared with <b>{{ s.with }}</b>{% if s.by %} <span class="hint inline">by {{ s.by }}</span>{% endif %}
+      <button type="button" class="quiet" data-api="/api/shares/{{ s.id }}/delete" data-reload>Stop sharing</button></li>
+    {%- endfor %}
+  </ul>
+  {%- else %}
+  <p class="hint">Not shared with anyone yet.{% if not p.admin %} You, the admins and whoever is in its photos see it.{% endif %}</p>
+  {%- endif %}
+  <form class="share-form" data-api="/api/shares" data-reload>
+    <input type="hidden" name="{{ p.kind }}_id" value="{{ p.item_id }}">
+    <label>Share {{ what }} with <select name="to">
+      <option value="everyone">everyone with an account</option>
+      {%- for r in p.recipients %}
+      <option value="{{ r.id }}">{{ r.name }}</option>
+      {%- endfor %}
+    </select></label>
+    <button type="submit">Share</button>
+  </form>
+  <p class="hint">
+    {%- if p.kind == "folder" %}They see the photos in it, and those added to it later.
+    {%- elif p.kind == "image" %}They see this photo.
+    {%- elif p.admin %}They see the photos it picks, as whoever made it sees them.
+    {%- else %}They see the photos it picks from your family's photos and your uploads (not what others shared with you).
+    {%- endif %} Anyone in them from outside their part of the family is named without a link.</p>
 </div>
 {% endmacro %}

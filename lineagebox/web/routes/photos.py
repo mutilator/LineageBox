@@ -1,10 +1,13 @@
-"""Changes to photos: tags, people in them, dates, ticked photos, Removed, turning, keeping."""
+"""Changes to photos: tags, people in them, dates, ticked photos, Removed (photos, copies and whole folders),
+turning, keeping."""
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from lineagebox import catalog, changes, cleanup, orientation, tagging, writeback
+from lineagebox import catalog, changes, cleanup, orientation, sharing, tagging, writeback
 from lineagebox.web.common import (ADMIN, MEMBER, DateBody, ImageIds, NameBody, Selection, TagBody, TurnBody, _among,
                                    _by, _dates_spec, _from_app, _image_or_404, _images_or_404, _moved, _name_choices,
-                                   _own_files, _photo_people_spec, _photos, _tags_spec, _within)
+                                   _own_files, _own_folder, _photo_people_spec, _photos, _tags_spec, _within)
 from lineagebox.web.deps import con, site, viewer, writer
 from lineagebox.web.site import Site
 
@@ -24,6 +27,8 @@ ACCESS = {
     "/api/images/remove": MEMBER,
     "/api/images/{image_id}/remove": MEMBER,
     "/api/files/{file_id}/remove": MEMBER,
+    "/api/folders/{folder_id}/remove": MEMBER,
+    "/api/folders/{folder_id}/remove-files": MEMBER,
     "/api/files/{file_id}/restore": ADMIN,
     "/api/removed/restore": ADMIN,
     "/api/removed/empty": ADMIN,
@@ -158,6 +163,40 @@ def remove_file(file_id: int, v=Depends(viewer), c=Depends(con), w=Depends(write
         if f is None or not _within(f["path"], v.account["upload_folder"]):
             raise HTTPException(404, "No such file among your uploads")
     return _moved(cleanup.remove_files(w, s.live(c), [file_id], "a copy removed on its photo page"))
+
+
+@router.post("/api/folders/{folder_id}/remove", dependencies=[Depends(_from_app)])
+def remove_folder(folder_id: int, v=Depends(viewer), c=Depends(con), w=Depends(writer), s: Site = Depends(site)):
+    """Move a folder, with every file and folder in it, to the Removed folder (a member: a folder of their uploads),
+    then go up to the folder it was in. What was shared of it is shared no more."""
+    folder = _own_folder(c, v, folder_id)
+    now = s.live(c)
+    if folder["path"] == "" or any(_within(watched, folder["path"]) for watched in now.folders):
+        raise HTTPException(400, "A watched folder, or a folder with watched folders in it, isn't removed here: stop "
+                                 "watching it on the Settings page instead.")
+    files = [r[0] for r in w.execute("SELECT id FROM main.file WHERE NOT missing AND path LIKE ? ESCAPE '!'",
+                                     (catalog.under(folder["path"]),))]
+    result = cleanup.remove_files(w, now, files, f"the folder {folder['name']} removed", keep_last_copy=False)
+    if not result.errors:
+        sharing.drop_folder(w, folder["path"])
+        w.commit()
+    up = c.execute("SELECT id, path FROM folder WHERE id = ?", (folder["parent_id"],)).fetchone()
+    mine = v.account["upload_folder"] if v.limited else None
+    go = f"/folder/{up['id']}" if up and (v.admin or _within(up["path"], mine)) else "/folders"
+    return {**_moved(result), "go": go}
+
+
+@router.post("/api/folders/{folder_id}/remove-files", dependencies=[Depends(_from_app)])
+def remove_folder_files(folder_id: int, body: ImageIds, v=Depends(viewer), c=Depends(con), w=Depends(writer),
+                        s: Site = Depends(site)):
+    """The ticked photos' files in this folder, to the Removed folder; their copies elsewhere stay (a member: only in
+    a folder of their uploads)."""
+    _own_folder(c, v, folder_id)
+    _images_or_404(c, v, body.image_ids)
+    files = [r[0] for r in w.execute("""SELECT id FROM main.file WHERE folder_id = ? AND NOT missing
+                                        AND image_id IN (SELECT value FROM json_each(?))""",
+                                     (folder_id, json.dumps(body.image_ids)))]
+    return _moved(cleanup.remove_files(w, s.live(c), files, body.reason, keep_last_copy=False))
 
 
 @router.post("/api/files/{file_id}/restore", dependencies=[Depends(_from_app)])
