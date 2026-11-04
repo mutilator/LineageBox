@@ -60,7 +60,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       # "latest" comes with a release's version tags (flavor latest=auto), and never from a branch
       - id: meta
-        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051  # v5
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302  # v6.2.0
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
@@ -81,7 +81,7 @@ jobs:
       # the speech-to-text service for compose.whisper.yaml (ghcr.io/mutilator/lineagebox-whisper), with the same
       # tags, not tuned to any one processor, since it runs on other machines than this one
       - id: whisper
-        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051  # v5
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302  # v6.2.0
         with:
           images: ghcr.io/${{ github.repository }}-whisper
           tags: |
