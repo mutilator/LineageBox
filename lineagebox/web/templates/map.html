@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Map{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/vendor/leaflet-1.9.4/leaflet.css">
+<script src="/static/vendor/leaflet-1.9.4/leaflet.js" defer></script>
+<script src="/static/map.js?v={{ static_version }}" defer></script>
+{% endblock %}
+{% block main %}
+<h1>Map</h1>
+<p class="meta">Where the photos were taken (by their GPS, else the place in their folder's name), and where family
+events happened (from Life events). Pick a year below to see that year only; the bars are photos per year, darker
+where the camera or the folder says when, lighter where only the file's time does.</p>
+<div class="map-years" id="years" aria-label="Photos per year"></div>
+<p class="year-pick">
+  <input type="range" id="year" min="1900" max="2030" step="1" aria-label="Year" data-key="y" data-key-label="Pick a year (then ← →)">
+  <b id="year-label">All years</b>
+  <button type="button" id="all-years" class="quiet" data-key="a">All years</button>
+  <span class="hint inline" id="map-note"></span>
+</p>
+<div id="map" data-tiles="{{ cfg.map_tiles }}" data-attribution="{{ cfg.map_attribution }}"{% if viewer.admin %} data-admin{% endif %}></div>
+<p class="hint">Circles are bigger for more photos; click one for its photos. Tick or untick what to show in the box
+  at the map's top right.
+  {%- if not cfg.places_lookup %} Places named in folders and life events show once <a href="/settings#map">finding them
+  with OpenStreetMap</a> is on.{% endif %}</p>
+{% endblock %}

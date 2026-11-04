@@ -1,0 +1,33 @@
+# LineageBox's settings when run from source (python -m lineagebox ...). Copy this file to config.toml next to it and
+# change the two folders. In Docker, the image's docker/config.toml and .env are used instead.
+#
+# Every setting can also be given as an environment variable LINEAGEBOX_<SECTION>_<KEY> (LINEAGEBOX_OLLAMA_URL for
+# [ollama] url, LINEAGEBOX_MEDIA_ROOT for media_root). The web UI's Settings page changes most of them afterwards, and
+# the page's values win: what is here only gives their starting values. docs/configuration.md lists them all.
+
+# The folder your photo folders are in. Every path in the catalog starts here, so choose it once. The folders to
+# catalogue inside it are picked on the Settings page (Watched folders). LineageBox only reads it, except when Cleanup
+# is asked to move photos to a Removed folder.
+media_root = "photos"            # e.g. 'C:\Users\you\Pictures' or "/home/you/Pictures"
+
+# The catalog: database, thumbnails and previews, about 0.5 MB per photo. On this machine's own disk, never a share.
+data_dir = "data"                # e.g. 'D:\lineagebox' or "/home/you/.local/share/lineagebox"
+
+[scan]
+folders = []                     # watched folders inside media_root, e.g. ["Family"]; usually set on the Settings page
+# Folder names whose files are listed but never read: thumbnail caches and recycle bins.
+ignore_dirs = ["Thumbs", "Previews", ".thumbnails", "@eaDir", "#recycle", "#snapshot", "@Recycle", ".@__thumb"]
+
+[ingest]
+threads = 8                      # photos read at a time; fewer for a slow disk or share
+
+[ollama]
+url = "http://localhost:11434"   # Ollama, for descriptions and folder names (docs/ollama.md)
+model = "ministral-3"
+workers = 2                      # photos sent at a time
+
+[whisper]
+url = ""                         # the speech-to-text service for videos, e.g. "http://localhost:9300" (docs/whisper.md)
+
+[library]
+about = ""                       # whose photos these are, e.g. "a family in Oregon, USA": helps read places in folder names

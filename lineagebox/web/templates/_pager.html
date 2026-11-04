@@ -1,0 +1,19 @@
+{# Pages of a long list, above and below it: which items are shown, previous/next, and how many to show at once
+   (remembered for this list). Needs `paging`; `page_query` holds the list's other parameters. #}
+{% set pgn = paging %}
+{% set q = page_query|default({}) %}
+{% if pgn and pgn.total > 25 %}
+<nav class="list-pager" aria-label="Pages">
+  <span class="meta">{{ "{:,}".format(pgn.shown[0]) }}–{{ "{:,}".format(pgn.shown[1]) }} of {{ "{:,}".format(pgn.total) }}</span>
+  {%- if pgn.pages > 1 %}
+  {% if pgn.pg > 1 %}<a href="?{{ dict(q, per=pgn.per, page=pgn.pg - 1)|urlencode }}">← Previous</a>{% endif %}
+  <span class="meta">page {{ pgn.pg }} of {{ pgn.pages }}</span>
+  {% if pgn.pg < pgn.pages %}<a href="?{{ dict(q, per=pgn.per, page=pgn.pg + 1)|urlencode }}">Next →</a>{% endif %}
+  {%- endif %}
+  <span class="sizes">Show
+    {%- for size in page_sizes %}
+    <a href="?{{ dict(q, per=size, page=pgn.page_for(size))|urlencode }}"{% if size == pgn.per %} aria-current="true"{% endif %}>{{ "All" if size == "all" else size }}</a>
+    {%- endfor %}
+  </span>
+</nav>
+{% endif %}

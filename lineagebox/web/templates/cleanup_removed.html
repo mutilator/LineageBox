@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% set nav = "cleanup" %}
+{% block title %}Removed{% endblock %}
+{% block main %}
+<nav class="crumbs"><a href="/cleanup">Cleanup</a><span class="sep">/</span><h1>Removed</h1></nav>
+<p class="meta">{{ "{:,}".format(total) }} file{{ "" if total == 1 else "s" }} in
+{% for w in watched %}<code>{{ media_path(removed_folder(w)) }}</code>{% if on_network(removed_folder(w)) %} (on the network: <code>{{ on_network(removed_folder(w)) }}</code>){% endif %}{{ ", " if not loop.last }}{% endfor %}, each under its
+original folder path. Restore a whole cleanup step here, or a single photo from its page (click a thumbnail).</p>
+
+{% for b in batches %}
+<section class="pair">
+  <div class="samples">{% for s in b.samples %}<a href="/image/{{ s.id }}"><img src="/t/{{ s.sha256 }}" alt="" loading="lazy"></a>{% endfor %}</div>
+  <p><b>{{ b.reason }}</b> · {{ "{:,}".format(b.files) }} file{{ "" if b.files == 1 else "s" }} · {{ b.at|date }}</p>
+  <button type="button" data-api="/api/removed/restore?batch={{ b.batch }}" data-reload data-busy="Restoring…">
+    Restore {{ "all " ~ "{:,}".format(b.files) if b.files > 1 else "it" }}</button>
+</section>
+{% endfor %}
+
+{% if total %}
+<p class="danger-zone">
+  <button type="button" class="danger" data-api="/api/removed/empty" data-reload data-busy="Deleting…"
+          data-confirm="Permanently delete all {{ '{:,}'.format(total) }} removed files? This cannot be undone.">
+    Empty the Removed folder…</button>
+  <span class="hint inline">Deletes these {{ "{:,}".format(total) }} files for good.</span>
+</p>
+{% else %}
+<p class="note">Nothing has been removed.</p>
+{% endif %}
+{% endblock %}

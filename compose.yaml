@@ -1,0 +1,94 @@
+# LineageBox on a NAS or any machine with Docker: the web UI, a worker that keeps the catalog up to date, a service that
+# makes 720p copies of the videos browsers can't play, and one that installs newer versions when an admin asks.
+# Copy .env.example to .env, fill it in, then
+#   docker compose up -d
+# docs/install.md explains every setting. A network share as another source: compose.smb.yaml.
+name: lineagebox
+
+x-lineagebox: &lineagebox
+  # The published image: "latest" is always the newest release, which the Status page's Update now installs.
+  # LINEAGEBOX_VERSION=1.2.3 in .env keeps one release instead. `docker compose up -d --build` builds it here.
+  image: ${LINEAGEBOX_IMAGE:-ghcr.io/mutilator/lineagebox}:${LINEAGEBOX_VERSION:-latest}
+  build: .
+  labels:
+    lineagebox.update: "true"   # the containers the updater service may update (updater.py)
+  restart: unless-stopped
+  # The user and group LineageBox runs as (PUID and PGID in .env): whoever owns the catalog folder and the photos. It
+  # has no root powers, and no setuid program can give it any. docs/install.md#users-and-permissions has the rest.
+  user: "${PUID:-1000}:${PGID:-1000}"
+  security_opt:
+    - no-new-privileges:true
+  cap_drop: [ALL]
+  extra_hosts:
+    - "host.docker.internal:host-gateway"   # Ollama or Whisper on this same machine
+  environment:
+    TZ: ${TZ:-UTC}
+    # empty ones are ignored: docker/config.toml's values (or the Settings page's) stay
+    LINEAGEBOX_OLLAMA_URL: ${OLLAMA_URL:-}
+    LINEAGEBOX_WHISPER_URL: ${WHISPER_URL:-}
+    LINEAGEBOX_WHISPER_LANGUAGE: ${WHISPER_LANGUAGE:-}
+    LINEAGEBOX_LIBRARY_ABOUT: ${LIBRARY_ABOUT:-}
+    LINEAGEBOX_WEB_NETWORK_PATHS: ${NETWORK_PATHS:-}
+    LINEAGEBOX_WEB_ALLOWED_NETWORKS: ${ALLOWED_NETWORKS:-}
+    LINEAGEBOX_WEB_ALLOWED_HOSTS: ${ALLOWED_HOSTS:-}
+    LINEAGEBOX_WEB_TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+    LINEAGEBOX_WEB_TLS_CERT: ${TLS_CERT:-}
+    LINEAGEBOX_WEB_TLS_KEY: ${TLS_KEY:-}
+
+# The photos and the catalog: folders that must be there already. Docker would make a missing one itself, as root, which
+# LineageBox couldn't write, and a mistyped PHOTOS would look like an empty library: this stops at "bind source path
+# does not exist" instead. Each photo source is a folder of /photos; its name ("local") starts every path in the
+# catalog, so pick it once.
+x-photos: &photos {type: bind, source: "${PHOTOS:-./photos}", target: /photos/local, bind: {create_host_path: false}}
+x-catalog: &catalog {type: bind, source: "${DATA:-./data}", target: /data, bind: {create_host_path: false}}
+
+services:
+  web:
+    <<: *lineagebox
+    command: ["serve", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      # IPv4 only: Docker relays IPv6 connections to this IPv4 network from its own gateway address, which would look
+      # like the home network to LineageBox. To answer on one network only, set BIND to this machine's address on it.
+      - "${BIND:-0.0.0.0}:${PORT:-8000}:8000"
+    volumes:
+      - *photos    # writable here: cleanup moves photos to a Removed folder in the same source, when someone asks it to
+      - *catalog   # on this machine's own disk, never a network share
+  worker:
+    <<: *lineagebox
+    command: ["worker"]
+    volumes:
+      - {<<: *photos, read_only: true}   # the worker only reads photos and videos
+      - *catalog
+  copies:
+    <<: *lineagebox
+    command: ["copies"]
+    volumes:
+      - *photos    # each 720p copy goes next to its video (00005.MTS.720p.mp4); nothing else is written
+      - *catalog
+  updater:
+    # Installs a newer LineageBox when an admin presses Update now on the Status page. It is the one container with
+    # Docker access, which is root on this machine, so: it has no network; it reads no settings and no catalog, only
+    # whether the web app has made the empty file update/requested in the data folder; and it only updates the
+    # containers labelled lineagebox.update in this project, each to the newest copy of the image it already runs.
+    # docs/install.md#updating-and-backups says how to do without it.
+    image: ${LINEAGEBOX_IMAGE:-ghcr.io/mutilator/lineagebox}:${LINEAGEBOX_VERSION:-latest}
+    command: ["updater"]
+    restart: unless-stopped
+    user: "0:0"                  # the Docker socket is root's
+    network_mode: none
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]   # the update folder belongs to PUID's user
+    healthcheck:
+      disable: true              # the image's check reads the catalog, which the updater never opens
+    depends_on: [web]            # after web: a missing catalog folder stops it there, before Docker makes it for this
+    environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+    labels:
+      lineagebox.update: "true"      # it updates itself, last
+    volumes:
+      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
+      - ${DATA:-./data}/update:/update

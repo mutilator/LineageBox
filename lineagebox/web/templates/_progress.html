@@ -1,0 +1,113 @@
+{# The Status page's live part: reloaded every few seconds by app.js (data-live). #}
+{% set d = p.describe %}
+{% macro clock(t) %}{% if t %}{% if t.date() == p.now.date() %}{{ "%d:%02d"|format(t.hour, t.minute) }}{% else %}{{ t.isoformat()|date }}{% endif %}{% endif %}{% endmacro %}
+{% macro mb(n) %}{{ "{:,.0f}".format(n / 1e6) }} MB{% endmacro %}
+{% for service, problem in p.problems.items() %}
+<p class="note problem"><b>{{ service }}:</b> {{ problem.message }} <span class="hint inline">since {{ clock(problem.at) }} ·
+  <a href="/settings#{{ service|lower }}">Settings</a></span></p>
+{% endfor %}
+{% for r in p.retrying %}
+<p class="note">{{ "{:,}".format(r.count) }} {{ r.what }} couldn't be done and are tried again later, a while longer
+  after each try. The last said: {{ r.error }}</p>
+{% endfor %}
+<div class="progress-grid">
+  <section class="panel">
+    <h2>Worker</h2>
+    {% if p.silent %}
+    <p class="state off">Not responding{% if p.heartbeat %} since {{ clock(p.heartbeat) }}{% endif %}.</p>
+    <p class="hint">The worker container may be stopped. Its log says why: <code>docker compose logs worker</code>.</p>
+    {% elif p.stage %}
+    <p class="state busy">{{ p.stage }}<span class="hint inline">since {{ clock(p.stage_since) }}</span></p>
+    {% else %}
+    <p class="state idle">Idle{% if p.next_pass %}<span class="hint inline">next look for new photos at {{ clock(p.next_pass) }}</span>{% endif %}</p>
+    {% endif %}
+    {% if not cfg.folders %}<p class="hint">No folders are watched yet. Pick one on the <a href="/settings#add">Settings</a> page.</p>{% endif %}
+    {% if p.run_requested %}<p class="hint">Check now was pressed; a pass starts within 15 seconds{% if p.stage %} of the current step{% endif %}.</p>{% endif %}
+    <p><button type="button" data-api="/api/worker/run" data-show="#run-note">Check now</button>
+       <span class="hint inline" id="run-note">Look for new photos now.</span></p>
+    <dl>
+      <dt>Last pass finished</dt><dd>{{ clock(p.pass_finished) or "–" }}</dd>
+      <dt>Looks for new photos</dt><dd>every {{ cfg.worker_interval_minutes }} min</dd>
+      <dt>Ollama</dt><dd>{% if not cfg.describe_enabled %}off{% elif p.ollama is none %}not checked yet{% elif p.ollama %}answering{% else %}<span class="off">not answering</span>{% endif %}
+        {%- if cfg.describe_enabled and p.ollama_checked %} <span class="hint inline">{{ clock(p.ollama_checked) }}</span>{% endif %}</dd>
+      <dt>Transcripts</dt><dd>{% if not cfg.transcribe_enabled %}off{% elif not cfg.whisper_url %}no service set{% elif whisper %}Whisper answering{% else %}<span class="off">Whisper not answering</span>{% endif %}</dd>
+      <dt>Faces</dt><dd>{{ "on" if cfg.faces_enabled else "off" }}</dd>
+    </dl>
+  </section>
+
+  <section class="panel">
+    <h2>AI descriptions</h2>
+    {% set pct = (d.done / d.total * 100) if d.total else 100 %}
+    <div class="meter" role="progressbar" aria-valuenow="{{ pct|round|int }}" aria-valuemin="0" aria-valuemax="100"><i style="width: {{ pct }}%"></i></div>
+    <p class="big">{{ pct|round(1) }}% <span class="hint inline">{{ "{:,}".format(d.done) }} of {{ "{:,}".format(d.total) }} photos described</span></p>
+    <dl>
+      <dt>Left</dt><dd>{{ "{:,}".format(d.left) }}</dd>
+      <dt>Pace</dt><dd>{% if d.per_hour %}{{ "{:,}".format(d.per_hour|round|int) }} an hour{% else %}–{% endif %}</dd>
+      {% if d.hours_left %}<dt>Time left</dt><dd>{% if d.hours_left < 1 %}under an hour{% else %}about {{ d.hours_left|round|int }} hours of describing{% endif %}</dd>{% endif %}
+      <dt>Last description</dt><dd>{{ clock(d.last) or "–" }}</dd>
+      <dt>Runs</dt><dd>{{ d.schedule }} <a class="hint inline" href="/settings#schedule">change</a></dd>
+    </dl>
+    {% if not cfg.describe_enabled %}
+    <p class="note">AI descriptions are off on the <a href="/settings#ollama">Settings</a> page.</p>
+    {% elif d.left %}
+      {% if p.waiting_for == "model" %}
+      <p class="note">Waiting for a model that can look at pictures: see above. The worker checks every 5 minutes.</p>
+      {% elif cfg.describe_schedule == "paused" %}
+      <p class="note">Describing is paused on the <a href="/settings#schedule">Settings</a> page.</p>
+      {% elif not d.may_now %}
+      <p class="note">Waiting for the describing hours{% if d.next_start %}: next start {{ d.next_start.strftime("%a") }} {{ clock(d.next_start) }}{% endif %}.</p>
+      {% elif p.ollama == false %}
+      <p class="note">Waiting for Ollama at <code>{{ cfg.ollama_url }}</code>: is the machine it runs on asleep? The worker checks every 5 minutes.</p>
+      {% endif %}
+    {% else %}
+    <p class="note">Every photo is described. New photos are described on the next pass after they are found.</p>
+    {% endif %}
+  </section>
+
+  <section class="panel" id="downloads">
+    <h2>Downloads</h2>
+    {% set wd = whisper.downloading if whisper else none %}
+    {% if p.downloads or wd %}
+    <ul class="downloads">
+      {%- for dl in p.downloads %}
+      <li><b>{{ dl.label }}</b>
+        {%- if dl.state == "downloading" %}
+        {% if dl.percent is not none %}<div class="meter" role="progressbar" aria-valuenow="{{ dl.percent|round|int }}" aria-valuemin="0" aria-valuemax="100"><i style="width: {{ dl.percent }}%"></i></div>{% endif %}
+        <span class="hint">{{ mb(dl.done) }}{% if dl.total %} of {{ mb(dl.total) }}{% endif %}, since {{ clock(dl.started_at) }}</span>
+        {%- elif dl.state == "done" %} <span class="hint">downloaded {{ clock(dl.updated) }}</span>
+        {%- elif dl.state == "stalled" %} <span class="hint off">stopped at {{ mb(dl.done) }}{% if dl.total %} of {{ mb(dl.total) }}{% endif %} ({{ clock(dl.updated) }}); it starts again when it is needed</span>
+        {%- else %} <span class="hint off">failed {{ clock(dl.updated) }}: {{ dl.error }}</span>
+        {%- endif %}</li>
+      {%- endfor %}
+      {%- if wd %}
+      {% set wpct = (wd.done / wd.total * 100) if wd.total else none %}
+      <li><b>{{ wd.file }}, for Whisper</b>
+        {% if wpct is not none %}<div class="meter" role="progressbar" aria-valuenow="{{ wpct|round|int }}" aria-valuemin="0" aria-valuemax="100"><i style="width: {{ wpct }}%"></i></div>{% endif %}
+        <span class="hint">{{ mb(wd.done) }}{% if wd.total %} of {{ mb(wd.total) }}{% endif %}</span></li>
+      {%- endif %}
+    </ul>
+    {% else %}
+    <p class="hint">Nothing is downloading. The face models are downloaded the first time faces are looked for;
+    a model for Ollama when you press Download on the <a href="/settings#ollama">Settings</a> page.</p>
+    {% endif %}
+  </section>
+
+  <section class="panel">
+    <h2>Waiting to be processed</h2>
+    <dl>
+      {%- for label, n in p.waiting %}<dt>{{ label }}</dt><dd>{{ "{:,}".format(n) if n else "–" }}</dd>{% endfor %}
+    </dl>
+    <p class="hint">New photos go through every step on the worker's next pass. Faces and descriptions take longest.</p>
+  </section>
+</div>
+
+<section class="panel activity">
+  <h2>Recent activity</h2>
+  {% if p.activity %}
+  <ol>
+    {%- for a in p.activity %}<li><time>{{ a.at|date }}</time> {{ a.message }}</li>{% endfor %}
+  </ol>
+  {% else %}
+  <p class="hint">Nothing yet. The worker writes here as it works.</p>
+  {% endif %}
+</section>

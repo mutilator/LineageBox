@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Family accounts{% endblock %}
+{% block main %}
+<nav class="crumbs"><a href="/settings">Settings</a><span class="sep">/</span><h1>Family accounts</h1></nav>
+<p class="meta">Family members sign in with Google. A member sees their own part of the family: their ancestors, every
+blood relative, the partners of those and their children, and their own partner's side; the photos those people are
+in; and what they upload. An admin sees and changes everything.</p>
+
+<section class="panel" id="sign-in">
+  <h2>Sign-in</h2>
+  <form data-api="/api/settings/accounts" data-settings data-show="#accounts-saved">
+    <p><label><input type="checkbox" name="accounts_enabled"{% if cfg.accounts_enabled %} checked{% endif %}>
+      Family accounts on</label>
+      <span class="hint">On: everyone signs in, at home too, and the site can be opened from outside. Off: only the
+      home network, with no sign-in, as before.</span></p>
+    <p><label>Google client ID <input name="google_client_id" value="{{ cfg.google_client_id }}" size="60"
+      placeholder="….apps.googleusercontent.com"></label></p>
+    <p><label>Client secret <input name="google_client_secret" type="password" autocomplete="new-password"
+      placeholder="{{ 'kept; type a new one to change it' if cfg.google_client_secret else 'from Google Cloud' }}"></label></p>
+    <p><label>Address from outside <input name="public_url" value="{{ cfg.public_url }}" placeholder="https://photos.example.com"></label>
+      <span class="hint">In Google Cloud → APIs &amp; Services → Credentials, the client's authorised redirect URI is
+      <code>{{ redirect_uri }}</code>.</span></p>
+    <p><label>Stay signed in for <input name="session_days" type="number" min="1" max="365" value="{{ cfg.session_days }}"> days</label></p>
+    <h3>Uploads</h3>
+    <p><label>Folder <input name="uploads_folder" value="{{ cfg.uploads_folder }}"></label>
+      <label>in <select name="uploads_into">
+        <option value="">{{ cfg.folders[0] if cfg.folders else "the first watched folder" }}</option>
+        {%- for f in cfg.folders[1:] %}<option{% if cfg.uploads_into == f %} selected{% endif %}>{{ f }}</option>{% endfor %}
+      </select></label>
+      <label>at most <input name="upload_max_gb" type="number" min="1" max="100" value="{{ cfg.upload_max_gb }}"> GB a file</label>
+      <span class="hint">Each member's uploads go to <code>{{ uploads_root }}/&lt;their person's number&gt;</code>.</span></p>
+    <p><button type="submit" class="primary">Save</button> <span class="hint inline" id="accounts-saved"></span></p>
+  </form>
+</section>
+
+<section class="panel" id="accounts">
+  <h2>Accounts</h2>
+  {%- for a in rows %}
+  <div class="account-row" id="a{{ a.id }}">
+    <h3>{{ a.email }} <span class="hint inline">{{ a.role }}{% if a.person_name %} · {{ a.person_name }}{% endif %}
+      {%- if a.disabled_at %} · switched off{% endif %}{% if a.last_seen_at %} · last here {{ a.last_seen_at|date(false) }}{% endif %}
+      {%- if a.sessions %} · signed in on {{ a.sessions }} browser{{ "" if a.sessions == 1 else "s" }}{% endif %}</span></h3>
+    <form class="inline-facts" data-api="/api/accounts/{{ a.id }}">
+      <input name="name" data-names autocomplete="off" maxlength="80" value="{{ a.person_name or '' }}" aria-label="Who they are in the family tree" placeholder="who they are">
+      <select name="role" aria-label="Role">{% for r in roles %}<option{% if r == a.role %} selected{% endif %}>{{ r }}</option>{% endfor %}</select>
+      <button type="submit">Save</button>
+    </form>
+    <p class="actions">
+      {%- if a.role == "member" and not a.disabled_at %}<button type="button" data-api="/api/see-as" data-body='{{ {"account_id": a.id}|tojson }}'>See as</button>{% endif %}
+      <button type="button" class="quiet" data-api="/api/accounts/{{ a.id }}" data-body='{{ {"disabled": not a.disabled_at}|tojson }}' data-reload>{{ "Switch back on" if a.disabled_at else "Switch off" }}</button>
+      <button type="button" class="quiet" data-api="/api/accounts/{{ a.id }}/signout" data-show="#out{{ a.id }}">Sign out everywhere</button>
+      {%- if a.role == "admin" %}
+      <a class="button quiet" href="/settings/codes#a{{ a.id }}">{{ "Code for signing in at home" if a.local_secret else "Make a code for signing in at home" }}</a>
+      {%- endif %}
+      <button type="button" class="quiet" data-api="/api/accounts/{{ a.id }}/delete" data-confirm="Remove the account of {{ a.email }}? Their uploads stay." data-reload>Remove</button>
+      <span class="hint inline" id="out{{ a.id }}"></span>
+    </p>
+    {%- if a.role == "member" %}
+    <div class="rules">
+      {%- for r in rules.get(a.id, []) %}
+      <span class="tag-chip">{{ "Also" if r.show else "Not" }} {{ r.name }}{% if r.branch %} and their family{% endif %}
+        <button type="button" class="x" data-api="/api/accounts/{{ a.id }}/rules/remove" data-body='{{ {"person_id": r.person_id}|tojson }}' data-reload aria-label="Take this exception off">×</button></span>
+      {%- endfor %}
+      <form class="inline-facts" data-api="/api/accounts/{{ a.id }}/rules" data-reload>
+        <select name="show" aria-label="Show or not"><option value="true">Also show</option><option value="false">Don't show</option></select>
+        <input name="name" data-names autocomplete="off" required maxlength="80" placeholder="someone" aria-label="Who">
+        <label><input type="checkbox" name="branch"> with their family</label>
+        <button type="submit">Add</button>
+      </form>
+    </div>
+    {%- endif %}
+  </div>
+  {%- else %}
+  <p class="note">No accounts yet. Add your own first, as an admin.</p>
+  {%- endfor %}
+
+  <h3>Add an account</h3>
+  <form class="inline-facts" data-api="/api/accounts">
+    <input name="email" type="email" required placeholder="email address" aria-label="Email address">
+    <input name="name" data-names autocomplete="off" maxlength="80" placeholder="who they are in the family tree" aria-label="Who they are">
+    <select name="role" aria-label="Role">{% for r in roles %}<option{% if r == "member" %} selected{% endif %}>{{ r }}</option>{% endfor %}</select>
+    <button type="submit">Add</button>
+  </form>
+</section>
+{% endblock %}

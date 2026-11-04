@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}{{ q or "Search" }}{% endblock %}
+{% block main %}
+<h1>{% if q %}“{{ q }}”{% else %}Search{% endif %}</h1>
+{% if q %}
+{% if people_found %}
+<h2>People <small>{{ people_found|length }}</small></h2>
+<div class="people">
+  {%- for p in people_found %}
+  <a class="person-card" href="/person/{{ p.id }}">
+    {%- if p.cover_face %}<img src="/face/{{ p.cover_face }}" alt="" loading="lazy">{% else %}<span class="ph">{{ p.name[:1] }}</span>{% endif %}
+    <span class="name">{{ p.name }}</span>
+    {%- if kin.get(p.id) %}<span class="kin">{{ kin[p.id] }}</span>{% endif %}
+    <span class="count">{{ "{:,}".format(p.photos) }} photo{{ "" if p.photos == 1 else "s" }}</span>
+  </a>
+  {%- endfor %}
+</div>
+<h2>Photos <small>{{ "{:,}".format(total) }}{% if total >= limit %}+{% endif %}</small></h2>
+{% endif %}
+<p class="meta">
+  {%- if not people_found %}{{ "{:,}".format(total) }}{% if total >= limit %}+{% endif %} photo{{ "" if total == 1 else "s" }} · {% endif -%}
+  every word must match a description, tag, place, event, folder name, person or date
+  {%- if described < to_describe %} · {{ "{:,}".format(described) }} of {{ "{:,}".format(to_describe) }} photos have AI descriptions so far{% endif %}
+  {%- if results %} · {% if select %}<a href="/search?{{ {'q': q}|urlencode }}" data-key="s">Done selecting</a>{% else %}<a href="/search?{{ {'q': q, 'select': 1}|urlencode }}" data-key="s" title="Tick photos to tag them, add someone to them or move them to Removed">Select photos</a>{% endif %}{% endif %}
+</p>
+{% include "_pager.html" %}
+{% if select %}
+<form class="select-form" data-select-api="/api/images/remove" data-reason="search: {{ q }}" data-show=".select-bar .done">
+  {{ m.select_grid(results, ctx) }}
+  {{ m.bulk_bar() }}
+</form>
+{% else %}
+{{ m.grid(results, ctx) }}
+{% endif %}
+{% include "_pager.html" %}
+{% else %}
+<p class="meta">Type words into the box above, e.g. <a href="/search?q=goat">goat</a>, <a href="/search?q=christmas+tree">christmas tree</a>, <a href="/search?q=beach">beach</a>, or a name.</p>
+{% endif %}
+{% endblock %}

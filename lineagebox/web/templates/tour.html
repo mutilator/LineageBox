@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}{{ tour.name }}{% endblock %}
+{% block main %}
+<nav class="crumbs"><a href="/tours">Tours</a><span class="sep">/</span><h1>{{ tour.name }}</h1></nav>
+<p class="meta">{{ about|join(" · ") }} · {{ "{:,}".format(images|length) }} photo{{ "" if images|length == 1 else "s" }}</p>
+<p class="tour-actions">
+  {%- if slides %}<button type="button" class="primary" data-play="#slides" data-seconds="{{ tour.spec.seconds }}" data-key="p" data-key-label="Play the slideshow">▶ Play</button>{% endif %}
+  {%- if images %}<a class="button quiet" href="/download/tour/{{ tour.id }}" download>Download all</a>{% endif %}
+  {%- if viewer.admin or tour.account_id == viewer.account_id %}
+  <a class="button" href="/tour/{{ tour.id }}/edit">Change</a>
+  <button type="button" class="quiet" data-api="/api/tours/{{ tour.id }}/delete"
+          data-confirm="Delete the tour {{ tour.name }}? Only the tour goes; the photos stay where they are.">Delete</button>
+  {%- endif %}
+  {%- if slides %}<span class="hint inline">In the slideshow: space pauses, ← → step, Esc leaves.</span>{% endif %}
+</p>
+{% if images %}{{ m.grid(images, ctx) }}{% else %}<p class="note">No photos match this tour yet.</p>{% endif %}
+<script type="application/json" id="slides">{{ slides|tojson }}</script>
+{% endblock %}

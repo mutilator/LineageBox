@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=77"]   # 77: `license` as an SPDX expression
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lineagebox"
+dynamic = ["version"]   # from lineagebox/__init__.py
+description = "A private family archive: the family tree, and the photos and videos its people are in, shared with the family"
+readme = "README.md"
+license = "AGPL-3.0-only"
+license-files = ["LICENSE"]
+urls = {Homepage = "https://github.com/mutilator/LineageBox", Issues = "https://github.com/mutilator/LineageBox/issues"}
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "httpx>=0.27",
+    "imagehash>=4.3",
+    "jinja2>=3.1",
+    "numpy>=2.0",
+    "pillow>=11.0",
+    "rawpy>=0.24",
+    "scikit-learn>=1.5",
+    "segno>=1.6",
+    "tqdm>=4.66",
+    "uvicorn>=0.30",
+]
+
+[project.optional-dependencies]
+faces = ["insightface>=0.7", "onnxruntime>=1.20"]   # on a PC with an NVIDIA GPU: onnxruntime-gpu instead
+dev = ["pytest>=8", "cryptography>=42"]   # cryptography: test certificates for HTTPS
+
+[project.scripts]
+lineagebox = "lineagebox.cli:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "lineagebox.__version__"}
+
+[tool.setuptools.packages.find]
+include = ["lineagebox*"]
+
+[tool.setuptools.package-data]
+lineagebox = ["migrations/*.sql", "migrations/*.py", "web/templates/*.html", "web/static/*", "web/static/vendor/*/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+tmp_path_retention_policy = "none"  # the tests' sample libraries and videos are deleted once the run ends

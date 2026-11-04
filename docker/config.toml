@@ -1,0 +1,57 @@
+# LineageBox's settings in its Docker image. compose.yaml mounts each photo source as a folder of /photos
+# (/photos/local, /photos/nas, ...) and the catalog at /data.
+#
+# Change any of these with an environment variable named LINEAGEBOX_<SECTION>_<KEY> (LINEAGEBOX_OLLAMA_URL for [ollama]
+# url; compose.yaml passes the common ones from .env), or with a config.toml in the data folder. Watched folders, the
+# schedule, Ollama, Whisper, "whose photos" and the blur cut-off are then changed on the web UI's Settings page: the
+# values here only apply until then.
+
+media_root = "/photos"
+data_dir = "/data"
+
+[scan]
+folders = []   # watched folders inside /photos (e.g. "local/Pictures"), picked on the Settings page
+image_extensions = [".jpg", ".jpeg", ".png", ".nef"]
+# Folder names whose files are listed but never read: thumbnails and recycle bins, including those NASes make.
+ignore_dirs = ["Thumbs", "Previews", ".thumbnails", "@eaDir", "#recycle", "#snapshot", "@Recycle", ".@__thumb"]
+
+[ingest]
+threads = 4
+thumb_size = 400
+preview_size = 2048
+
+[ollama]
+url = "http://host.docker.internal:11434"   # Ollama on this machine; OLLAMA_URL in .env for another one
+model = "ministral-3"
+workers = 2
+image_size = 1024
+keep_alive = "30m"
+
+[whisper]
+url = ""   # the speech-to-text service for video transcripts (whisper_service/); "" for none
+language = "en"
+
+[copies]
+threads = 2   # ffmpeg threads per 720p copy
+
+[faces]
+models_dir = "/data/insightface"   # InsightFace's buffalo_l models are downloaded here when first needed (~280 MB)
+
+[web]
+# Where people's PCs find each source, for "Copy network path" and for pasting a folder to watch:
+# network_paths = { local = '\\nas\photo', nas = '\\otherpc\pictures' }
+# Who may use the web UI. Default: every private range (10/8, 172.16/12, 192.168/16, loopback, IPv6 ULA/link-local).
+# allowed_networks = ["192.168.1.0/24"]
+# Host names it answers to besides addresses and home-network names (nas, photos.lan, nas.local):
+# allowed_hosts = ["photos.example.com"]
+# The reverse proxy in front of it, for HTTPS, so the client behind it is the one checked:
+# trusted_proxies = ["172.18.0.3"]   # the proxy itself; a whole Docker network also trusts its gateway
+# HTTPS without a proxy: the certificate and key (PEM). They are read at startup, so restart after renewing them.
+# tls_cert = "/data/certs/fullchain.pem"
+# tls_key = "/data/certs/privkey.pem"
+
+[library]
+about = ""   # whose photos these are, e.g. "a family in Oregon, USA": helps the AI read places in folder names
+
+[worker]
+interval_minutes = 60   # how often to look for new photos; describing a backlog also pauses this often to look

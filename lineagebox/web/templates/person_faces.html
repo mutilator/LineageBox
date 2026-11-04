@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% set nav = "people" %}
+{% import "_macros.html" as m %}
+{% block title %}{{ person.name }}: faces{% endblock %}
+{% block main %}
+<nav class="crumbs"><a href="/people">People</a><span class="sep">/</span><a href="/person/{{ person.id }}">{{ person.name }}</a><span class="sep">/</span><h1>Faces</h1></nav>
+<p class="meta">{{ "{:,}".format(confirmed_count) }} faces named by you · {{ "{:,}".format(auto_count) }} recognised automatically</p>
+
+{% if auto_faces %}
+<h2>Recognised automatically <small>least certain first</small></h2>
+<p class="meta">Click × on any face that isn't {{ person.name }}: the name comes off, it is never recognised as them again,
+and it can be named as whoever it is on its photo.</p>
+{{ m.review_faces(auto_faces, "Not " ~ person.name, "not") }}
+{% if auto_count > auto_faces|length %}<p class="meta">Showing the {{ auto_faces|length }} least certain of {{ auto_count }}.</p>{% endif %}
+{% endif %}
+
+{% if named_faces %}
+<h2>Named by you <small>least like the others first</small></h2>
+<p class="meta">Including every face of the groups you named. Recognition learns from these, so click × on any face that
+isn't {{ person.name }}, such as a stranger who was in the group: the name comes off, and it can be named as whoever it is
+on its photo.</p>
+{{ m.review_faces(named_faces, "Not " ~ person.name, "not") }}
+{% if confirmed_count > named_faces|length %}<p class="meta">Showing the {{ named_faces|length }} least like the others of {{ confirmed_count }}.</p>{% endif %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}{{ tag }}{% endblock %}
+{% block main %}
+<nav class="crumbs"><a href="/tags">Tags</a><span class="sep">/</span><h1>{{ tag }}</h1></nav>
+<p class="meta">{{ "{:,}".format(images|length) }} photo{{ "" if images|length == 1 else "s" }} tagged “{{ tag }}”, oldest first
+· <a href="/search?q={{ tag|urlencode }}">search for “{{ tag }}”</a> to include descriptions and folder names
+· {% if select %}<a href="/tag/{{ tag|urlencode }}" data-key="s">Done selecting</a>{% else %}<a href="/tag/{{ tag|urlencode }}?select=1" data-key="s" title="Tick photos to tag them, add someone to them, take this tag off or move them to Removed">Select photos</a>{% endif %}</p>
+{% if related %}
+<p class="tags related"><span class="hint inline">Often with:</span>
+  {%- for t in related %} <a class="tag" href="/tag/{{ t.name|urlencode }}" title="{{ t.photos }} photos with both">{{ t.name }}</a>{% endfor %}</p>
+{% endif %}
+{% if select %}
+<form class="select-form" data-select-api="/api/images/remove" data-reason="tag: {{ tag }}" data-show=".select-bar .done">
+  {{ m.select_grid(images, ctx) }}
+  {{ m.bulk_bar(tag) }}
+</form>
+{% else %}
+{{ m.grid(images, ctx) }}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}{{ type.name if type else "New kind of tour" }}{% endblock %}
+{% block main %}
+<nav class="crumbs"><a href="/settings#tours">Settings</a><span class="sep">/</span><h1>{{ type.name if type else "New kind of tour" }}</h1></nav>
+<p class="meta">Leave a choice on “ask each time” and the wizard asks for it whenever a tour of this kind is made.
+Changes apply to new tours; tours already made keep their rules.</p>
+
+<div class="settings">
+<form class="panel tour-type" data-api="{{ '/api/tour-types/%d'|format(type.id) if type else '/api/tour-types' }}" data-settings>
+  <p><label>Kind of tour <input name="name" value="{{ type.name if type else '' }}" required placeholder="Birthdays"></label></p>
+  <p><label>Tours are named <input name="title" class="wide" value="{{ spec.title }}" placeholder="{relation} {year}"></label>
+    <span class="hint">{person}, {people}, {relation}, {year} and {season} are filled in from the answers:
+    “{relation} {year}” makes “Brothers 2024”. The name can still be changed when the tour is made.</span></p>
+
+  <fieldset><legend>Whose photos</legend>
+    <select name="who" aria-label="Whose photos">{% for k, v in who.items() %}<option value="{{ k }}"{% if spec.who.mode == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select>
+    <p data-show-if="who=person"><label>Person
+      <select name="person"><option value="">Ask each time</option>
+        {%- for p in people %}<option value="{{ p.id }}"{% if spec.who.mode == "person" and p.id in spec.who.person_ids %} selected{% endif %}>{{ p.name }}</option>{% endfor %}
+      </select></label></p>
+    <div data-show-if="who=people">
+      <p class="hint">Tick the people, or leave everyone unticked to ask each time.</p>
+      <div class="pick-people">
+        {%- for p in people %}<label class="pp"><input type="checkbox" name="people[]" value="{{ p.id }}"{% if spec.who.mode == "people" and p.id in spec.who.person_ids %} checked{% endif %}><span>{{ p.name }}</span></label>{% endfor %}
+      </div>
+      <label class="choice"><input type="checkbox" name="flags[]" value="together"{% if spec.who.together %} checked{% endif %}> all of them in each photo (otherwise any of them)</label>
+    </div>
+    <div data-show-if="who=relation">
+      <p><label>Relationship
+        <select name="relation"><option value="">Ask each time</option>
+          {%- for key, name, n in relations %}<option value="{{ key }}"{% if key == spec.who.relation %} selected{% endif %}>{{ name }} ({{ n }})</option>{% endfor %}
+        </select></label>
+        <span class="hint">As seen from the person marked “This is me”; friends and the like are anyone's.</span></p>
+      <label class="choice"><input type="checkbox" name="flags[]" value="with_partners"{% if spec.who.with_partners %} checked{% endif %}> and their partners</label>
+      <label class="choice"><input type="checkbox" name="flags[]" value="with_children"{% if spec.who.with_children %} checked{% endif %}> and their children</label>
+    </div>
+  </fieldset>
+
+  <fieldset><legend>When</legend>
+    <select name="when" aria-label="When">{% for k, v in when.items() %}<option value="{{ k }}"{% if spec.when.mode == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select>
+    <span data-show-if="when=season"><label>Season
+      <select name="season"><option value="">Ask each time</option>
+        {%- for s in seasons %}<option value="{{ s }}"{% if s == spec.when.season %} selected{% endif %}>{{ s|capitalize }}</option>{% endfor %}
+      </select></label></span>
+    <span data-show-if="when=year,season"><label>Year <input type="number" name="year" class="num" min="1800" max="2200" value="{{ spec.when.year or '' }}" placeholder="ask"></label></span>
+    <span data-show-if="when=range"><input type="date" name="from" value="{{ spec.when.from }}" aria-label="From"> to
+      <input type="date" name="to" value="{{ spec.when.to }}" aria-label="To"><span class="hint">Leave empty to ask each time.</span></span>
+    <span data-show-if="when=birthday,anniversary,events"><label>within <input type="number" name="days" class="num" min="0" max="60" value="{{ spec.when.days }}"> days of the date</label>
+      <span class="hint">Needs “One person”. Uses the birth date on their page; without one, only the words below decide.</span></span>
+  </fieldset>
+
+  <p><label>Only photos about <input name="words" class="wide" value="{{ spec.words }}" placeholder="birthday cake candles"></label>
+    <span class="hint">Any of these words, in the AI's descriptions and tags, folder names or what is said in videos. Put
+    words in quotes to keep them together: "christmas morning". Empty: no limit.</span></p>
+
+  <fieldset><legend>How many</legend>
+    <select name="pick" aria-label="How many">{% for k, v in pick.items() %}<option value="{{ k }}"{% if spec.pick.mode == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select>
+    <span data-show-if="pick=per_year,per_month"><label><input type="number" name="count" class="num" min="1" max="100" value="{{ spec.pick.count }}"> each</label></span>
+    <label>at most <input type="number" name="max" class="num" min="1" max="2000" value="{{ spec.pick.max }}"> photos</label>
+    <span class="hint">The clearest photos of the tour's people come first, from different days; one of each set of similar shots, never blurry ones.</span>
+  </fieldset>
+
+  <fieldset><legend>Showing</legend>
+    <select name="media" aria-label="Photos or videos">{% for k, v in media.items() %}<option value="{{ k }}"{% if spec.media == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select>
+    <select name="order" aria-label="Order"><option value="date">oldest first</option><option value="shuffle"{% if spec.order == "shuffle" %} selected{% endif %}>shuffled</option></select>
+    <label><input type="number" name="seconds" class="num" min="1" max="60" value="{{ spec.seconds }}"> seconds a photo</label>
+    <span class="hint">Videos play to the end, or for 30 seconds.</span>
+  </fieldset>
+
+  <p><button type="submit" class="primary">Save</button> <a href="/settings#tours">Cancel</a>
+    {%- if type %}
+    <button type="button" class="quiet" data-api="/api/tour-types/{{ type.id }}/delete"
+            data-confirm="Delete the kind of tour {{ type.name }}? Tours already made with it stay.">Delete</button>
+    {%- endif %}</p>
+</form>
+</div>
+{% endblock %}

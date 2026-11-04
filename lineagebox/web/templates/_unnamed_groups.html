@@ -1,0 +1,29 @@
+{# Cleanup → Confirm faces: groups of faces nobody has named yet (cleanup_faces.html). #}
+{% import "_macros.html" as m %}
+<p class="meta">Each row is one face group, the clearest faces first. Click × on any face that doesn't belong, such as a stranger;
+it is left out from now on. (To give it a name of its own instead, click the face.) Then type a name and press Enter, or hide
+groups of strangers. Typing a name you already used adds the group to that person. Mistakes can be fixed under "Check faces"
+on the person's page.</p>
+{% include "_pager.html" %}
+{% for g in groups %}
+{%- set shown = "face=" ~ g.faces|map(attribute="id")|join("&face=") %}
+<section class="group" id="g{{ g.id }}">
+  {{ m.review_faces(g.faces, "Not the same person: leave out") }}
+  {%- if g.more %}
+  <details class="more-faces">
+    <summary>Show {{ g.more|length }} more</summary>
+    {{ m.review_faces(g.more, "Not the same person: leave out") }}
+  </details>
+  {%- endif %}
+  <form class="name-form" data-api="/api/clusters/{{ g.id }}/name?{{ shown }}" data-remove="#g{{ g.id }}">
+    <span class="size">{{ g.size }} face{{ "" if g.size == 1 else "s" }} in {{ g.images|length }} photo{{ "" if g.images|length == 1 else "s" }}</span>
+    <input name="name" data-names autocomplete="off" required placeholder="Who is this?" value="{{ g.suggestion or '' }}" aria-label="Name" data-key="n" data-key-label="Name the first group of faces">
+    <button type="submit">Name</button>
+    <button type="button" class="quiet" data-api="/api/clusters/{{ g.id }}/ignore?{{ shown }}" data-remove="#g{{ g.id }}">Hide</button>
+    {% if g.suggestion %}<span class="hint inline">suggested from folder names</span>{% endif %}
+  </form>
+</section>
+{% else %}
+<p class="note">{% if s.faces %}No unnamed groups left.{% else %}No faces found yet: run <code>python -m lineagebox faces</code>, then <code>python -m lineagebox people</code>.{% endif %}</p>
+{% endfor %}
+{% include "_pager.html" %}

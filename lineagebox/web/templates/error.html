@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{# A page that can't be shown (app.py answer()): a photo or person that is gone, or outside a member's part of the
+   family, an address typed wrong, something that can't be done. #}
+{% set title = {404: "Not here", 403: "Not for you", 409: "Changed meanwhile", 413: "Too big", 429: "That's a lot at once",
+                503: "Busy just now"}.get(status, "That didn't work") %}
+{% block title %}{{ title }}{% endblock %}
+{% block main %}
+<h1>{{ title }}</h1>
+<p class="note problem" role="alert">{{ message }}</p>
+<p>{% if status == 404 %}It may have been removed or merged with something else, or the link is wrong.
+  {% elif status == 503 %}Try again in a moment. {% endif %}<a href="/">Back to the start</a></p>
+{% endblock %}

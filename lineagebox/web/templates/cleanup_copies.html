@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% set nav = "cleanup" %}
+{% block title %}Duplicate copies{% endblock %}
+{% block main %}
+<nav class="crumbs"><a href="/cleanup">Cleanup</a><span class="sep">/</span><h1>Duplicate copies</h1></nav>
+<p class="meta">{{ "{:,}".format(total) }} pairs of folders hold identical copies of the same photos (the same file, byte for byte).
+Removing the copies from one folder keeps every photo: the other folder still has it. A photo's last copy is never
+removed. <b>Keep both</b> stops listing a pair of folders whose copies you want.</p>
+
+{% include "_pager.html" %}
+{% for p in pairs %}
+<section class="pair" id="p{{ p.a }}-{{ p.b }}">
+  <div class="samples">{% for sha in p.samples %}<img src="/t/{{ sha }}" alt="" loading="lazy">{% endfor %}</div>
+  {% if p.a == p.b %}
+  <p><a href="/folder/{{ p.a }}">{{ p.a_path or "Top folder" }}</a> has {{ "{:,}".format(p.shared) }}
+     photo{{ "" if p.shared == 1 else "s" }} more than once.</p>
+  <button type="button" data-api="/api/cleanup/copies?remove_from={{ p.a }}&keep_in={{ p.a }}" data-reload
+          data-busy="Moving…" data-confirm="Move the extra copies in {{ p.a_path }} to the Removed folder? One copy of each photo stays.">
+    Remove the extra copies</button>
+  <button type="button" class="quiet" data-api="/api/cleanup/copies/keep?a={{ p.a }}&b={{ p.b }}" data-remove="#p{{ p.a }}-{{ p.b }}">Keep them</button>
+  {% else %}
+  <p>{{ "{:,}".format(p.shared) }} identical photo{{ "" if p.shared == 1 else "s" }} in both folders:</p>
+  <div class="sides">
+    {% for here, there, path, size, other in [(p.a, p.b, p.a_path, p.a_size, p.b_path), (p.b, p.a, p.b_path, p.b_size, p.a_path)] %}
+    <div class="side">
+      <a href="/folder/{{ here }}">{{ path or "Top folder" }}</a>
+      <span class="meta">{{ "{:,}".format(size) }} photos{% if size == p.shared %}, all of them also in the other folder{% endif %}</span>
+      <button type="button" data-api="/api/cleanup/copies?remove_from={{ here }}&keep_in={{ there }}" data-reload
+              data-busy="Moving…" data-confirm="Move the {{ '{:,}'.format(p.shared) }} copies in {{ path }} to the Removed folder? They stay in {{ other }}.">
+        Remove the copies from this folder</button>
+    </div>
+    {% endfor %}
+  </div>
+  <p><button type="button" class="quiet" data-api="/api/cleanup/copies/keep?a={{ p.a }}&b={{ p.b }}" data-remove="#p{{ p.a }}-{{ p.b }}">Keep both</button>
+     <span class="hint inline">Stop listing this pair of folders.</span></p>
+  {% endif %}
+</section>
+{% else %}
+<p class="note">No duplicate copies left.</p>
+{% endfor %}
+{% include "_pager.html" %}
+{% endblock %}

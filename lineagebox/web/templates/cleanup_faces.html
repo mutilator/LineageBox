@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% set nav = "cleanup" %}
+{% block title %}Confirm faces{% endblock %}
+{% block main %}
+<nav class="crumbs"><a href="/cleanup">Cleanup</a><span class="sep">/</span><h1>Confirm faces</h1></nav>
+<nav class="tabs" aria-label="Faces to confirm">
+  <a href="/cleanup/faces?show=together"{% if show == "together" %} aria-current="page"{% endif %}>Seen together
+    <small>{{ "{:,}".format(beside) }} faces</small></a>
+  <a href="/cleanup/faces?show=finish"{% if show == "finish" %} aria-current="page"{% endif %}>Photos to finish
+    <small>{{ "{:,}".format(finish) }}</small></a>
+  <a href="/cleanup/faces?show=groups"{% if show == "groups" %} aria-current="page"{% endif %}>Unnamed groups
+    <small>{{ "{:,}".format(total_groups) }}</small></a>
+</nav>
+{% if show == "together" %}{% include "_together.html" %}
+{% elif show == "finish" %}{% include "_to_finish.html" %}
+{% else %}{% include "_unnamed_groups.html" %}{% endif %}
+{% endblock %}

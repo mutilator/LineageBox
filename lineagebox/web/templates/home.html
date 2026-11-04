@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Home{% endblock %}
+{% block main %}
+<h1>{% if first_name %}Hello, {{ first_name }}{% else %}Home{% endif %}</h1>
+
+{% if questions %}
+<section class="who-is-this">
+  <h2>Who is this?</h2>
+  <p class="meta">Someone in the family asked. If you know them, type their name; if not, Don't know.</p>
+  <div class="questions">
+    {%- for q in questions %}
+    <div class="question" id="q{{ q.face_id }}">
+      <a href="/image/{{ q.image_id }}"><img src="/face/{{ q.face_id }}" alt="A face someone asked about" width="96" height="96"></a>
+      <span class="hint">{% if q.asker %}{{ q.asker }} asked{% else %}asked{% endif %} {{ q.asked_at|date(false) }}</span>
+      <form class="name-form compact" data-api="/api/faces/{{ q.face_id }}/name" data-remove="#q{{ q.face_id }}">
+        <input name="name" data-names autocomplete="off" required maxlength="80" placeholder="Who is this?" aria-label="Who is this?">
+      </form>
+      <button type="button" class="quiet" data-api="/api/faces/{{ q.face_id }}/skip" data-remove="#q{{ q.face_id }}">Don't know</button>
+    </div>
+    {%- endfor %}
+  </div>
+</section>
+{% endif %}
+
+<h2>New photos of the family</h2>
+{% if recent %}{{ m.grid(recent, "") }}{% else %}<p class="note">No photos of your family yet.</p>{% endif %}
+
+{% if viewer.account %}
+<h2>Your uploads</h2>
+{% if mine %}{{ m.grid(mine, "") }}{% else %}<p class="note">Nothing uploaded yet.</p>{% endif %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Recent changes{% endblock %}
+{% block main %}
+<nav class="crumbs"><a href="/cleanup">Cleanup</a><span class="sep">/</span><h1>Recent changes</h1></nav>
+<p class="meta">What family members changed, newest first. Undo puts one back, as long as nobody has changed the same
+thing again since. {% if widened %}<b>{{ widened }}</b> of them let someone see more of the family than before
+(marked below): look at those first.{% endif %}</p>
+{% if rows %}
+<ul class="changes">
+  {%- for r in rows %}
+  <li id="c{{ r.id }}"{% if r.undone_at %} class="undone"{% endif %}>
+    <span class="when">{{ r.at|date }}</span>
+    <b>{{ r.who or r.email or "someone" }}</b> {{ r.summary[:1]|lower }}{{ r.summary[1:] }}
+    {%- if r.widened %}
+    <span class="widened">— now
+      {%- for account_id, names in r.widened.items() %} {{ emails.get(account_id, "an account") }} also sees {{ names|join(", ") }}{{ ";" if not loop.last }}{% endfor %}</span>
+    {%- endif %}
+    {%- if r.undone_at %} <span class="hint inline">undone {{ r.undone_at|date }}</span>
+    {%- else %}
+    <button type="button" class="quiet" data-api="/api/changes/{{ r.id }}/undo">Undo</button>
+    {%- if r.account_id %}<button type="button" class="quiet" data-api="/api/changes/undo-since" data-body='{{ {"account_id": r.account_id, "since": r.id}|tojson }}'
+      data-confirm="Undo this and everything {{ r.who or r.email }} changed after it?">Undo this and their later changes</button>{% endif %}
+    {%- endif %}
+  </li>
+  {%- endfor %}
+</ul>
+{% else %}
+<p class="note">No changes by family members yet.</p>
+{% endif %}
+{% endblock %}

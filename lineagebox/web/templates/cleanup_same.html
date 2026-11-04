@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Same person?{% endblock %}
+{% block main %}
+<nav class="crumbs"><a href="/cleanup">Cleanup</a><span class="sep">/</span><h1>Same person?</h1></nav>
+<p class="meta">A family member who can't see someone types their name as someone new. These people were added by a
+family member and have the same name (or another name, or the same first and last name) as someone already here.</p>
+{% if found %}
+<ul class="same-people">
+  {%- for m in found %}
+  <li id="s{{ m.added }}-{{ m.other }}">
+    <a href="/person/{{ m.added }}">{{ m.added_name }}</a>{% if m.born[0] %} <span class="hint inline">born {{ m.born[0] }}</span>{% endif %}
+    <span class="hint inline">added by {{ emails.get(m.added_by, "a family member") }}</span>
+    and <a href="/person/{{ m.other }}">{{ m.other_name }}</a>{% if m.born[1] %} <span class="hint inline">born {{ m.born[1] }}</span>{% endif %}
+    {%- if m.alike is not none %} <span class="hint inline">faces {{ "look alike" if m.alike >= 0.5 else "don't look alike" }} ({{ "%.2f"|format(m.alike) }})</span>{% endif %}
+    <form class="inline-facts" data-api="/api/same/merge" data-settings
+      data-confirm="Merge {{ m.added_name }} into {{ m.other_name }}? Their faces, family and details move over. This can't be undone.">
+      <input type="hidden" name="added" value="{{ m.added }}"><input type="hidden" name="other" value="{{ m.other }}">
+      <label><input type="checkbox" name="keep_seeing" checked> whoever added them goes on seeing them</label>
+      <button type="submit">Same person: merge</button>
+    </form>
+    <a class="button quiet" href="/person/{{ m.added }}">Related: link them</a>
+    <button type="button" class="quiet" data-api="/api/same/different" data-body='{{ {"added": m.added, "other": m.other}|tojson }}' data-remove="#s{{ m.added }}-{{ m.other }}">Different people</button>
+  </li>
+  {%- endfor %}
+</ul>
+{% else %}
+<p class="note">Nobody to check.</p>
+{% endif %}
+{% endblock %}

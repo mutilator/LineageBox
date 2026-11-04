@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% set nav = "cleanup" %}
+{% block title %}{{ title }}{% endblock %}
+{% block main %}
+<nav class="crumbs"><a href="/cleanup">Cleanup</a><span class="sep">/</span><h1>{{ title }}</h1></nav>
+{% if kind == "blurry" %}
+<p class="meta">{{ "{:,}".format(total) }} photos with almost no sharp detail anywhere, worst first. The first pages are mostly black
+frames, blank sky and lens-cap shots; further on, soft but wanted photos (babies, dim rooms) start to appear, so
+look before you tick. Tick the ones you want and press Keep, and they are not listed again.{% if unmeasured %} {{ "{:,}".format(unmeasured) }} photos have not been measured yet.{% endif %}</p>
+{% else %}
+<p class="meta">{{ "{:,}".format(total) }} photos without people whose AI description mentions
+{% for p in phrases[:8] %}“{{ p }}”{{ ", " if not loop.last }}{% endfor %} or similar. The matched words are on each
+photo; hover for the description. Tick the ones you want and press Keep, and they are not listed again.
+{%- if described < to_describe %} Covers the {{ "{:,}".format(described) }} of {{ "{:,}".format(to_describe) }} photos described so far.{% endif %}</p>
+{% endif %}
+
+{% include "_pager.html" %}
+{% if images %}
+<form class="select-form" data-select-api="/api/images/remove" data-reason="{{ reason }}">
+  {{ m.select_grid(images, "") }}
+  {{ m.select_bar(keep=true) }}
+</form>
+{% else %}
+<p class="note">Nothing here{% if kind == "blurry" and unmeasured %} yet{% endif %}.</p>
+{% endif %}
+{% include "_pager.html" %}
+{% endblock %}

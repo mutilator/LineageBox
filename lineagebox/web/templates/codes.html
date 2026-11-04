@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Codes for signing in at home{% endblock %}
+{% block main %}
+<nav class="crumbs"><a href="/settings">Settings</a><span class="sep">/</span><h1>Codes for signing in at home</h1></nav>
+<p class="meta">When the internet is down, Google can't say who is signing in. An admin at home, on the home network,
+can then sign in with their email and the 6-digit code an authenticator app on their phone shows (Google
+Authenticator, Microsoft Authenticator and others do). The code changes every 30 seconds, and each works once.</p>
+{%- if not cfg.accounts_enabled %}
+<p class="note">Family accounts are off, so nobody signs in yet. Codes made now work once they are on.</p>
+{%- endif %}
+
+<section class="panel">
+  {%- for a in admins %}
+  <div class="account-row" id="a{{ a.id }}">
+    <h3>{{ a.person_name or a.email }} <span class="hint inline">{% if a.person_name %}{{ a.email }} · {% endif %}
+      {%- if you and you.id == a.id %}you · {% endif %}{{ "has a code" if a.local_secret else "no code yet" }}
+      {%- if a.disabled_at %} · switched off{% endif %}</span></h3>
+    <p class="actions">
+      <button type="button"{% if not a.local_secret %} class="primary"{% endif %} data-api="/api/accounts/{{ a.id }}/local-code" data-html="#code{{ a.id }}"
+        {%- if a.local_secret %} data-confirm="Make a new code for {{ a.email }}? The one in the authenticator app now stops working."{% endif %}>
+        {{- "Make a new code" if a.local_secret else "Make a code" }}</button>
+      {%- if a.local_secret %}
+      <button type="button" class="quiet" data-api="/api/accounts/{{ a.id }}/local-code/remove" data-confirm="Take away the code of {{ a.email }}? Signing in at home without the internet stops working until a new one is made." data-reload>Take the code away</button>
+      {%- endif %}
+    </p>
+    <div id="code{{ a.id }}"></div>
+  </div>
+  {%- else %}
+  <p class="note">There is no admin account yet. Add yours on <a href="/accounts">Family accounts</a> first, as an admin.</p>
+  {%- endfor %}
+</section>
+<p class="hint">Family members sign in with Google only. A lost phone: take its code away here, or make a new one.</p>
+{% endblock %}

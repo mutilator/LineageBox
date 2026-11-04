@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% set nav = "people" %}
+{% import "_macros.html" as m %}
+{% block title %}{{ person.name }}{% endblock %}
+{% block main %}
+<nav class="crumbs"><a href="/people">People</a><span class="sep">/</span><h1>{{ person.name }}</h1>
+  {%- if ego == person.id %}<span class="kin-badge">you</span>{% elif kin %}<span class="kin-badge">your {{ kin.label }}</span>{% endif %}</nav>
+<form class="name-form" data-api="/api/people/{{ person.id }}/rename" data-go="/person/">
+  <input name="name" value="{{ person.name }}" required aria-label="Name" data-key="n" data-key-label="Rename">
+  <button type="submit">Rename</button>
+  <span class="hint inline">{% if viewer.admin %}Renaming to someone else's name merges the two.{% else %}Two people may have the same name.{% endif %}</span>
+</form>
+{%- if others and viewer.admin %}
+<form class="name-form" data-api="/api/people/{{ person.id }}/merge" data-go="/person/"
+  data-confirm="Merge {{ person.name }} into {into}? {{ person.name }}'s faces, details, family and tours move to {into}, and {{ person.name }} is removed. This can't be undone.">
+  <label>Merge into <select name="into" required aria-label="Merge into">
+    <option value="" selected disabled>pick someone</option>
+    {%- for o in others %}<option value="{{ o.id }}">{{ o.name }}</option>{% endfor %}
+  </select></label>
+  <button type="submit">Merge</button>
+  <span class="hint inline">when {{ person.name }} and someone else are the same person</span>
+</form>
+{%- endif %}
+<p class="meta">{{ "{:,}".format(images|length) }} photos · {{ "{:,}".format(confirmed_count) }} faces named by you · {{ "{:,}".format(auto_count) }} recognised automatically
+  · <a href="/person/{{ person.id }}/faces" data-key="k">Check faces</a><span class="hint inline">take out faces that aren't {{ person.name }}</span></p>
+
+<details class="panel family-panel"{% if fam.parents or fam.partners or fam.siblings or fam.children or fam.others or theirs %} open{% endif %}>
+  <summary><h2>Family and relationships</h2></summary>
+  <div class="facts">
+    <span class="label">Sex</span>
+    <span>
+      {%- for value, word in (("male", "Male"), ("female", "Female")) %}
+      <button type="button" class="chip{% if person.sex == value %} on{% endif %}" data-api="/api/people/{{ person.id }}/sex" data-body='{"sex": "{{ "" if person.sex == value else value }}"}' data-reload data-key="{{ value[0] }}" data-key-label="Sex: {{ value }} (again to clear)">{{ word }}</button>
+      {%- endfor %}
+      {%- if suggested_sex %}<span class="hint inline">the faces look {{ suggested_sex }}</span>{% endif %}
+      {%- if not person.sex %}<span class="hint inline">sets brother or sister, niece or nephew…</span>{% endif %}
+    </span>
+    {%- set birth = life|selectattr("tag", "equalto", "BIRT")|first %}
+    <span class="label">Born</span>
+    <form class="inline-facts" data-api="/api/people/{{ person.id }}/details" data-settings data-show="#details-saved">
+      <input name="birth_date" value="{{ birth.date|gdate if birth else '' }}" placeholder="1984-06-12, June 1984, about 1950" aria-label="Birth date" data-key="b" data-key-label="Birth date (Enter saves)">
+      <label><input type="checkbox" name="deceased[]" value="yes"{% if person.deceased %} checked{% endif %} data-key="d" data-key-label="Passed away (Space ticks, Enter saves)"> passed away</label>
+      <button type="submit">Save</button><span class="hint inline" id="details-saved">Ages come from the birth date. More under Life events.</span>
+    </form>
+    <span class="label">Name</span>
+    <form class="inline-facts" data-api="/api/people/{{ person.id }}/name-parts" data-settings data-show="#name-saved">
+      <input name="given" value="{{ person.given_name or '' }}" placeholder="given names" aria-label="Given names" data-key="s" data-key-label="Given names and surname">
+      <input name="surname" value="{{ person.surname or '' }}" placeholder="surname" aria-label="Surname">
+      <select name="type" aria-label="Kind of name">
+        {%- for value in ("birth", "married", "aka") %}<option value="{{ value }}"{% if person.name_type == value %} selected{% endif %}>{{ name_types[value]|lower }}</option>{% endfor %}
+      </select>
+      <button type="submit">Save</button><span class="hint inline" id="name-saved">{% if not person.names_checked %}Split at the last word: check it.{% else %}As family tree programs get it.{% endif %}</span>
+    </form>
+    <span class="label">Groups</span>
+    <span>
+      {%- for name in circles %}<span class="link">{{ name }}
+        <button type="button" class="x" title="Take out of this group" aria-label="Take out of this group" data-api="/api/people/{{ person.id }}/groups/remove" data-body='{{ {"name": name}|tojson }}' data-reload>×</button></span>{% endfor %}
+      <datalist id="circle-names">{% for n in circle_names %}<option value="{{ n }}">{% endfor %}</datalist>
+      <form class="inline-facts" data-api="/api/people/{{ person.id }}/groups" data-reload data-refocus="c">
+        <input name="name" list="circle-names" required placeholder="Teachers, Family friends, Foo Fighters…" aria-label="Group" data-key="c" data-key-label="Add to a group (teachers, friends, a band)">
+        <button type="submit">Add</button>
+        <span class="hint inline">for people who aren't family</span>
+      </form>
+    </span>
+    <span class="label">Other names</span>
+    <span>
+      {%- for n in other_names %}<span class="link">{{ n.name }} <span class="hint inline">{{ name_types[n.type]|lower }}</span>
+        <button type="button" class="x" title="Remove this name" aria-label="Remove this name" data-api="/api/names/{{ n.id }}/delete" data-reload>×</button></span>{% endfor %}
+      <form class="inline-facts" data-api="/api/people/{{ person.id }}/names" data-reload data-refocus="o">
+        <input name="name" required placeholder="maiden name, nickname…" aria-label="Another name" data-key="o" data-key-label="Add another name (maiden name, nickname)">
+        <select name="type" aria-label="Kind of name">{% for value, label in name_types.items() %}<option value="{{ value }}">{{ label|lower }}</option>{% endfor %}</select>
+        <button type="submit">Add</button>
+      </form>
+    </span>
+  </div>
+
+  {% macro who(pid, extra="") %}<a href="/person/{{ pid }}">{{ g.name(pid) }}</a>{{ extra }}{% endmacro %}
+  {% macro remove(kind, a, b, what="") %}<button type="button" class="x" title="Remove this link" aria-label="Remove this link"
+    data-api="/api/family/unlink" data-body='{{ {"kind": kind, "a": a, "b": b, "what": what}|tojson }}' data-reload>×</button>{% endmacro %}
+  <dl class="links">
+    {%- if fam.parents %}<dt>Parents</dt><dd>
+      {%- for p in fam.parents %}<span class="link">{{ who(p.id) }}{% if p.entered %}{{ remove("parent", person.id, p.id) }}{% else %}<span class="hint inline">through a sibling</span>{% endif %}</span>{% endfor %}</dd>{% endif %}
+    {%- if fam.partners %}<dt>Partners</dt><dd>
+      {%- for q in fam.partners %}<span class="link{% if not q.current %} former{% endif %}">{{ who(q.id) }}
+        <span class="hint inline">{{ ("husband" if g.sex(q.id) == "male" else "wife" if g.sex(q.id) == "female" else "spouse") if q.married else "partner" }}{% if not q.current %}, former{% endif %}</span>
+        <button type="button" class="quiet small" data-api="/api/family/current" data-body='{{ {"a": person.id, "b": q.id, "what": "former" if q.current else "current"}|tojson }}' data-reload>{{ "mark former" if q.current else "mark current" }}</button>
+        {{- remove("partner", person.id, q.id) }}</span>{% endfor %}</dd>{% endif %}
+    {%- if fam.siblings %}<dt>Siblings</dt><dd>
+      {%- for s in fam.siblings %}<span class="link">{{ who(s.id) }}{% if s.half %}<span class="hint inline">half</span>{% endif %}{% if s.entered %}{{ remove("sibling", person.id, s.id) }}{% endif %}</span>{% endfor %}</dd>{% endif %}
+    {%- if fam.children %}<dt>Children</dt><dd>
+      {%- for ch in fam.children %}<span class="link">{{ who(ch.id) }}{% if ch.with %}<span class="hint inline">with {% for w in ch.with %}{{ g.name(w) }}{{ ", " if not loop.last }}{% endfor %}</span>{% endif %}
+        {%- if ch.entered %}{{ remove("parent", ch.id, person.id) }}{% endif %}
+        {%- if ch.entered and not ch.with %}{% for q in fam.partners %}<button type="button" class="quiet small" data-api="/api/family/link" data-body='{{ {"a": ch.id, "what": "parent", "b": q.id}|tojson }}' data-reload title="{{ g.name(q.id) }} is {{ g.name(ch.id) }}'s other parent">with {{ g.name(q.id) }}?</button>{% endfor %}{% endif %}</span>{% endfor %}</dd>{% endif %}
+    {#- fewer than two parents, none of them through a sibling (an own parent would replace those) #}
+    {%- if fam.parents|length < 2 and not fam.parents|rejectattr("entered")|list %}<dt>{{ "Another parent" if fam.parents else "Parents" }}</dt><dd>
+      <form class="name-form compact" data-api="/api/people/{{ person.id }}/link" data-reload>
+        <input name="name" data-names autocomplete="off" required maxlength="80" placeholder="a parent's name" aria-label="Add a parent of {{ person.name }}" title="Someone already in the catalog, or a new name; press Enter">
+        <select name="word" aria-label="Which parent"><option value="mother">mother</option><option value="father">father</option><option value="parent" selected>parent</option></select>
+      </form></dd>{% endif %}
+    {%- for o in fam.others %}<dt>{{ o.label }}</dt><dd>
+      {%- for other in o.ids %}<span class="link">{{ who(other) }}{{ remove("relation", person.id if o.is_kind else other, other if o.is_kind else person.id, o.kind) }}</span>{% endfor %}</dd>
+    {%- endfor %}
+  </dl>
+  {%- if theirs %}
+  <h3 class="worked-out">Worked out from these <small>{{ person.name }}'s</small></h3>
+  <dl class="links">
+    {%- for group, kin_here in theirs %}<dt>{{ group|capitalize }}</dt><dd>
+      {%- for pid, label in kin_here %}<span class="link">{{ who(pid) }}<span class="hint inline">{{ label }}</span></span>{% endfor %}</dd>
+    {%- endfor %}
+  </dl>
+  {%- endif %}
+
+  <datalist id="relation-words">{% for w in family_words %}<option value="{{ w }}">{% endfor %}{% for w in other_words %}<option value="{{ w }}">{% endfor %}</datalist>
+  <form class="add-link" data-api="/api/people/{{ person.id }}/link" data-reload data-refocus="r">
+    <label>Add <input name="name" data-names autocomplete="off" required placeholder="name" aria-label="Who" data-key="r" data-key-label="Add a relative or friend (then Tab to what they are)"></label>
+    <label>as {{ person.name }}'s <input name="word" list="relation-words" required placeholder="brother, son, friend…" aria-label="What they are"></label>
+    <label data-show-if="word=son,daughter,child">with
+      <select name="with_parent" aria-label="The child's other parent">
+        <option value="" selected>no one else</option>
+        {%- for q in fam.partners %}<option value="{{ q.id }}">{{ g.name(q.id) }}</option>{% endfor %}
+      </select></label>
+    <button type="submit">Add</button>
+  </form>
+  <p class="hint">Enter only what you know directly: parents, children, brothers and sisters, partners (only one current
+  partner at a time), and friends, coworkers and the like. Nieces, cousins, in-laws and step-family are worked out from
+  these. A name that isn't in the catalog yet adds that person, even with no photos.</p>
+  <p class="actions">
+    {%- if ego != person.id and not signed_in %}<button type="button" class="quiet" data-api="/api/family/me" data-body='{"person_id": {{ person.id }}}' data-reload
+      {%- if ego %} data-confirm="Make {{ person.name }} the person everyone's relationship is worked out from (now {{ g.name(ego) }})?"{% endif %}>This is me</button>{% endif %}
+    <a href="/family?root={{ tree_root }}" data-key="t">Show in the family tree</a>
+  </p>
+</details>
+
+<details class="panel events-panel"{% if life %} open{% endif %} id="events">
+  <summary><h2>Life events</h2></summary>
+  {%- if life %}
+  <ul class="events">
+    {%- for e in life %}
+    {%- set label = (couple_events if e.partner else person_events)[e.tag] %}
+    <li>
+      <details>
+        <summary><b>{{ e.type if e.tag == "EVEN" and e.type else label }}</b>{% if e.partner %} with {{ e.partner }}{% endif %}
+          {%- if e.date %} <span>{{ e.date|gdate }}</span>{% endif %}{% if e.place %} <span class="hint inline">{{ e.place }}</span>{% endif %}
+          {%- if not e.date and not e.place %} <span class="hint inline">no date or place yet: add them</span>{% endif %}</summary>
+        <form class="event-form" data-api="/api/people/{{ person.id }}/events" data-settings data-reload>
+          <input type="hidden" name="id" value="{{ e.id }}"><input type="hidden" name="tag" value="{{ e.tag }}">
+          <input type="hidden" name="partner" value="{{ (e.couple_b if e.couple_a == person.id else e.couple_a) if e.partner else '' }}">
+          <label>Date <input name="date" value="{{ e.date|gdate }}" placeholder="1984-06-12, June 1984, about 1950"
+            {%- if loop.index <= 9 %} data-key="{{ loop.index }}" data-key-label="Change a life event, by its place in the list"{% endif %}></label>
+          <label>Place <input name="place" value="{{ e.place or '' }}" placeholder="Portland, Oregon, USA" class="wide"></label>
+          {%- if e.tag == "EVEN" %}<label>What <input name="type" value="{{ e.type or '' }}" required></label>{% endif %}
+          <label>Note <input name="note" value="{{ e.note or '' }}" class="wide"></label>
+          <button type="submit">Save</button>
+          <button type="button" class="quiet" data-api="/api/events/{{ e.id }}/delete" data-reload data-confirm="Remove this event?">Remove</button>
+        </form>
+      </details>
+    </li>
+    {%- endfor %}
+  </ul>
+  {%- endif %}
+  <form class="event-form add" data-api="/api/people/{{ person.id }}/events" data-settings data-reload data-refocus="e">
+    <label>Add <select name="tag" aria-label="Kind of event" data-key="e" data-key-label="Add a life event (type to pick the kind, Tab to the date, Enter adds)">
+      {%- for tag, label in person_events.items() if tag != "EVEN" %}<option value="{{ tag }}">{{ label }}</option>{% endfor %}
+      {%- if fam.partners %}{% for tag, label in couple_events.items() if tag != "EVEN" %}<option value="{{ tag }}">{{ label }}</option>{% endfor %}{% endif %}
+      <option value="EVEN">Other event</option>
+    </select></label>
+    <label data-show-if="tag=marr,div,enga,even">with <select name="partner" aria-label="With whom">
+      <option value="">{{ person.name }} alone</option>
+      {%- for q in fam.partners %}<option value="{{ q.id }}">{{ g.name(q.id) }}</option>{% endfor %}
+    </select></label>
+    <label data-show-if="tag=even">What <input name="type" placeholder="moved to Oregon, first day of school"></label>
+    <label>Date <input name="date" placeholder="1984-06-12, June 1984, about 1950"></label>
+    <label>Place <input name="place" placeholder="Portland, Oregon, USA"></label>
+    <button type="submit">Add</button>
+  </form>
+  <p class="hint">Dates can be as exact as you know them: 1984-06-12, June 1984, 1984, about 1950, before 1960,
+  between 1950 and 1955. Weddings and divorces go with the partner they were with. Family tree programs get all of
+  these (Family page, Export).</p>
+</details>
+
+{% if docs %}
+<h2>Documents <small>{{ docs|length }}</small></h2>
+<div class="grid">
+  {%- for d in docs %}<a href="/image/{{ d.image_id }}" title="{{ d.kind }}: {{ d.title }}"><img src="/t/{{ d.sha256 }}" alt="{{ d.title }}" loading="lazy"></a>{% endfor %}
+</div>
+{% endif %}
+
+<h2>Photos</h2>
+{{ m.grid(images, ctx) }}
+{% endblock %}

@@ -1,0 +1,80 @@
+{% macro grid(images, ctx) %}
+<div class="grid">
+{%- for im in images %}
+  <a class="tile" href="/image/{{ im.id }}?ctx={{ ctx|urlencode }}" title="{{ im.taken_at|date }}">
+    <img src="/t/{{ im.sha256 }}" loading="lazy" alt="{{ 'Video' if im.media == 'video' else 'Photo' }} from {{ im.taken_at|date(false) }}">
+    {%- if im.media == "video" %}<span class="badge video" title="Video">▶ {{ im.duration|duration }}</span>{% endif %}
+    {%- if date_source_label[im.taken_at_source] %}<span class="badge" title="{{ date_source_label[im.taken_at_source] }}">≈</span>{% endif %}
+  </a>
+{%- endfor %}
+</div>
+{% endmacro %}
+
+{# Face crops that open their photo, each with × to take it away from this person or group and leave it out from now on. #}
+{# × on each face: "reject" sets it aside (a stranger in a group); "not" takes the person's name off it (not them) #}
+{% macro review_faces(faces, title, action="reject") %}
+<div class="faces review">
+  {%- for f in faces %}
+  <span class="face" id="f{{ f.id }}">
+    <a href="/image/{{ f.image_id }}"><img src="/face/{{ f.id }}" alt="" loading="lazy" width="80" height="80"></a>
+    <button type="button" data-api="/api/faces/{{ f.id }}/{{ action }}" data-remove="#f{{ f.id }}" title="{{ title }}" aria-label="{{ title }}">×</button>
+  </span>
+  {%- endfor %}
+</div>
+{% endmacro %}
+
+{# A grid to pick photos from: clicking a photo ticks it, ↗ opens it. Wrap it in select_form. #}
+{% macro select_grid(images, ctx) %}
+<div class="grid selectable">
+{%- for im in images %}
+  <label class="tile pick" title="{{ im.caption or (im.taken_at|date) }}">
+    <input type="checkbox" name="image" value="{{ im.id }}">
+    <img src="/t/{{ im.sha256 }}" loading="lazy" alt="Photo from {{ im.taken_at|date(false) }}">
+    <a class="open" href="/image/{{ im.id }}?ctx={{ ctx|urlencode }}" target="_blank" title="Open in a new tab">↗</a>
+    {%- if im.matched %}<span class="badge wide">{{ im.matched }}</span>{% endif %}
+  </label>
+{%- endfor %}
+</div>
+{% endmacro %}
+
+{# keep: also offer "Keep" for the ticked photos, which takes them off every cleanup list #}
+{% macro select_bar(keep=false) %}
+<div class="select-bar">
+  <button type="button" data-select="all" data-key="a">Select all</button>
+  <button type="button" data-select="none" data-key="n">Select none</button>
+  <button type="submit" class="primary" data-label="Move {n} to Removed" disabled>Move 0 to Removed</button>
+  {%- if keep %}
+  <button type="submit" data-api="/api/images/keep" data-label="Keep {n}, don't suggest again" disabled>Keep 0</button>
+  {%- endif %}
+  <span class="hint inline">Moved photos can be restored from <a href="/cleanup/removed">Removed</a>{% if keep %}, kept ones
+  from <a href="/cleanup/kept">Kept</a>{% endif %}.</span>
+</div>
+{% endmacro %}
+
+{# What can be done to the photos ticked in a select_grid on a browsing page (a folder, a tag, a search, a status
+   category): tag them, add someone to them, date them, take the page's tag off them, or move them to Removed. #}
+{% macro bulk_bar(tag=none) %}
+<div class="select-bar bulk">
+  <button type="button" data-select="all" data-key="a">Select all</button>
+  <button type="button" data-select="none" data-key="n">Select none</button>
+  <span class="bulk-field">
+    <input name="add_tag" list="tag-names" maxlength="40" placeholder="a tag" aria-label="Tag to give them" data-suggest="/api/tags/names" data-enter="#bulk-tag" data-key="t" data-key-label="Tag the ticked photos">
+    <datalist id="tag-names"></datalist>
+    <button type="submit" id="bulk-tag" data-api="/api/selection/tag" data-keep data-label="Tag {n}" disabled title="Give the ticked photos this tag">Tag 0</button>
+  </span>
+  <span class="bulk-field">
+    <input name="person" data-names autocomplete="off" maxlength="80" placeholder="a person" aria-label="Person to add to them" data-enter="#bulk-person" data-key="p" data-key-label="Add someone to the ticked photos">
+    <button type="submit" id="bulk-person" data-api="/api/selection/person" data-keep data-label="Add to {n}" disabled title="Say this person is in the ticked photos, for photos where their face wasn't found">Add to 0</button>
+  </span>
+  <span class="bulk-field">
+    <input name="date" maxlength="80" placeholder="a date" aria-label="When they were taken" data-enter="#bulk-date" data-key="w" data-key-label="Date the ticked photos" title="When the ticked photos were taken, as exactly as you know it: 1987-08-14, June 1987, summer 1987, 1987, the 1980s, about 1987, between 1986 and 1988">
+    <button type="submit" id="bulk-date" data-api="/api/selection/date" data-keep data-label="Date {n}" disabled title="Give the ticked photos this date">Date 0</button>
+  </span>
+  {%- if tag %}
+  <button type="submit" data-api="/api/selection/untag?{{ {'tag': tag}|urlencode }}" data-label="Take “{{ tag }}” off {n}" disabled title="Take this tag off the ticked photos; describing them again won't bring it back">Take “{{ tag }}” off 0</button>
+  {%- endif %}
+  <button type="submit" data-label="Move {n} to Removed" disabled title="Move the ticked photos' files to the Removed folder; they can be put back from Removed">Move 0 to Removed</button>
+  <button type="button" data-download title="The ticked photos' originals, as a zip">Download</button>
+  <span class="done hint inline" role="status"></span>
+</div>
+{% endmacro %}

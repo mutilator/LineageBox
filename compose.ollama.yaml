@@ -1,0 +1,24 @@
+# Ollama next to LineageBox in Docker, for photo descriptions and folder names, when there is no other machine to run it
+# on. Turn it on in .env:
+#   COMPOSE_FILE=compose.yaml:compose.ollama.yaml     (on Windows: compose.yaml;compose.ollama.yaml)
+# With an NVIDIA graphics card add :compose.ollama-nvidia.yaml, with an AMD one :compose.ollama-amd.yaml.
+# Then download a model with the button on LineageBox's Settings page. docs/ollama.md explains it all.
+services:
+  ollama:
+    image: ollama/ollama:${OLLAMA_VERSION:-0.40.11}
+    restart: unless-stopped
+    environment:
+      OLLAMA_NUM_PARALLEL: ${OLLAMA_NUM_PARALLEL:-1}   # photos at once; each one more needs more memory
+    volumes:
+      - ollama:/root/.ollama   # the models: several GB each
+    # Not published on the network: only LineageBox's containers reach it. To use it from other machines too, add
+    #   ports: ["11434:11434"]
+  web:
+    environment:
+      LINEAGEBOX_OLLAMA_URL: http://ollama:11434
+  worker:
+    environment:
+      LINEAGEBOX_OLLAMA_URL: http://ollama:11434
+
+volumes:
+  ollama:

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% set nav = "status" %}
+{% import "_macros.html" as m %}
+{% block title %}{{ title }}{% endblock %}
+{% block main %}
+<nav class="crumbs"><a href="/status">Status</a><span class="sep">/</span><h1>{{ title }}</h1></nav>
+{% if broken is not none %}
+<p class="meta">{{ "{:,}".format(paging.total) }} file{{ "" if paging.total == 1 else "s" }} in the photo folders that could not be read as a photo or video. They are left out of every other page.</p>
+{% include "_pager.html" %}
+<table class="broken">
+  <thead><tr><th>File</th><th>Format</th><th>What went wrong</th></tr></thead>
+  <tbody>
+  {%- for b in broken %}
+  <tr><td><code>{{ network_path(b.path) }}</code></td><td>{{ b.format|upper }}</td><td>{{ b.error }}</td></tr>
+  {%- endfor %}
+  </tbody>
+</table>
+{% include "_pager.html" %}
+{% else %}
+<p class="meta">{{ "{:,}".format(paging.total) }} photo{{ "" if paging.total == 1 else "s" }}, oldest first
+{%- if paging.total %} · {% if select %}<a href="{{ here }}" data-key="s">Done selecting</a>{% else %}<a href="{{ here }}?select=1" data-key="s" title="Tick photos to tag them, add someone to them or move them to Removed">Select photos</a>{% endif %}{% endif %}</p>
+{% include "_pager.html" %}
+{% if select %}
+<form class="select-form" data-select-api="/api/images/remove" data-reason="{{ title }}" data-show=".select-bar .done">
+  {{ m.select_grid(images, ctx) }}
+  {{ m.bulk_bar() }}
+</form>
+{% else %}
+{{ m.grid(images, ctx) }}
+{% endif %}
+{% include "_pager.html" %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% set nav = "timeline" %}
+{% block title %}Timeline{% endblock %}
+{% block main %}
+<h1>Timeline</h1>
+<p class="meta">Photos by capture date. Bars show each month, January to December (square-root scale, so quiet months stay visible).</p>
+<div class="years">
+{%- for y, months in years|dictsort|reverse %}
+  <a class="year" href="/timeline/{{ y }}">
+    <span class="y">{{ y }}</span>
+    <span class="bars" aria-hidden="true">
+      {%- for mo in range(1, 13) %}{% set n = months.get(mo, 0) %}<i{% if not n %} class="z"{% endif %} style="--h: {{ ((n / peak) ** 0.5 * 100)|round(1) }}%" title="{{ month_names[mo] }}: {{ n }}"></i>{% endfor -%}
+    </span>
+    <span class="n">{{ "{:,}".format(months.values()|sum) }}</span>
+  </a>
+{%- else %}
+  <p class="note">No dated photos yet. Run <code>python -m lineagebox ingest</code>.</p>
+{%- endfor %}
+</div>
+{% endblock %}

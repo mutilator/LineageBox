@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% set nav = "timeline" %}
+{% import "_macros.html" as m %}
+{% block title %}{{ year }}{% endblock %}
+{% block main %}
+<nav class="crumbs">
+  <a href="/timeline">Timeline</a><span class="sep">/</span><h1>{{ year }}</h1>
+  <span class="pager">
+    {%- if prev_year %}<a href="/timeline/{{ prev_year }}" rel="prev">← {{ prev_year }}</a>{% endif %}
+    {%- if next_year %}<a href="/timeline/{{ next_year }}" rel="next">{{ next_year }} →</a>{% endif %}
+  </span>
+</nav>
+<nav class="months">
+{%- for mo, imgs in months.items() %}<a href="#m{{ mo }}">{{ month_names[mo][:3] }} <small>{{ imgs|length }}</small></a>{% endfor %}
+</nav>
+{% for mo, imgs in months.items() %}
+<h2 id="m{{ mo }}">{{ month_names[mo] }} <small>{{ "{:,}".format(imgs|length) }}</small></h2>
+{{ m.grid(imgs, ctx) }}
+{% else %}
+<p class="note">No photos dated {{ year }}.</p>
+{% endfor %}
+{% endblock %}

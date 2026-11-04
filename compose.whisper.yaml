@@ -1,0 +1,32 @@
+# The speech-to-text service for video transcripts, next to LineageBox in Docker, on this machine's processor, when
+# there is no other machine to run it on. Turn it on in .env:
+#   COMPOSE_FILE=compose.yaml:compose.whisper.yaml     (on Windows: compose.yaml;compose.whisper.yaml)
+# The first start builds it (several minutes) and downloads its models (the Status page shows how far). With Ollama
+# in Docker too: COMPOSE_FILE=compose.yaml:compose.ollama.yaml:compose.whisper.yaml. See docs/whisper.md.
+services:
+  whisper:
+    # published with each release, like LineageBox's; `docker compose up -d --build` builds it here instead
+    image: ${LINEAGEBOX_WHISPER_IMAGE:-ghcr.io/mutilator/lineagebox-whisper}:${LINEAGEBOX_VERSION:-latest}
+    build:
+      context: .   # the project's root, for the licence files
+      dockerfile: whisper_service/Dockerfile
+    labels:
+      lineagebox.update: "true"   # updated with LineageBox (updater.py)
+    restart: unless-stopped
+    # it writes only its own volume: no root powers needed, and no setuid programs
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    # a model from huggingface.co/ggerganov/whisper.cpp; smaller ones (ggml-small.bin, ggml-base.bin) are faster
+    command: ["--model", "${WHISPER_MODEL:-ggml-large-v3-turbo-q5_0.bin}"]
+    volumes:
+      - whisper:/data
+  web:
+    environment:
+      LINEAGEBOX_WHISPER_URL: http://whisper:9300
+  worker:
+    environment:
+      LINEAGEBOX_WHISPER_URL: http://whisper:9300
+
+volumes:
+  whisper:

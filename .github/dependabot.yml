@@ -1,0 +1,7 @@
+# Keeps the workflow's pinned actions (.github/workflows/image.yml) current, as pull requests to review.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

@@ -1,0 +1,10 @@
+# What the image builder is sent: only what the Dockerfile copies. Everything else (docs, tests, your .env and
+# config.toml, the catalog and photos folders, anything of your own next to compose.yaml) stays on this machine.
+# The whisper image has its own: whisper_service/Dockerfile.dockerignore.
+*
+!lineagebox
+!docker
+!THIRD_PARTY_NOTICES.md
+!LICENSE
+**/__pycache__
+**/*.pyc

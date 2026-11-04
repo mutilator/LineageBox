@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Tags{% endblock %}
+{% block main %}
+<h1>Tags</h1>
+<p class="meta">Keywords given to photos, by the AI as it describes them or by you on a photo's page: things, places, activities, seasons.
+{%- if described < to_describe %} So far {{ "{:,}".format(described) }} of {{ "{:,}".format(to_describe) }} photos are described, and the list grows as the rest are.{% endif %}
+A group of similar shots counts once.</p>
+
+<form class="tag-filter" action="/tags" data-filter="#tag-list">
+  <input type="search" name="q" value="{{ tag_q }}" placeholder="Filter tags: dog, beach, birthday…" aria-label="Filter tags" autofocus data-key="f">
+  <label><input type="radio" name="sort" value="count"{% if sort != "name" %} checked{% endif %}> Most photos</label>
+  <label><input type="radio" name="sort" value="name"{% if sort == "name" %} checked{% endif %}> A–Z</label>
+  <noscript><button type="submit">Filter</button></noscript>
+</form>
+
+<div id="tag-list">{% include "_tag_list.html" %}</div>
+{% endblock %}

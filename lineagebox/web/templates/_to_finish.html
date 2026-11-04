@@ -1,0 +1,36 @@
+{# Cleanup → Confirm faces: photos and videos with two or more people named and someone not yet (cleanup_faces.html).
+   In a video, naming one face can name more of that person's (people.name_in_videos), so its answers reload the page. #}
+<p class="meta">Photos and videos where two or more people are named and someone else isn't yet, the most people named
+first. Type who each face is, or take the guess: in a photo, the likeliest person not named in it yet; in a video, the
+likeliest of the people named on its other frames. Naming someone in a video also names their other faces in it that
+clearly match. "stranger" stops asking about someone you don't know.</p>
+{% include "_pager.html" %}
+{% for p in photos %}
+{%- set after = 'data-reload' if p.media == "video" else '' %}
+<section class="finish" id="fin{{ p.id }}">
+  <a class="finish-photo" href="/image/{{ p.id }}" title="Open it">
+    <img src="/t/{{ p.sha }}" alt="" loading="lazy">{% if p.media == "video" %}<span class="badge video">▶</span>{% endif %}</a>
+  <div class="finish-faces">
+    <p class="hint">{{ p.taken_at|date(false) }} · named: {% for pid, name in p.named %}
+      {%- if name is none %}{{ outside.get(pid, "someone") }}{% else %}<a href="/person/{{ pid }}">{{ name }}</a>{% endif %}
+      {{- ", " if not loop.last }}{% endfor %}</p>
+    {%- for f in p.faces %}
+    <div class="face-row" id="ff{{ f.id }}">
+      <img src="/face/{{ f.id }}" alt="" width="44" height="44" loading="lazy">
+      <form class="name-form compact" data-api="/api/faces/{{ f.id }}/name" {% if after %}{{ after }}{% else %}data-remove="#ff{{ f.id }}"{% endif %}>
+        <input name="name" data-names autocomplete="off" required placeholder="Who is this?" aria-label="Name">
+      </form>
+      {%- if f.suggest %}
+      <button type="button" class="suggest" data-api="/api/people/{{ f.suggest[0] }}/faces" data-body='{{ {"yes": [f.id]}|tojson }}'
+              {% if after %}{{ after }}{% else %}data-remove="#ff{{ f.id }}"{% endif %} title="The likeliest person: click if it's them">{{ f.suggest[1] }}?</button>
+      {%- endif %}
+      <button type="button" class="quiet" data-api="/api/faces/{{ f.id }}/reject" data-remove="#ff{{ f.id }}" title="Someone you don't know: stop asking about them">stranger</button>
+      <button type="button" class="quiet" data-api="/api/faces/{{ f.id }}/not-a-face" data-remove="#ff{{ f.id }}" title="Not a face (a pattern, a statue, a poster)">not a face</button>
+    </div>
+    {%- endfor %}
+  </div>
+</section>
+{% else %}
+<p class="note">No photos with two or more people named are waiting for another name.</p>
+{% endfor %}
+{% include "_pager.html" %}

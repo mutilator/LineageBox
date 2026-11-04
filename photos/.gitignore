@@ -1,0 +1,4 @@
+# The default folder for photos to try LineageBox with: in the repository, empty, so that git clone makes it as
+# whoever clones. Docker would make a missing one as root, which LineageBox (running as PUID) couldn't write.
+*
+!.gitignore

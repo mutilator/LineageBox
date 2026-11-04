@@ -1,0 +1,34 @@
+{# The help panel: ? opens it on every page. The keys of this page's own boxes and buttons (data-key) are listed by
+   app.js when it opens. #}
+{% set h = help_for(help_page|default("")) %}
+<dialog id="help" class="help" aria-labelledby="help-title">
+  <form method="dialog" class="help-close"><button aria-label="Close help" title="Close (Esc)">×</button></form>
+  <h2 id="help-title">Help: {{ h.title }}</h2>
+  {%- for p in h.about %}
+  <p>{{ p }}</p>
+  {%- endfor %}
+  <h3>Keys on this page</h3>
+  <dl class="keys-list" data-page-keys>
+    {%- for key, what in h.keys %}<dt>{% for k in key.split(" ") %}<kbd>{{ k }}</kbd>{% endfor %}</dt><dd>{{ what }}</dd>{% endfor %}
+  </dl>
+  <p class="hint" data-no-keys hidden>None of its own; the keys below work here too.</p>
+  <h3>Keys everywhere</h3>
+  <dl class="keys-list">
+    {%- for key, what in help_everywhere %}<dt><kbd>{{ key }}</kbd></dt><dd>{{ what }}</dd>{% endfor %}
+    <dt><kbd>g</kbd> then a letter</dt><dd>go to a page:
+      {%- for letter, href, name in help_go if viewer.admin or href not in admin_pages %} <a href="{{ href }}"><kbd>{{ letter }}</kbd>&nbsp;{{ name }}</a>{{ "," if not loop.last }}{% endfor %}</dd>
+  </dl>
+  <p class="hint">Point at a button or box to see its key. Keys don't work while you're typing in a box: press Esc first.</p>
+  <h3>Every page</h3>
+  <dl class="pages-list">
+    {%- for href, name, what in help_menu if viewer.admin or href not in admin_pages %}<dt><a href="{{ href }}">{{ name }}</a></dt><dd>{{ what }}</dd>{% endfor %}
+  </dl>
+  {#- The AGPL's "Appropriate Legal Notices" (its sections 0 and 5d): the copyright, that there is no warranty, that
+      LineageBox may be shared under the licence and where to read it. A changed copy has to keep showing them. #}
+  <h3>About LineageBox</h3>
+  <p>LineageBox {{ lineagebox_version }}, © 2026 Scott Gusler. It is free software: you may use, change and share it
+    under the
+    <a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank" rel="noopener">GNU Affero General Public License, version 3</a>.
+    It comes with no warranty.
+    {%- if source_url %} <a href="{{ source_url }}" target="_blank" rel="noopener">Its source code</a> is on GitHub.{% endif %}</p>
+</dialog>

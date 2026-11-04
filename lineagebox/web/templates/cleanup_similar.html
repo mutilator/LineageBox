@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% set nav = "cleanup" %}
+{% block title %}Similar shots{% endblock %}
+{% block main %}
+<nav class="crumbs"><a href="/cleanup">Cleanup</a><span class="sep">/</span><h1>Similar shots</h1></nav>
+<p class="meta">Groups of burst shots and copies of the same picture, taken the same day. Pick a kind to work through one
+problem at a time; each kind ticks only the photos it is about. Change the ticks, then move the ticked photos to Removed.
+<b>Keep all</b> keeps a whole group and stops listing it.</p>
+
+<nav class="filters" aria-label="Kinds of similar shots">
+  {%- for k, label in kinds.items() %}
+  <a href="?kind={{ k }}"{% if k == kind %} aria-current="true"{% endif %}{% if not counts[k] %} class="empty"{% endif %}>{{ label }} <span>{{ "{:,}".format(counts[k]) }}</span></a>
+  {%- endfor %}
+</nav>
+<p class="hint">{{ hint }}</p>
+{% if kind == "raw" %}
+<p class="filters small">Keep:
+  <a href="?kind=raw&amp;keep=raw"{% if keep != "jpeg" %} aria-current="true"{% endif %}>the RAW file (.NEF, the camera original)</a>
+  <a href="?kind=raw&amp;keep=jpeg"{% if keep == "jpeg" %} aria-current="true"{% endif %}>the JPEG (smaller, opens anywhere)</a>
+</p>
+{% endif %}
+{% if bulk and ticked %}
+<p class="bulk">
+  <button type="button" class="danger" data-api="/api/similar/remove-all?kind={{ kind }}&amp;keep={{ keep }}" data-reload data-busy="Moving…"
+          data-confirm="Move all {{ '{:,}'.format(ticked) }} ticked photos, in all {{ '{:,}'.format(total) }} groups of this kind, to the Removed folder? Only the ticked kind of photo goes; you can restore them as one step from Cleanup → Removed.">
+    Move the ticked photos in all {{ "{:,}".format(total) }} groups ({{ "{:,}".format(ticked) }} photos)</button>
+  <span class="hint inline">or check them page by page below.</span>
+</p>
+{% endif %}
+
+{% include "_pager.html" %}
+<form class="select-form" data-select-api="/api/images/remove" data-reason="similar shots: {{ kinds[kind]|lower }}">
+{% for g in groups %}
+<section class="similar" id="g{{ g.id }}">
+  {%- for p in g.members %}
+  {% set folder = (p.path or "").rpartition("/")[0] %}
+  <label class="pick{% if p.keep %} keep{% endif %}">
+    <input type="checkbox" name="image" value="{{ p.id }}"{% if p.tick %} checked{% endif %}>
+    <img src="/t/{{ p.sha256 }}" alt="Photo from {{ p.taken_at|date(false) }}" loading="lazy">
+    <a class="open" href="/image/{{ p.id }}" target="_blank" title="Open in a new tab">↗</a>
+    <span class="meta">
+      {{ p.width }}×{{ p.height }}{% if p.format == "nef" %} · <b>RAW</b>{% endif %}
+      {%- if p.sharpness is not none and p.sharpness >= 0 %} · sharpness {{ p.sharpness|round|int }}{% endif %}
+      {%- if not p.dated %} · <span title="{{ date_source_label[p.taken_at_source] or '' }}">no camera date</span>{% endif %}
+      <span class="where" title="{{ p.path }}">{{ folder.split("/")[-2:]|join("/") }}</span>
+      {%- if p.keep %}<b class="keep-note">suggested keep</b>{% elif p.why %}<span class="why">{{ p.why }}</span>{% endif %}
+    </span>
+  </label>
+  {%- endfor %}
+  <button type="button" class="keep-all" data-api="/api/similar/{{ g.id }}/keep" data-remove="#g{{ g.id }}"
+          title="Keep every photo of this group and stop listing it">Keep all</button>
+</section>
+{% else %}
+<p class="note">No groups of this kind left.</p>
+{% endfor %}
+{% if groups %}{{ m.select_bar() }}{% endif %}
+</form>
+{% include "_pager.html" %}
+{% endblock %}

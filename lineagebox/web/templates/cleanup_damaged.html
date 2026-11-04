@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Damaged files{% endblock %}
+{% block main %}
+<nav class="crumbs"><a href="/cleanup">Cleanup</a><span class="sep">/</span><h1>Damaged files</h1></nav>
+<p class="meta">Files a disk spoilt: cut short, with a blank stretch where a block couldn't be read, or with other bytes
+than when they were catalogued. The worker reads every file whole once ({{ "{:,}".format(p.checked) }} of
+{{ "{:,}".format(p.files) }} so far), then each new one. Previews and thumbnails that are gone are made again from
+the originals by the worker, once a day.</p>
+{% if files %}
+<form class="select-form" data-select-api="/api/damaged/remove" data-reason="damaged" data-show=".select-bar .done">
+  <div class="select-bar">
+    <button type="button" data-select="all" data-key="a">Select all</button>
+    <button type="button" data-select="none" data-key="n">Select none</button>
+    <button type="submit" class="primary" data-label="Move {n} to Removed" disabled>Move 0 to Removed</button>
+    <span class="done hint inline" role="status"></span>
+  </div>
+  <ul class="damaged">
+    {%- for f in files %}
+    <li id="d{{ f.id }}">
+      <label class="pick"><input type="checkbox" name="image" value="{{ f.id }}">
+        <img src="/t/{{ f.sha256 }}" alt="" width="96" height="96" loading="lazy"></label>
+      <span><a href="/image/{{ f.image_id }}">{{ f.path }}</a>
+        <span class="hint">{{ f.damage }}{% if f.good_copies %} · {{ f.good_copies }} good cop{{ "y" if f.good_copies == 1 else "ies" }} elsewhere{% else %} · the only copy{% endif %}</span></span>
+      <button type="button" class="quiet" data-api="/api/damaged/ok" data-body='{{ {"image_ids": [f.id]}|tojson }}' data-remove="#d{{ f.id }}">Fine as it is</button>
+    </li>
+    {%- endfor %}
+  </ul>
+</form>
+<p class="hint">Removed files go to the Removed folder, from where they can be put back. If you have a good copy
+elsewhere (a backup, an older disk), copy it over the damaged one instead: the worker reads it again.</p>
+{% else %}
+<p class="note">No damaged files found{% if p.checked < p.files %} so far{% endif %}.</p>
+{% endif %}
+{% endblock %}

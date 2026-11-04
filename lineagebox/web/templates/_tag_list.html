@@ -1,0 +1,14 @@
+{# The Tags page's list: replaced as you type in the filter (app.js, data-filter). #}
+{% if tags %}
+{% set top = tags[0].photos %}
+<p class="meta">{{ "{:,}".format(total) }} tag{{ "" if total == 1 else "s" }}{% if tag_q %} containing “{{ tag_q }}”{% endif %}
+{%- if total > tags|length %}; the first {{ "{:,}".format(tags|length) }} shown, type to narrow it down{% endif %}.</p>
+<ul class="tag-list">
+  {%- for t in tags %}
+  <li><a href="/tag/{{ t.name|urlencode }}"><span class="name">{{ t.name }}</span><span class="count">{{ "{:,}".format(t.photos) }}</span>
+    <i style="width: {{ (t.photos / top * 100)|round(1) }}%"></i></a></li>
+  {%- endfor %}
+</ul>
+{% else %}
+<p class="note">{% if tag_q %}No tags contain “{{ tag_q }}”. <a href="/search?q={{ tag_q|urlencode }}">Search for it</a> instead: search also covers descriptions, people, places and folder names.{% else %}No tags yet: they appear as photos are described.{% endif %}</p>
+{% endif %}

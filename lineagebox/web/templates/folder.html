@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% set nav = "folders" %}
+{% import "_macros.html" as m %}
+{% block title %}{{ folder.name or "All folders" }}{% endblock %}
+{% block main %}
+<nav class="crumbs">
+{%- for f in crumbs %}
+  {%- if not loop.last %}<a href="/folder/{{ f.id }}">{{ f.name or "All folders" }}</a><span class="sep">/</span>
+  {%- else %}<h1>{{ f.name or "All folders" }}</h1>{% endif %}
+{%- endfor %}
+</nav>
+<p class="meta">
+  {{ "{:,}".format(folder.total) }} photo{{ "" if folder.total == 1 else "s" }}
+  {%- if folder.children and folder.own != folder.total %} here and in subfolders{% if folder.own %} · {{ "{:,}".format(folder.own) }} directly in this folder{% endif %}{% endif %}
+  {%- if images %} · {% if select %}<a href="/folder/{{ folder.id }}" data-key="s">Done selecting</a>{% else %}<a href="/folder/{{ folder.id }}?select=1" data-key="s" title="Tick photos to date them, tag them, add someone to them or move them to Removed">Select photos</a>{% endif %}{% endif %}
+  {%- if viewer.admin and signed_in %} · <button type="button" class="quiet" data-api="/api/folders/{{ folder.id }}/hidden" data-body='{{ {"hidden": not folder_hidden}|tojson }}' title="Family members never see what is in this folder or below it (except whoever uploaded it)">{{ "Show to family members again" if folder_hidden else "Hide from family members" }}</button>{% endif %}
+</p>
+{% if folder_hidden %}<p class="note">Hidden from family members: they don't see the photos in this folder or below it.</p>{% endif %}
+{% if folder.ignored %}
+<p class="note">This folder is ignored by the scan settings (it holds thumbnail or preview copies), so its files are not shown.</p>
+{% endif %}
+{% if subfolders %}
+<div class="folders">
+{%- for f in subfolders %}
+  <a class="folder-card{% if f.ignored %} ignored{% endif %}" href="/folder/{{ f.id }}">
+    {% if f.cover %}<img src="/t/{{ f.cover }}" loading="lazy" alt="">{% else %}<span class="ph"></span>{% endif %}
+    <span class="label"><span class="name">{{ f.name }}</span><span class="count">{% if f.ignored %}ignored{% else %}{{ "{:,}".format(f.total) }}{% endif %}</span></span>
+  </a>
+{%- endfor %}
+</div>
+{% endif %}
+{% if images %}
+{% if subfolders %}<h2>In this folder</h2>{% endif %}
+{% if select %}
+<form class="select-form" data-select-api="/api/images/remove" data-reason="folder: {{ folder.name }}" data-show=".select-bar .done">
+  {{ m.select_grid(images, ctx) }}
+  {{ m.bulk_bar() }}
+</form>
+{% else %}
+{{ m.grid(images, ctx) }}
+{% endif %}
+{% endif %}
+{% endblock %}

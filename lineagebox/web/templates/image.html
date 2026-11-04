@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+{% block title %}{{ img.date_text if img.taken_at_source == "user" else img.taken_at|date(false) }}{% endblock %}
+{% block body_class %}viewer-page{% endblock %}
+{% block head %}{% if next_sha %}<link rel="prefetch" href="/p/{{ next_sha }}">{% endif %}{% endblock %}
+{% block main %}
+<div class="viewer">
+  <div class="stage">
+    {% if img.error %}
+    <p class="note">This file could not be decoded: {{ img.error }}</p>
+    {% elif is_video and img.playable in ("original", "copy") %}
+    <video id="player" controls preload="metadata" poster="/p/{{ img.sha256 }}" src="/play/{{ img.id }}"></video>
+    {% elif is_video %}
+    <img src="/p/{{ img.sha256 }}" alt="{{ ai.caption if ai else 'Video taken ' ~ (img.taken_at|date) }}">
+    <p class="note overlay">{% if img.playable and img.playable.startswith("failed") %}This video cannot be played in the
+      browser: making a 720p copy {{ img.playable }}.{% else %}Browsers cannot play this video as it is ({{ img.codecs }});
+      a 720p copy is being made next to it.{% endif %} You can download the original below.</p>
+    {% else %}
+    <img src="/p/{{ img.sha256 }}" alt="{{ ai.caption if ai else 'Photo taken ' ~ (img.taken_at|date) }}">
+    {% endif %}
+    {% if prev_id %}<a class="step prev" rel="prev" href="/image/{{ prev_id }}?ctx={{ ctx|urlencode }}" aria-label="Previous photo">‹</a>{% endif %}
+    {% if next_id %}<a class="step next" rel="next" href="/image/{{ next_id }}?ctx={{ ctx|urlencode }}" aria-label="Next photo">›</a>{% endif %}
+  </div>
+  <aside class="info">
+    <div class="info-head">
+      <a href="{{ back }}" data-back>← Back</a>
+      {% if position %}<span class="meta">{{ "{:,}".format(position[0]) }} of {{ "{:,}".format(position[1]) }}</span>{% endif %}
+    </div>
+
+    <section class="ai">
+      {% if ai %}
+      <p class="caption">{{ ai.caption }}</p>
+      <dl>
+        {% if ai.setting %}<dt>Setting</dt><dd>{{ ai.setting }}{% if ai.indoor_outdoor and ai.indoor_outdoor != "unknown" %} · {{ ai.indoor_outdoor }}{% endif %}</dd>{% endif %}
+        {% if ai.event %}<dt>Event</dt><dd>{{ ai.event }}</dd>{% endif %}
+        {% if ai.people_count %}<dt>People</dt><dd>{{ ai.people_count }}{% if ai_raw.age_groups %} · {{ ai_raw.age_groups|join(", ") }}{% endif %}</dd>{% endif %}
+        {% if ai_raw.animals %}<dt>Animals</dt><dd>{{ ai_raw.animals|join(", ") }}</dd>{% endif %}
+        {% if ai.text_visible %}<dt>Text</dt><dd>“{{ ai.text_visible }}”</dd>{% endif %}
+      </dl>
+      {% endif %}
+      <div class="tags photo-tags">
+        {%- for t in tags %}
+        <span class="tag-chip{% if t.mine %} mine{% endif %}" id="tag{{ loop.index }}"><a class="tag" href="/tag/{{ t.name|urlencode }}" title="{{ 'Added by you' if t.mine else 'Given by the AI' }}; all photos tagged “{{ t.name }}”">{{ t.name }}</a><button type="button" class="quiet" data-api="/api/images/{{ img.id }}/tags/remove" data-body='{{ {"tag": t.name}|tojson }}' data-remove="#tag{{ loop.index }}" title="Take “{{ t.name }}” off this photo" aria-label="Take {{ t.name }} off">×</button></span>
+        {%- endfor %}
+        <form class="tag-form" data-api="/api/images/{{ img.id }}/tags" data-reload data-refocus="t">
+          <input name="tag" list="tag-names" required maxlength="40" placeholder="+ tag" aria-label="Add a tag" title="Type a tag and press Enter" data-suggest="/api/tags/names" data-key="t">
+          <datalist id="tag-names"></datalist>
+        </form>
+      </div>
+      {% if ai %}
+      <p class="hint">Written by AI ({{ ai.model }}); details can be wrong.</p>
+      {% else %}
+      <p class="hint">No AI description yet.</p>
+      {% endif %}
+    </section>
+
+    {% if frames|length > 1 %}
+    <section class="frames">
+      <h2>{{ frames|length }} frames</h2>
+      <div class="frame-strip">
+        {%- for f in frames %}<button type="button" class="frame" data-seek="{{ f.at }}" title="{{ f.at|duration or '0:00' }}"><img src="/frame/{{ img.sha256 }}/{{ f.idx }}" loading="lazy" alt="Frame at {{ f.at|duration or '0:00' }}"></button>{% endfor %}
+      </div>
+      <p class="hint">What faces and the description were taken from. Click one to go there in the video.</p>
+    </section>
+    {% endif %}
+
+    {% if transcript %}
+    <section class="transcript">
+      <h2>Said in the video</h2>
+      {% if transcript.segments %}
+      <ol>
+        {%- for start, end, text in transcript.segments %}
+        <li><button type="button" class="quiet time" data-seek="{{ start }}">{{ start|duration or "0:00" }}</button> {{ text }}</li>
+        {%- endfor %}
+      </ol>
+      <p class="hint">Transcribed by Whisper ({{ transcript.model }}); words can be wrong.</p>
+      {% elif transcript.error %}
+      <p class="hint">Could not be transcribed ({{ transcript.error }}).</p>
+      {% else %}
+      <p class="hint">Nothing anyone said could be made out.</p>
+      {% endif %}
+    </section>
+    {% endif %}
+
+    <section class="photo-people">
+      <h2>People</h2>
+      {%- for f in faces %}
+      <div class="face-row" id="f{{ f.id }}">
+        {% if f.frame is not none %}<button type="button" class="face-seek" data-seek="{{ (frames|selectattr('idx', 'equalto', f.frame)|first or {'at': 0}).at }}" title="Go there in the video"><img src="/face/{{ f.id }}" alt="" width="44" height="44"></button>
+        {% else %}<img src="/face/{{ f.id }}" alt="" width="44" height="44">{% endif %}
+        {% if f.outside %}
+        <span title="Not in your part of the family: only an admin can change this name">{{ f.name }}</span>
+        {% elif f.name %}
+        <a href="/person/{{ f.person_id }}">{{ f.name }}</a>
+        {% if ages.get(f.person_id) %}<span class="age">{{ ages[f.person_id] }}</span>{% endif %}
+        {% if kin.get(f.person_id) %}<span class="hint inline">{{ kin[f.person_id] }}</span>{% endif %}
+        {% if f.assigned_by == "auto" %}<span class="hint inline">recognised</span>{% endif %}
+        <button type="button" class="quiet" data-api="/api/faces/{{ f.id }}/not" data-reload title="Not {{ f.name }}: take the name off, to name the face as whoever it is">not {{ f.name }}</button>
+        {% else %}
+        <form class="name-form compact" data-api="/api/faces/{{ f.id }}/name" data-reload data-refocus="n">
+          <input name="name" data-names autocomplete="off" required placeholder="Who is this?" aria-label="Name" data-key="n" data-key-label="Name a face (the next one after Enter)">
+        </form>
+        {%- if suggested.get(f.id) %}
+        <button type="button" class="suggest" data-api="/api/people/{{ suggested[f.id][0] }}/faces" data-body='{"yes": [{{ f.id }}]}' data-reload title="The closest match among the people not already named in this photo: click if it's them">{{ suggested[f.id][1] }}?</button>
+        {%- endif %}
+        <button type="button" class="quiet" data-api="/api/faces/{{ f.id }}/not-a-face" data-reload title="Not a face (a pattern, a statue, a poster): hide it. Looking for faces again brings it back.">not a face</button>
+        <button type="button" class="quiet" data-api="/api/faces/{{ f.id }}/ask" data-show="#ask{{ f.id }}" title="Don't know them? Ask the family: the face goes on Home for everyone who sees this photo">who is this?</button>
+        <span class="hint inline" id="ask{{ f.id }}"></span>
+        {% endif %}
+      </div>
+      {%- endfor %}
+      {%- for p in linked %}
+      <div class="face-row" id="in{{ p.id }}">
+        <span class="ph" aria-hidden="true">{{ p.name[:1] }}</span>
+        {%- if p.outside %}
+        <span title="Not in your part of the family">{{ p.name }}</span>
+        {%- else %}
+        <a href="/person/{{ p.id }}">{{ p.name }}</a>
+        {%- endif %}
+        {% if ages.get(p.id) %}<span class="age">{{ ages[p.id] }}</span>{% endif %}
+        {% if kin.get(p.id) %}<span class="hint inline">{{ kin[p.id] }}</span>{% endif %}
+        <span class="hint inline" title="Added by hand: their face wasn't found in this photo">added</span>
+        {%- if not p.outside %}
+        <button type="button" class="quiet" data-api="/api/images/{{ img.id }}/people/{{ p.id }}/remove" data-remove="#in{{ p.id }}" title="{{ p.name }} isn't in this photo">not here</button>
+        {%- endif %}
+      </div>
+      {%- endfor %}
+      <form class="name-form compact" data-api="/api/images/{{ img.id }}/people" data-reload data-refocus="p">
+        <input name="name" data-names autocomplete="off" required maxlength="80" data-key="p" data-key-label="Add someone whose face wasn't found" placeholder="{{ 'Someone else here?' if faces or linked else 'Who is in this photo?' }}" aria-label="Add a person" title="For someone whose face wasn't found: type their name and press Enter">
+      </form>
+    </section>
+
+    <dl>
+      <dt>Taken</dt>
+      <dd>
+        {%- if img.taken_at_source == "user" %}{{ img.date_text }}<span class="hint">set by you · automatic date {{ img.auto_taken_at|date(false) }}{% if date_source_label[img.auto_taken_at_source] %}, {{ date_source_label[img.auto_taken_at_source] }}{% endif %}</span>
+        {%- else %}{{ img.taken_at|date }}{% if date_source_label[img.taken_at_source] %}<span class="hint">{{ date_source_label[img.taken_at_source] }}</span>{% endif %}{% endif %}
+        <form class="name-form compact date-form" data-api="/api/images/{{ img.id }}/date" data-reload>
+          <input name="date" required maxlength="80" placeholder="{{ 'Change the date' if img.taken_at_source == 'user' else 'Wrong? Type when it was taken' }}" aria-label="When it was taken" data-key="w" data-key-label="Change when it was taken" title="As exactly as you know it: 1987-08-14, June 1987, summer 1987, 1987, the 1980s, about 1987, between summer 1987 and summer 1988. Press Enter.">
+          {%- if img.taken_at_source == "user" %}
+          <button type="button" class="quiet" data-api="/api/images/{{ img.id }}/date" data-body='{"date": ""}' data-reload>use the automatic date</button>
+          {%- endif %}
+        </form>
+      </dd>
+      {% if folder_ctx.places %}<dt>Place</dt><dd>{{ folder_ctx.places|join("; ") }}<span class="hint">from folder names</span></dd>{% endif %}
+      {% if folder_ctx.events %}<dt>Occasion</dt><dd>{{ folder_ctx.events|join("; ") }}<span class="hint">from folder names</span></dd>{% endif %}
+    </dl>
+
+    {% if similar %}
+    <h2>{{ similar|length }} similar photo{{ "" if similar|length == 1 else "s" }}</h2>
+    <p class="hint">Edited copies or shots of the same moment; they share this description.</p>
+    <div class="similar">
+      {%- for s in similar %}<a href="/image/{{ s.id }}"><img src="/t/{{ s.sha256 }}" loading="lazy" alt="Similar photo"></a>{% endfor %}
+    </div>
+    {% endif %}
+
+    <details class="document-panel"{% if doc %} open{% endif %}>
+      <summary><h2>{% if doc %}Document: {{ doc.title }}{% else %}Is this a document?{% endif %}</h2></summary>
+      <form class="inline-facts" data-api="/api/images/{{ img.id }}/document" data-settings data-reload>
+        <select name="kind" aria-label="Kind of document" data-key="d" data-key-label="Mark as a document">
+          {%- for k in doc_kinds %}<option{% if doc and doc.kind == k %} selected{% endif %}>{{ k }}</option>{% endfor %}
+        </select>
+        <input name="title" value="{{ doc.title if doc else '' }}" placeholder="Grandpa's birth certificate" aria-label="Title">
+        <button type="submit">{{ "Save" if doc else "Mark as a document" }}</button>
+        {%- if doc %}<button type="button" class="quiet" data-api="/api/images/{{ img.id }}/document/remove" data-reload>Not a document</button>{% endif %}
+      </form>
+      {%- if doc %}
+      <p class="hint">A record of:</p>
+      <ul class="documents">
+        {%- for cit in citations %}<li><a href="/person/{{ cit.person_id }}">{{ cit.label }}</a>
+          <button type="button" class="x" title="Not a record of this" aria-label="Not a record of this" data-api="/api/citations/{{ cit.id }}/delete" data-reload>×</button></li>{% endfor %}
+      </ul>
+      <form class="inline-facts" data-api="/api/images/{{ img.id }}/citations" data-reload>
+        <select name="target" required aria-label="A record of whom or what">
+          <option value="" selected disabled>a person or one of their events</option>
+          {%- for pid, name, evts in cite_targets %}
+          <optgroup label="{{ name }}"><option value="p:{{ pid }}">{{ name }}</option>{% for eid, label in evts %}<option value="e:{{ eid }}">{{ name }}: {{ label }}</option>{% endfor %}</optgroup>
+          {%- endfor %}
+        </select>
+        <button type="submit">Add</button>
+      </form>
+      {%- endif %}
+      <p class="hint">Certificates, obituaries, letters: family tree programs get them as sources for the people and
+      events they are about. Documents are kept out of cleanup's suggestions.</p>
+    </details>
+
+    {# what is not needed every time, folded away: the photo's details, its files, and what can be done to it #}
+    <details class="info-panel">
+      <summary><h2>Details</h2> <span class="hint inline">{{ img.camera or "camera unknown" }}{% if img.width %} · {{ img.width }} × {{ img.height }}{% endif %}</span></summary>
+      <dl>
+        <dt>Camera</dt>
+        <dd>{{ img.camera or "unknown" }}</dd>
+        {% if is_video %}<dt>Length</dt>
+        <dd>{{ img.duration|duration or "unknown" }}</dd>{% endif %}
+        <dt>Size</dt>
+        <dd>{% if img.width %}{{ img.width }} × {{ img.height }} · {% endif %}{{ img.format|upper }}{% if img.codecs %} · {{ img.codecs }}{% endif %}</dd>
+        {% if copy %}<dt>Playing</dt>
+        <dd>the 720p copy<span class="hint">{{ copy.name }}, next to the original</span></dd>{% endif %}
+        {% if img.gps_lat is not none %}
+        <dt>Location</dt>
+        <dd><a href="https://www.openstreetmap.org/?mlat={{ img.gps_lat }}&amp;mlon={{ img.gps_lon }}#map=15/{{ img.gps_lat }}/{{ img.gps_lon }}" target="_blank" rel="noopener">{{ "%.5f"|format(img.gps_lat) }}, {{ "%.5f"|format(img.gps_lon) }}</a></dd>
+        {% endif %}
+      </dl>
+    </details>
+
+    {% set present = files|rejectattr("missing")|list %}
+    {% if viewer.limited %}
+    <p class="download">{% if download %}<a class="button" href="/original/{{ download }}" download>Download the original</a>{% endif %}
+      {%- if present %} <span class="hint inline">You uploaded it{% if present|length > 1 %} ({{ present|length }} copies){% endif %}.</span>{% endif %}</p>
+    {% else %}
+    <details class="info-panel"{% if files|selectattr("removed_at")|list %} open{% endif %}>
+      <summary><h2>{{ present|length }} file{{ "" if present|length == 1 else "s" }} in the photo folders</h2></summary>
+      <ul class="files">
+      {%- for f in files %}
+        <li{% if f.missing %} class="missing"{% endif %}>
+          <a class="path" href="/folder/{{ f.folder_id }}" title="{{ network_path(f.path) }}">{{ f.path }}</a>
+          {%- if f.removed_at %}
+          <span class="hint">in the Removed folder ({{ f.removed_reason }})</span>
+          <span class="actions"><button type="button" data-api="/api/files/{{ f.id }}/restore" data-reload>Restore</button></span>
+          {%- elif f.missing %}
+          <span class="hint">no longer in the photo folders, or in a folder that is not watched</span>
+          {%- else %}
+          <span class="actions">
+            <a href="/original/{{ f.id }}" download>Download</a>
+            <button type="button" data-copy="{{ network_path(f.path) }}" title="Paste into File Explorer's address bar">Copy network path</button>
+            {%- if present|length > 1 %}
+            <button type="button" data-api="/api/files/{{ f.id }}/remove" data-reload title="The other copies stay">Remove this copy</button>
+            {%- endif %}
+          </span>
+          {%- endif %}
+        </li>
+      {%- endfor %}
+      </ul>
+    </details>
+    {% endif %}
+
+    {% if not img.error %}
+    <details class="info-panel">
+      <summary><h2>Tools</h2> <span class="hint inline">{{ (["look for faces again"] + (["turn"] if not is_video and present else []) + (["keep or remove"] if present else []))|join(", ") }}</span></summary>
+      <p class="look-again">
+        <button type="button" class="quiet" data-api="/api/images/{{ img.id }}/faces" data-busy="Looking closely… (about 20 seconds; longer for a video or a crowd)" data-show="#look-again-note" data-key="l" data-key-label="Look for faces again">Look for faces again</button>
+        <span class="hint inline" id="look-again-note">more closely than the first time: smaller faces, and faces marked not a face come back</span>
+      </p>
+      {% if mine and not is_video and present %}
+      <p class="turn">
+        {%- if turn_problem %}<span class="hint">It can't be turned here: {{ turn_problem }}.</span>
+        {%- else %}Turn it, in its file{{ "s" if present|length > 1 }} too:
+        <button type="button" class="quiet" data-api="/api/images/{{ img.id }}/turn" data-body='{"degrees": 270}' data-busy="Turning…" data-reload title="A quarter turn to the left">↺ left</button>
+        <button type="button" class="quiet" data-api="/api/images/{{ img.id }}/turn" data-body='{"degrees": 90}' data-busy="Turning…" data-reload title="A quarter turn to the right">right ↻</button>
+        <button type="button" class="quiet" data-api="/api/images/{{ img.id }}/turn" data-body='{"degrees": 180}' data-busy="Turning…" data-reload>upside down</button>
+        {%- endif %}</p>
+      {% endif %}
+      {% if viewer.admin and signed_in %}
+      <p><button type="button" class="quiet" data-api="/api/images/{{ img.id }}/hidden" data-body='{{ {"hidden": not img.hidden}|tojson }}'
+                 title="Family members never see it, whoever is in it (whoever uploaded it still does)">{{ "Show to family members again" if img.hidden else "Hide from family members" }}</button>
+        {%- if img.hidden %} <span class="hint inline">hidden from family members</span>{% endif %}</p>
+      {% endif %}
+      {% if viewer.limited %}
+      {% elif img.kept_at %}
+      <p class="hint">Kept: cleanup does not suggest this photo.
+        <button type="button" class="quiet" data-api="/api/images/unkeep" data-body='{"image_ids": [{{ img.id }}]}' data-reload>Undo</button></p>
+      {% elif present %}
+      <p><button type="button" class="quiet" data-api="/api/images/keep" data-body='{"image_ids": [{{ img.id }}]}' data-reload data-key="k"
+                 title="Never list this photo on the Cleanup pages">Keep (don't suggest for cleanup)</button></p>
+      {% endif %}
+      {% if mine and present %}
+      <p><button type="button" class="quiet" data-api="/api/images/{{ img.id }}/remove" data-key="Delete" data-key-label="Remove photo (asks first)"
+                 data-confirm="Move this photo{% if present|length > 1 %} (all {{ present|length }} copies){% endif %} to the Removed folder? You can restore it from Cleanup → Removed."
+                 data-then="{{ '/image/%d?ctx=%s'|format(next_id, ctx|urlencode) if next_id else back }}">Remove photo…</button></p>
+      {% endif %}
+    </details>
+    {% endif %}
+    <p class="keys meta">← → to step through, Esc to go back{% if is_video %} (in the player, ← → seek){% endif %}, ? for every key</p>
+  </aside>
+</div>
+{% endblock %}

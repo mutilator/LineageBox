@@ -1,0 +1,15 @@
+# Pinned, tested versions. All have prebuilt linux/arm64 wheels, so an ARM board builds the image without compiling.
+fastapi==0.162.0
+uvicorn==0.54.0
+jinja2==3.1.6
+pydantic==2.14.1
+httpx==0.28.1
+numpy==2.5.4
+pillow==13.0.0
+imagehash==4.3.2
+rawpy==0.27.1
+tqdm==4.70.1
+scikit-learn==1.9.1
+segno==1.6.6
+onnxruntime==1.31.1
+insightface==2.1

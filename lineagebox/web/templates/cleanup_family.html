@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% set nav = "cleanup" %}
+{% block title %}Family tree{% endblock %}
+{% block main %}
+<nav class="crumbs"><a href="/cleanup">Cleanup</a><span class="sep">/</span><h1>Family tree</h1></nav>
+<p class="meta">What looks wrong or unfinished in the family tree. Put it right here or on the person's page; mark what is
+right as it is (a parent nobody knows), and it isn't listed again{% if ok_count %} ({{ ok_count }} marked so far){% endif %}.</p>
+{% set ns = namespace(any=false) %}
+{% for kind, words in kinds.items() if issues[kind] %}
+{% set ns.any = true %}
+<section class="family-issues" id="{{ kind }}">
+  <h2>{{ words[0] }} <small>{{ issues[kind]|length }}</small></h2>
+  <p class="meta">{{ words[1] }}</p>
+  <ul class="issues">
+  {%- for i in issues[kind] %}
+    {%- set row = "issue-" ~ kind ~ "-" ~ loop.index %}
+    <li id="{{ row }}">
+      <span class="what">{{ i.text }}</span>
+      <span class="hint inline">{% for p in i.people %}<a href="/person/{{ p }}">{{ g.name(p) }}</a>{{ " · " if not loop.last }}{% endfor %}</span>
+      <span class="fixes">
+      {%- if kind == "one_parent" %}
+        {%- for q in i.choices %}
+        <button type="button" data-api="/api/family/link" data-body='{{ {"a": i.people[0], "what": "parent", "b": q}|tojson }}' data-reload>{{ g.name(q) }} is the other parent</button>
+        {%- endfor %}
+        <form class="name-form compact" data-api="/api/people/{{ i.people[0] }}/link" data-reload>
+          <input type="hidden" name="word" value="parent">
+          <input name="name" data-names autocomplete="off" required maxlength="80" placeholder="{{ 'or another: name' if i.choices else 'the other parent: name' }}" aria-label="The other parent of {{ g.name(i.people[0]) }}">
+        </form>
+      {%- elif kind == "no_parents" %}
+        <form class="name-form compact" data-api="/api/people/{{ i.people[0] }}/link" data-reload>
+          <input type="hidden" name="word" value="parent">
+          <input name="name" data-names autocomplete="off" required maxlength="80" placeholder="a parent: name" aria-label="A parent of {{ i.text }}">
+        </form>
+      {%- elif kind == "no_sex" %}
+        <button type="button" data-api="/api/people/{{ i.people[0] }}/sex" data-body='{"sex": "male"}' data-reload>male</button>
+        <button type="button" data-api="/api/people/{{ i.people[0] }}/sex" data-body='{"sex": "female"}' data-reload>female</button>
+      {%- endif %}
+        {% if viewer.admin %}<button type="button" class="quiet" data-api="/api/family/checks/ok" data-body='{{ {"key": i.key}|tojson }}' data-remove="#{{ row }}" title="It is right as it is: don't list it again">fine as it is</button>{% endif %}
+      </span>
+    </li>
+  {%- endfor %}
+  </ul>
+</section>
+{% endfor %}
+{% if not ns.any %}<p class="note">Nothing in the family tree looks wrong or unfinished.</p>{% endif %}
+{% endblock %}

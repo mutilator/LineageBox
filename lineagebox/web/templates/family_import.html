@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Bringing in {{ imp.file_name }}{% endblock %}
+{% block main %}
+<nav class="crumbs"><a href="/family">Family</a><span class="sep">/</span><h1>Bringing in {{ imp.file_name }}</h1></nav>
+{% if report %}
+<p class="note">Done {{ imp.applied_at|date }}: {{ report.new }} people added, {{ report.matched }} matched with people
+here; {{ report.names }} names, {{ report.events }} events and {{ report.links }} family links added.</p>
+{% if report.conflicts %}
+<h2>Where the file and the catalog disagree <small>{{ report.conflicts|length }}</small></h2>
+<p class="meta">What is here was kept. Change it on the person's page if the file is right.</p>
+<ul>{% for c in report.conflicts %}<li>{{ c }}</li>{% endfor %}</ul>
+{% endif %}
+{% if report.skipped %}
+<h2>Left out <small>{{ report.skipped|length }}</small></h2>
+<ul>{% for c in report.skipped %}<li>{{ c }}</li>{% endfor %}</ul>
+{% endif %}
+<p><a href="/family">Back to the family</a> · <a href="/family/names">Names to check</a></p>
+{% else %}
+<p class="meta">{{ rows|length }} people and {{ families }} families in the file.
+  {%- for how, label in (("uid", "the same person as before"), ("sure", "sure matches"), ("likely", "likely matches"), ("ai", "matched by the AI"), ("chosen", "chosen by you"), ("unsure", "unsure"), ("new", "new")) %}
+  {%- if counts.get(how) %} · {{ counts[how] }} {{ label }}{% endif %}{% endfor %}</p>
+<p class="meta">Check who is who: the unsure come first. Pick the person they are here, or "add as new". Nothing
+changes until you press Bring it in, and then only what the catalog lacks is added; nothing here is overwritten.</p>
+<p>
+  {%- if counts.get("unsure") %}
+  <button type="button" data-api="/api/family/import/{{ imp.id }}/ai" data-busy="The AI is comparing them…" data-reload
+    {%- if not ai_on %} disabled title="The AI is off on the Settings page"{% endif %}>Ask the AI about the unsure ones</button>
+  <span class="hint inline">Ollama compares names, dates and relatives, 20 at a time.</span>
+  {%- endif %}
+</p>
+<form class="import-review" data-api="/api/family/import/{{ imp.id }}/choices" data-settings data-show="#choices-saved">
+  <table>
+    <thead><tr><th>In the file</th><th>Here</th><th>Why</th></tr></thead>
+    <tbody>
+      {%- for r in rows %}
+      <tr class="how-{{ r.how }}">
+        <td><b>{{ r.name }}</b>{% if r.pet %} <span class="hint inline">pet</span>{% endif %}
+          <span class="hint">{% if r.born %}born {{ r.born }}{% endif %}{% if r.died %}{{ " · " if r.born }}died {{ r.died_on }}{% endif %}
+          {%- if r.parents %}{{ " · " if r.born or r.died }}child of {{ r.parents|join(" and ") }}{% endif %}
+          {%- if r.other_names %} · also {{ r.other_names|join(", ") }}{% endif %}</span></td>
+        <td>
+          <select name="{{ r.xref }}" aria-label="Who {{ r.name }} is here">
+            <option value="new"{% if not r.choice %} selected{% endif %}>add as new</option>
+            {%- for c in r.candidates %}<option value="{{ c.id }}"{% if r.choice == c.id %} selected{% endif %}>{{ c.name }}{% if c.born %}, born {{ c.born }}{% endif %}{% if c.score %} ({{ (c.score * 100)|round|int }}%){% endif %}</option>{% endfor %}
+          </select>
+          <input name="name:{{ r.xref }}" data-names autocomplete="off" placeholder="or someone else" aria-label="Someone else">
+        </td>
+        <td><span class="how">{{ r.how }}</span> {{ r.why }}
+          {%- if r.ai %}<br><span class="hint">AI: {% if r.ai.error %}could not ask ({{ r.ai.error }}){% else %}{{ "same person" if r.ai.same else "not the same" }} ({{ (r.ai.confidence * 100)|round|int }}%): {{ r.ai.reason }}{% endif %}</span>{% endif %}</td>
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  <p><button type="submit">Save these choices</button> <span class="hint inline" id="choices-saved"></span></p>
+</form>
+<p><button type="button" class="primary" data-api="/api/family/import/{{ imp.id }}/apply" data-busy="Bringing it in…"
+  data-confirm="Bring in {{ rows|length }} people as matched? Save your choices first.">Bring it in</button>
+  <span class="hint inline">Adds the new people, and to those matched: other names, life events, families and
+  relationships they lack.</span></p>
+{% endif %}
+{% endblock %}

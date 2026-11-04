@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Upload{% endblock %}
+{% block main %}
+<h1>Upload photos and videos</h1>
+{% if not account %}
+<p class="note">Uploading is for family accounts: each has a folder of its own. Turn them on under Settings → Family
+accounts.</p>
+{% else %}
+<section class="upload" data-upload>
+  <p class="meta">Drop photos, videos or whole folders here, or pick them. They go into your own folder; the people in
+  them are found and named like any others, and whoever is in them sees them too.</p>
+  <p><label>Put them in a folder called <input name="folder" maxlength="100" placeholder="e.g. Christmas 2025"></label>
+    <span class="hint">Leave it empty to keep the folders you drop as they are.</span></p>
+  <div class="drop" data-drop tabindex="0">
+    <p><b>Drop them here</b></p>
+    <p><label class="button">Pick photos <input type="file" multiple hidden accept="{{ extensions|join(',') }},image/*,video/*" data-pick></label>
+      <label class="button">Pick a folder <input type="file" webkitdirectory multiple hidden data-pick></label></p>
+    <p class="hint">{{ extensions|join(", ")|upper|replace(".", "") }} · up to {{ max_gb }} GB a file</p>
+  </div>
+  <p class="hint" data-upload-status role="status"></p>
+  <ul class="upload-list" data-upload-list></ul>
+</section>
+
+{% if counts and counts.files %}
+<h2>Uploaded so far</h2>
+<p class="meta">{{ "{:,}".format(counts.files) }} file{{ "" if counts.files == 1 else "s" }}
+  {%- if counts.waiting %} · {{ "{:,}".format(counts.waiting) }} waiting to be read{% endif %}
+  · faces looked for in {{ "{:,}".format(counts.faces) }} · {{ "{:,}".format(counts.described) }} described
+  {%- if folder_id %} · <a href="/folder/{{ folder_id }}">your uploads folder</a>{% endif %}</p>
+{% if mine %}{{ m.grid(mine, "folder:%d"|format(folder_id) if folder_id else "") }}{% endif %}
+{% endif %}
+{% endif %}
+{% endblock %}

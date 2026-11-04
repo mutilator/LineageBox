@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}{{ "Change " ~ tour.name if tour else "New tour" }}{% endblock %}
+{% block main %}
+<nav class="crumbs"><a href="/tours">Tours</a><span class="sep">/</span>
+  {%- if tour %}<a href="/tour/{{ tour.id }}">{{ tour.name }}</a><span class="sep">/</span><h1>Change</h1>
+  {%- else %}<h1>New tour: {{ type.name }}</h1>{% endif %}</nav>
+{% if tour and not type %}<p class="meta">This tour isn't made from one of the kinds of tour (it was suggested for an
+  occasion, or its kind is gone), so only its name can change.</p>{% endif %}
+
+<form class="wizard panel" data-api="{{ '/api/tours/%d'|format(tour.id) if tour else '/api/tours' }}" data-settings
+      data-preview="/api/tours/preview{{ '?tour=%d'|format(tour.id) if tour else '' }}">
+  {%- if type %}<input type="hidden" name="type" value="{{ type.id }}">{% endif %}
+  {%- if "person" in asked %}
+  <fieldset><legend>Whose photos?</legend>
+    <select name="person" required>
+      <option value="">Pick someone</option>
+      {%- for p in people %}<option value="{{ p.id }}"{% if p.id in spec.who.person_ids %} selected{% endif %}>{{ p.name }} ({{ "{:,}".format(p.photos) }} photos)</option>{% endfor %}
+    </select>
+  </fieldset>
+  {%- endif %}
+  {%- if "people" in asked %}
+  <fieldset><legend>Who should be in the photos? Pick two or more</legend>
+    <div class="pick-people">
+      {%- for p in people %}<label class="pp"><input type="checkbox" name="people[]" value="{{ p.id }}"{% if p.id in spec.who.person_ids %} checked{% endif %}>
+        {%- if covers.get(p.id) %}<img src="/face/{{ covers[p.id] }}" alt="" loading="lazy">{% endif %}<span>{{ p.name }}</span></label>{% endfor %}
+    </div>
+  </fieldset>
+  {%- endif %}
+  {%- if "relation" in asked %}
+  <fieldset><legend>Which people?</legend>
+    {%- if relations %}
+    <select name="relation" required>
+      <option value="">Pick a relationship</option>
+      {%- for key, name, n in relations %}<option value="{{ key }}"{% if key == spec.who.relation %} selected{% endif %}>{{ name }} ({{ n }})</option>{% endfor %}
+    </select>
+    {%- if spec.who.with_children or spec.who.with_partners %}<span class="hint">with their {{ [("partners" if spec.who.with_partners else ""), ("children" if spec.who.with_children else "")]|select|join(" and ") }}</span>{% endif %}
+    {%- else %}
+    <p class="note">No relationships yet. Press <b>This is me</b> on your own page (under People), then add your family there.</p>
+    {%- endif %}
+  </fieldset>
+  {%- endif %}
+  {%- if "season" in asked %}
+  <fieldset><legend>Which season?</legend>
+    {%- for s in seasons %}<label class="choice-inline"><input type="radio" name="season" value="{{ s }}" required{% if s == spec.when.season %} checked{% endif %}> {{ s|capitalize }}</label>{% endfor %}
+    <span class="hint">{% if south %}Summer{% else %}Winter{% endif %} runs from December into February of the next year.</span>
+  </fieldset>
+  {%- endif %}
+  {%- if "year" in asked %}
+  <fieldset><legend>Which year?</legend>
+    <select name="year" required>
+      <option value="">Pick a year</option>
+      {%- for y in years %}<option value="{{ y }}"{% if y == spec.when.year %} selected{% endif %}>{{ y }}</option>{% endfor %}
+    </select>
+  </fieldset>
+  {%- endif %}
+  {%- if "range" in asked %}
+  <fieldset><legend>Between which dates?</legend>
+    <input type="date" name="from" value="{{ spec.when.from }}" required aria-label="From"> to
+    <input type="date" name="to" value="{{ spec.when.to }}" required aria-label="To">
+  </fieldset>
+  {%- endif %}
+  <fieldset><legend>Name</legend>
+    <input name="name" class="wide" value="{{ tour.name if tour else '' }}" data-auto-name{% if tour %} data-touched{% endif %}
+           placeholder="Made from your answers" aria-label="Tour name">
+    <span class="hint" id="tour-preview" data-preview-out></span>
+  </fieldset>
+  <p><button type="submit" class="primary">{{ "Save" if tour else "Make the tour" }}</button>
+    {%- if tour %} <a href="/tour/{{ tour.id }}">Cancel</a>{% endif %}</p>
+</form>
+{% endblock %}

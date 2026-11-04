@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% set nav = "cleanup" %}
+{% block title %}Cleanup{% endblock %}
+{% block main %}
+<h1>Cleanup</h1>
+{% if s %}
+<p class="meta">Nothing is removed until you select it. Removed photos move to the Removed folder of the watched folder
+they are in ({% for w in watched %}<code>{{ media_path(removed_folder(w)) }}</code>{% if on_network(removed_folder(w)) %} (on the network: <code>{{ on_network(removed_folder(w)) }}</code>){% endif %}{{ ", " if not loop.last }}{% endfor %}),
+keeping their folder path, and can be restored from <a href="/cleanup/removed">Removed</a> until you empty it.
+Photos you mark <b>Keep</b> are not suggested again.</p>
+{% else %}
+<p class="meta">Faces to name, and things to check in your part of the family tree.</p>
+{% endif %}
+
+<div class="cards">
+  {%- if s %}
+  <a class="card" href="/cleanup/copies">
+    <b>Duplicate copies</b>
+    <span class="num">{{ "{:,}".format(s.redundant_copies) }}</span>
+    <span>files are identical copies of photos that are also in another folder. Remove the copies from one folder;
+    the photo stays in the other.</span>
+  </a>
+  <a class="card" href="/cleanup/similar">
+    <b>Similar shots</b>
+    <span class="num">{{ "{:,}".format(s.similar_groups) }}</span>
+    <span>groups of burst shots and edited versions. Keep the best of each.</span>
+  </a>
+  <a class="card" href="/cleanup/blurry">
+    <b>Blank and blurry</b>
+    <span class="num">{{ "{:,}".format(s.blurry) }}</span>
+    <span>photos with almost no sharp detail, worst first: black frames, lens caps, shaky shots.
+    {%- if s.unmeasured %} {{ "{:,}".format(s.unmeasured) }} photos are still being measured.{% endif %}</span>
+  </a>
+  {% for kind, label in labels.items() %}
+  <a class="card" href="/cleanup/reference/{{ kind }}">
+    <b>{{ label }}</b>
+    <span class="num">{{ "{:,}".format(s.reference[kind]) }}</span>
+    <span>photos without people whose AI description suggests a picture taken to remember something.</span>
+  </a>
+  {% endfor %}
+  {%- endif %}
+  <a class="card" href="/cleanup/faces">
+    <b>Confirm faces</b>
+    <span class="num">{{ "{:,}".format(face_groups) }}</span>
+    <span>groups of faces nobody has named yet{% if beside %}, and {{ "{:,}".format(beside) }} unnamed faces in photos
+    with people you've named, with a guess at who each is{% endif %}.</span>
+  </a>
+  <a class="card" href="/cleanup/family">
+    <b>Family tree</b>
+    <span class="num">{{ "{:,}".format(family_issues) }}</span>
+    <span>things that look wrong or unfinished in the family tree: one parent entered, dates that can't be right,
+    someone perhaps entered twice.</span>
+  </a>
+  {%- if s and turn_suggest != "off" %}
+  <a class="card" href="/cleanup/turned">
+    <b>Turned photos</b>
+    <span class="num">{{ "{:,}".format(turned) }}</span>
+    <span>photos on their side or upside down, going by the faces in them. Turning one fixes its file too, so every
+    program shows it the right way up.</span>
+  </a>
+  {%- endif %}
+  {%- if s %}
+  <a class="card" href="/cleanup/damaged">
+    <b>Damaged files</b>
+    <span class="num">{{ "{:,}".format(damage.damaged) }}</span>
+    <span>files a disk spoilt: cut short, partly blank, or changed by themselves{% if damage.checked < damage.files %}
+    ({{ "{:,}".format(damage.checked) }} of {{ "{:,}".format(damage.files) }} checked so far){% endif %}.</span>
+  </a>
+  <a class="card" href="/cleanup/changes">
+    <b>Recent changes</b>
+    <span class="num">{{ "{:,}".format(recent_changes) }}</span>
+    <span>changes family members made, to undo any of them{% if widened %}; {{ widened }} let someone see more of
+    the family{% endif %}.</span>
+  </a>
+  <a class="card" href="/cleanup/same">
+    <b>Same person?</b>
+    <span class="num">{{ "{:,}".format(same) }}</span>
+    <span>people family members added who may already be here under the same name.</span>
+  </a>
+  <a class="card" href="/cleanup/kept">
+    <b>Kept</b>
+    <span class="num">{{ "{:,}".format(s.kept) }}</span>
+    <span>photos and folder pairs you marked to keep, so cleanup stops suggesting them. Undo any of them here.</span>
+  </a>
+  <a class="card" href="/cleanup/removed">
+    <b>Removed</b>
+    <span class="num">{{ "{:,}".format(s.removed) }}</span>
+    <span>files in the Removed folder. Restore them, or empty the folder for good.</span>
+  </a>
+  {%- endif %}
+</div>
+{% if stats.described < stats.to_describe %}
+<p class="meta">The lists based on AI descriptions cover the {{ "{:,}".format(stats.described) }} of {{ "{:,}".format(stats.to_describe) }}
+photos described so far and grow as the descriptions finish. Any search can be used for cleanup too: search, then
+“Select photos to remove”.</p>
+{% endif %}
+{% endblock %}

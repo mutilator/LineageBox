@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% set nav = "status" %}
+{% block title %}Status{% endblock %}
+{% macro n(value, href=none) %}{% if href and value %}<a href="{{ href }}">{{ "{:,}".format(value) }}</a>{% else %}{{ "{:,}".format(value) }}{% endif %}{% endmacro %}
+{% block main %}
+<h1>Status</h1>
+<p class="meta">Watching {% for w in cfg.folders %}<code>{{ media_path(w) }}</code>{{ ", " if not loop.last }}{% endfor %}
+· <a href="/settings">Settings</a></p>
+<div id="progress" data-live="/status/live">{% include "_progress.html" %}</div>
+<section class="panel" id="updates">
+  <h2>Version and updates</h2>
+  <p>This is LineageBox {{ lineagebox_version }}.
+  {%- if release %} <strong>LineageBox {{ release.version }} is out</strong>{% if release.published %} ({{ release.published }}){% endif %}{% if release.url %}: <a href="{{ release.url }}" target="_blank" rel="noopener">what's new</a>{% endif %}.
+  {%- elif not cfg.update_check %} Looking for newer versions is off (<a href="/settings#updates">Settings → Updates</a>).
+  {%- elif last_check and last_check.problem %} The last look for a newer version didn't work: {{ last_check.problem }}
+  {%- elif last_check and last_check.version %} It is the newest version (looked on {{ last_check.checked_at[:10] }}).
+  {%- elif cfg.update_repository %} LineageBox looks for a newer version once a day.
+  {%- endif %}</p>
+  {%- if updater and updater.alive %}
+  <p><button type="button" class="primary" data-api="/api/update" data-follow-update="{{ lineagebox_version }}" data-show="#update-said">
+    {%- if release %}Update to {{ release.version }}{% else %}Update now{% endif %}</button>
+    {%- if cfg.update_check and cfg.update_repository %} <button type="button" data-api="/api/update/check" data-show="#update-said">Look for a newer version now</button>{% endif %}
+    <span class="hint inline" id="update-said">{% if updater.state in ("updating", "failed") or updater.requested %}{{ "Updating…" if updater.requested else updater.message }}{% elif updater.state == "done" and updater.at %}Last update: {{ updater.message }}{% endif %}</span></p>
+  <p class="hint">LineageBox downloads the newest version and restarts with it, usually within a few minutes; the pages
+    don't answer for a moment while it does. Nothing is lost: when a new version changes the catalog, a copy of the
+    catalog as it was is kept first (in the data folder's <code>backups</code>).</p>
+  {%- else %}
+  <p class="hint">To update{% if updater %} (the updater service hasn't been heard from for a few minutes){% endif %}:
+    {%- if in_docker %} in LineageBox's folder on the machine it runs on, run
+    <code>docker compose pull &amp;&amp; docker compose up -d</code>. With the updater service from
+    <code>compose.yaml</code> running, this page does that for you.
+    {%- else %} in LineageBox's folder, run <code>git pull</code> and <code>pip install -e .</code>, then start
+    LineageBox again.{% endif %} A copy of the catalog is kept first when the new version changes it.</p>
+  {%- endif %}
+</section>
+<h2>Catalog</h2>
+<p class="hint">Point at a line to see what it counts; numbers that are links show those photos.</p>
+<div class="stats">
+  <section>
+    <h2>Recognition</h2>
+    <dl>
+      <dt title="Folders whose names have been read for places, occasions and dates, out of all folders that aren't ignored">Folders read</dt><dd>{{ n(s.folders_parsed) }} / {{ n(s.folders_to_parse) }}</dd>
+      <dt title="Photos the AI has written a description and tags for, out of all of them. Similar shots share one description, so each group counts once">Photos described by AI</dt><dd>{{ n(s.described) }} / {{ n(s.to_describe) }}</dd>
+      <dt title="Groups of photos that look almost the same: edited copies, bursts, a RAW file and its JPEG. Each group shares one description">Near-duplicate groups</dt><dd>{{ n(s.dup_groups, "/cleanup/similar") }}</dd>
+      <dt title="Faces found in photos and video frames, named or not, including those in photos no longer in the photo folders">Faces found</dt><dd>{{ n(s.faces) }}</dd>
+      <dt title="People in the catalog: named faces, the family tree and acquaintances">People named</dt><dd>{{ n(s.people, "/people") }}</dd>
+    </dl>
+  </section>
+  <section>
+    <h2>Files in the photo folders</h2>
+    <dl>
+      <dt title="Every photo and video file the scan has listed, the missing ones below included. Copies of the same photo each count">Image files</dt><dd>{{ n(s.files) }}</dd>
+      <dt title="Files that have been read: their date taken, a preview and a thumbnail">Ingested</dt><dd>{{ n(s.files_ingested) }}</dd>
+      <dt title="Files found but not read yet; the worker reads them next">Waiting to ingest</dt><dd>{{ n(s.files_pending) }}</dd>
+      <dt title="Files in folders the scan settings leave out (thumbnails, previews): listed, but not read or shown">In ignored folders</dt><dd>{{ n(s.files_ignored) }}</dd>
+      <dt title="Files no longer where the scan last found them. Their photos are left out of every page, unless another copy is still there">Missing</dt><dd>{{ n(s.files_missing) }}</dd>
+      <dt class="sub" title="Moved to a Removed folder from a cleanup page or a photo's page. They can be put back until Removed is emptied">moved to Removed</dt><dd>{{ n(s.files_removed, "/cleanup/removed") }}</dd>
+      <dt class="sub" title="Deleted, moved or renamed in the photo folders, not by LineageBox. A moved or renamed file is found again at its new place; this counts its old place. What LineageBox made from a deleted photo (preview, thumbnail, face crops) is deleted too">gone from the share</dt><dd>{{ n(s.files_gone) }}</dd>
+      {%- if s.files_unwatched %}
+      <dt class="sub" title="In folders that are no longer watched. They come back if the folder is watched again">in unwatched folders</dt><dd>{{ n(s.files_unwatched) }}</dd>
+      {%- endif %}
+      <dt title="Files that could not be read (no permission, a damaged disk)">Read errors</dt><dd>{{ n(s.files_read_errors) }}</dd>
+    </dl>
+  </section>
+  <section>
+    <h2>Unique images</h2>
+    <dl>
+      <dt title="Photos and videos in the library, each counted once however many copies of it there are">Images</dt><dd>{{ n(s.images) }}</dd>
+      <dt title="Files that were read but could not be shown as a photo or video: damaged, or a kind LineageBox can't open">Could not decode</dt><dd>{{ n(s.images_undecodable, "/photos/undecodable") }}</dd>
+      <dt title="Photos whose camera or phone recorded where they were taken. They are on the map">With GPS</dt><dd>{{ n(s.images_with_gps, "/photos/gps") }}</dd>
+      <dt title="Videos, and how long they run altogether">Videos</dt><dd>{{ n(s.videos, "/photos/videos") }} ({{ "%.1f"|format(s.video_hours) }} hours)</dd>
+      {%- for k, count in s.formats.items() %}<dt title="Photos and videos stored as {{ k|upper }} files">{{ k|upper }}</dt><dd>{{ n(count, "/photos/format/" ~ k|urlencode) }}</dd>{% endfor %}
+    </dl>
+  </section>
+  <section>
+    <h2>Where dates come from</h2>
+    <dl>
+      {%- for k, count in s.date_sources.items() %}<dt title="{{ date_help.get(k, '') }}">{{ date_labels.get(k, k) }}</dt><dd>{{ n(count, "/photos/dates/" ~ k|urlencode if k else none) }}</dd>{% endfor %}
+    </dl>
+  </section>
+  <section>
+    <h2>Folders</h2>
+    <dl>
+      <dt title="Folders in the watched folders">Folders</dt><dd>{{ n(s.folders) }}</dd>
+      <dt title="Folders the scan settings leave out (thumbnails, previews); change them on the Settings page">Ignored</dt><dd>{{ n(s.folders_ignored, "/settings") }}</dd>
+    </dl>
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,20 @@
+{#- A new code for signing in at home, shown once (Settings → Codes for signing in at home). -#}
+<div class="new-code">
+  <div class="qr" role="img" aria-label="QR code for the authenticator app">{{ qr|safe }}</div>
+  <div>
+    <ol>
+      <li>In the authenticator app, press + and scan this code. On the phone itself, <a href="{{ uri }}">open it in the
+        app</a> instead.</li>
+      <li>Or press + → Enter a setup key: account <strong>{{ email }}</strong>, key <code>{{ key }}</code>, time
+        based.</li>
+      <li>To check it works, type the code the app shows:</li>
+    </ol>
+    <form class="inline-form" data-api="/api/accounts/{{ account_id }}/local-code/check" data-show="#checked{{ account_id }}">
+      <input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required placeholder="123456" aria-label="Code from the app">
+      <button type="submit">Check</button>
+    </form>
+    <p class="hint" id="checked{{ account_id }}"></p>
+    <p class="hint">The key is shown only now. Keep a copy somewhere safe, such as a password manager, in case the phone
+      is lost.</p>
+  </div>
+</div>

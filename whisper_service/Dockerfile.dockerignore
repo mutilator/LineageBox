@@ -1,0 +1,9 @@
+# What the whisper image's builder is sent from the project's root (in place of the root's .dockerignore): the service
+# and the licence files, nothing else.
+*
+!whisper_service
+!LICENSE
+!THIRD_PARTY_NOTICES.md
+whisper_service/*.ps1
+whisper_service/Dockerfile*
+**/__pycache__

@@ -1,0 +1,26 @@
+# A Windows or NAS share (SMB/CIFS) as another photo source: the folder "nas" in LineageBox (/photos/nas). Docker mounts
+# it with the login in .env. Turn it on in .env, next to SMB_SHARE, SMB_USERNAME and SMB_PASSWORD:
+#   COMPOSE_FILE=compose.yaml:compose.smb.yaml     (on Windows: compose.yaml;compose.smb.yaml)
+# For a second share, copy the "nas" volume and its three lines under a new name. See docs/install.md.
+services:
+  web:
+    volumes:
+      - nas:/photos/nas
+  worker:
+    volumes:
+      - nas:/photos/nas:ro
+  copies:
+    volumes:
+      - nas:/photos/nas
+
+volumes:
+  nas:
+    driver: local
+    driver_opts:
+      type: cifs
+      # //server/share: the Docker daemon looks a server name up itself; if it can't, use the address
+      device: ${SMB_SHARE:?Set SMB_SHARE in .env, e.g. //192.168.1.20/photos}
+      # The options are fixed when Docker first creates the volume: after changing any of these, run
+      #   docker compose down && docker volume rm lineagebox_nas
+      # That only unmounts it; nothing on the share is touched.
+      o: "username=${SMB_USERNAME:?Set SMB_USERNAME in .env},password=${SMB_PASSWORD:-},vers=${SMB_VERSION:-3.0},uid=${PUID:-1000},gid=${PGID:-1000},file_mode=0664,dir_mode=0775${SMB_OPTIONS:-}"

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% set nav = "cleanup" %}
+{% block title %}Kept{% endblock %}
+{% block main %}
+<nav class="crumbs"><a href="/cleanup">Cleanup</a><span class="sep">/</span><h1>Kept</h1></nav>
+<p class="meta">{{ "{:,}".format(images|length) }} photo{{ "" if images|length == 1 else "s" }} and {{ pairs|length }} folder
+pair{{ "" if pairs|length == 1 else "s" }} you chose to keep. Cleanup does not suggest them. Tick photos and put them
+back on the cleanup lists if you change your mind.</p>
+
+{% if images %}
+<form class="select-form" data-select-api="/api/images/unkeep" data-reason="kept">
+  {{ m.select_grid(images, "") }}
+  <div class="select-bar">
+    <button type="button" data-select="all">Select all</button>
+    <button type="button" data-select="none">Select none</button>
+    <button type="submit" class="primary" data-label="Show {n} on the cleanup lists again" disabled>Show 0 on the cleanup lists again</button>
+  </div>
+</form>
+{% endif %}
+
+{% if pairs %}
+<h2>Folder pairs kept under Duplicate copies</h2>
+{% for p in pairs %}
+<section class="pair" id="p{{ p.a }}-{{ p.b }}">
+  <p><a href="/folder/{{ p.a }}">{{ p.a_path }}</a>{% if p.a != p.b %} and <a href="/folder/{{ p.b }}">{{ p.b_path }}</a>{% endif %}
+    <span class="hint inline">kept {{ p.kept_at|date }}</span></p>
+  <button type="button" data-api="/api/cleanup/copies/unkeep?a={{ p.a }}&b={{ p.b }}" data-remove="#p{{ p.a }}-{{ p.b }}">List again</button>
+</section>
+{% endfor %}
+{% endif %}
+
+{% if not images and not pairs %}
+<p class="note">Nothing kept yet. On the cleanup lists, tick photos you want and press Keep.</p>
+{% endif %}
+{% endblock %}

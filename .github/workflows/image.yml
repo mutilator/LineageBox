@@ -1,0 +1,112 @@
+# The tests, then LineageBox's Docker images for linux/amd64 and linux/arm64 on GitHub's container registry
+# (ghcr.io/mutilator/lineagebox, and -whisper for the speech-to-text service; metadata-action lowercases the name):
+# - A version tag (v1.2.3, the same as lineagebox/__init__.py's __version__) is a release. Its images are published as
+#   1.2.3, 1.2 and latest at once (a pre-release such as v1.3.0-rc.1 only as itself), and then a GitHub Release is
+#   made, which is what installs look for once a day to say an update is available.
+# - A push to main publishes "main" and "sha-<commit>", for trying what is coming. Never "latest".
+name: image
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+# Actions are pinned to commits (a moved tag can't change what runs with the token that pushes images);
+# .github/dependabot.yml keeps them current.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          persist-credentials: false   # nothing here pushes with git
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.12"
+      - name: A release's tag is the version in the code
+        if: github.ref_type == 'tag'
+        run: |
+          code="$(python -c 'import lineagebox; print(lineagebox.__version__)')"
+          if [ "v$code" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::The tag $GITHUB_REF_NAME doesn't match the version in lineagebox/__init__.py ($code)"
+            exit 1
+          fi
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg libimage-exiftool-perl
+      # cryptography: the HTTPS tests make their own certificates (they skip without it)
+      - run: pip install --disable-pip-version-check -r docker/requirements.txt pytest cryptography
+      - run: python -m pytest -q
+
+  image:
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # the GitHub Release of a version tag
+      packages: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          persist-credentials: false   # nothing here pushes with git
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130  # v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # "latest" comes with a release's version tags (flavor latest=auto), and never from a branch
+      - id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051  # v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=ref,event=branch
+            type=sha,enable=${{ github.ref_type == 'branch' }}
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8  # v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          build-args: LINEAGEBOX_REPOSITORY=${{ github.repository }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      # the speech-to-text service for compose.whisper.yaml (ghcr.io/mutilator/lineagebox-whisper), with the same
+      # tags, not tuned to any one processor, since it runs on other machines than this one
+      - id: whisper
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051  # v5
+        with:
+          images: ghcr.io/${{ github.repository }}-whisper
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=ref,event=branch
+            type=sha,enable=${{ github.ref_type == 'branch' }}
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8  # v6
+        with:
+          context: .
+          file: whisper_service/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          build-args: NATIVE=OFF
+          push: true
+          tags: ${{ steps.whisper.outputs.tags }}
+          labels: ${{ steps.whisper.outputs.labels }}
+          cache-from: type=gha,scope=whisper
+          cache-to: type=gha,mode=max,scope=whisper
+      # only once both images are there: installs are told about a release as soon as it exists
+      - name: GitHub Release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pre=""
+          case "$GITHUB_REF_NAME" in *-*) pre="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes \
+            --title "LineageBox ${GITHUB_REF_NAME#v}" $pre
