@@ -91,9 +91,9 @@ def test_sharing_a_folder_of_uploads(site, con, cfg):
     assert "Summer" in tina.get("/folders").text and "from Cora" in tina.get("/folders").text
     home = tina.get("/home").text  # as a folder card, with a photo of it for its cover, above the newest photos
     assert f'class="folder-card" href="/folder/{summer}"' in home and "folder, from Cora" in home
-    assert home.index("Shared with you") < home.index("New photos of the family")
+    assert home.index("Shared with you") < home.index('id="latest"')
     shas = {catalog.image(con, i)["sha256"] for i in photos.values()}
-    assert any(f'src="/t/{sha}"' in home.split("New photos of the family")[0] for sha in shas)
+    assert any(f'src="/t/{sha}"' in home.split('id="latest"')[0] for sha in shas)
     assert "Move 0 to Removed" not in tina.get(f"/folder/{summer}?select=1").text  # not hers to remove
     assert tina.post(f"/api/folders/{summer}/remove", headers=APP).status_code == 404
     assert tina.post(f"/api/folders/{summer}/remove-files", json={"image_ids": [beach]}, headers=APP).status_code == 404
@@ -191,7 +191,7 @@ def test_sharing_a_tour_shares_its_photos(site, con, cfg):
     assert f'href="/tour/{tour}/edit"' not in page
     photo = tina.get(f"/image/{ph['scenery.jpg']}?ctx=tour:{tour}")
     assert photo.status_code == 200 and f"/person/{p['Mia']}" not in photo.text  # named, without a link
-    home = tina.get("/home").text.split("New photos of the family")[0]
+    home = tina.get("/home").text.split('id="latest"')[0]
     assert f'href="/tour/{tour}"' in home and f'src="/t/{sha}"' in home and "tour, from Cora" in home
     listed = tina.get("/tours").text
     assert "Photos of Mia" in listed and "from Cora" in listed

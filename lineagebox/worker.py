@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from lineagebox import (accounts, check, cleanup, dedup, faces, orientation, people, places, quality, search,
-                        settings, speech, updates, video)
+                        settings, speech, storage, updates, video)
 from lineagebox.activity import log, note_problem
 from lineagebox.config import Config
 from lineagebox.describe import describe
@@ -127,6 +127,9 @@ def run_once(con: sqlite3.Connection, cfg: Config, stop: Stopper | None = None) 
         if n := stage("check previews", lambda: check.rebuild_derivatives(con, cfg)):
             log(con, f"previews: {n} photos and videos had theirs gone; making them again from the originals")
         settings.put(con, "previews_checked", today)
+    # once a day too: how much room LineageBox's own files take, for the storage on Home and the Status page
+    if not (settings.get(con, storage.KEY) or {}).get("measured_at", "").startswith(today):
+        stage("measure storage", lambda: storage.measure_data(con, cfg))
     if cfg.update_check:  # GitHub's newest release, once a day, for the Status page (updates.py)
         stage("check for updates", lambda: updates.check(con, cfg))
     # Before reading new files, which can take hours (a folder of videos): when the index was made again (a schema

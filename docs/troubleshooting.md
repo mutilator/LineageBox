@@ -58,13 +58,22 @@ docker compose exec worker python -m lineagebox status
   once a day, and an update of LineageBox may be needed.
 - **Out of graphics memory** when run from source: run `faces` while Ollama is idle, or with `--cpu`.
 - **Two people confused** (young siblings, most often): name a few more photos of each by hand. Recognition only
-  names faces that clearly match one person, and never overwrites a name given by hand. "not …" on a face takes a
-  wrong name off for good.
+  names faces that clearly match one person, and never overwrites a name given by hand. "Fix" on a face named
+  wrongly in a photo puts the right name on it, and that face is never matched to the wrong person again.
 
 ## "The catalog is busy" (503)
 
 The database was locked by a long write for longer than the web UI waits. Try again in a moment. It can happen while
 the worker writes a big batch. If it happens often, `docker compose logs worker` shows what it was doing.
+
+## Pages are slow
+
+**Status → Slow pages** lists the pages that took LineageBox more than a second to answer since it last started, and
+`docker compose logs web` has a line for each (`slow: GET /tags took 1.8 s`). The browser's developer tools show how
+long each answer took on the server (`Server-Timing`). Counts that take a while on a big library (tags, people, the
+faces to confirm, Cleanup's numbers) are kept for a minute, so a page is slow the first time and quick after that,
+until something is changed on the site. The first look at a big library also takes longer while the worker is still
+reading it.
 
 ## Dates are wrong
 

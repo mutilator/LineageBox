@@ -1,0 +1,18 @@
+{# Home's row of memories, loaded after the page by app.js (data-later): this week in earlier years, tours worth
+   making, and a few of the viewer's own tours (memories.py). Nothing shows when there are none. #}
+{%- if memories %}
+<div class="memories-wrap">
+  <div class="memories" id="memory-row">
+    {%- for x in memories %}
+    <a class="memory" href="{{ x.href }}" title="{{ x.title }}: {{ x.sub }}">
+      <img src="/t/{{ x.cover }}" alt="" loading="lazy">
+      <span class="memory-text"><b>{{ x.title }}</b><span>{{ x.sub }}</span></span>
+    </a>
+    {%- endfor %}
+  </div>
+  {%- if memories|length > 3 %}
+  <button type="button" class="scroll back" data-scroll="#memory-row" data-by="-1" aria-label="Earlier in the row">‹</button>
+  <button type="button" class="scroll on" data-scroll="#memory-row" data-by="1" aria-label="Further along the row">›</button>
+  {%- endif %}
+</div>
+{%- endif %}

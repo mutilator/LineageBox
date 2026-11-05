@@ -293,29 +293,45 @@ def compute(con: sqlite3.Connection, account: dict, shared: bool = True) -> View
 
 class Viewers:
     """Each account's Viewer, kept REFRESH seconds, and worked out again sooner after any change made through the web
-    app (changed())."""
+    app (changed()). Worked out once at a time for each account: after a change, the dozens of thumbnails and face
+    crops a page asks for at once all need it, and each working it out for itself (0.4 s for a member who sees 40,000
+    photos) kept every one of them waiting several seconds on the others."""
 
     def __init__(self):
         self.kept: dict[tuple, tuple[Viewer, float, int]] = {}
         self.generation = 0
         self.lock = threading.Lock()
+        self.working: dict[tuple, threading.RLock] = {}  # key -> held while its Viewer is worked out
 
     def changed(self) -> None:
         with self.lock:
             self.generation += 1
 
-    def get(self, con: sqlite3.Connection, account: dict, shared: bool = True) -> Viewer:
-        """shared False: without what others shared with them (compute)."""
+    def fresh(self, account: dict, shared: bool = True) -> Viewer | None:
+        """The account's Viewer if one is kept and still current: no connection needed (each thumbnail asks)."""
         key = (account["id"], account["role"], account["person_id"], account["upload_folder"], shared)
         with self.lock:
             found = self.kept.get(key)
-            generation = self.generation
-        if found and time.monotonic() - found[1] < REFRESH and found[2] == generation:
-            return found[0]
-        viewer = compute(con, account, shared)
+            if found and time.monotonic() - found[1] < REFRESH and found[2] == self.generation:
+                return found[0]
+        return None
+
+    def get(self, con: sqlite3.Connection, account: dict, shared: bool = True) -> Viewer:
+        """shared False: without what others shared with them (compute)."""
+        if (found := self.fresh(account, shared)) is not None:
+            return found
+        key = (account["id"], account["role"], account["person_id"], account["upload_folder"], shared)
         with self.lock:
-            self.kept = {k: v for k, v in self.kept.items() if k[0] != account["id"] or k[-1] != shared}
-            self.kept[key] = (viewer, time.monotonic(), generation)
+            working = self.working.setdefault(key, threading.RLock())
+        with working:  # one request works it out; the others wait, then take it
+            if (found := self.fresh(account, shared)) is not None:
+                return found
+            with self.lock:
+                generation = self.generation
+            viewer = compute(con, account, shared)
+            with self.lock:
+                self.kept = {k: v for k, v in self.kept.items() if k[0] != account["id"] or k[-1] != shared}
+                self.kept[key] = (viewer, time.monotonic(), generation)
         return viewer
 
 

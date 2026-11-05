@@ -1,5 +1,6 @@
 """Photo tours: the list, suggestions, the wizard, a tour and its slideshow, and kinds of tours."""
 import dataclasses
+import json
 import time
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -15,6 +16,7 @@ router = APIRouter()
 ACCESS = {
     "/tours": MEMBER,
     "/tours/suggested": MEMBER,
+    "/tours/try": MEMBER,
     "/tours/new": MEMBER,
     "/tour/{tour_id}": MEMBER,
     "/tour/{tour_id}/edit": MEMBER,
@@ -86,16 +88,40 @@ def tours_page(request: Request, v=Depends(viewer), c=Depends(con), w=Depends(wr
                 types=kinds)
 
 
-@router.get("/tours/suggested", response_class=HTMLResponse)
-def suggested_tours(request: Request, v=Depends(viewer), c=Depends(con), s: Site = Depends(site)):
-    """The Tours page's suggestions, loaded after the page: on a big catalog they take seconds to work out, so
-    they are kept for 10 minutes (less any made into tours since)."""
+def suggestions(s: Site, v: access.Viewer, c) -> list[dict]:
+    """The tours worth making from what the viewer sees, for the Tours page and Home's memories: on a big catalog
+    they take seconds to work out, so they are kept for 10 minutes (less any made into tours since)."""
     mine = s.suggested.setdefault(v.account_id if v.limited else None, {"at": -1e9, "list": []})
     if time.monotonic() - mine["at"] > 600:
         found = tour_suggestions.suggest(c, s.live(c).blurry_below)  # faces in a member's photos can be anyone
         mine.update(at=time.monotonic(), list=[s for s in found
                                                if all(map(v.sees_person, s["spec"]["who"]["person_ids"]))])
-    return page(request, "_suggested_tours.html", suggestions=tour_suggestions.unmade(c, mine["list"])[:6])
+    return tour_suggestions.unmade(c, mine["list"])
+
+
+@router.get("/tours/suggested", response_class=HTMLResponse)
+def suggested_tours(request: Request, v=Depends(viewer), c=Depends(con), s: Site = Depends(site)):
+    """The Tours page's suggestions, loaded after the page."""
+    return page(request, "_suggested_tours.html", suggestions=suggestions(s, v, c)[:6])
+
+
+@router.get("/tours/try", response_class=HTMLResponse)
+def try_tour(request: Request, body: str = "", v=Depends(viewer), c=Depends(con), s: Site = Depends(site)):
+    """A tour not saved yet (one of Home's memories): what POST /api/tours would make of the body, to play, and
+    Keep as a tour to save it."""
+    try:
+        asked = json.loads(body)
+        if not isinstance(asked, dict):
+            raise ValueError
+        spec, _ = tour_from(c, v, asked)
+    except (ValueError, tours.Problem):
+        raise HTTPException(404, "No such tour") from None
+    chosen = tours.photos(c, spec, s.live(c).blurry_below)
+    images = [{"id": p["id"], "sha256": p["sha"], "taken_at": p["taken"], "taken_at_source": None,
+               "media": p["media"], "duration": p["duration"]} for p in chosen]
+    return page(request, "tour.html", nav="tours", tour={"id": None, "name": tours.title(c, spec), "spec": spec},
+                images=images, slides=tours.slides(c, chosen), about=tours.describe(c, spec), ctx="", theirs=False,
+                from_whom=None, sharing=None, keep=asked)
 
 
 def wizard(request: Request, c, tour_type: dict | None, tour: dict | None):

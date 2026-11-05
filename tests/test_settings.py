@@ -82,6 +82,20 @@ def test_settings_are_checked_and_stored(con, cfg):
     assert settings.schedule_text(now) == "22:00–07:00 on Mon, Fri"
 
 
+def test_how_long_pointing_at_a_photo_takes(con, cfg):
+    """Settings → Browsing: how long a photo is pointed at before it shows larger (app.js reads it from <body>)."""
+    client = TestClient(webapp.create_app(cfg), client=LAN)
+    assert settings.current(con, cfg).hover_preview_ms == 500
+    assert 'data-hover-preview="500"' in client.get("/home").text and 'id="browsing"' in client.get("/settings").text
+    for value, says in ((-1, "from 0 to 5000"), (6000, "from 0 to 5000"), ("soon", "whole number")):
+        r = client.post("/api/settings", json={"hover_preview_ms": value}, headers=APP)
+        assert r.status_code == 400 and says in r.json()["detail"], value
+    assert client.post("/api/settings", json={"hover_preview_ms": "0"}, headers=APP).status_code == 200  # off
+    assert settings.current(con, cfg).hover_preview_ms == 0
+    client = TestClient(webapp.create_app(cfg), client=LAN)  # a new app: settings are looked up every 2 s
+    assert 'data-hover-preview="0"' in client.get("/people").text
+
+
 def test_describing_hours(cfg):
     monday = datetime(2026, 10, 26)  # a Monday
     night = dataclasses.replace(cfg, describe_schedule="hours", describe_from="22:00", describe_until="07:00",

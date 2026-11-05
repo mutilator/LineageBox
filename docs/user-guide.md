@@ -15,8 +15,9 @@ names the faces elsewhere that clearly match.
 - **Seen together** suggests who the unnamed faces in a photo are, using the people already named in it. Nobody is in
   a photo twice, so each face is matched to the closest person not yet named in that photo. Untick the faces that
   aren't them, then confirm. Unticked faces are never suggested or recognised as that person again.
-- On a photo, **not …** takes a wrong name off a face, and the face stays to be named as whoever it is. An unnamed face
-  that looks like someone not yet in the photo offers their name to click.
+- On a photo, **Fix** next to a wrong name lets you type who the face really is, or pick **don't know who** to take
+  the name off so the face waits to be named. It is never suggested or recognised as the wrong person again. An
+  unnamed face that looks like someone not yet in the photo offers their name to click.
 - **Check faces** on a person's page lists their named faces, the least alike first, for spotting mistakes.
 
 Names you give by hand always win: recognition never overwrites them.
@@ -72,6 +73,11 @@ Examples: "goat", "emma zoo 2012", "christmas tree", "happy birthday". Results a
 
 ### Browsing
 
+- **Home** starts with a row of memories: photos from this week in earlier years ("5 years ago"), tours worth
+  making (a birthday coming up, someone through the years, a holiday) and a few of your own tours. They change from
+  day to day; one opens like a tour, and **Keep as a tour** saves it. Below come faces someone asked about, what
+  others shared with you, then the newest photos by the day they were taken (Yesterday, Tuesday, then by month),
+  older photos added lately, and your own uploads. Admins also see how full the disk is.
 - **Folders** shows the watched folders as they are on disk. A photo with copies in several folders shows in each.
   At the top of a folder, **Sharing and removing** shares it with family accounts or moves the whole folder to
   Removed (for a family member: a folder of their own uploads).
@@ -82,6 +88,11 @@ Examples: "goat", "emma zoo 2012", "christmas tree", "happy birthday". Results a
   photos and the tags most often given with it.
 
 A small **≈** on a thumbnail means its date came from the file name or the file's time rather than the camera.
+
+Point at a photo or a face for a moment (half a second; **Settings → Browsing** changes it, or turns it off) and the
+whole photo shows larger beside it, with the face outlined: a quick way to see who someone is on the Cleanup and
+People pages without opening each photo. Once one shows, the next photo you point at shows at once. Clicking still
+opens the photo, and ↗ still opens it in a new tab.
 
 ### A photo's page
 
@@ -177,7 +188,10 @@ Any search result has **Select photos to remove**.
 - how far the descriptions are, with the pace and the time left;
 - what is waiting at each stage;
 - downloads (face models, Ollama models, Whisper models);
-- red notes when something needs attention, such as Ollama not answering or a model that can't look at pictures.
+- red notes when something needs attention, such as Ollama not answering or a model that can't look at pictures;
+- **Storage**: how full each disk is that holds the watched folders or LineageBox's data folder, and how much of it
+  is photos and videos, LineageBox's previews and catalog (measured once a day), and other files. It turns red when
+  less than a tenth, or less than 20 GB, is free.
 
 It refreshes itself every 10 seconds. The numbers link to their photos (all with GPS, all dated by file time, each
 format), and pointing at a line says what it counts. **Check now** starts a worker pass at once.
@@ -208,6 +222,7 @@ The menu at the side shows one part at a time (on a phone, it is above the setti
   service, should use another Nominatim (`[places] url`, [configuration](configuration.md)).
 - **Tours:** the kinds of tour.
 - **Cleanup:** the Blank and blurry cut-off, and how sure Turned photos must be.
+- **Browsing:** how long to point at a photo before it shows larger (0 turns that off).
 - **Address and HTTPS:** host names, the reverse proxy and the HTTPS certificate ([remote access](remote-access.md)).
 - **Updates:** whether to look for a newer version once a day.
 - **Family accounts:** **Accounts and sign-in**, and **Codes for signing in at home**, when accounts are used

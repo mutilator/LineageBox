@@ -99,6 +99,7 @@ is then 5 June, and a folder named "Party 5.6.98" is from 5 June 1998 (unticked,
 | `[web] allowed_hosts` | none | Page | Host names to answer to besides addresses and home-network names (`photos.example.com`, `*.example.com`). |
 | `[web] trusted_proxies` | none | Page | Reverse proxies whose `X-Forwarded-For` and `X-Forwarded-Proto` are believed. |
 | `[web] tls_cert`, `[web] tls_key` | none | Page | HTTPS without a proxy: certificate (full chain) and key, PEM. Both or neither. |
+| `[web] hover_preview_ms` | 500 | Page | Milliseconds of pointing at a photo before it shows larger; 0 never. |
 
 ### Family accounts
 

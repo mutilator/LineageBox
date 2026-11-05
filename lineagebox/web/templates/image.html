@@ -95,7 +95,13 @@
         {% if ages.get(f.person_id) %}<span class="age">{{ ages[f.person_id] }}</span>{% endif %}
         {% if kin.get(f.person_id) %}<span class="hint inline">{{ kin[f.person_id] }}</span>{% endif %}
         {% if f.assigned_by == "auto" %}<span class="hint inline">recognised</span>{% endif %}
-        <button type="button" class="quiet" data-api="/api/faces/{{ f.id }}/not" data-reload title="Not {{ f.name }}: take the name off, to name the face as whoever it is">not {{ f.name }}</button>
+        <span class="fix" id="fix{{ f.id }}" hidden>
+          <form class="name-form compact" data-api="/api/faces/{{ f.id }}/name" data-reload>
+            <input name="name" data-names autocomplete="off" required placeholder="Who is this?" aria-label="Who is this, if not {{ f.name }}?">
+          </form>
+          <button type="button" class="quiet" data-api="/api/faces/{{ f.id }}/not" data-reload title="Not {{ f.name }}, and you don't know who: take the name off, so the face waits to be named">don't know who</button>
+        </span>
+        <button type="button" class="quiet" data-toggle="#fix{{ f.id }}" data-toggle-label="cancel" aria-expanded="false" aria-controls="fix{{ f.id }}" title="Not {{ f.name }}? Type who it is instead">Fix</button>
         {% else %}
         <form class="name-form compact" data-api="/api/faces/{{ f.id }}/name" data-reload data-refocus="n">
           <input name="name" data-names autocomplete="off" required placeholder="Who is this?" aria-label="Name" data-key="n" data-key-label="Name a face (the next one after Enter)">

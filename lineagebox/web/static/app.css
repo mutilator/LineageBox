@@ -9,6 +9,8 @@
   --stage: #111110;
   --danger: #b42318;
   --keep: #1f7a3f;
+  --ours: #c26a1b;     /* storage: LineageBox's own files (photos and videos are --accent) */
+  --other: #a3a29b;    /* storage: other files on the disk */
   --header-h: 46px;
   color-scheme: light;
 }
@@ -24,6 +26,8 @@
     --stage: #0b0b0a;
     --danger: #e5534b;
     --keep: #4ac26b;
+    --ours: #e8a05c;
+    --other: #5d5c57;
     color-scheme: dark;
   }
 }
@@ -190,6 +194,8 @@ button:disabled { opacity: .5; cursor: wait; }
 .face-row img { border-radius: 50%; object-fit: cover; flex: none; }
 .face-row button { padding: 1px 8px; font-size: .8rem; margin-left: auto; }
 .face-row .face-seek { margin: 0; padding: 0; border: 0; background: none; cursor: pointer; flex: none; }
+.face-row .fix { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
+.face-row .fix button, .face-row .fix:not([hidden]) + button { margin-left: 0; }
 /* video page: the frames faces and the description came from, and what was said; both jump the player */
 .frame-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
 .frame-strip .frame { padding: 0; border: 0; background: var(--tile); cursor: pointer; aspect-ratio: 16 / 9;
@@ -205,6 +211,8 @@ button:disabled { opacity: .5; cursor: wait; }
         border: 1px solid var(--line); border-radius: 10px; color: var(--text); }
 .card:hover { text-decoration: none; border-color: var(--accent); }
 .card .num { font-size: 1.6rem; font-weight: 600; }
+.card .num.loading { color: var(--muted); font-weight: 400; }
+.cards > [data-later] { display: contents; }  /* a part loaded later (Cleanup's numbers): its cards are in the grid */
 .card span:last-child { color: var(--muted); font-size: .88rem; }
 .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 12px 0 16px; border-bottom: 1px solid var(--line); }
 .tabs a { padding: 8px 14px; border: 1px solid transparent; border-bottom: 0; border-radius: 8px 8px 0 0;
@@ -673,3 +681,63 @@ kbd { display: inline-block; min-width: 1.4em; margin-right: 3px; padding: 0 5px
   .settings .net-paths { grid-template-columns: minmax(0, 1fr); }  /* each folder over its box; a long path wraps */
   .settings .net-paths code { overflow-wrap: anywhere; }
 }
+
+/* Home: the greeting with the storage meter beside it (admins), the row of memories, the photos by day */
+.home-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 24px; }
+.storage-meter { display: grid; gap: 2px; min-width: min(100%, 220px); color: var(--text); font-size: .85rem; }
+.storage-meter:hover { text-decoration: none; }
+.storage-meter:hover .label { color: var(--accent); }
+.storage-meter .label { font-weight: 600; }
+.storage-meter .meter { height: 6px; margin: 2px 0; }
+.storage-meter .hint { font-size: .8rem; }
+.meter.low i, .storage-meter.low .meter i { background: var(--danger); }
+.memories-wrap { position: relative; margin: 18px 0 8px; }
+.memories { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: thin;
+            padding-bottom: 6px; }
+.memory { position: relative; flex: 0 0 clamp(200px, 22vw, 300px); aspect-ratio: 4 / 3; border-radius: 12px;
+          overflow: hidden; background: var(--tile); scroll-snap-align: start; color: #fff; }
+.memory img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform .2s; }
+.memory:hover { text-decoration: none; }
+.memory:hover img { transform: scale(1.04); }
+.memory-text { position: absolute; inset: auto 0 0; display: grid; gap: 1px; padding: 28px 14px 12px;
+               background: linear-gradient(transparent, rgb(0 0 0 / .72)); text-shadow: 0 1px 3px rgb(0 0 0 / .5); }
+.memory-text b { font-size: 1.2rem; font-weight: 600; line-height: 1.2; }
+.memory-text span { font-size: .82rem; opacity: .92; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.memories-wrap .scroll { position: absolute; top: calc(50% - 21px); z-index: 1; width: 36px; height: 36px; padding: 0;
+                         border-radius: 50%; box-shadow: 0 2px 8px rgb(0 0 0 / .25); font-size: 1.2rem; }
+.memories-wrap .scroll.back { left: -10px; }
+.memories-wrap .scroll.on { right: -10px; }
+.days { --row: 190px; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 18px 22px; margin-top: 18px; }
+.days .month { flex: 0 0 100%; margin: 22px 0 -6px; font-size: 1.5rem; font-weight: 400; }
+/* a day is as wide as its photos side by side, and shares a line with others that fit; one too wide for a line
+   wraps, and its rows but the last are stretched to the edge (where a day fits on one line there is nothing to fill) */
+.day { flex: 0 1 auto; min-width: 0; max-width: 100%; }
+.day h3 { margin: 0 0 8px; font-size: .9rem; font-weight: 600; }
+.day-tiles { display: flex; flex-wrap: wrap; gap: 4px; }
+.day-tiles .tile { flex: var(--r) 0 auto; width: calc(var(--row) * var(--r)); max-width: 100%; height: var(--row);
+                   aspect-ratio: auto; }
+.day-tiles::after { content: ""; flex-grow: 1000; margin-left: -4px; }  /* the last row isn't stretched */
+@media (max-width: 760px) { .days { --row: 120px; } .memory { flex-basis: 70vw; } .memories-wrap .scroll { display: none; } }
+
+/* Storage, on the Status page: each disk's bar in parts, with what each part is */
+.disk { margin: 10px 0 18px; }
+.disk h3 { margin: 14px 0 0; }
+.meter.parts { display: flex; height: 14px; }
+.meter.parts i { border-radius: 0; }
+.meter.parts i.ours, .legend i.ours { background: var(--ours); }
+.meter.parts i.other, .legend i.other { background: var(--other); }
+.legend { display: grid; grid-template-columns: max-content auto; gap: 3px 18px; margin: 8px 0 0; }
+.legend dt { color: var(--muted); }
+.legend dd { margin: 0; font-variant-numeric: tabular-nums; }
+.legend i { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 2px;
+            background: var(--accent); vertical-align: -1px; }
+.legend i.free { background: var(--tile); border: 1px solid var(--line); }
+
+/* The larger look at a photo that pointing at one for a moment gives (app.js); a face's place on it is outlined */
+.peek { position: fixed; z-index: 30; overflow: hidden; pointer-events: none; border-radius: 8px;
+        background: var(--tile); border: 1px solid var(--line); box-shadow: 0 12px 40px rgb(0 0 0 / .35); }
+.peek-in { position: absolute; left: 50%; top: 50%; }
+.peek img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.peek-face { position: absolute; border: 2px solid #fff; border-radius: 4px;
+             box-shadow: 0 0 0 2px rgb(0 0 0 / .55), 0 0 0 100vmax rgb(0 0 0 / .22); }
+.peek-face[hidden] { display: none; }

@@ -1,0 +1,56 @@
+{#- One part of the Cleanup page (part, see COUNTS in web/routes/cleanup.py): its cards, or the note under them, with
+    their numbers (n). The page shows each card with Loading… (n is none), and app.js puts the part with its numbers in
+    its place (data-later) as soon as they are worked out. -#}
+{%- macro card(href, title, num) -%}
+<a class="card" href="{{ href }}">
+  <b>{{ title }}</b>
+  {% if num is none %}<span class="num loading">Loading…</span>{% else %}<span class="num">{{ "{:,}".format(num) }}</span>{% endif %}
+  <span>{{ caller() }}</span>
+</a>
+{%- endmacro %}
+{%- if part == "copies" %}
+{% call card("/cleanup/copies", "Duplicate copies", n and n.redundant_copies) %}files are identical copies of photos that
+are also in another folder. Remove the copies from one folder; the photo stays in the other.{% endcall %}
+{%- elif part == "similar" %}
+{% call card("/cleanup/similar", "Similar shots", n and n.similar_groups) %}groups of burst shots and edited versions.
+Keep the best of each.{% endcall %}
+{%- elif part == "blurry" %}
+{% call card("/cleanup/blurry", "Blank and blurry", n and n.blurry) %}photos with almost no sharp detail, worst first:
+black frames, lens caps, shaky shots.
+{%- if n and n.unmeasured %} {{ "{:,}".format(n.unmeasured) }} photos are still being measured.{% endif %}{% endcall %}
+{%- elif part == "reference" %}
+{%- for kind, label in labels.items() %}
+{% call card("/cleanup/reference/" ~ kind, label, n and n.reference[kind]) %}photos without people whose AI description
+suggests a picture taken to remember something.{% endcall %}
+{%- endfor %}
+{%- elif part == "faces" %}
+{% call card("/cleanup/faces", "Confirm faces", n and n.groups) %}groups of faces nobody has named yet
+{%- if n and n.beside %}, and {{ "{:,}".format(n.beside) }} unnamed faces in photos with people you've named, with a
+guess at who each is{% endif %}.{% endcall %}
+{%- elif part == "family" %}
+{% call card("/cleanup/family", "Family tree", n and n.issues) %}things that look wrong or unfinished in the family
+tree: one parent entered, dates that can't be right, someone perhaps entered twice.{% endcall %}
+{%- elif part == "turned" %}
+{% call card("/cleanup/turned", "Turned photos", n and n.turned) %}photos on their side or upside down, going by the
+faces in them. Turning one fixes its file too, so every program shows it the right way up.{% endcall %}
+{%- elif part == "damaged" %}
+{% call card("/cleanup/damaged", "Damaged files", n and n.damaged) %}files a disk spoilt: cut short, partly blank, or
+changed by themselves{% if n and n.checked < n.files %} ({{ "{:,}".format(n.checked) }} of
+{{ "{:,}".format(n.files) }} checked so far){% endif %}.{% endcall %}
+{%- elif part == "changes" %}
+{% call card("/cleanup/changes", "Recent changes", n and n.recent) %}changes family members made, to undo any of them
+{%- if n and n.widened %}; {{ n.widened }} let someone see more of the family{% endif %}.{% endcall %}
+{%- elif part == "same" %}
+{% call card("/cleanup/same", "Same person?", n and n.same) %}people family members added who may already be here under
+the same name.{% endcall %}
+{%- elif part == "kept" %}
+{% call card("/cleanup/kept", "Kept", n and n.kept) %}photos and folder pairs you marked to keep, so cleanup stops
+suggesting them. Undo any of them here.{% endcall %}
+{%- elif part == "removed" %}
+{% call card("/cleanup/removed", "Removed", n and n.removed) %}files in the Removed folder. Restore them, or empty the
+folder for good.{% endcall %}
+{%- elif part == "described" and n and n.described < n.to_describe %}
+<p class="meta">The lists based on AI descriptions cover the {{ "{:,}".format(n.described) }} of
+{{ "{:,}".format(n.to_describe) }} photos described so far and grow as the descriptions finish. Any search can be used
+for cleanup too: search, then “Select photos to remove”.</p>
+{%- endif %}

@@ -1,7 +1,8 @@
 """What one web app keeps while it runs: create_app (app.py) makes one Site and puts it on app.state, and a route that
 needs it takes `s: Site = Depends(site)` (deps.py). Its settings as last looked up, who sees what, the limits on
 signing in and downloading, the pages' templates, and a few answers kept a while (a newer release, Whisper's health,
-the tours suggested to each viewer)."""
+the tours suggested to each viewer, the counts that take seconds on a big library, the pages that were slow)."""
+import collections
 import contextlib
 import hashlib
 import ipaddress
@@ -13,11 +14,68 @@ import httpx
 from fastapi import Request
 from fastapi.templating import Jinja2Templates
 
-from lineagebox import __version__, access, accounts, cleanup, db, events, settings, speech, updates
+from lineagebox import __version__, access, accounts, cleanup, db, events, settings, speech, storage, updates
 from lineagebox.config import Config
 from lineagebox.web import help as page_help
 from lineagebox.web.common import (DATE_SOURCE_LABEL, HERE, PAGE_SIZES, fmt_date, fmt_duration, locate, media_path,
                                    on_network)
+
+
+SIGNED_IN_FOR = 10  # seconds a session's account is kept: a page asks for dozens of thumbnails, each signed in
+SLOW_PAGE = 1.0  # seconds: a request that took longer goes on the Status page (Site.slow)
+SLOW_KEPT = 40  # slow requests listed there, the newest
+# what takes as long as it is big, so isn't timed: pictures, videos, originals, downloads, uploads
+UNTIMED = ("/t/", "/p/", "/face/", "/frame/", "/play/", "/original/", "/download", "/api/upload", "/static/")
+
+
+class Kept:
+    """Answers that take a second or more on a big library (tag counts, faces to confirm, the Status page's numbers),
+    kept a while under a key that names the viewer (Site.keep). Most are worked out again after any change made
+    through the web app (changed()); those kept `through_changes` are not, for a page that reloads after each click
+    and takes what changed out of the kept answer itself (Cleanup → Faces). Each is worked out once at a time: what
+    asks for it meanwhile waits for that answer rather than working it out too (several name boxes on a page)."""
+    MOST = 500  # answers kept at once; beyond that the oldest fifth goes
+
+    def __init__(self):
+        self.kept: dict = {}
+        self.generation = 0
+        self.lock = threading.Lock()
+        self.working: dict = {}  # key -> a lock held while its answer is worked out
+
+    def changed(self) -> None:
+        with self.lock:
+            self.generation += 1
+
+    def get(self, key, seconds: float, work, through_changes: bool = False):
+        found, _ = self.peek(key, seconds, through_changes)
+        if found is not None:
+            return found
+        with self.lock:
+            working = self.working.setdefault(key, threading.RLock())
+        with working:
+            found, generation = self.peek(key, seconds, through_changes)  # worked out while this one waited
+            if found is not None:
+                return found
+            value = work()
+            self.put(key, value, generation)
+        return value
+
+    def peek(self, key, seconds: float, through_changes: bool = False) -> tuple:
+        """(the answer kept, or None; the generation to put a new one under). The generation is taken before the
+        answer is worked out, so one worked out while a change was made is never kept as if it came after it."""
+        with self.lock:
+            found = self.kept.get(key)
+            if found and time.monotonic() - found[1] < seconds and (through_changes or found[2] == self.generation):
+                return found[0], self.generation
+            return None, self.generation
+
+    def put(self, key, value, generation: int) -> None:
+        with self.lock:
+            if len(self.kept) >= self.MOST:
+                for old in sorted(self.kept, key=lambda k: self.kept[k][1])[:self.MOST // 5]:
+                    del self.kept[old]
+                    self.working.pop(old, None)
+            self.kept[key] = (value, time.monotonic(), generation)
 
 
 class Site:
@@ -36,6 +94,8 @@ class Site:
         self.look_tries = accounts.Limiter(40, 3600)  # "Look for faces again" per member in an hour: 10-15 s CPU each
         self.google_started: dict[str, tuple[dict, float]] = {}  # state -> what a Google sign-in keeps until it's back
         self.suggested: dict = {}  # viewer -> {"at", "list"}: tours worked out from what that viewer sees
+        self.kept = Kept()
+        self.slow = collections.deque(maxlen=SLOW_KEPT)  # {"at", "method", "path", "seconds", "status", "who"}
         self.release = {"at": -1e9, "found": None}
         self.whisper_seen = {"at": -1e9, "url": None, "health": None}
         self.asked_worker = {"at": -1e9}
@@ -66,10 +126,39 @@ class Site:
         return settings.current(c, self.cfg)
 
     def signed_in(self, request: Request, now: Config) -> dict | None:
-        """The account whose session the request's cookie is, if any."""
+        """The account whose session the request's cookie is, if any. Looked up again after SIGNED_IN_FOR seconds,
+        and straight away after any change made through the web app (signing out, an account switched off): a page's
+        thumbnails don't each open the catalog to ask."""
+        token = request.cookies.get(accounts.COOKIE)
+        if not token or len(token) > 100:
+            return None
+        key = ("signed in", hashlib.sha256(token.encode()).hexdigest(), now.session_days)
+        found, generation = self.kept.peek(key, SIGNED_IN_FOR)
+        if found is not None:
+            return dict(found)
         with self.own_con() as c:
-            row = accounts.session_account(c, request.cookies.get(accounts.COOKIE), now.session_days)
-            return dict(row) if row else None
+            row = accounts.session_account(c, token, now.session_days)
+        if row is None:  # not kept: made-up cookies would only fill the memory
+            return None
+        self.kept.put(key, dict(row), generation)
+        return dict(row)
+
+    def keep(self, v: access.Viewer, name: tuple, seconds: float, work, through_changes: bool = False):
+        """kept.get, under a key of the viewer's: an admin's answers are everyone's, a member's their own."""
+        return self.kept.get(("all" if v.admin else ("member", v.account_id), *name), seconds, work, through_changes)
+
+    def note_if_slow(self, request: Request, seconds: float, status: int) -> None:
+        """A request that took over SLOW_PAGE seconds, for the Status page and the container's log. Pictures, videos,
+        downloads and uploads aren't: they take as long as they are big."""
+        if seconds < SLOW_PAGE or request.url.path.startswith(UNTIMED):
+            return
+        account = getattr(request.state, "account", None)
+        who = (account.get("person_name") or account.get("email") or account["role"]) if account else ""
+        path = request.url.path + (f"?{request.url.query}" if request.url.query else "")
+        at = datetime.now()
+        self.slow.appendleft({"at": at.isoformat(timespec="seconds"), "method": request.method, "path": path[:300],
+                              "seconds": seconds, "status": status, "who": who})
+        print(f"{at:%Y-%m-%d %H:%M:%S}  slow: {request.method} {path[:300]} took {seconds:.1f} s", flush=True)
 
     def update_ready(self) -> dict | None:
         """The newer release admins see a link to on every page; looked up again every few minutes."""
@@ -99,6 +188,7 @@ class Site:
         templates = Jinja2Templates(directory=HERE / "templates")
         templates.env.filters["date"] = fmt_date
         templates.env.filters["duration"] = fmt_duration
+        templates.env.filters["size"] = storage.fmt_size
         templates.env.filters["gdate"] = events.show_date
         g = templates.env.globals
         g["date_source_label"] = DATE_SOURCE_LABEL

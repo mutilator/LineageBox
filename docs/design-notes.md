@@ -68,7 +68,10 @@ faces. DeepFace pulls in TensorFlow.
   otherwise miss. An eclipse photo went from "a firework explodes" to "partial solar eclipse".
 - **Don't send `num_ctx`.** When another client (Open WebUI, say) shares the Ollama server, a context size
   different from the server's default makes Ollama reload the model every time the two clients alternate.
-- **Folder names in batches** of 25, matched by id, because the model rewrites paths.
+- **Folder names in batches** of 25, matched by id, because the model rewrites paths. The answer is indented JSON
+  of about 67 tokens a folder (1,560–1,670 for 25), so a batch gets 120 tokens a folder, not the 1,024 a description
+  gets. An answer cut off anyway is asked again in halves, so a wordier model still gets through, and a folder the
+  model loops on waits on its own.
 - Near-duplicate groups are described once, from their largest member, and the result is copied to the others.
 - The LLM's own "blurry" and "document/screenshot" flags were unreliable (blurry on 74% of photos), so Cleanup doesn't
   use them. Blur is a pixel sharpness score: the lowest 1% is almost all black frames, blank sky and lens caps. Papers

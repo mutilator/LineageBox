@@ -4,10 +4,12 @@
 {% block main %}
 <nav class="crumbs"><a href="/tours">Tours</a><span class="sep">/</span><h1>{{ tour.name }}</h1></nav>
 <p class="meta">{{ about|join(" · ") }} · {{ "{:,}".format(images|length) }} photo{{ "" if images|length == 1 else "s" }}</p>
+{% if keep %}<p class="hint">Not saved yet: Keep as a tour puts it on the Tours page, where it can be changed and shared.</p>{% endif %}
 {% if from_whom %}<p class="note">{{ from_whom }} shared this tour with you: you see its photos as it shows them to {{ from_whom }}.</p>{% endif %}
 <p class="tour-actions">
   {%- if slides %}<button type="button" class="primary" data-play="#slides" data-seconds="{{ tour.spec.seconds }}" data-key="p" data-key-label="Play the slideshow">▶ Play</button>{% endif %}
-  {%- if images %}<a class="button quiet" href="/download/tour/{{ tour.id }}" download>Download all</a>{% endif %}
+  {%- if keep %}<button type="button" data-api="/api/tours" data-body='{{ keep|tojson }}' data-busy="Keeping…">Keep as a tour</button>{% endif %}
+  {%- if images and tour.id %}<a class="button quiet" href="/download/tour/{{ tour.id }}" download>Download all</a>{% endif %}
   {%- if theirs %}
   <a class="button" href="/tour/{{ tour.id }}/edit">Change</a>
   <button type="button" class="quiet" data-api="/api/tours/{{ tour.id }}/delete"

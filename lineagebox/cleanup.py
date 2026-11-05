@@ -339,20 +339,24 @@ def _folder_path(con: sqlite3.Connection, folder_id: int) -> str:
 
 # ---- what to review ------------------------------------------------------------------------------------------------
 
-def summary(con: sqlite3.Connection, blurry_below: float) -> dict:
+def summary(con: sqlite3.Connection, blurry_below: float, only: set[str] | None = None) -> dict:
+    """The Cleanup page's numbers, or only those named: its cards each ask for their own, as some take seconds on a
+    big library (the similar groups, the reference photos)."""
     one = lambda sql, *a: con.execute(sql, a).fetchone()[0]
-    return {
-        "redundant_copies": one("""SELECT coalesce(sum(n - 1), 0) FROM (SELECT count(*) n FROM file
-                                   WHERE NOT missing AND image_id IS NOT NULL GROUP BY image_id HAVING n > 1)"""),
-        "similar_groups": len(_similar_group_ids(con)),
-        "blurry": one(f"""SELECT count(*) FROM image i WHERE i.sharpness >= 0 AND i.sharpness < ?
-                          AND i.kept_at IS NULL AND i.media = 'photo' AND {VISIBLE}""", blurry_below),
-        "unmeasured": one(f"SELECT count(*) FROM image i WHERE i.sharpness IS NULL AND i.media = 'photo' AND {VISIBLE}"),
-        "reference": {k: len(v) for k, v in reference_photos(con).items()},
-        "removed": one("SELECT count(*) FROM file WHERE removed_at IS NOT NULL"),
-        "kept": one(f"SELECT count(*) FROM image i WHERE i.kept_at IS NOT NULL AND {VISIBLE}")
-                + one("SELECT count(*) FROM kept_copies"),
+    counts = {
+        "redundant_copies": lambda: one("""SELECT coalesce(sum(n - 1), 0) FROM (SELECT count(*) n FROM file
+                                           WHERE NOT missing AND image_id IS NOT NULL GROUP BY image_id HAVING n > 1)"""),
+        "similar_groups": lambda: len(_similar_group_ids(con)),
+        "blurry": lambda: one(f"""SELECT count(*) FROM image i WHERE i.sharpness >= 0 AND i.sharpness < ?
+                                  AND i.kept_at IS NULL AND i.media = 'photo' AND {VISIBLE}""", blurry_below),
+        "unmeasured": lambda: one(f"""SELECT count(*) FROM image i WHERE i.sharpness IS NULL AND i.media = 'photo'
+                                      AND {VISIBLE}"""),
+        "reference": lambda: {k: len(v) for k, v in reference_photos(con).items()},
+        "removed": lambda: one("SELECT count(*) FROM file WHERE removed_at IS NOT NULL"),
+        "kept": lambda: one(f"SELECT count(*) FROM image i WHERE i.kept_at IS NOT NULL AND {VISIBLE}")
+                        + one("SELECT count(*) FROM kept_copies"),
     }
+    return {k: count() for k, count in counts.items() if only is None or k in only}
 
 
 def copy_pairs(con: sqlite3.Connection, offset: int = 0, limit: int = 30) -> tuple[list[dict], int]:

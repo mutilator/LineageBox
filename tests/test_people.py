@@ -133,6 +133,10 @@ def test_seen_together(lib, cfg):
     row = lambda f: tuple(con.execute("SELECT person_id, assigned_by FROM face WHERE id = ?", (f,)).fetchone())
     assert row(brother) == (owen, "user") and row(other) == (None, None)
     assert people.together(con) == []
+    # the page keeps who the faces may be through the reload after a confirm, without what the confirm changed
+    page = client.get("/cleanup/faces?show=together").text
+    assert f'value="{brother}"' not in page and f'value="{other}"' not in page
+    assert f'data-api="/api/people/{owen}/faces"' not in page
     clear = add_face(con, lu[3], like(A), x=0.5)  # plainly Owen, but said not to be
     people.confirm(con, owen, [], [clear])
     assert people.identify(con) == 0 and row(clear) == (None, None)
@@ -275,6 +279,28 @@ def test_not_them_leaves_the_face_to_name(lib, cfg):
     lucas = client.post(f"/api/faces/{face}/name", json={"name": "Lucas"}, headers=app_header).json()["person_id"]
     assert lucas != owen
     assert f'data-api="/api/faces/{face}/not"' in client.get(f"/person/{lucas}/faces").text  # × there does the same
+
+
+def test_fix_names_a_face_as_someone_else(lib, cfg):
+    """'Fix' on a named face opens a box for who it really is: the new name goes on, and the face is never suggested or
+    recognised as the wrong person again. Fixed back, it is them after all."""
+    con = lib
+    o0 = image(con, rel("Owen", "o0.jpg"))
+    face = add_face(con, o0, like(A))
+    owen = people.name_faces(con, [face], "Owen")
+    client = TestClient(webapp.create_app(cfg), client=LAN)
+    app_header = {"X-Requested-With": "lineagebox"}
+    page = client.get(f"/image/{o0}").text
+    assert f'data-toggle="#fix{face}"' in page and ">Fix</button>" in page and "not Owen</button>" not in page
+    fix = page[page.index(f'id="fix{face}"'):]
+    fix = fix[:fix.index("</span>")]  # a box for who it is, and don't know who (take the name off)
+    assert f'data-api="/api/faces/{face}/name"' in fix and f'data-api="/api/faces/{face}/not"' in fix
+    lucas = client.post(f"/api/faces/{face}/name", json={"name": "Lucas"}, headers=app_header).json()["person_id"]
+    named = con.execute("SELECT person_id, assigned_by FROM face WHERE id = ?", (face,)).fetchone()
+    assert lucas != owen and tuple(named) == (lucas, "user")
+    assert [r[0] for r in con.execute("SELECT person_id FROM face_not_person WHERE face_id = ?", (face,))] == [owen]
+    client.post(f"/api/faces/{face}/name", json={"name": "Owen", "name_id": owen}, headers=app_header)
+    assert [r[0] for r in con.execute("SELECT person_id FROM face_not_person WHERE face_id = ?", (face,))] == [lucas]
 
 
 def test_looking_for_faces_again(lib, cfg, monkeypatch):

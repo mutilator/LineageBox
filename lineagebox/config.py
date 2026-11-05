@@ -26,7 +26,8 @@ NOT_SETTINGS = {"LINEAGEBOX_CONFIG", "LINEAGEBOX_FFMPEG", "LINEAGEBOX_HOST", "LI
 
 # Whole-number settings and the values that work, here and on the Settings page (settings.py)
 RANGES = {"ingest_threads": (1, 16), "worker_interval_minutes": (5, 1440), "llm_workers": (1, 8),
-          "session_days": (1, 365), "upload_max_gb": (1, 100), "video_threads": (1, 8), "copy_threads": (1, 32)}
+          "session_days": (1, 365), "upload_max_gb": (1, 100), "video_threads": (1, 8), "copy_threads": (1, 32),
+          "hover_preview_ms": (0, 5000)}
 
 
 class ConfigError(ValueError):
@@ -66,6 +67,7 @@ class Config:
     trusted_proxies: tuple[str, ...] = ()             # reverse proxies whose X-Forwarded-For/-Proto are believed
     tls_cert: str = ""                                # HTTPS: the certificate and key files (PEM); "" serves HTTP
     tls_key: str = ""
+    hover_preview_ms: int = 500                       # pointing at a photo this long shows it larger (app.js); 0: never
     # Family accounts (accounts.py, access.py): off, the web UI answers the home network only, with no sign-in
     accounts_enabled: bool = False
     google_client_id: str = ""                        # Sign in with Google: the OAuth client's ID and secret
@@ -160,6 +162,7 @@ KEYS = {
     ("web", "share_path"): "share_path", ("web", "network_paths"): "network_paths",
     ("web", "allowed_networks"): "allowed_networks", ("web", "allowed_hosts"): "allowed_hosts",
     ("web", "trusted_proxies"): "trusted_proxies", ("web", "tls_cert"): "tls_cert", ("web", "tls_key"): "tls_key",
+    ("web", "hover_preview_ms"): "hover_preview_ms",
     ("worker", "interval_minutes"): "worker_interval_minutes",
     ("cleanup", "blurry_below"): "blurry_below", ("cleanup", "turn_suggest"): "turn_suggest",
     ("whisper", "url"): "whisper_url", ("whisper", "language"): "whisper_language",

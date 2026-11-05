@@ -7,9 +7,12 @@ from dataclasses import dataclass, field
 
 from lineagebox import retry
 from lineagebox.events import day_first
-from lineagebox.llm import Ollama
+from lineagebox.llm import CutOff, Ollama
 
 BATCH = 25
+# Room for the answer: ministral-3 writes about 67 tokens per folder (indented JSON, measured 2026-11-05), so a
+# batch of 25 needs ~1,700. The rest is for long names. A wordier model's batch is asked again in halves.
+TOKENS_PER_FOLDER = 120
 NO_CONTEXT_KINDS = {"camera_or_device_dump", "junk_or_generated", "media_type"}
 
 SCHEMA = {"type": "object", "required": ["folders"], "properties": {"folders": {"type": "array", "items": {
@@ -71,38 +74,64 @@ def parse_folders(con: sqlite3.Connection, client: Ollama, progress=None, about:
                            ORDER BY path""").fetchall()
     parsed = 0
     for i in range(0, len(rows), BATCH):
-        batch = rows[i:i + BATCH]
-        lines = "\n".join(f"{n}: {r['path']}" for n, r in enumerate(batch, 1))
-        try:
-            try:
-                answer, _ = client.chat_json(system, "Folder paths:\n" + lines, SCHEMA, temperature=0.0)
-            except ValueError:  # it repeated a phrase until cut off; a less cautious answer usually breaks the loop
-                answer, _ = client.chat_json(system, "Folder paths:\n" + lines, SCHEMA, temperature=0.7)
-        except ValueError as e:
-            for r in batch:
-                retry.later(con, "folders", r["id"], f"the AI's answer wasn't JSON: {e}")
-            continue
-        by_id = {a.get("id"): a for a in answer.get("folders", [])}
-        left_out = []
-        for n, r in enumerate(batch, 1):
-            a = by_id.get(n)
-            if a is None:
-                left_out.append(r["id"])
-                continue
-            year, month, day = a.get("year"), a.get("month"), None
-            if exact := regex_day(r["name"], order):
-                year, month, day = exact
-            con.execute("""UPDATE folder SET kind = ?, place = ?, place_type = ?, event = ?, people_hint = ?,
-                           year = ?, month = ?, day = ? WHERE id = ?""",
-                        (a["kind"], a.get("place"), a.get("place_type"), a.get("event"),
-                         json.dumps(a.get("people") or []), year, month, day, r["id"]))
-            parsed += 1
-        con.commit()
-        for folder_id in left_out:
-            retry.later(con, "folders", folder_id, "the AI's answer left it out")
+        parsed += _parse_batch(con, client, system, order, rows[i:i + BATCH])
         if progress:
             progress(min(i + BATCH, len(rows)), len(rows))
     return parsed, len(rows) - parsed
+
+
+def _parse_batch(con: sqlite3.Connection, client: Ollama, system: str, order: bool, batch: list) -> int:
+    """Ask about these folders and save the answers; returns how many were saved. An answer cut off before its end
+    is asked again in halves: the model wrote more per folder than TOKENS_PER_FOLDER, or one folder sent it round
+    in circles, which the halves then keep from holding up the rest."""
+    try:
+        answer = _ask(client, system, batch)
+    except ValueError as e:
+        if isinstance(e, CutOff) and len(batch) > 1:
+            half = (len(batch) + 1) // 2
+            return (_parse_batch(con, client, system, order, batch[:half])
+                    + _parse_batch(con, client, system, order, batch[half:]))
+        why = ("the AI repeated itself until its answer was cut off" if isinstance(e, CutOff)
+               else f"the AI's answer wasn't JSON: {e}")
+        for r in batch:
+            retry.later(con, "folders", r["id"], why)
+        return 0
+    by_id = {a.get("id"): a for a in answer.get("folders", [])}
+    saved, left_out = [], []
+    for n, r in enumerate(batch, 1):
+        a = by_id.get(n)
+        if a is None:
+            left_out.append(r["id"])
+            continue
+        year, month, day = a.get("year"), a.get("month"), None
+        if exact := regex_day(r["name"], order):
+            year, month, day = exact
+        con.execute("""UPDATE folder SET kind = ?, place = ?, place_type = ?, event = ?, people_hint = ?,
+                       year = ?, month = ?, day = ? WHERE id = ?""",
+                    (a["kind"], a.get("place"), a.get("place_type"), a.get("event"),
+                     json.dumps(a.get("people") or []), year, month, day, r["id"]))
+        saved.append(r["id"])
+    retry.done(con, "folders", saved)
+    con.commit()
+    for folder_id in left_out:
+        retry.later(con, "folders", folder_id, "the AI's answer left it out")
+    return len(saved)
+
+
+def _ask(client: Ollama, system: str, batch: list) -> dict:
+    """The model's answer about a batch of folders. Raises ValueError when it isn't JSON (CutOff for one that ran
+    out of room). An answer that isn't JSON, or one folder's that ran out of room (which it never needs), means the
+    model repeated a phrase; asked once more, less cautiously, it usually breaks the loop."""
+    user = "Folder paths:\n" + "\n".join(f"{n}: {r['path']}" for n, r in enumerate(batch, 1))
+    room = 100 + TOKENS_PER_FOLDER * len(batch)
+    try:
+        return client.chat_json(system, user, SCHEMA, temperature=0.0, max_tokens=room)[0]
+    except CutOff:
+        if len(batch) > 1:
+            raise  # asked again in halves
+    except ValueError:
+        pass
+    return client.chat_json(system, user, SCHEMA, temperature=0.7, max_tokens=room)[0]
 
 
 def date_from_folders(con: sqlite3.Connection) -> int:

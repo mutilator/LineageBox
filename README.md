@@ -88,7 +88,8 @@ The guides go step by step:
 - **Gets the dates right.** It reads camera dates, folder names and file names. You can date old scans as loosely as
   you know them ("summer 1987", "the 1980s").
 - **Timeline, map and tours.** Browse by year or on a map of where photos were taken and where family events happened.
-  Play slideshows such as "the grandchildren, summer 2021".
+  Play slideshows such as "the grandchildren, summer 2021". Home opens on memories: this week in earlier years, a
+  birthday coming up, someone through the years.
 - **Tidies up safely.** It lists duplicate copies, burst shots, smaller copies, blank and blurry shots, photos on their
   side, and files a disk has damaged. Nothing is removed until you pick it, and removed files can be restored.
 - **Plays every video in the browser,** making 720p copies of camcorder and old phone formats that browsers can't

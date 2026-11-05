@@ -15,6 +15,7 @@ from lineagebox.web.site import Site
 router = APIRouter()
 ACCESS = {
     "/cleanup": MEMBER,
+    "/cleanup/counts/{part}": MEMBER,  # a member's parts only (_parts)
     "/cleanup/turned": ADMIN,
     "/cleanup/family": MEMBER,
     "/cleanup/damaged": ADMIN,
@@ -37,22 +38,54 @@ ACCESS = {
 }
 
 
+# The parts of the Cleanup page and how each counts what it shows, on the viewer's connection. The page opens with
+# Loading… in every card and app.js fetches each part from /cleanup/counts/{part} (data-later): on a big library some
+# take seconds, so each number shows as soon as it is ready instead of the whole page waiting for the slowest. Each
+# part is one or more cards (reference: one per kind), but "described" is the note under them.
+COUNTS = {
+    "copies": lambda c, now: cleanup.summary(c, now.blurry_below, {"redundant_copies"}),
+    "similar": lambda c, now: cleanup.summary(c, now.blurry_below, {"similar_groups"}),
+    "blurry": lambda c, now: cleanup.summary(c, now.blurry_below, {"blurry", "unmeasured"}),
+    "reference": lambda c, now: cleanup.summary(c, now.blurry_below, {"reference"}),
+    "faces": lambda c, now: {"groups": catalog.clusters(c, 0, 0)[1], "beside": people.beside_named(c)},
+    "family": lambda c, now: {"issues": len(family_check.check(c))},
+    "turned": lambda c, now: {"turned": len(orientation.suggestions(c, now.turn_suggest))},
+    "damaged": lambda c, now: check.progress(c),
+    "changes": lambda c, now: dict(zip(("recent", "widened"), c.execute(
+        "SELECT count(*), count(widened) FROM change_log WHERE undone_at IS NULL").fetchone())),
+    "same": lambda c, now: {"same": len(people.maybe_same(c, set(settings.get(c, people.SAME_OK_KEY, []))))},
+    "kept": lambda c, now: cleanup.summary(c, now.blurry_below, {"kept"}),
+    "removed": lambda c, now: cleanup.summary(c, now.blurry_below, {"removed"}),
+    "described": lambda c, now: catalog.stats(c),
+}
+MEMBER_PARTS = ("faces", "family", "described")  # faces to name and their part of the tree; the rest moves files
+COUNTS_FOR = 60  # seconds each part's numbers are kept
+
+
+def _parts(v, now) -> tuple[str, ...]:
+    """The parts of the Cleanup page this viewer gets, in order."""
+    if v.limited:
+        return MEMBER_PARTS
+    return tuple(p for p in COUNTS if p != "turned" or now.turn_suggest != "off")
+
+
 @router.get("/cleanup", response_class=HTMLResponse)
 def cleanup_page(request: Request, v=Depends(viewer), c=Depends(con), s: Site = Depends(site)):
+    """Every card with Loading… for its number, filled in by cleanup_counts (see COUNTS)."""
     now = s.live(c)
-    if v.limited:  # members: faces to name and their part of the family tree; the rest moves files
-        return page(request, "cleanup.html", s=None, stats=catalog.stats(c), family_issues=len(family_check.check(c)),
-                    face_groups=catalog.clusters(c, 0, 0)[1], beside=people.beside_named(c))
-    return page(request, "cleanup.html", s=cleanup.summary(c, now.blurry_below),
-                recent_changes=c.execute("SELECT count(*) FROM change_log WHERE undone_at IS NULL").fetchone()[0],
-                widened=c.execute("SELECT count(*) FROM change_log WHERE widened IS NOT NULL AND undone_at IS NULL")
-                .fetchone()[0],
-                same=len(people.maybe_same(c, set(settings.get(c, people.SAME_OK_KEY, [])))),
-                damage=check.progress(c),
-                labels=cleanup.REFERENCE_LABELS, stats=catalog.stats(c), watched=now.folders,
-                family_issues=len(family_check.check(c)), turned=len(orientation.suggestions(c, now.turn_suggest)),
-                turn_suggest=now.turn_suggest, face_groups=catalog.clusters(c, 0, 0)[1],
-                beside=people.beside_named(c))
+    return page(request, "cleanup.html", parts=_parts(v, now), n=None, labels=cleanup.REFERENCE_LABELS,
+                watched=now.folders)
+
+
+@router.get("/cleanup/counts/{part}", response_class=HTMLResponse)
+def cleanup_counts(request: Request, part: str, v=Depends(viewer), c=Depends(con), s: Site = Depends(site)):
+    """One part of the Cleanup page with its numbers, to take the place of its Loading…."""
+    now = s.live(c)
+    if part not in _parts(v, now):
+        raise HTTPException(404)
+    # kept a minute (Site.kept): coming back to Cleanup counts nothing again, unless something was changed meanwhile
+    n = s.keep(v, ("cleanup", part, now.blurry_below, now.turn_suggest), COUNTS_FOR, lambda: COUNTS[part](c, now))
+    return page(request, "_cleanup_counts.html", part=part, n=n, labels=cleanup.REFERENCE_LABELS)
 
 
 @router.get("/cleanup/turned", response_class=HTMLResponse)
@@ -195,7 +228,7 @@ def blurry_page(request: Request, pg: int = Query(1, alias="page", ge=1), per: s
     images, p.total = cleanup.blurry(c, below, p.offset, p.size)
     return page(request, "cleanup_list.html", title="Blank and blurry", images=images, total=p.total, paging=p,
                 reason="blank or blurry", kind="blurry",
-                unmeasured=cleanup.summary(c, below)["unmeasured"])
+                unmeasured=cleanup.summary(c, below, {"unmeasured"})["unmeasured"])
 
 
 @router.get("/cleanup/reference/{kind}", response_class=HTMLResponse)

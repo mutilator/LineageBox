@@ -108,8 +108,16 @@ def person_id(con: sqlite3.Connection, name: str, pid: int | None = None, among:
 
 def name_faces(con: sqlite3.Connection, face_ids: list[int], name: str, pid: int | None = None,
                among: set[int] | None = None, by: int | None = None) -> int:
-    """Name faces by hand (see person_id for name, pid and among); by is the account naming them, if any."""
+    """Name faces by hand (see person_id for name, pid and among); by is the account naming them, if any. A face that
+    had someone else's name (put right with Fix on its photo) is noted as not them, so it is never suggested or
+    recognised as them again; one noted as not this person before is them after all."""
     pid = person_id(con, name, pid, among, by)
+    ids = json.dumps(face_ids)
+    con.execute("""INSERT OR IGNORE INTO face_not_person(face_id, person_id)
+                   SELECT id, person_id FROM face WHERE id IN (SELECT value FROM json_each(?))
+                     AND person_id IS NOT NULL AND person_id != ?""", (ids, pid))
+    con.execute("DELETE FROM face_not_person WHERE face_id IN (SELECT value FROM json_each(?)) AND person_id = ?",
+                (ids, pid))
     con.executemany("""UPDATE face SET person_id = ?, assigned_by = 'user', assign_score = NULL, cluster_id = NULL,
                                        named_by = ? WHERE id = ?""", ((pid, by, f) for f in face_ids))
     _reindex_faces(con, face_ids)

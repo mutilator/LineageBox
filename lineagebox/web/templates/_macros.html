@@ -141,3 +141,40 @@
     {%- endif %} Anyone in them from outside their part of the family is named without a link.</p>
 </div>
 {% endmacro %}
+
+{# Storage (storage.disks), small, beside Home's greeting: how full each disk is; it opens the Status page's part. #}
+{% macro storage_meter(disks) %}
+<div class="storage-meters">
+  {%- for d in disks %}
+  <a class="storage-meter{% if d.low %} low{% endif %}" href="/status#storage" title="{% if d.low %}Running low on space. {% endif %}{{ d.free|size }} free. See what takes the room on the Status page">
+    <span class="label">{% if disks|length > 1 %}{{ storage_name(d) }}{% else %}Storage{% endif %}</span>
+    <span class="meter" role="progressbar" aria-valuenow="{{ (d.share * 100)|round|int }}" aria-valuemin="0" aria-valuemax="100"><i style="width: {{ (d.share * 100)|round(1) }}%"></i></span>
+    <span class="hint">{{ d.used|size }} of {{ d.total|size }} used</span>
+  </a>
+  {%- endfor %}
+</div>
+{% endmacro %}
+
+{% macro storage_name(d) %}{% if d.folders %}{{ d.folders|join(", ") }}{% if d.data %} and LineageBox's files{% endif %}{% else %}LineageBox's files{% endif %}{% endmacro %}
+
+{# Storage on the Status page: each disk's bar in parts (photos and videos, LineageBox's own files, other files), and
+   how much each part is. #}
+{% macro storage_panel(disks) %}
+{%- for d in disks %}
+<div class="disk{% if d.low %} low{% endif %}">
+  {%- if disks|length > 1 %}<h3>{{ storage_name(d) }}</h3>{% endif %}
+  <div class="meter parts" role="img" aria-label="{{ d.used|size }} of {{ d.total|size }} used">
+    {%- for key, share in d.parts %}{% if share > 0 %}<i class="{{ key }}" style="width: {{ (share * 100)|round(2) }}%"></i>{% endif %}{% endfor -%}
+  </div>
+  <p>{{ d.used|size }} of {{ d.total|size }} used, {{ d.free|size }} free.
+    {%- if d.low %} <strong>Space is running low:</strong> uploads stop when less than 2 GB is left, and new photos
+    get no previews.{% endif %}</p>
+  <dl class="legend">
+    {%- if d.folders %}<dt><i></i>Photos and videos</dt><dd>{{ d.photos|size }}</dd>{% endif %}
+    {%- if d.data %}<dt><i class="ours"></i>LineageBox's previews, thumbnails and catalog</dt><dd>{% if d.ours is not none %}{{ d.ours|size }}{% else %}measured once a day by the worker{% endif %}</dd>{% endif %}
+    <dt><i class="other"></i>Other files</dt><dd>{{ d.other|size }}</dd>
+    <dt><i class="free"></i>Free</dt><dd>{{ d.free|size }}</dd>
+  </dl>
+</div>
+{%- endfor %}
+{% endmacro %}

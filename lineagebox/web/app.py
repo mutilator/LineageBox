@@ -19,6 +19,7 @@ This module puts the app together: the Site (site.py), the checks every request 
 the routes, one module per part of the site in routes/.
 """
 import sqlite3
+import time
 from urllib.parse import urlencode
 
 import httpx
@@ -83,6 +84,7 @@ def create_app(cfg: Config, google_http: httpx.Client | None = None) -> FastAPI:
     async def gate(request: Request, call_next):
         """Without accounts, the home network only, as before. With them, a signed-in account for everything but
         signing in, from anywhere. Host names are checked either way: that stops DNS rebinding."""
+        started = time.perf_counter()
         now = s.shared_cfg()
         request.state.at_home = _allowed(request.client.host if request.client else "", s.networks)
         request.state.account = None
@@ -103,8 +105,12 @@ def create_app(cfg: Config, google_http: httpx.Client | None = None) -> FastAPI:
                 # the internet could otherwise fill the memory with one large request.
                 return JSONResponse({"detail": "That request is too large."}, status_code=413)
         response = await call_next(request)
+        took = time.perf_counter() - started
+        s.note_if_slow(request, took, response.status_code)
+        response.headers.setdefault("Server-Timing", f"app;dur={took * 1000:.0f}")  # in the browser's developer tools
         if request.method == "POST" and response.status_code < 400:
             s.viewers.changed()  # who sees what may follow from it: worked out again on the next page
+            s.kept.changed()  # and the counts kept a while, and who is signed in (signing out, an account turned off)
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("Referrer-Policy", "same-origin")
         response.headers.setdefault("X-Frame-Options", "DENY")

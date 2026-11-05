@@ -298,11 +298,11 @@ def _occasions(con, facts: _Facts) -> list[tuple[str, int, float]]:
     those in the most years first. One for every three weeks of the year: "pumpkin patch" and "carved pumpkins" are
     the same outing, and the shortest tag ("christmas", not "christmas tree") is usually the occasion itself."""
     on = defaultdict(Counter)  # tag -> photos a day
-    for name, image_id in con.execute("""
-            SELECT t.name, it.image_id FROM image_tag it JOIN tag t ON t.id = it.tag_id
-            WHERE it.source != 'not'
-              AND it.tag_id IN (SELECT tag_id FROM image_tag GROUP BY tag_id HAVING count(*) >= ?)""",
-                                      (OCCASION_PHOTOS,)):
+    # Every photo's tags, read once (CROSS JOIN keeps the photos' tags first): with a "tags given OCCASION_PHOTOS times"
+    # filter in the query, SQLite looked up each of a member's photos for each such tag, which took a minute. Too few
+    # photos are left out below anyway, counting only dated ones.
+    for name, image_id in con.execute("""SELECT t.name, it.image_id FROM image_tag it
+                                         CROSS JOIN tag t ON t.id = it.tag_id WHERE it.source != 'not'"""):
         if d := facts.day.get(image_id):
             on[name][d] += 1
     found = []

@@ -194,13 +194,27 @@ def image_page(request: Request, image_id: int, ctx: str = "", v=Depends(viewer)
                     v.admin or any(not f["missing"] for f in files)) else None)
 
 
+COUNTS_FOR = 60  # seconds tag and people counts are kept (Site.kept: a change made on the site counts them again)
+FACES_FOR = 300  # seconds Cleanup → Faces keeps who the unnamed faces may be (see _faces_to_confirm)
+
+
+def _stats(s: Site, v, c) -> dict:
+    return s.keep(v, ("stats", ()), COUNTS_FOR, lambda: catalog.stats(c))
+
+
 @router.get("/tags", response_class=HTMLResponse)
-def tags_page(request: Request, q: str = "", sort: str = "count", c=Depends(con)):
-    tags, total = catalog.tags(c, q.strip(), sort)
-    s = catalog.stats(c)
+def tags_page(request: Request, q: str = "", sort: str = "count", v=Depends(viewer), c=Depends(con),
+              s: Site = Depends(site)):
+    """Every tag with its photos, kept a minute: the filter box asks again with each letter typed, and picks from
+    the kept list (catalog.tags matches anywhere in the name, as this does)."""
+    sort = "name" if sort == "name" else "count"
+    every = s.keep(v, ("tags", sort), COUNTS_FOR, lambda: catalog.tags(c, "", sort, limit=None)[0])
+    wanted = q.strip().lower()
+    matching = [t for t in every if wanted in t["name"]] if wanted else every
+    st = _stats(s, v, c)
     name = "_tag_list.html" if request.headers.get("x-requested-with") == "lineagebox" else "tags.html"
-    return page(request, name, nav="tags", tags=tags, total=total, tag_q=q.strip(), sort=sort,
-                described=s["described"], to_describe=s["to_describe"])
+    return page(request, name, nav="tags", tags=matching[:400], total=len(matching), tag_q=q.strip(), sort=sort,
+                described=st["described"], to_describe=st["to_describe"])
 
 
 @router.get("/tag/{name:path}", response_class=HTMLResponse)
@@ -239,11 +253,34 @@ def category_page(request: Request, value: str, select: bool = False, pg: int = 
 
 
 @router.get("/people", response_class=HTMLResponse)
-def people_page(request: Request, c=Depends(con)):
-    """Everyone named; their unnamed faces wait under Cleanup → Confirm faces."""
-    return page(request, "people.html", nav="people", named=catalog.people(c), s=catalog.stats(c),
-                kin=_kin_labels(c), circles=people.groups(c), also=people.also_known(c),
-                total_groups=catalog.clusters(c, 0, 0)[1], beside=people.beside_named(c))
+def people_page(request: Request, v=Depends(viewer), c=Depends(con), s: Site = Depends(site)):
+    """Everyone named; their unnamed faces wait under Cleanup → Confirm faces. The counts are kept a minute."""
+    named = s.keep(v, ("people",), COUNTS_FOR, lambda: catalog.people(c))
+    return page(request, "people.html", nav="people", named=named, s=_stats(s, v, c), kin=_kin_labels(c),
+                circles=people.groups(c), also=people.also_known(c),
+                total_groups=s.keep(v, ("face groups",), COUNTS_FOR, lambda: catalog.clusters(c, 0, 0)[1]),
+                beside=s.keep(v, ("beside named",), COUNTS_FOR, lambda: people.beside_named(c)))
+
+
+def _faces_to_confirm(s: Site, v, c) -> tuple[list[dict], int]:
+    """Who the unnamed faces beside named people may be (people.together) and how many such faces there are. Working
+    it out takes seconds on a big library, and the page reloads after each confirm, so it is kept FACES_FOR seconds
+    even through changes, and what changed since is taken out of it each time: faces named, set aside or turned down
+    since (here or by the worker), and faces now said not to be the person they are suggested as."""
+    groups, beside = s.keep(v, ("faces to confirm",), FACES_FOR,
+                            lambda: (people.together(c), people.beside_named(c)), through_changes=True)
+    ids = json.dumps([f["id"] for g in groups for f in g["faces"]])
+    still = {r[0] for r in c.execute("""SELECT id FROM face WHERE id IN (SELECT value FROM json_each(?))
+                                        AND person_id IS NULL AND assigned_by IS NULL""", (ids,))}
+    not_them = set(map(tuple, c.execute("""SELECT face_id, person_id FROM face_not_person
+                                           WHERE face_id IN (SELECT value FROM json_each(?))""", (ids,))))
+    out, gone = [], 0
+    for g in groups:
+        faces = [f for f in g["faces"] if f["id"] in still and (f["id"], g["person_id"]) not in not_them]
+        gone += sum(f["id"] not in still for f in g["faces"])
+        if faces:
+            out.append({**g, "faces": faces})
+    return out, max(0, beside - gone)
 
 
 @router.get("/people/together")
@@ -253,30 +290,33 @@ def together_moved(request: Request):
 
 @router.get("/cleanup/faces", response_class=HTMLResponse)
 def cleanup_faces_page(request: Request, show: str | None = None, pg: int = Query(1, alias="page", ge=1),
-                       per: str | None = None, c=Depends(con), w=Depends(writer)):
+                       per: str | None = None, v=Depends(viewer), c=Depends(con), w=Depends(writer),
+                       s: Site = Depends(site)):
     """Faces to confirm: who the unnamed faces beside named people are (Seen together), photos and videos with two
     or more people named and someone not yet, and the groups of faces nobody has named. Seen together comes first
     while it has faces: each takes one click. For a member, people named in a photo outside their part of the
-    family are shown without a link, as on the photo's page."""
-    beside = people.beside_named(c)
-    finish = None if show == "finish" else people.to_finish(c, 0, 0)[1]  # on its own tab, counted with its page
+    family are shown without a link, as on the photo's page. The page reloads after each click, so what takes a while
+    is kept, through those changes: Seen together for FACES_FOR seconds (_faces_to_confirm), the counts a minute."""
+    groups, beside = _faces_to_confirm(s, v, c)
+    kept = lambda name, work: s.keep(v, name, COUNTS_FOR, work, through_changes=True)
+    total_groups = lambda: kept(("face groups",), lambda: catalog.clusters(c, 0, 0)[1])
+    finish = None if show == "finish" else kept(("to finish",), lambda: people.to_finish(c, 0, 0)[1])
     show = (show if show in ("together", "finish", "groups") else
             "together" if beside else "finish" if finish else "groups")
     context = {"show": show, "beside": beside, "finish": finish, "page_query": {"show": show},
-               "s": catalog.stats(c)}
+               "s": kept(("stats", ()), lambda: catalog.stats(c))}
     if show == "finish":
         p = paging(request, "finish", pg, per, "25")
         photos, p.total = people.to_finish(c, p.offset, p.size)
         outside = access.names_of(w, {pid for ph in photos for pid, name in ph["named"] if name is None})
-        context.update(photos=photos, outside=outside, finish=p.total, total_groups=catalog.clusters(c, 0, 0)[1])
+        context.update(photos=photos, outside=outside, finish=p.total, total_groups=total_groups())
     elif show == "together":
-        groups = people.together(c)
         p = paging(request, "together", pg, per, "25")
         p.total = len(groups)
         context.update(groups=groups[p.offset:p.offset + p.size], faces=sum(len(g["faces"]) for g in groups),
                        names=dict(c.execute("SELECT id, name FROM person")),
-                       covers={r["id"]: r["cover_face"] for r in catalog.people(c)},
-                       total_groups=catalog.clusters(c, 0, 0)[1])
+                       covers={r["id"]: r["cover_face"] for r in kept(("people",), lambda: catalog.people(c))},
+                       total_groups=total_groups())
     else:
         p = paging(request, "unnamed", pg, per, "25")
         groups, p.total = catalog.clusters(c, p.offset, p.size)

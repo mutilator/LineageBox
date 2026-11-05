@@ -44,13 +44,18 @@ ACCESS = {
 
 
 @router.get("/api/people/names")
-def people_names(c=Depends(con)):
-    return _name_choices(c)
+def people_names(v=Depends(viewer), c=Depends(con), s: Site = Depends(site)):
+    """Kept a minute, like the tags: every page with a name box asks. Under the viewer's own person too, since
+    "your brother" depends on who is looking (two admins see everyone, but not as the same relatives)."""
+    return s.keep(v, ("people names", v.me), TAG_NAMES_FOR, lambda: _name_choices(c))
+
+
+TAG_NAMES_FOR = 60  # seconds the names offered while typing a tag or a person's name are kept: each photo asks
 
 
 @router.get("/api/tags/names")
-def tag_names(c=Depends(con)):
-    return tagging.names(c)
+def tag_names(v=Depends(viewer), c=Depends(con), s: Site = Depends(site)):
+    return s.keep(v, ("tag names",), TAG_NAMES_FOR, lambda: tagging.names(c))
 
 
 @router.post("/api/images/{image_id}/tags", dependencies=[Depends(_from_app)])

@@ -1,11 +1,12 @@
 import dataclasses
 import sqlite3
 import uuid
+from datetime import datetime
 
 import httpx
 import pytest
 
-from lineagebox import db, describe, worker
+from lineagebox import db, describe, settings, storage, worker
 from lineagebox.faces import FaceStats
 from lineagebox.llm import Ollama
 from tests.conftest import rel
@@ -61,7 +62,7 @@ class OnlineOllama(FakeOllama):
     def reachable(self):
         return True
 
-    def chat_json(self, system, user, schema, images=(), temperature=0.1):
+    def chat_json(self, system, user, schema, images=(), temperature=0.1, max_tokens=1024):
         if not images:  # folder names
             return {"folders": []}, None
         return super().chat_json(system, user, schema, images, temperature)
@@ -77,9 +78,12 @@ def test_one_pass_catalogs_new_photos(con, cfg, library, monkeypatch, capsys):
     assert con.execute("SELECT count(*) FROM search_fts WHERE rowid = ?", (zoo,)).fetchone()[0] == 1
     out = capsys.readouterr().out
     assert "ingest:" in out and "describe:" in out and "failed:" not in out
+    measured = settings.get(con, storage.KEY)  # the room LineageBox's own files take, once a day
+    assert measured["data_bytes"] > 0 and measured["measured_at"][:10] == datetime.now().date().isoformat()
 
     worker.run_once(con, cfg)  # nothing new: a quiet pass
     assert capsys.readouterr().out == ""
+    assert settings.get(con, storage.KEY) == measured  # not again the same day
 
 
 def test_pass_without_ollama_still_catalogs(con, cfg, library, monkeypatch, capsys):

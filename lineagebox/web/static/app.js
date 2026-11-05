@@ -237,12 +237,24 @@ document.addEventListener("click", (e) => {
   else doubleWait = setTimeout(() => (location.href = link.href), 250);
 });
 
-// Parts that take a while to work out (the Tours page's suggestions) load once the rest of the page is shown.
+// Parts that take a while to work out (the Tours page's suggestions, the Cleanup page's numbers) load once the rest of
+// the page is shown, each on its own. While the catalog is busy (503) one is asked for again a few times; one that
+// can't be had says so in place of its Loading… (class "loading").
 document.querySelectorAll("[data-later]").forEach(async (el) => {
-  try {
-    const r = await fetch(el.dataset.later);
-    if (r.ok) el.innerHTML = await r.text();
-  } catch {}
+  for (let tries = 1; ; tries++) {
+    try {
+      const r = await fetch(el.dataset.later);
+      if (r.ok) return void (el.innerHTML = await r.text());
+      if (r.status !== 503 || tries === 4) break;
+    } catch {
+      break;
+    }
+    await new Promise((done) => setTimeout(done, 3000));
+  }
+  el.querySelectorAll(".loading").forEach((x) => {
+    x.textContent = "Couldn't load";
+    x.title = "Reload the page to try again";
+  });
 });
 
 // Live filters: typing in an input with data-filter="selector" hides the elements it selects whose data-text (or
@@ -291,6 +303,28 @@ document.addEventListener("keydown", (e) => {
   if (!input) return;
   e.preventDefault();
   document.querySelector(input.dataset.enter)?.click();
+});
+
+// A button with data-toggle="#id" shows or hides that element, ready to type in (Fix on a face named on a photo shows
+// a box for who it is instead); data-toggle-label is the button's text while it is open. Esc in it hides it again.
+function toggle(button, open) {
+  const target = document.querySelector(button.dataset.toggle);
+  if (!target || target.hidden === !open) return;
+  target.hidden = !open;
+  button.setAttribute("aria-expanded", open);
+  const label = button.dataset.toggleLabel;
+  if (label) [button.dataset.toggleLabel, button.textContent] = [button.textContent, label];
+  (open ? target.querySelector("input") : button)?.focus();
+}
+document.addEventListener("click", (e) => {
+  const button = e.target.closest("[data-toggle]");
+  if (button) toggle(button, document.querySelector(button.dataset.toggle)?.hidden);
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  const button = [...document.querySelectorAll('[data-toggle][aria-expanded="true"]')]
+    .find((b) => document.querySelector(b.dataset.toggle)?.contains(e.target));
+  if (button) toggle(button, false);
 });
 
 // An input with data-suggest="url" fills its datalist from that url (a JSON list) the first time it is used.
@@ -834,3 +868,124 @@ function showSettingsPart(e) {  // e: the # changed (a link in the menu); none: 
 }
 showSettingsPart();
 addEventListener("hashchange", showSettingsPart);
+
+// Pointing at a photo or a face for a moment (PEEK_AFTER ms: Settings → Browsing, on <body>) shows the whole photo
+// larger beside it: what is around a face tells who it is, without opening the photo. Once one shows, the next photo
+// pointed at shows at once; moving off, scrolling, clicking or a key puts it away. It never takes the pointer, so ↗
+// and × stay clickable under it. Not on touch screens, where nothing is pointed at, nor when the setting is 0; covers
+// (folders, memories, suggested tours) are left alone.
+const PEEK_AFTER = Number(document.body.dataset.hoverPreview ?? 500);
+const PEEK_WARM = 400;  // ms after one is put away in which the next shows without waiting
+if (PEEK_AFTER > 0 && matchMedia("(hover: hover) and (pointer: fine)").matches) {
+  const skip = ".folder-card, .memory, .suggestion, .player, .peek, [data-no-preview]";
+  const peek = document.createElement("div");
+  peek.className = "peek";
+  peek.hidden = true;
+  peek.setAttribute("aria-hidden", "true");
+  peek.innerHTML = '<div class="peek-in"><img alt=""><span class="peek-face"></span></div>';
+  document.body.append(peek);
+  const inner = peek.firstElementChild;
+  const pic = inner.querySelector("img");
+  const mark = inner.querySelector(".peek-face");
+  const faces = new Map();  // face id -> what /api/faces/{id}/photo said
+  let at = null;  // {holder, img} pointed at
+  let timer = 0;
+  let warm = 0;
+  let turn = 0;  // which showing is current: a picture that loads late for an earlier one is dropped
+
+  const pointedAt = (node) => {
+    const holder = node?.closest?.(".tile, .face, img");
+    const img = holder?.matches("img") ? holder : holder?.querySelector("img");
+    if (!img || img.closest(skip) || !/^\/(t|face)\//.test(img.getAttribute("src") || "")) return null;
+    return { holder, img };
+  };
+  const about = async (img) => {
+    const src = img.getAttribute("src");
+    let m = src.match(/^\/t\/(\w+)/);
+    if (m) return { full: `/p/${m[1]}`, low: src, w: img.naturalWidth, h: img.naturalHeight };
+    m = src.match(/^\/face\/(\d+)/);
+    if (!m) return null;
+    if (!faces.has(m[1])) {
+      faces.set(m[1], fetch(`/api/faces/${m[1]}/photo`).then((r) => (r.ok ? r.json() : null)).catch(() => null));
+    }
+    const f = await faces.get(m[1]);
+    return f && { full: f.src, low: f.thumb, box: f.box, w: f.width, h: f.height };
+  };
+  const place = (rect, w, h) => {  // beside what is pointed at, on the side with more room; w, h: as shown
+    const edge = 12;
+    const gap = 16;
+    const right = innerWidth - rect.right - gap - edge;
+    const left = rect.left - gap - edge;
+    const scale = Math.min(Math.min(innerWidth * 0.55, 1000) / w, (innerHeight * 0.8) / h, Math.max(right, left, 320) / w);
+    const pw = Math.round(w * scale);
+    const ph = Math.round(h * scale);
+    const x = right >= left ? rect.right + gap : rect.left - gap - pw;
+    peek.style.left = `${Math.max(edge, Math.min(x, innerWidth - pw - edge))}px`;
+    peek.style.top = `${Math.max(edge, Math.min(rect.top + rect.height / 2 - ph / 2, innerHeight - ph - edge))}px`;
+    peek.style.width = `${pw}px`;
+    peek.style.height = `${ph}px`;
+    return [pw, ph];
+  };
+  const show = async (t) => {
+    const mine = ++turn;
+    const info = await about(t.img);
+    if (!info || mine !== turn) return;
+    let { w, h } = info;
+    if (!w || !h) {  // its shape isn't known: from the picture itself
+      const probe = new Image();
+      probe.src = info.low || info.full;
+      try {
+        await probe.decode();
+      } catch {
+        return;
+      }
+      if (mine !== turn) return;
+      [w, h] = [probe.naturalWidth, probe.naturalHeight];
+    }
+    const turned = Number(t.img.className.match(/\bturn-(90|180|270)\b/)?.[1] || 0);  // Turned photos: as turned
+    const across = turned === 90 || turned === 270;
+    const [pw, ph] = place(t.holder.getBoundingClientRect(), across ? h : w, across ? w : h);
+    inner.style.width = `${across ? ph : pw}px`;
+    inner.style.height = `${across ? pw : ph}px`;
+    inner.style.transform = `translate(-50%, -50%) rotate(${turned}deg)`;
+    mark.hidden = !info.box;
+    if (info.box) {
+      const [x1, y1, x2, y2] = info.box;
+      Object.assign(mark.style, { left: `${x1 * 100}%`, top: `${y1 * 100}%`, width: `${(x2 - x1) * 100}%`,
+                                  height: `${(y2 - y1) * 100}%` });
+    }
+    if (info.low) pic.src = info.low;  // the small picture at once, the large one once it is in
+    else pic.removeAttribute("src");
+    peek.hidden = false;
+    const big = new Image();
+    big.src = info.full;
+    big.decode().then(() => mine === turn && (pic.src = info.full)).catch(() => {});
+  };
+  const hide = (cold) => {
+    clearTimeout(timer);
+    turn++;
+    warm = cold || peek.hidden ? 0 : performance.now() + PEEK_WARM;
+    peek.hidden = true;
+    at = null;
+  };
+  document.addEventListener("mouseover", (e) => {
+    const t = pointedAt(e.target);
+    if (!t || t.holder === at?.holder) return;
+    clearTimeout(timer);
+    at = t;
+    if (!peek.hidden || performance.now() < warm) show(t);
+    else timer = setTimeout(() => show(t), PEEK_AFTER);
+  });
+  document.addEventListener("mouseout", (e) => {
+    if (!at || at.holder.contains(e.relatedTarget) || pointedAt(e.relatedTarget)) return;  // within, or on to another
+    hide(false);
+  });
+  for (const type of ["scroll", "mousedown", "keydown", "blur"]) addEventListener(type, () => hide(true), { capture: true, passive: true });
+}
+
+// Home's row of memories: ‹ › scroll it by what shows of it.
+document.addEventListener("click", (e) => {
+  const button = e.target.closest("[data-scroll]");
+  const row = button && document.querySelector(button.dataset.scroll);
+  if (row) row.scrollBy({ left: Number(button.dataset.by || 1) * row.clientWidth * 0.9, behavior: "smooth" });
+});

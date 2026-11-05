@@ -5,7 +5,7 @@ from PIL import Image
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 
-from lineagebox import catalog, changes, faces, media, people
+from lineagebox import access, catalog, changes, faces, media, people
 from lineagebox.web.common import (ADMIN, MEMBER, FacesBody, MergeBody, NameBody, _among, _by, _face_to_change,
                                    _faces_spec, _family_spec, _from_app, _people_or_404, _same_group)
 from lineagebox.web.deps import con, site, viewer, writer
@@ -14,6 +14,7 @@ from lineagebox.web.site import Site
 router = APIRouter()
 ACCESS = {
     "/face/{face_id}": MEMBER,
+    "/api/faces/{face_id}/photo": MEMBER,
     "/api/clusters/{cluster_id}/name": MEMBER,
     "/api/clusters/{cluster_id}/ignore": MEMBER,
     "/api/faces/{face_id}/name": MEMBER,
@@ -28,9 +29,19 @@ ACCESS = {
 }
 
 
+def _face_seen(s: Site, v: access.Viewer, face_id: int):
+    """The face, if the viewer sees its photo. Checked against their Viewer on a connection of its own rather than on
+    their scoped one (con), which copies all they see into it first: 20 ms for a member who sees 40,000 photos, for
+    each of the dozens of faces a page shows, and for each face pointed at."""
+    with s.own_con() as c:
+        f = catalog.face(c, face_id)
+        size = c.execute("SELECT width, height FROM image WHERE id = ?", (f["image_id"],)).fetchone() if f else None
+    return (f, size) if f is not None and v.sees_image(f["image_id"]) else (None, None)
+
+
 @router.get("/face/{face_id}")
-def face_crop(face_id: int, c=Depends(con), s: Site = Depends(site)):
-    f = catalog.face(c, face_id)
+def face_crop(face_id: int, v=Depends(viewer), s: Site = Depends(site)):
+    f, _ = _face_seen(s, v, face_id)
     if f is None:
         raise HTTPException(404)
     path = s.cfg.face_crop_path(face_id, f["x1"], f["y1"])
@@ -42,6 +53,19 @@ def face_crop(face_id: int, c=Depends(con), s: Site = Depends(site)):
         crop = im.convert("RGB").crop((cx - half, cy - half, cx + half, cy + half))
         media._atomic_save(crop.resize((160, 160), Image.Resampling.LANCZOS), path, "JPEG", quality=88)
     return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
+
+
+@router.get("/api/faces/{face_id}/photo")
+def face_photo(face_id: int, v=Depends(viewer), s: Site = Depends(site)):
+    """The whole picture a face is on and where on it the face is (as shares of its width and height), for the
+    larger look that pointing at a face gives (app.js): who is around them tells who they are."""
+    f, size = _face_seen(s, v, face_id)
+    if f is None:
+        raise HTTPException(404, "No such face")
+    video = f["frame"] is not None  # found on one of a video's frames: that frame, not the video's thumbnail
+    return {"src": f"/frame/{f['sha256']}/{f['frame']}" if video else f"/p/{f['sha256']}",
+            "thumb": None if video else f"/t/{f['sha256']}", "box": [f["x1"], f["y1"], f["x2"], f["y2"]],
+            "width": size["width"] if size else None, "height": size["height"] if size else None}
 
 
 @router.post("/api/clusters/{cluster_id}/name", dependencies=[Depends(_from_app)])

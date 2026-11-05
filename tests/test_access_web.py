@@ -6,8 +6,10 @@ import re
 import pytest
 from fastapi.testclient import TestClient
 
-from lineagebox import access, accounts, catalog, settings, sharing, tours
+from lineagebox import access, accounts, catalog, memories, settings, sharing, tours
 from lineagebox.web import app as webapp
+from lineagebox.web import site as site_module
+from lineagebox.web.routes import cleanup as cleanup_routes
 from tests import family_fixture as fx
 from tests.conftest import LAN
 
@@ -75,10 +77,13 @@ def test_nobody_gets_in_without_signing_in(site, cfg, con):
     assert c.get("/people").status_code == 303
 
 
-def test_from_outside_once_signed_in(site, cfg, con):
+def test_from_outside_once_signed_in(site, cfg, con, monkeypatch):
     c = signed_in(cfg, con, site["who"]["Cora"], client=OUTSIDE)
     assert c.get("/people").status_code == 200
-    accounts.update(con, site["who"]["Cora"]["id"], disabled=True)  # switched off: out at once
+    # switched off outside the site (the accounts command): out once her sign-in is looked up again, SIGNED_IN_FOR
+    # seconds at most (here none). Through the site it is at once (test_kept.py).
+    monkeypatch.setattr(site_module, "SIGNED_IN_FOR", 0)
+    accounts.update(con, site["who"]["Cora"]["id"], disabled=True)
     con.commit()
     assert c.get("/people").status_code == 303
 
@@ -121,6 +126,7 @@ def _urls(app, con, site):
         "name": [r[0] for r in con.execute("SELECT name FROM tag")] + ["nothing"],
         "sha": [r[0] for r in con.execute("SELECT sha256 FROM image")],
         "value": ["gps", "videos", "format/jpeg"], "import_id": [1], "kind": ["papers"], "type_id": ["new", "1"],
+        "part": list(cleanup_routes.COUNTS),
     }
     out = []
     for route in webapp.all_routes(app):
@@ -138,6 +144,10 @@ def _urls(app, con, site):
     queries += [f"/family?center={i}" for i in site["people"].values()]
     queries += [f"/family?root={i}" for i in site["people"].values()]
     queries += [f"/image/{i}?ctx=person:{p}" for i in ids["image_id"][:3] for p in site["people"].values()]
+    # tours not saved yet (Home's memories): of everyone's photos, and of each person
+    queries += [memories.try_href({"spec": {"title": "Everything", "media": "both"}})]
+    queries += [memories.try_href({"spec": {"title": "{person}", "who": {"mode": "person", "person_ids": [i]}}})
+                for i in site["people"].values()]
     queries += ["/api/map?year=2014", "/tours/new?type=1", "/family/export", "/family/export?photos=true",
                 "/cleanup/faces?show=finish", "/cleanup/faces?show=groups", "/cleanup/faces?show=together",
                 "/tags?q=zebra", "/settings?browse=lib"]
@@ -192,6 +202,10 @@ def test_the_leak_sweep(site, cfg, con, who):
         assert c.get(path).status_code == 404, path
     assert c.get(f"/tour/{site['tours']['shared']}").status_code == 200
     assert c.get(f"/tour/{site['tours'][who]}").status_code == 200
+    for pid in hidden["people"]:  # nor a tour of them, saved or not
+        spec = {"title": "{person}", "who": {"mode": "person", "person_ids": [pid]}}
+        assert c.get(memories.try_href({"spec": spec})).status_code == 404
+    assert "/status#storage" not in c.get("/home").text  # how full the disks are is for admins
 
 
 def test_pictures_are_not_kept_by_proxies(site, cfg, con):

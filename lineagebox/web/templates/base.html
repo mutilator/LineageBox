@@ -8,7 +8,7 @@
 <script src="/static/app.js?v={{ static_version }}" defer></script>
 {% block head %}{% endblock %}
 </head>
-<body class="{% block body_class %}{% endblock %}">
+<body class="{% block body_class %}{% endblock %}" data-hover-preview="{{ hover_preview_ms|default(500) }}">
 {% if viewer.seeing_as %}
 <div class="see-as" role="status">You are seeing the site as {{ viewer.account.email }} sees it: nothing can be changed.
   <button type="button" data-api="/api/see-as/stop">Stop</button></div>

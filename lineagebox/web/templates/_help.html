@@ -19,6 +19,8 @@
       {%- for letter, href, name in help_go if viewer.admin or href not in admin_pages %} <a href="{{ href }}"><kbd>{{ letter }}</kbd>&nbsp;{{ name }}</a>{{ "," if not loop.last }}{% endfor %}</dd>
   </dl>
   <p class="hint">Point at a button or box to see its key. Keys don't work while you're typing in a box: press Esc first.</p>
+  <p class="hint">Point at a photo or a face for a moment to see the whole photo larger beside it, with the face
+    outlined.</p>
   <h3>Every page</h3>
   <dl class="pages-list">
     {%- for href, name, what in help_menu if href not in (member_pages if viewer.admin else admin_pages) %}<dt><a href="{{ href }}">{{ name }}</a></dt><dd>{{ what }}</dd>{% endfor %}

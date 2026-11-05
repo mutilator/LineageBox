@@ -24,7 +24,7 @@ EVERYWHERE = (("?", "open or close this help"), ("/", "search"),
               ("Enter", "save the box you are in (each box saves on its own)"))
 
 # one line on each page of the menu, for the help's "Every page" list
-MENU = (("/home", "Home", "faces someone asked about, the newest photos of the family, and your uploads"),
+MENU = (("/home", "Home", "memories, faces someone asked about, and the newest photos of the family by day"),
         ("/", "Folders", "your photos folder by folder, as they are on disk"),
         ("/folders", "Folders", "your uploads, what others in the family share with you, and what you share"),
         ("/timeline", "Timeline", "photos by the year and month they were taken"),
@@ -43,9 +43,14 @@ SELECTING = ("Ticking photos: click a photo (or Tab to it and press Space) to ti
 
 PAGES = {
     "home": Page("Home", (
+        "Memories, along the top: photos from this week in earlier years, tours worth making (a birthday coming up, "
+        "someone through the years, a holiday) and a few of your own tours. Open one to see its photos or play it; "
+        "Keep as a tour puts it on the Tours page. They change from day to day.",
         "Who is this?: faces someone in the family asked about. Type who it is, or Don't know to stop seeing it.",
-        "Below them, the folders, tours and photos others shared with you, then the photos of the family added most "
-        "recently, and your own latest uploads.")),
+        "Below them, the folders, tours and photos others shared with you, then the newest photos by the day they "
+        "were taken, older photos added lately, and your own latest uploads.",
+        "For admins, Storage at the top shows how full the disk is; it opens the Status page, which says what takes "
+        "the room.")),
     "folders": Page("Folders", (
         "Your uploads: open one of your folders to see its photos, share it, or move it to the Removed folder. "
         "Select photos in a folder to move only those.",
@@ -173,6 +178,7 @@ PAGES = {
         "to whoever made it.")),
     "tour": Page("A tour", (
         "Its photos, best of each group of similar shots. Play shows them full screen.",
+        "A tour opened from Home's memories isn't saved until you press Keep as a tour.",
         "Sharing, at the bottom of your own tour: share it with one family account or with everyone who has one. "
         "They see the photos it picks, also those of your family they couldn't see before, and the tour keeps "
         "picking new ones for them. Photos others shared with you are not passed on."), (
@@ -198,8 +204,9 @@ PAGES = {
     "image": Page("A photo", (
         "The photo, what the AI says about it, its tags, the people in it and its files.",
         "Tags: × takes one off for good; type in “+ tag” to add one. People: name a face by typing who it is; add "
-        "someone whose face wasn't found with “Someone else here?”. “not …” takes a wrong name off a face, which "
-        "then waits to be named as whoever it is (and is never recognised as that person again).",
+        "someone whose face wasn't found with “Someone else here?”. “Fix” on a named face puts a wrong name right: "
+        "type who it is instead, or “don't know who” to take the name off so the face waits to be named. Either way "
+        "it is never suggested or recognised as the wrong person again.",
         "An unnamed face that looks like someone not already in the photo shows their name with a ?: click it if "
         "it's them. “not a face” hides a pattern or a statue. “Look for faces again” looks more closely than the "
         "first time, for small faces in group photos; the new faces are recognised where they clearly match, and "
@@ -247,12 +254,17 @@ PAGES = {
     "status": Page("Status", (
         "What the worker is doing and has left to do, downloads in progress, problems, and counts of the catalog.",
         "Point at a line to see what it counts. Numbers that are links open those photos, such as all photos with "
-        "GPS or all dated only by their file's time.")),
+        "GPS or all dated only by their file's time.",
+        "Storage: how full each disk is that holds the watched folders or LineageBox's data folder, and how much of "
+        "it is photos and videos, LineageBox's previews and catalog, and other files. It turns red when space runs "
+        "low.",
+        "Slow pages lists the pages that took more than a second to answer since LineageBox last started: where to "
+        "look when the site feels slow.")),
     "settings": Page("Settings", (
         "The menu at the side shows one part of Settings at a time (on a phone, it is above): the watched folders, "
         "how they are read and their paths on your network; when the worker runs; the AI (Ollama), speech (Whisper) "
-        "and faces; the map's place lookups; kinds of tour; the cleanup lists; the address and HTTPS; updates; and "
-        "family accounts with the codes for signing in at home.",
+        "and faces; the map's place lookups; kinds of tour; the cleanup lists; how long pointing at a photo takes to "
+        "show it larger; the address and HTTPS; updates; and family accounts with the codes for signing in at home.",
         "Address and HTTPS: the host names LineageBox answers to, a reverse proxy in front of it, and its HTTPS "
         "certificate (files it can read, or uploaded). Switching HTTPS restarts the web server and moves the page "
         "to its new address.",

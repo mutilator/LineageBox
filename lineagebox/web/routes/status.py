@@ -4,10 +4,10 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
-from lineagebox import __version__, catalog, progress, settings, updates
+from lineagebox import __version__, catalog, progress, settings, storage, updates
 from lineagebox.web.common import ADMIN, IN_DOCKER, _from_app
-from lineagebox.web.deps import con, page, site
-from lineagebox.web.site import Site
+from lineagebox.web.deps import con, page, site, viewer
+from lineagebox.web.site import SLOW_PAGE, Site
 
 router = APIRouter()
 ACCESS = {
@@ -19,13 +19,26 @@ ACCESS = {
 }
 
 
+STATUS_COUNTS_FOR = 30  # seconds the counts of what is left are kept: the page asks every 10, and they take a while
+STATS_FOR = 60  # seconds the catalog's counts are kept (Site.kept: any change made on the site counts them again)
+
+
+def _snapshot(s: Site, v, c, now):
+    """What the worker is doing (always now), with the counts of what is left kept a while, through changes: only
+    the worker changes them."""
+    kept = s.keep(v, ("status counts",), STATUS_COUNTS_FOR, lambda: progress.counts(c, now), through_changes=True)
+    return progress.snapshot(c, now, kept)
+
+
 @router.get("/status", response_class=HTMLResponse)
-def status_page(request: Request, c=Depends(con), s: Site = Depends(site)):
+def status_page(request: Request, v=Depends(viewer), c=Depends(con), s: Site = Depends(site)):
     now = s.live(c)
-    return page(request, "status.html", s=catalog.stats(c, now.folders), cfg=now, p=progress.snapshot(c, now),
-                whisper=s.whisper_health(now), date_labels=catalog.DATE_SOURCES, date_help=catalog.DATE_HELP,
-                release=updates.available(c), last_check=settings.get(c, updates.KEY),
-                updater=updates.updater_state(s.cfg), in_docker=IN_DOCKER)
+    return page(request, "status.html", s=s.keep(v, ("stats", now.folders), STATS_FOR,
+                                                  lambda: catalog.stats(c, now.folders)),
+                cfg=now, p=_snapshot(s, v, c, now), whisper=s.whisper_health(now), date_labels=catalog.DATE_SOURCES,
+                date_help=catalog.DATE_HELP, release=updates.available(c), last_check=settings.get(c, updates.KEY),
+                updater=updates.updater_state(s.cfg), in_docker=IN_DOCKER, slow=list(s.slow), slow_after=SLOW_PAGE,
+                disks=s.keep(v, ("storage",), 60, lambda: storage.disks(c, now)))
 
 
 @router.get("/api/update")
@@ -64,9 +77,9 @@ def check_for_update(c=Depends(con), s: Site = Depends(site)):
 
 
 @router.get("/status/live", response_class=HTMLResponse)
-def status_live(request: Request, c=Depends(con), s: Site = Depends(site)):
+def status_live(request: Request, v=Depends(viewer), c=Depends(con), s: Site = Depends(site)):
     now = s.live(c)
-    return page(request, "_progress.html", cfg=now, p=progress.snapshot(c, now), whisper=s.whisper_health(now))
+    return page(request, "_progress.html", cfg=now, p=_snapshot(s, v, c, now), whisper=s.whisper_health(now))
 
 
 @router.post("/api/worker/run", dependencies=[Depends(_from_app)])

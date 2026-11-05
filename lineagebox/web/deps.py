@@ -29,7 +29,7 @@ def viewer(request: Request) -> access.Viewer:
                 other = accounts.get(c, int(see))
                 if other is not None and other["role"] == "member" and other["disabled_at"] is None:
                     v = dataclasses.replace(s.viewers.get(c, dict(other)), seeing_as=True)
-    else:
+    elif (v := s.viewers.fresh(account)) is None:
         with s.own_con() as c:
             v = s.viewers.get(c, account)
     request.state.viewer = v
@@ -65,6 +65,7 @@ def page(request: Request, name: str, **context) -> HTMLResponse:
     context.setdefault("viewer", getattr(request.state, "viewer", access.EVERYONE))
     context.setdefault("signed_in", getattr(request.state, "account", None))
     context.setdefault("signed_out", s.shared_cfg().accounts_enabled and context["signed_in"] is None)
+    context.setdefault("hover_preview_ms", s.shared_cfg().hover_preview_ms)  # for app.js, on <body>
     if context["viewer"].admin:
         context.setdefault("update_ready", s.update_ready())
     response = s.templates.TemplateResponse(request, name, context)

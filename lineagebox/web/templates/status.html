@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% set nav = "status" %}
 {% block title %}Status{% endblock %}
+{% import "_macros.html" as m %}
 {% macro n(value, href=none) %}{% if href and value %}<a href="{{ href }}">{{ "{:,}".format(value) }}</a>{% else %}{{ "{:,}".format(value) }}{% endif %}{% endmacro %}
 {% block main %}
 <h1>Status</h1>
@@ -32,6 +33,27 @@
     {%- else %} in LineageBox's folder, run <code>git pull</code> and <code>pip install -e .</code>, then start
     LineageBox again.{% endif %} A copy of the catalog is kept first when the new version changes it.</p>
   {%- endif %}
+</section>
+<section class="panel" id="storage">
+  <h2>Storage</h2>
+  <p class="hint">How full the disks are that hold the watched folders and LineageBox's data folder.</p>
+  {% if disks %}{{ m.storage_panel(disks) }}{% else %}<p class="hint">The watched folders can't be reached just now.</p>{% endif %}
+</section>
+<section class="panel activity" id="slow-pages">
+  <h2>Slow pages</h2>
+  <p class="hint">Pages LineageBox took more than {{ slow_after|round|int }} second to answer since it last started,
+    the newest first: where to look if the site feels slow. Pictures, videos, downloads and uploads aren't counted,
+    since they take as long as they are big.</p>
+  {% if slow %}
+  <ol>
+    {%- for r in slow %}<li><time>{{ r.at|date }}</time> <strong>{{ "%.1f"|format(r.seconds) }} s</strong>
+      {% if r.method != "GET" %}{{ r.method }} {% endif %}<code>{{ r.path }}</code>
+      {%- if r.who %} · {{ r.who }}{% endif %}
+      {%- if r.status >= 400 %} · answered {{ r.status }}{% endif %}</li>{% endfor %}
+  </ol>
+  {% else %}
+  <p class="hint">None yet.</p>
+  {% endif %}
 </section>
 <h2>Catalog</h2>
 <p class="hint">Point at a line to see what it counts; numbers that are links show those photos.</p>

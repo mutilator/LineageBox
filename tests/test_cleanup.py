@@ -7,6 +7,7 @@ from lineagebox.folders import FolderIndex
 from lineagebox.ingest import ingest
 from lineagebox.scan import scan
 from lineagebox.web import app as webapp
+from lineagebox.web.routes import cleanup as cleanup_routes
 from tests.conftest import LAN, rel
 from tests.test_recognition import FakeOllama
 
@@ -153,6 +154,20 @@ def test_cleanup_pages(lib, cfg):
         assert r.status_code == 200, url
     assert "Remove the copies from this folder" in client.get("/cleanup/copies").text
     assert client.get("/cleanup/reference/nope").status_code == 404
+
+
+def test_the_cleanup_page_opens_before_its_numbers_are_worked_out(lib, cfg):
+    client = TestClient(webapp.create_app(cfg), client=LAN)
+    page = client.get("/cleanup").text
+    assert page.count('class="num loading"') == page.count('class="card"') > 10  # every card waits for its number
+    for part in cleanup_routes.COUNTS:
+        assert f'data-later="/cleanup/counts/{part}"' in page, part
+        r = client.get(f"/cleanup/counts/{part}")
+        assert r.status_code == 200 and "loading" not in r.text, part
+    copies = client.get("/cleanup/counts/copies").text  # ZOO_A and ZOO_B are the same photo
+    assert 'href="/cleanup/copies"' in copies and '<span class="num">1</span>' in copies
+    assert page.count('href="/cleanup/reference/') == len(cleanup.REFERENCE_LABELS)
+    assert client.get("/cleanup/counts/nope").status_code == 404
 
 
 def test_kept_photos_are_not_suggested_again(lib, cfg):

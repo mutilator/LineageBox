@@ -22,7 +22,7 @@ EDITABLE = ("folders", "ignore_dirs", "ingest_threads", "worker_interval_minutes
             "transcribe_enabled", "faces_enabled",
             "places_lookup", "network_paths", "allowed_hosts", "trusted_proxies", "tls_cert", "tls_key",
             "accounts_enabled", "google_client_id", "google_client_secret", "public_url", "session_days",
-            "uploads_folder", "uploads_into", "upload_max_gb", "update_check")
+            "uploads_folder", "uploads_into", "upload_max_gb", "update_check", "hover_preview_ms")
 SCHEDULES = ("always", "hours", "paused")
 TURN_LEVELS = ("sure", "more", "off")  # Cleanup → Turned photos, see orientation.py
 DAY_NAMES = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
@@ -533,4 +533,5 @@ _CHECKS = {
     "public_url": _public_url, "session_days": _ranged("session_days", "Days signed in"),
     "uploads_folder": _folder_name, "uploads_into": _uploads_into,
     "upload_max_gb": _ranged("upload_max_gb", "The largest upload"),
+    "hover_preview_ms": _ranged("hover_preview_ms", "The time to point at a photo"),
 }

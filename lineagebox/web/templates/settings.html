@@ -264,6 +264,20 @@ scanned within a minute. Progress is on the <a href="/status">Status</a> page.</
 </div>
 
 <div class="settings" data-part>
+<section class="panel" id="browsing">
+  <h2>Pointing at photos</h2>
+  <form data-api="/api/settings" data-settings data-show="#browsing-saved">
+    <p><label>Show the whole photo larger after pointing at it for
+      <input type="number" name="hover_preview_ms" min="0" max="5000" step="50" value="{{ cfg.hover_preview_ms }}" class="num"> milliseconds</label></p>
+    <p class="hint">Pointing at a photo or a face on any page shows the whole photo beside it, with the face outlined.
+    500 is half a second: long enough that moving across photos doesn't set it off, short enough not to wait for it.
+    0 turns it off. Everyone in the family gets the same; the pages take it the next time they are opened.</p>
+    <p><button type="submit" class="primary">Save</button> <span class="hint inline" id="browsing-saved"></span></p>
+  </form>
+</section>
+</div>
+
+<div class="settings" data-part>
 <section class="panel" id="address">
   <h2>Address and HTTPS</h2>
   <p class="hint">This page came over <b>{{ "HTTPS" if request.url.scheme == "https" else "plain HTTP" }}</b> as

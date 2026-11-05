@@ -110,7 +110,7 @@ def test_whose_photos_goes_into_reading_folder_names(con, cfg):
     from lineagebox.folders import parse_folders
 
     class Folders:
-        def chat_json(self, system, user, schema, temperature=0.1):
+        def chat_json(self, system, user, schema, temperature=0.1, max_tokens=1024):
             self.system = system
             return {"folders": [{"id": 1, "kind": "place", "place": "Cedar Point"}]}, None
 

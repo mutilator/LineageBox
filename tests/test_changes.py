@@ -118,7 +118,7 @@ def test_a_link_that_widens_access_is_made_and_marked(site, cfg, con):
     assert p["Hank"] in seen  # it did widen her view
     page = admin.get("/cleanup/changes").text
     assert "also sees" in page and "Hank" in page
-    assert "let someone see more" in admin.get("/cleanup").text
+    assert "let someone see more" in admin.get("/cleanup/counts/changes").text
     admin.post(f"/api/changes/{change['id']}/undo", headers=APP)
     assert not con.execute("SELECT 1 FROM parent WHERE child_id = ? AND parent_id = ?", (p["Old Rex"], p["Jake"])).fetchone()
     assert p["Hank"] not in access.compute(con, site["who"]["Cora"]).people
@@ -194,3 +194,5 @@ def test_same_person(site, cfg, con):
     admin.post("/api/same/different", json={"added": other, "other": p["Zoe"]}, headers=APP)
     assert f"/person/{other}" not in admin.get("/cleanup/same").text
     assert cora.get("/cleanup/same").status_code == 404  # an admin's page
+    assert cora.get("/cleanup/counts/same").status_code == 404  # nor its number on the Cleanup page
+    assert "Loading" in cora.get("/cleanup").text and cora.get("/cleanup/counts/faces").status_code == 200

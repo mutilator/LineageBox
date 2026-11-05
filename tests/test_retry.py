@@ -7,7 +7,7 @@ import zlib
 import httpx
 import pytest
 
-from lineagebox import check, copies, faces, folders, ingest, media, places, retry, settings, speech, video, worker
+from lineagebox import check, copies, faces, folders, ingest, llm, media, places, retry, settings, speech, video, worker
 from lineagebox.scan import scan
 
 
@@ -83,6 +83,52 @@ def test_folder_names_the_ai_cant_answer_wait(con, cfg, library):
     parsed, left = folders.parse_folders(con, NotJson())
     assert parsed == 0 and left > 0 and NotJson.asked == 2  # once more, less cautious, then later
     assert folders.parse_folders(con, NotJson()) == (0, 0) and NotJson.asked == 2
+
+
+def test_folder_answers_too_long_for_their_room_are_asked_in_halves(con):
+    """A model that writes more per folder than allowed for, and a folder that sends it round in circles: the batch
+    is asked again in halves, so the rest are read and only the folder it loops on waits."""
+    for n in range(30):
+        con.execute("INSERT INTO folder(path, name) VALUES (?, ?)", (f"lib/Trip{n:02d}", f"Trip{n:02d}"))
+    con.execute("INSERT INTO retry(stage, item_id, attempts, error, failed_at, next_at) "
+                "SELECT 'folders', id, 1, 'cut off', '2026-11-04T21:56:29', 0 FROM folder WHERE name = 'Trip03'")
+    con.commit()
+
+    class Wordy:
+        asked = []
+
+        def chat_json(self, system, user, schema, temperature=0.1, max_tokens=1024):
+            paths = [line.split(": ", 1)[1] for line in user.splitlines()[1:]]
+            Wordy.asked.append((len(paths), max_tokens, temperature, paths))
+            if len(paths) > 8 or "lib/Trip17" in paths:  # 8 is all that fits; Trip17 makes it repeat itself
+                raise llm.CutOff(f"the answer was cut off at {max_tokens} tokens")
+            return {"folders": [{"id": n, "kind": "event", "event": p[4:]} for n, p in enumerate(paths, 1)]}, None
+
+    assert folders.parse_folders(con, Wordy()) == (29, 1)
+    assert Wordy.asked[0][:2] == (25, 100 + 25 * folders.TOKENS_PER_FOLDER)  # room for the whole batch
+    assert [a[0] for a in Wordy.asked] == [25, 13, 7, 6, 12, 6, 3, 3, 2, 1, 1, 1, 1, 6, 5]
+    alone = [a[1:3] for a in Wordy.asked if a[3] == ["lib/Trip17"]]
+    assert alone == [(100 + folders.TOKENS_PER_FOLDER, 0.0), (100 + folders.TOKENS_PER_FOLDER, 0.7)]  # once more
+    assert con.execute("SELECT event FROM folder WHERE name = 'Trip29'").fetchone()[0] == "Trip29"
+    waiting = con.execute("SELECT f.name, r.error FROM retry r JOIN folder f ON f.id = r.item_id").fetchall()
+    assert [tuple(w) for w in waiting] == [("Trip17", "the AI repeated itself until its answer was cut off")]
+
+
+def test_an_answer_cut_off_is_told_from_one_that_isnt_json(cfg):
+    def answer(content, done_reason):
+        return lambda request: httpx.Response(200, json={"message": {"content": content}, "done_reason": done_reason})
+
+    def ask(handler):
+        o = llm.Ollama(cfg)
+        o.http = httpx.Client(base_url="http://ollama.test", transport=httpx.MockTransport(handler))
+        return o.chat_json("system", "Folder paths:\n1: lib/Zoo", {}, max_tokens=220)
+
+    with pytest.raises(llm.CutOff, match="cut off at 220 tokens"):
+        ask(answer('{"folders": [{"id": 1, "kind": "pla', "length"))
+    with pytest.raises(ValueError) as e:
+        ask(answer("not json", "stop"))
+    assert not isinstance(e.value, llm.CutOff)
+    assert ask(answer('{"folders": []}', "stop"))[0] == {"folders": []}
 
 
 def test_openstreetmap_refusing_is_shown_and_waited_out(con, cfg, monkeypatch):

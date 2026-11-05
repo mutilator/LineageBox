@@ -18,6 +18,11 @@ class OllamaError(Exception):
     """Ollama answered, with an error: its own message, e.g. "model 'x' not found"."""
 
 
+class CutOff(ValueError):
+    """The answer reached max_tokens before it was finished, so it isn't whole JSON: it repeated itself, or the
+    question needed a longer answer than allowed for."""
+
+
 @dataclass
 class Usage:
     prompt_tokens: int
@@ -79,8 +84,9 @@ class Ollama:
     def chat_json(self, system: str, user: str, schema: dict, images: Sequence[bytes] = (),
                   temperature: float = 0.1, max_tokens: int = 1024) -> tuple[dict, Usage]:
         """images: JPEGs, in order (a video's frames). max_tokens stops an answer that repeats itself until
-        it is cut off; the longest real answers are about 400 tokens. Raises ValueError for an answer that
-        is not valid JSON, OllamaError when Ollama answers with an error."""
+        it is cut off; the longest photo descriptions are about 400 tokens, and a question whose answer grows
+        with it (a batch of folders) passes more. Raises ValueError for an answer that is not valid JSON (CutOff
+        when it stopped at max_tokens), OllamaError when Ollama answers with an error."""
         message = {"role": "user", "content": user}
         if images:
             message["images"] = [base64.b64encode(im).decode() for im in images]
@@ -95,7 +101,12 @@ class Ollama:
             raise OllamaError(f"Ollama answered {r.status_code}: {_error_text(r)}")
         body = r.json()
         usage = Usage(body.get("prompt_eval_count", 0), body.get("eval_count", 0), body.get("total_duration", 0) / 1e9)
-        return json.loads(body["message"]["content"]), usage
+        try:
+            return json.loads(body["message"]["content"]), usage
+        except ValueError as e:
+            if body.get("done_reason") == "length":
+                raise CutOff(f"the answer was cut off at {max_tokens} tokens ({e})") from e
+            raise
 
 
 def pull(cfg: Config, con: sqlite3.Connection) -> None:

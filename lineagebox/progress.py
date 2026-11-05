@@ -18,14 +18,42 @@ STAGES = {"scan": "Looking for new and changed files", "ingest": "Reading new ph
 SILENT_AFTER = timedelta(minutes=3)  # an idle worker checks in every 15 s
 
 
-def snapshot(con: sqlite3.Connection, cfg: Config) -> dict:
+def counts(con: sqlite3.Connection, cfg: Config) -> dict:
+    """What is left for each stage: on a big library these take a second or more, so the Status page, which asks
+    every 10 seconds, keeps them a while (snapshot takes them)."""
+    one = lambda sql, *a: con.execute(sql, a).fetchone()[0]
+    left = count_pending(con, cfg.ollama_model)
+    return {
+        "total": one(f"""SELECT count(*) FROM image i
+                         WHERE (i.dup_group_id IS NULL OR i.dup_group_id = i.id) AND {VISIBLE}"""),
+        "left": left,
+        "waiting": [
+            ("New or changed files to read", one("""SELECT count(*) FROM file f JOIN folder d ON d.id = f.folder_id
+                                                   WHERE f.image_id IS NULL AND NOT f.missing AND NOT d.ignored""")),
+            ("Folder names to read (AI)", one("""SELECT count(*) FROM folder WHERE kind IS NULL AND source = 'auto'
+                                                AND NOT ignored AND path != ''""")),
+            ("Photos and videos to check for faces",
+             one(f"SELECT count(*) FROM image i WHERE NOT (i.stage & {STAGE_FACES}) AND {VISIBLE}")),
+            ("Photos to measure for sharpness",
+             one(f"SELECT count(*) FROM image i WHERE i.sharpness IS NULL AND i.media = 'photo' AND {VISIBLE}")),
+            ("Photos to add to the search", one(f"""SELECT count(*) FROM image i WHERE {VISIBLE}
+                                                   AND i.id NOT IN (SELECT rowid FROM search_fts)""")),
+            ("Photos and videos to describe (AI)", left),
+            ("Videos to transcribe (Whisper)", speech.count_pending(con)),
+            ("Videos to make a 720p copy of", copies.count_pending(con)),
+        ],
+    }
+
+
+def snapshot(con: sqlite3.Connection, cfg: Config, kept: dict | None = None) -> dict:
+    """What the worker is doing, with counts() (or the ones given, kept from a moment ago)."""
     now = datetime.now()
     one = lambda sql, *a: con.execute(sql, a).fetchone()[0]
     state = settings.get(con, "worker", {})
     heartbeat = _time(state.get("heartbeat"))
 
-    total = one(f"SELECT count(*) FROM image i WHERE (i.dup_group_id IS NULL OR i.dup_group_id = i.id) AND {VISIBLE}")
-    left = count_pending(con, cfg.ollama_model)
+    numbers = kept or counts(con, cfg)
+    total, left = numbers["total"], numbers["left"]
     recent = con.execute("SELECT count(*), min(created_at), max(created_at) FROM analysis WHERE created_at >= ?",
                          ((now - timedelta(minutes=30)).isoformat(timespec="seconds"),)).fetchone()
     per_hour = None
@@ -51,21 +79,7 @@ def snapshot(con: sqlite3.Connection, cfg: Config) -> dict:
             "may_now": settings.may_describe(cfg, now), "schedule": settings.schedule_text(cfg),
             "next_start": settings.next_describe_start(cfg, now),
         },
-        "waiting": [
-            ("New or changed files to read", one("""SELECT count(*) FROM file f JOIN folder d ON d.id = f.folder_id
-                                                   WHERE f.image_id IS NULL AND NOT f.missing AND NOT d.ignored""")),
-            ("Folder names to read (AI)", one("""SELECT count(*) FROM folder WHERE kind IS NULL AND source = 'auto'
-                                                AND NOT ignored AND path != ''""")),
-            ("Photos and videos to check for faces",
-             one(f"SELECT count(*) FROM image i WHERE NOT (i.stage & {STAGE_FACES}) AND {VISIBLE}")),
-            ("Photos to measure for sharpness",
-             one(f"SELECT count(*) FROM image i WHERE i.sharpness IS NULL AND i.media = 'photo' AND {VISIBLE}")),
-            ("Photos to add to the search", one(f"""SELECT count(*) FROM image i WHERE {VISIBLE}
-                                                   AND i.id NOT IN (SELECT rowid FROM search_fts)""")),
-            ("Photos and videos to describe (AI)", left),
-            ("Videos to transcribe (Whisper)", speech.count_pending(con)),
-            ("Videos to make a 720p copy of", copies.count_pending(con)),
-        ],
+        "waiting": numbers["waiting"],
         "downloads": downloads.current(con, now),
         "problems": {settings.PROBLEM_SERVICES[s]: p | {"at": _time(p["at"])} for s, p in settings.problems(con).items()},
         "retrying": retry.summary(con),

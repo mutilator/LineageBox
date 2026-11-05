@@ -2,7 +2,12 @@
 {% import "_macros.html" as m %}
 {% block title %}Home{% endblock %}
 {% block main %}
-<h1>{% if first_name %}Hello, {{ first_name }}{% else %}Home{% endif %}</h1>
+<div class="home-top">
+  <h1>{% if first_name %}Hello, {{ first_name }}{% else %}Home{% endif %}</h1>
+  {% if disks %}{{ m.storage_meter(disks) }}{% endif %}
+</div>
+
+<div id="memories" data-later="/home/memories"><p class="hint loading">Looking for memories…</p></div>
 
 {% if questions %}
 <section class="who-is-this">
@@ -32,8 +37,38 @@
 </section>
 {% endif %}
 
-<h2>New photos of the family</h2>
-{% if recent %}{{ m.grid(recent, "") }}{% else %}<p class="note">No photos of your family yet.</p>{% endif %}
+<div id="latest">
+{% if days %}
+<div class="days">
+  {%- for d in days %}
+  {%- if d.month %}
+  <h2 class="month">{{ d.month }}</h2>
+  {%- endif %}
+  <section class="day">
+    <h3>{{ d.label }}</h3>
+    <div class="day-tiles">
+      {%- for im in d.photos %}
+      <a class="tile" href="/image/{{ im.id }}?ctx={{ ('year:' ~ im.taken_at[:4])|urlencode }}" style="--r: {{ im.ratio }}" title="{{ im.taken_at|date }}">
+        <img src="/t/{{ im.sha256 }}" loading="lazy" alt="{{ 'Video' if im.media == 'video' else 'Photo' }} from {{ im.taken_at|date(false) }}">
+        {%- if im.media == "video" %}<span class="badge video" title="Video">▶ {{ im.duration|duration }}</span>{% endif %}
+        {%- if date_source_label[im.taken_at_source] %}<span class="badge" title="{{ date_source_label[im.taken_at_source] }}">≈</span>{% endif %}
+      </a>
+      {%- endfor %}
+    </div>
+  </section>
+  {%- endfor %}
+</div>
+{% if older %}<p class="hint"><a href="/timeline/{{ days[-1].day.year }}">Older photos are on the Timeline</a></p>{% endif %}
+{% endif %}
+
+{% if added %}
+<h2>Recently added</h2>
+<p class="meta">Photos added to the library lately that were taken longer ago, or whose day isn't known.</p>
+{{ m.grid(added, "") }}
+{% elif not days %}
+<p class="note">No photos of your family yet.</p>
+{% endif %}
+</div>
 
 {% if viewer.account %}
 <h2>Your uploads</h2>
