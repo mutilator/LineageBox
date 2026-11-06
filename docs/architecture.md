@@ -155,7 +155,7 @@ Templates are in `web/templates`, and `web/static/app.js` drives the pages.
 | Finding photos | `search.py`, `catalog.py` (shared read queries), `tagging.py`, `tours.py`, `tour_suggestions.py` |
 | Family | `family.py` (relationship words from a `Graph`), `events.py`, `documents.py`, `family_check.py`, `gedcom.py`, `gedcom_import.py` |
 | Cleanup | `cleanup.py` (moves to Removed, restore, empty), `writeback.py` (ExifTool) |
-| Accounts | `accounts.py`, `access.py`, `changes.py`, `uploads.py`, `downloads.py`, `https.py` (certificates), `serving.py` (the web server following them) |
+| Accounts | `accounts.py`, `passkeys.py`, `access.py`, `changes.py`, `uploads.py`, `downloads.py`, `https.py` (certificates), `serving.py` (the web server following them) |
 | Status | `progress.py`, `downloads.py`, `activity.py` (activity lines, services' problems), `retry.py`, `updates.py` (new releases) |
 | Shared | `errors.py` (`Problem`: what can't be done, in words for the person), `tools.py` (running ffmpeg and ExifTool), `power.py` (keeps Windows awake through a long stage) |
 | Whisper service | `whisper_service/` (FastAPI in front of whisper.cpp; its own image) |

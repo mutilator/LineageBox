@@ -45,7 +45,15 @@ NICKNAMES = [
     "bradley brad", "angela angie", "alexander alex", "samuel sam", "benjamin ben", "matthew matt",
     "timothy tim", "kenneth ken kenny", "ronald ron ronnie", "donald don", "gerald jerry", "lawrence larry",
     "theodore ted teddy", "victoria vicky tori", "abigail abby", "zachary zach zack", "joshua josh",
-    "jonathan jon", "cynthia cindy", "lucinda cindy"]
+    "jonathan jon", "cynthia cindy", "lucinda cindy", "alan allen allan al", "albert al bert", "alfred al alf",
+    "russell russ rusty", "harold hal harry", "henry hank harry", "frederick fred freddie", "eugene gene",
+    "leonard len lenny", "raymond ray", "walter walt wally", "jeffrey jeff", "phillip philip phil", "stanley stan",
+    "francis frank", "franklin frank", "frances fran", "elizabeth libby", "rebekah becky becca bekah",
+    "rebecca bekah", "jessica jess jessie", "kimberly kim", "dorothy dot dottie dolly", "virginia ginny ginger",
+    "patricia patsy", "barbara barb", "carolyn carol", "caroline carrie", "theresa teresa terry tess",
+    "sandra sandy", "angelena angelina angie", "isabelle isabel isabella izzy", "judith judy", "mildred millie",
+    "sarah sally sadie", "helen nell nellie", "eleanor ellie nell", "emily emmy", "nathaniel nathan nate nat",
+    "gwendolyn gwen", "patrick pat paddy", "josephine jo josie", "beverly bev", "marilyn lynn", "jacqueline jackie", "dennis denny"]
 _SAME_NAME = {}
 for _group in NICKNAMES:
     for _name in _group.split():

@@ -11,5 +11,7 @@ rawpy==0.27.1
 tqdm==4.70.1
 scikit-learn==1.9.1
 segno==1.6.6
+webauthn==3.0.1
+cryptography==50.0.2
 onnxruntime==1.31.1
 insightface==2.1

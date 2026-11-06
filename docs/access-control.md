@@ -29,6 +29,17 @@ There is no sign-in. Everyone on the home network is an admin.
 - **Sessions:** a random 32-byte token in a cookie (HttpOnly, Secure over HTTPS, SameSite=Lax). The catalog keeps only
   the token's SHA-256, with the account, when it was made and last used, the IP and the browser. A session lasts
   `session_days` (90) from last use. Disabling or removing an account ends its sessions.
+- **Passkeys** (`passkeys.py`, WebAuthn through the `webauthn` package): discoverable credentials (resident keys) with
+  user verification required, since the passkey alone signs in; attestation `none`. The relying party ID is the host
+  of `public_url`, and the only origin accepted is `public_url`'s. Each answer's challenge (used once, kept in memory
+  for 6 minutes and tied to the browser by a cookie), origin, RP ID hash, user presence and verification flags,
+  signature and sign count (when not 0: synced passkeys send 0) are checked, and the user handle must be the
+  account's, a random 32 bytes (never the email or the account's number, which SQLite can give again). Passkeys are
+  made only when HTTPS is on, `public_url` is a name and that name is listed exactly in `allowed_hosts`, with no
+  wildcard. The first one comes from an admin's link: one use, 7 days (24 hours for an admin's account), only its
+  SHA-256 kept, and its token after the `#`, which never reaches a server's log. More are added by someone signed in
+  within 15 minutes of signing in (3 hours after the account's first sign-in). Taking a passkey away ends the
+  sessions it started. 30 starts per address in 15 minutes.
 - **Local codes for admins:** TOTP (RFC 6238, 6 digits, 30 s), for signing in when Google can't be reached. Only from
   an `allowed_networks` address, only for admins. At most 5 tries per address and email in 15 minutes, and 10 per
   email from all addresses together, so many devices on the home network can't share out the guessing.
@@ -57,7 +68,7 @@ There is no sign-in. Everyone on the home network is an admin.
   could be an SVG or HTML file that would otherwise run as the person viewing it.
 - Sign-ins and failed sign-ins go in the activity log.
 - The catalog keeps only sessions' SHA-256, but it does hold the Google client secret and the admins' code secrets.
-  Its backups must be kept as private as the photos.
+  Its backups must be kept as private as the photos. Of passkeys it keeps only the public keys.
 
 ## Who a member sees
 

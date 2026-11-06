@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Passkeys{% endblock %}
+{% block main %}
+{#- The passkeys of whoever is signed in (routes/passkeys.py), from the profile menu. #}
+<h1>Passkeys</h1>
+<p class="meta">A passkey signs you in with the lock of your phone or computer, your face, fingerprint or PIN, instead
+of a Google account. It is kept on that phone or computer, or in your password manager (iCloud Keychain, Google
+Password Manager), which gives it to your other devices too. It works only at {{ origin or "this site's address" }}.</p>
+{%- if made %}
+<p class="note" role="status">Your passkey is made. Next time, press <b>Sign in with a passkey</b> on the sign-in page.
+  On a computer without it, choose your phone in the window that opens, or add one on that computer below.</p>
+{%- endif %}
+
+{%- if not you %}
+<p class="note">Family accounts are off, so nobody signs in yet{% if made %}: the passkey works once they are on{% endif %}.
+  An admin makes a link for each person's first passkey under <a href="/accounts">Settings → Family accounts</a>.</p>
+{%- else %}
+<div class="settings">
+<section class="panel" id="yours">
+  <h2>Your passkeys <small>{{ rows|length }}</small></h2>
+  {%- for k in rows %}
+  <div class="passkey-row">
+    <form class="inline-facts" data-api="/api/passkeys/{{ k.id }}/rename">
+      <input name="name" value="{{ k.name }}" maxlength="60" required aria-label="What to call it">
+      <button type="submit">Rename</button>
+    </form>
+    <span class="hint inline">made {{ k.created_at|date(false) }}
+      {%- if k.last_used_at %} · last used {{ k.last_used_at|date(false) }}{% endif %}
+      · {{ "kept in a password manager" if k.synced else "on that phone or computer only" }}
+      {%- if k.id == you.session_passkey %} · you signed in with it here{% endif %}</span>
+    {%- if k.rp_id != domain %}
+    <p class="note">Made for {{ k.rp_id }}, so it doesn't work here any more: the site's address has changed since.
+      Add a new one below, then take this one away.</p>
+    {%- endif %}
+    <p class="actions"><button type="button" class="quiet" data-api="/api/passkeys/{{ k.id }}/remove" data-reload
+      data-confirm="Take away the passkey {{ k.name }}? It stops signing you in, and wherever it signed you in is signed out{% if k.id == you.session_passkey %}, this browser too{% endif %}.">Take it away</button></p>
+  </div>
+  {%- else %}
+  <p class="hint">None yet.</p>
+  {%- endfor %}
+
+  <h3>Add one on this phone or computer</h3>
+  {%- if problem %}
+  <p class="note">Passkeys can't be added just now.
+    {%- if viewer.admin %} {{ problem }}{% else %} Ask whoever looks after the photos.{% endif %}</p>
+  {%- elif not here %}
+  <p class="note">Passkeys work only at {{ origin }}: <a href="{{ origin }}/passkeys">open this page there</a> to
+    add one.</p>
+  {%- elif wait %}
+  <p class="note">{{ wait }}</p>
+  {%- else %}
+  <p data-passkey-able hidden><button type="button" class="primary passkey-button" data-passkey="add">
+    {%- include "_passkey_icon.html" %}<span>Add a passkey</span></button></p>
+  <p class="hint" data-passkey-able hidden>Your phone or computer asks you to unlock it, and keeps the passkey. Add one
+    by {{ until.isoformat()|date }}: for safety a passkey can only be added soon after signing in ({{ minutes }}
+    minutes, or {{ hours }} hours after your very first sign-in).</p>
+  <p class="note" data-passkey-unable hidden>This browser can't make passkeys. Try your phone, or a browser from the
+    last few years (Safari, Chrome, Edge or Firefox).</p>
+  <p class="note problem" id="passkey-said" role="alert" hidden></p>
+  {%- endif %}
+</section>
+</div>
+<p class="hint">A lost phone: take its passkey away here, or ask an admin to. A passkey in a password manager comes
+  back on a new phone signed in to the same account (Apple, Google).</p>
+{%- endif %}
+{% endblock %}

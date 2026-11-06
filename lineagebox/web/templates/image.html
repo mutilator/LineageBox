@@ -188,6 +188,10 @@
       {%- endif %}
       <p class="hint">Certificates, obituaries, letters: family tree programs get them as sources for the people and
       events they are about. Documents are kept out of cleanup's suggestions.</p>
+      {%- if viewer.admin and img.media == "photo" %}
+      <p class="hint"><a href="/family/read?image={{ img.id }}">Read it into the family tree</a>: the AI copies out its
+      text and lists what it would add, for you to tick.</p>
+      {%- endif %}
     </details>
 
     {# what is not needed every time, folded away: the photo's details, its files, and what can be done to it #}

@@ -1,5 +1,6 @@
 """Home: its memories, the newest photos by the day they were taken, the storage meter; the Status page's storage;
 and what pointing at a face shows (the whole photo, with the face's place on it)."""
+import re
 import shutil
 from collections import namedtuple
 from datetime import date, timedelta
@@ -8,12 +9,14 @@ from urllib.parse import parse_qs, urlsplit
 import pytest
 from fastapi.testclient import TestClient
 
-from lineagebox import catalog, memories, people, storage, tours
+from lineagebox import catalog, cleanup, events, family, memories, people, storage, tours
 from lineagebox.ingest import ingest
 from lineagebox.scan import scan
 from lineagebox.web import app as webapp
+from lineagebox.web.routes import home
 from lineagebox.web.routes.home import by_day
 from tests.conftest import LAN, rel, write_jpeg
+from tests.test_access_web import signed_in, site  # noqa: F401 - site is a fixture
 
 APP = {"X-Requested-With": "lineagebox"}
 TODAY = date.today()
@@ -66,6 +69,168 @@ def test_home_shows_the_newest_photos_by_day(dated, cfg, con):
     small = sha(con, undated.fetchone()[0])
     assert small in latest.split("Recently added")[1] and small not in latest.split("Recently added")[0]
     assert 'data-later="/home/memories"' in page
+
+
+def test_a_members_home_shows_her_own_family_first(site, cfg, con):
+    """Cora's parents, partner, brother and sister first; then the rest she sees, without those again. The catalog is
+    mostly the admin's family, whose photos would fill her Home otherwise."""
+    ph, p = site["photos"], site["people"]
+    con.execute("INSERT INTO image_person(image_id, person_id, added_at) VALUES (?, ?, '2026-01-01')",
+                (ph["scenery.jpg"], p["Bella"]))  # her niece: family she sees, but not her own
+    con.commit()
+    page = signed_in(cfg, con, site["who"]["Cora"]).get("/home").text
+    ours, rest = page.split('id="family-latest"')[1].split('id="latest"')
+    assert "Recent photos of your family" in ours and "<h2>Most recent photos</h2>" in rest
+    assert "your closest family: Nell, Rex, Milo, Bart, Sam." in ours  # parents, partner, then brother and sister
+    for name in ("cora_bart.jpg", "rex.jpg", "hank_sam.jpg"):  # her, her father (recognised), her brother
+        assert sha(con, ph[name]) in ours and sha(con, ph[name]) not in rest, name
+    assert sha(con, ph["scenery.jpg"]) not in ours and sha(con, ph["scenery.jpg"]) in rest
+    assert sha(con, ph["hidden.jpg"]) not in page
+    # an admin's Home is as before, and so is a member's who isn't anyone in the tree
+    assert 'id="family-latest"' not in signed_in(cfg, con, site["who"]["Sam"]).get("/home").text
+    con.execute("UPDATE account SET person_id = NULL WHERE id = ?", (site["who"]["Tina"]["id"],))
+    con.commit()
+    assert 'id="family-latest"' not in signed_in(cfg, con, site["who"]["Tina"]).get("/home").text
+    assert [p[n] for n in ("Cora", "Nell", "Rex", "Milo", "Bart", "Sam")] == family.immediate(family.load(con),
+                                                                                              p["Cora"])
+
+
+def test_a_button_for_each_of_her_family_opens_their_own_home(site, cfg, con):
+    ph, p = site["photos"], site["people"]
+    cora = signed_in(cfg, con, site["who"]["Cora"])
+    page = cora.get("/home").text
+    buttons = page.split('class="kin-buttons"')[1].split("</nav>")[0]
+    assert page.index('class="kin-buttons"') < page.index('id="family-latest"')
+    assert re.findall(r'href="/home/person/(\d+)"', buttons) == [str(p[n]) for n in ("Nell", "Rex", "Milo", "Bart",
+                                                                                    "Sam")]
+    assert "<b>Bart</b><small>your sibling</small>" in buttons  # no sex entered: sibling, not brother
+    assert f'<img src="/face/{site["faces"]["cora_bart.jpg"][1]}"' in buttons  # his face; none for those with none
+    bart = cora.get(f"/home/person/{p['Bart']}").text
+    assert "<h1>Bart</h1>" in bart and "your sibling" in bart and "Recent photos of Bart" in bart
+    assert sha(con, ph["cora_bart.jpg"]) in bart and sha(con, ph["rex.jpg"]) not in bart
+    assert f'data-later="/home/person/{p["Bart"]}/memories"' in bart and f'href="/person/{p["Bart"]}"' in bart
+    assert cora.get(f"/home/person/{p['Bart']}/memories").status_code == 200
+    part = cora.get(f"/home/family?before=2011-01-01&person={p['Bart']}").text
+    assert "That's all of them." in part
+    for hidden in (p["Zed"], p["Hank"]):  # not hers to see
+        assert cora.get(f"/home/person/{hidden}").status_code == 404
+        assert cora.get(f"/home/family?before=2030-01-01&person={hidden}").status_code == 404
+    assert "Recent photos of you" in cora.get(f"/home/person/{p['Cora']}").text
+
+
+def test_older_photos_of_her_family_however_long_ago(site, cfg, con, monkeypatch):
+    """Show older photos of your family goes back a few days at a time, to the first."""
+    monkeypatch.setattr(home, "FAMILY", 1)
+    monkeypatch.setattr(home, "FAMILY_MOST", 1)
+    monkeypatch.setattr(home, "FAMILY_MORE", 1)
+    ph = site["photos"]
+    cora = signed_in(cfg, con, site["who"]["Cora"])
+    ours = cora.get("/home").text.split('id="family-latest"')[1].split('id="latest"')[0]
+    assert sha(con, ph["hank_sam.jpg"]) in ours and sha(con, ph["rex.jpg"]) not in ours
+    url = re.search(r'data-append="([^"]+)"', ours).group(1).replace("&amp;", "&")
+    assert url == "/home/family?before=2013-05-04&month=2013-05"
+    part = cora.get(url).text
+    assert sha(con, ph["rex.jpg"]) in part and "<html" not in part and '<h3 class="month">May 2011</h3>' in part
+    part = cora.get(re.search(r'data-append="([^"]+)"', part).group(1).replace("&amp;", "&")).text
+    assert sha(con, ph["cora_bart.jpg"]) in part and "That's all of them." in part
+    # the photos above were from another May: its name isn't said twice
+    assert "May 2010" in cora.get("/home/family?before=2011-05-02&month=2011-06").text
+    assert "May 2010" not in cora.get("/home/family?before=2011-05-02&month=2010-05").text
+    assert cora.get("/home/memories").status_code == 200
+
+
+def test_a_members_memories_are_her_familys_days(con, cfg, library):
+    """Runs of days with photos of her family, however long ago, named by a life event on those days, the tags on
+    them, or else their days and who is in them; the newest first."""
+    days = {"wed": date(2012, 6, 16), "xmas": date(2018, 12, 24), "married": date(2020, 7, 4),
+            "plain": TODAY - timedelta(days=400)}
+    for n, (key, day) in enumerate(days.items()):
+        for i in range(5):
+            write_jpeg(library / "Family" / f"{key}{i}.jpg", size=(150, 100), color=(40 * n, 30 * i, 120),
+                       taken=f"{day:%Y:%m:%d} 1{i}:00:00")
+    scan(con, cfg)
+    ingest(con, cfg)
+    con.execute("UPDATE image SET sharpness = 100")
+    ana, tom, ruth, grace = (people.person_id(con, n) for n in ("Ana Miller", "Tom Miller", "Ruth Miller",
+                                                                 "Grace Baker"))
+    family.link(con, ana, "husband", tom)
+    family.link(con, ana, "daughter", ruth)
+    family.link(con, ana, "mother", grace)
+    events.save(con, None, tag="MARR", couple=(ana, tom), date_text="2020-07-04")
+    plain = days["plain"]
+    events.save(con, None, tag="DEAT", person_id=grace, date_text=plain.isoformat())  # her photos that day: a beach
+    events.save(con, None, tag="GRAD", person_id=tom, date_text="2018-12-24")  # he isn't in them: Christmas still
+    photo = lambda key, i: con.execute("SELECT image_id FROM file WHERE path = ?",  # noqa: E731
+                                       (rel("Family", f"{key}{i}.jpg"),)).fetchone()[0]
+    for key in days:
+        for i in range(5):
+            con.execute("INSERT INTO image_person(image_id, person_id, added_at) VALUES (?, ?, '2026-01-01')",
+                        (photo(key, i), ruth if key == "wed" else ana))
+    for name, key, n in (("wedding", "wed", 3), ("Christmas", "xmas", 2), ("beach", "plain", 5)):
+        tag = con.execute("INSERT INTO tag(name) VALUES (?)", (name,)).lastrowid
+        for i in range(n):
+            con.execute("INSERT INTO image_tag(image_id, tag_id, source) VALUES (?, ?, 'user')", (photo(key, i), tag))
+    con.commit()
+    kin = family.immediate(family.load(con), ana)
+    assert kin == [ana, grace, tom, ruth]
+    found = memories.family_occasions(con, kin, TODAY)
+    assert [(m["title"], m["sub"]) for m in found] == [
+        (f"{plain:%B} {plain.day}, {plain.year}", "With Ana · 5 photos"),
+        ("Ana Miller and Tom Miller's wedding", "July 4, 2020 · 5 photos"),
+        ("Christmas 2018", "December 24, 2018 · 5 photos"),
+        ("Ruth Miller's wedding", "June 16, 2012 · 5 photos")]
+    assert all(m["href"].startswith("/tours/try?") and m["count"] == 5 for m in found)
+    assert [m["why"] for m in found] == [
+        "", "the family tree has Ana Miller and Tom Miller's wedding on these days, and Ana Miller is in 5 of the 5 "
+            "photos", "2 of the 5 photos are tagged christmas",
+        "3 of the 5 photos are tagged wedding, and Ruth Miller is in 5 of them"]
+    # a death names a day only when its photos are of the funeral
+    funeral = con.execute("INSERT INTO tag(name) VALUES ('funeral')").lastrowid
+    for i in range(2):
+        con.execute("INSERT INTO image_tag(image_id, tag_id, source) VALUES (?, ?, 'user')",
+                    (photo("plain", i), funeral))
+    con.commit()
+    assert memories.family_occasions(con, kin, TODAY)[0]["title"] == "Remembering Grace Baker"
+    assert memories.years_ago(con, TODAY, people=kin) == []  # none of them this week in other years
+    assert memories.family_occasions(con, [grace], TODAY) == []  # nothing of her mother alone
+
+
+def test_in_a_year_of_everyday_photos_only_the_busiest_days_are_events():
+    start = date(2025, 1, 1)
+    days = {start + timedelta(days=2 * k): [k] * 3 for k in range(40)}  # three photos every other day
+    days |= {date(2025, 6, 14): [1] * 8, date(2025, 6, 15): [2] * 7,  # a weekend: one event
+             date(2025, 7, 4): [3] * 5,  # a little busier than usual: not one
+             date(2025, 12, 25): [4] * 9}
+    assert [(r["first"], r["last"], len(r["ids"])) for r in memories.grouped(days)] == [
+        (date(2025, 6, 14), date(2025, 6, 15), 15), (date(2025, 12, 25), date(2025, 12, 25), 9)]
+    # a few days with photos: any of them, a day without allowed
+    few = {date(2012, 6, 16): [1] * 3, date(2012, 6, 18): [2] * 2, date(2012, 9, 1): [3] * 2}
+    assert [(r["first"], r["last"]) for r in memories.grouped(few)] == [(date(2012, 6, 16), date(2012, 6, 18))]
+
+
+def test_each_year_on_the_timeline_has_its_events(dated, cfg, con):
+    """The two latest years show their events at once; the others load theirs when pointed at. An event is a run of
+    days with photos, named by the tags on them, or by its days."""
+    tag = con.execute("INSERT INTO tag(name) VALUES ('wedding')").lastrowid
+    for i in range(3):
+        con.execute("INSERT INTO image_tag(image_id, tag_id, source) VALUES (?, ?, 'user')",
+                    (dated[f"ago5_{i}.jpg"], tag))
+    con.commit()
+    client = TestClient(webapp.create_app(cfg), client=LAN)
+    page = client.get("/timeline").text
+    years = re.findall(r'<details class="year-glance" data-glance( open)?>\s*'
+                       r'<summary><a class="year" href="/timeline/(\d+)"', page)
+    assert [y for _, y in years] == sorted((y for _, y in years), reverse=True) and len(years) > 3
+    assert [bool(o) for o, _ in years] == [True, True] + [False] * (len(years) - 2)
+    first, other = years[0][1], years[3][1]
+    assert f'data-later="/timeline/{first}/events"' in page and f'data-on-open="/timeline/{other}/events"' in page
+    events = client.get(f"/timeline/{FIVE_AGO.year}/events").text
+    assert "<html" not in events and f"<b>A wedding, {FIVE_AGO.year}</b>" in events and "5 photos" in events
+    href = re.search(r'class="event-card" href="([^"]+)"', events).group(1).replace("&amp;", "&")
+    assert client.get(href).status_code == 200 and sha(con, dated["ago5_0.jpg"]) in client.get(href).text
+    three_ago = memories._same_day(TODAY, TODAY.year - 3).year
+    assert "No events in" in client.get(f"/timeline/{three_ago}/events").text  # two photos: not an event
+    assert 'data-later="/timeline/' in client.get(f"/timeline/{FIVE_AGO.year}").text  # the year's own page too
 
 
 def test_memories_from_this_week_in_earlier_years(dated, cfg, con):
@@ -125,6 +290,17 @@ def test_storage(dated, cfg, con, monkeypatch):
     status = client.get("/status").text
     assert 'id="storage"' in status and "Photos and videos" in status and storage.fmt_size(measured) in status
     assert "running low" not in status
+    # a photo moved to Removed is counted as removed until the Removed folder is emptied
+    gone = con.execute("SELECT id, size FROM file WHERE path = ?", (rel("Dated", "earlier.jpg"),)).fetchone()
+    assert cleanup.remove_files(con, cfg, [gone["id"]], "a test", keep_last_copy=False).moved == 1
+    disk = storage.disks(con, cfg)[0]
+    assert (disk["photos"], disk["removed"]) == (files - gone["size"], gone["size"])
+    status = TestClient(webapp.create_app(cfg), client=LAN).get("/status").text
+    assert "Removed files" in status and f'<a href="/cleanup/removed"' in status
+    assert storage.fmt_size(gone["size"]) in client.get("/cleanup/removed").text
+    cleanup.empty_removed(con, cfg)
+    assert storage.disks(con, cfg)[0]["removed"] == 0
+    files -= gone["size"]
     tb = 2**40
     monkeypatch.setattr(shutil, "disk_usage", lambda path: Usage(tb, tb - 5 * 2**30, 5 * 2**30))
     low = storage.disks(con, cfg)[0]

@@ -214,7 +214,7 @@ def cmd_check_files(con, cfg, args):
 
 def cmd_accounts(con, cfg, args):
     """Family accounts from the command line: the first admin, and getting in when the web page can't be used."""
-    from lineagebox import accounts
+    from lineagebox import accounts, passkeys
 
     def account():
         row = accounts.by_email(con, args.email or "")
@@ -259,10 +259,25 @@ def cmd_accounts(con, cfg, args):
                   f"{' '.join(secret[i:i + 4] for i in range(0, len(secret), 4))}  (time based)\n"
                   f"  Or as a link: {accounts.setup_uri(secret, row['email'])}\n"
                   "Keep the key somewhere safe; running this again makes a new one and the old one stops working.")
+        elif args.action == "invite":
+            row = account()
+            token, until = passkeys.make_invite(con, row["id"], None, cfg)
+            print(f"Link for making a passkey for {row['email']}, until {until:%Y-%m-%d %H:%M}:\n"
+                  f"  {passkeys.invite_link(cfg, token)}\n"
+                  "Open it on their own phone or computer. It works once; running this again makes a new one and "
+                  "this one stops working.")
+        elif args.action == "passkeys":
+            row = account()
+            keys = passkeys.of_account(con, row["id"])
+            for k in keys:
+                used = f", last used {k['last_used_at'][:16]}" if k["last_used_at"] else ""
+                print(f"{k['name']:30} made {k['created_at'][:16]}{used}, for {k['rp_id']}")
+            print(f"{len(keys)} passkey{'' if len(keys) == 1 else 's'} for {row['email']}. Take one away on Settings → "
+                  "Family accounts, or switch the account off.")
         elif args.action in ("on", "off"):
             settings.save(con, cfg, {"accounts_enabled": args.action == "on"})
             print(f"Family accounts are {args.action}: the web app follows within a few seconds.")
-    except (accounts.Problem, settings.Invalid) as e:
+    except (accounts.Problem, passkeys.Problem, settings.Invalid) as e:
         sys.exit(f"LineageBox: {e}")
 
 
@@ -312,9 +327,10 @@ def main(argv=None):
     sub.add_parser("updater", help="install newer images when an admin asks on the Status page (the Docker updater "
                                    "service; it needs the Docker socket)")
     p = sub.add_parser("accounts", help="family accounts: list, add, switch off, sign out; an admin's code for "
-                                        "signing in at home without the internet; turn accounts on or off")
-    p.add_argument("action", choices=["list", "add", "disable", "enable", "remove", "sign-out", "local-code", "on",
-                                      "off"])
+                                        "signing in at home without the internet; a link for making a passkey, "
+                                        "and the passkeys made; turn accounts on or off")
+    p.add_argument("action", choices=["list", "add", "disable", "enable", "remove", "sign-out", "local-code", "invite",
+                                      "passkeys", "on", "off"])
     p.add_argument("email", nargs="?", help="the account's email address")
     p.add_argument("--admin", action="store_true", help="with add: an admin, who sees and changes everything")
     p.add_argument("--person", help="with add: who they are in the family tree, by name")

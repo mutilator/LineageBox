@@ -59,6 +59,17 @@ def test_every_route_has_a_rule(cfg):
     assert set(webapp.ROUTES) - paths == set(), "rules for routes that don't exist"
 
 
+def test_the_accounts_page_folds_each_account_away(site, cfg, con):
+    """Add an account first, a search box, and each account folded under its person's name: Sam (admin) first."""
+    page = signed_in(cfg, con, site["who"]["Sam"]).get("/accounts").text
+    section = page.split('id="accounts"')[1].split("</section>")[0]
+    assert section.index("Add an account") < section.index('data-filter=".account-row"') < section.index("<details")
+    rows = re.findall(r'<details class="account-row" id="a(\d+)" data-keep-open\s+data-text="([^"]*)">\s*'
+                      r'<summary><b>([^<]+)</b>', section)
+    assert [(int(i), name) for i, _, name in rows] == [(site["who"][n]["id"], n) for n in ("Sam", "Cora", "Tina")]
+    assert "cora@example.com member" in rows[1][1] and " open" not in section.split("<summary>")[0]
+
+
 def test_nobody_gets_in_without_signing_in(site, cfg, con):
     for where in (LAN, OUTSIDE):  # at home too, once accounts are on
         c = TestClient(webapp.create_app(cfg), client=where, follow_redirects=False)
@@ -125,7 +136,7 @@ def _urls(app, con, site):
         "year": [r[0] for r in con.execute("SELECT DISTINCT CAST(substr(taken_at, 1, 4) AS INT) FROM image")],
         "name": [r[0] for r in con.execute("SELECT name FROM tag")] + ["nothing"],
         "sha": [r[0] for r in con.execute("SELECT sha256 FROM image")],
-        "value": ["gps", "videos", "format/jpeg"], "import_id": [1], "kind": ["papers"], "type_id": ["new", "1"],
+        "value": ["gps", "videos", "format/jpeg"], "import_id": [1], "reading_id": [1], "kind": ["papers"], "type_id": ["new", "1"],
         "part": list(cleanup_routes.COUNTS),
     }
     out = []
@@ -142,7 +153,8 @@ def _urls(app, con, site):
             out.append(template.format(**{first: value, **{k: 0 for k in rest}}))
     queries = [f"/search?q={n}" for n in fx.PEOPLE + [fx.SECRET, "party"]]
     queries += [f"/family?center={i}" for i in site["people"].values()]
-    queries += [f"/family?root={i}" for i in site["people"].values()]
+    queries += [f"/family/tree?root={i}" for i in site["people"].values()]
+    queries += [f"/family/tree?person={i}" for i in site["people"].values()]
     queries += [f"/image/{i}?ctx=person:{p}" for i in ids["image_id"][:3] for p in site["people"].values()]
     # tours not saved yet (Home's memories): of everyone's photos, and of each person
     queries += [memories.try_href({"spec": {"title": "Everything", "media": "both"}})]
@@ -291,6 +303,7 @@ def test_the_write_sweep(site, cfg, con):
         ("/api/family/link", {"a": cora, "b": zp, "what": "father"}),
         ("/api/family/current", {"a": zp, "b": p["Zoe"], "what": "former"}),
         (f"/api/people/{zp}/rename", {"name": "Someone"}), (f"/api/people/{bart}/merge", {"into": cora}),
+        (f"/api/people/{zp}/remove", None), (f"/api/people/{cora}/remove", None),
         (f"/api/people/{zp}/faces", {"yes": [], "no": []}),
         (f"/api/people/{cora}/faces", {"yes": [zface], "no": []}),
         (f"/api/faces/{zface}/name", {"name": "Cora"}), (f"/api/faces/{hank_face}/name", {"name": "Cora"}),

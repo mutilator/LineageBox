@@ -127,7 +127,7 @@
   <p class="actions">
     {%- if ego != person.id and not signed_in %}<button type="button" class="quiet" data-api="/api/family/me" data-body='{"person_id": {{ person.id }}}' data-reload
       {%- if ego %} data-confirm="Make {{ person.name }} the person everyone's relationship is worked out from (now {{ g.name(ego) }})?"{% endif %}>This is me</button>{% endif %}
-    <a href="/family?root={{ tree_root }}" data-key="t">Show in the family tree</a>
+    <a href="/family/tree?root={{ tree_root }}&amp;person={{ person.id }}" data-key="t">Show in the family tree</a>
   </p>
 </details>
 
@@ -187,4 +187,12 @@
 
 <h2>Photos</h2>
 {{ m.grid(images, ctx) }}
+{%- if removable %}
+<p class="danger-zone">
+  <button type="button" class="danger" data-api="/api/people/{{ person.id }}/remove" data-then="/people"
+    data-confirm="Remove {{ person.name }} from the family tree? Their family links, life events and other names go with them. This can't be undone.">Remove {{ person.name }}…</button>
+  <span class="hint inline">For someone added by mistake (by reading a notice into the tree, say). Their family
+  links, life events and other names go with them.</span>
+</p>
+{%- endif %}
 {% endblock %}

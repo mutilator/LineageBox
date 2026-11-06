@@ -1,0 +1,37 @@
+{#- Home's photos by the day they were taken. by_day: level is the months' headings (h2 alone on the page, h3 under
+    a section's), the days' one below. On its own (/home/family), the next older photos of a member's family, with
+    the button for the ones before those. #}
+{% macro by_day(days, level) %}
+<div class="days">
+  {%- for d in days %}
+  {%- if d.month %}
+  <h{{ level }} class="month">{{ d.month }}</h{{ level }}>
+  {%- endif %}
+  <section class="day">
+    <h{{ level + 1 }}>{{ d.label }}</h{{ level + 1 }}>
+    <div class="day-tiles">
+      {%- for im in d.photos %}
+      <a class="tile" href="/image/{{ im.id }}?ctx={{ ('year:' ~ im.taken_at[:4])|urlencode }}" style="--r: {{ im.ratio }}" title="{{ im.taken_at|date }}">
+        <img src="/t/{{ im.sha256 }}" loading="lazy" alt="{{ 'Video' if im.media == 'video' else 'Photo' }} from {{ im.taken_at|date(false) }}">
+        {%- if im.media == "video" %}<span class="badge video" title="Video">▶ {{ im.duration|duration }}</span>{% endif %}
+        {%- if date_source_label[im.taken_at_source] %}<span class="badge" title="{{ date_source_label[im.taken_at_source] }}">≈</span>{% endif %}
+      </a>
+      {%- endfor %}
+    </div>
+  </section>
+  {%- endfor %}
+</div>
+{% endmacro %}
+
+{#- the button for a member's family's older photos, or one person's (person: their id, label: the button's words):
+    what it loads takes its place #}
+{% macro older_button(days, person=none, label="Show older photos of your family") %}
+{%- set last = days[-1].day %}
+<p class="more-part"><button type="button" data-append="/home/family?before={{ last.isoformat() }}&amp;month={{ last.strftime('%Y-%m') }}
+  {%- if person %}&amp;person={{ person }}{% endif %}" data-busy="Looking…">{{ label }}</button></p>
+{% endmacro %}
+
+{%- if part %}
+{{ by_day(days, 3) }}
+{%- if older %}{{ older_button(days, person, "Show older photos" if person else "Show older photos of your family") }}{% else %}<p class="hint more-part">That's all of them.</p>{% endif %}
+{%- endif %}

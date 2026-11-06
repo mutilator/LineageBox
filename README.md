@@ -12,7 +12,7 @@ It reads the photo folders you already have and recognizes the faces in them. Ev
 in your tree: open a great-grandmother's page and see her family, her life events, her birth certificate and every
 photo she's in.
 
-Then the family comes in. Relatives sign in with their Google account and see **their own branch**: their ancestors,
+Then the family comes in. Relatives sign in with their Google account or a passkey and see **their own branch**: their ancestors,
 their blood relatives and those relatives' partners, and the photos those people are in. They can name faces, fill in
 what they remember, add relatives and upload their own photos. Everything stays on your own hardware. The AI runs
 locally, nothing is uploaded to a cloud service, and LineageBox never changes your files unless you ask.
@@ -59,10 +59,14 @@ The guides go step by step:
 
 - **A family tree built from facts.** Enter parents, partners and siblings. LineageBox works out every other
   relationship (great-aunt, second cousin once removed, step-brother, former sister-in-law) from anyone's point of
-  view. Relationships work in search: "cousins 2019", "grandma christmas".
+  view. Relationships work in search: "cousins 2019", "grandma christmas". The whole line down from any ancestor
+  can be moved around and zoomed, and saved as one large picture.
 - **Life events and documents.** Births, marriages, moves and deaths, with dates as exact as you know them ("about
   1950"). Mark a photo of a certificate, an obituary or a letter as a document, and link it to the person or event it
   records.
+- **Reads obituaries and notes into the tree.** Paste an obituary, an announcement or notes, or add photos of one:
+  the local AI lists the people it names and what it says of them, matched to the people you have, as changes you
+  tick one by one.
 - **Works with genealogy software.** It imports and exports GEDCOM 7.0 and 5.5.1, for Ancestry, FamilySearch,
   MyHeritage, Gramps and the like, with portraits cropped from faces. Imported people are matched to the people you
   already have, and you check every match.
@@ -70,7 +74,9 @@ The guides go step by step:
 
 ### Shared with the family
 
-- **Sign in with Google.** You invite relatives by email address. No passwords to manage, and no sign-up page.
+- **Sign in with Google, or a passkey.** You invite relatives by email address. Those without a Google account get a
+  link that makes a passkey: they sign in with their phone's or computer's own lock. No passwords to manage, and no
+  sign-up page.
 - **Everyone sees their own branch.** Each relative sees their part of the tree and the photos its people are in.
   Partners see the same family. Admins see everything and can make exceptions.
 - **The whole family contributes.** Relatives name faces, fix dates, add relatives and events, and upload photos,
@@ -107,7 +113,8 @@ The guides go step by step:
   They can be in a local folder or on a network share (SMB). HEIC photos (iPhones' default) and other cameras' raw
   formats aren't read yet.
 - **For family accounts:** a domain name that reaches your home, HTTPS (a reverse proxy such as Caddy is easiest),
-  and a free Google sign-in client from Google Cloud. [Family accounts](docs/family-accounts.md) walks through it.
+  and a free Google sign-in client from Google Cloud, or passkeys alone. [Family accounts](docs/family-accounts.md)
+  walks through it.
 
 Every AI feature can be switched off, and the rest keeps working.
 

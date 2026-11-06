@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Read into the family tree{% endblock %}
+{% block main %}
+<nav class="crumbs"><a href="/family">Family</a><span class="sep">/</span><h1>Read into the family tree</h1></nav>
+<p class="meta">{% include "_family_read_about.html" %}</p>
+{% include "_family_read_form.html" %}
+{% endblock %}

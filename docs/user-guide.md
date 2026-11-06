@@ -28,25 +28,44 @@ Enter only facts on each person's page: parents, children, siblings, partners (c
 relationships such as friends, teachers or pets. LineageBox works out the rest (grandparents, nieces, in-laws,
 step-family) relative to the person marked **This is me**. Those words work in search, too.
 
-- The **Family** page shows a family tree. Each person's page lists their whole family from their own point of view.
+- The **Family** page shows the family around one person, starting with you; click anyone to put them in the middle.
+  Below it, folded away, are everyone by relationship (point at a group to see who is in it, or click it to keep it
+  open), friends and pets, groups, and the people not placed yet. Each person's page lists their whole family from
+  their own point of view.
+- **View in classic family tree style** opens the whole line down from one ancestor on a page of its own: drag to
+  move around the tree, scroll or pinch to zoom, and **Save as a picture** downloads the whole tree as one large PNG.
 - **Life events** (births, weddings, moves, graduations) are on each person's page, with dates as exact as you know
   them ("about 1950").
 - **Groups** hold people who aren't family: the kids' friends, family friends, a band from a concert. Groups are
   filters on the People page, and searchable.
 - **Documents:** mark a photo of a certificate, an obituary or a letter as a document, and link it to the person or
   event it records.
-- **Export** writes the tree as GEDCOM, for Ancestry, FamilySearch, MyHeritage, Gramps and the like: GEDCOM 7.0, or
-  5.5.1 for older programs. You can include each person's portrait, cropped to their face (a GEDZIP), and leave out
-  living people's details for sharing.
-- **Bring in a family tree** reads a GEDCOM file and matches its people with yours, by ID, names, birth years and
-  relatives, with the AI's opinion on the unsure ones. You check every match before anything is added, and nothing you
-  entered is overwritten.
+- **Export** (at the bottom of the Family page) writes the tree as GEDCOM, for Ancestry, FamilySearch, MyHeritage,
+  Gramps and the like: GEDCOM 7.0, or 5.5.1 for older programs. You can include each person's portrait, cropped to
+  their face (a GEDZIP), and leave out living people's details for sharing.
+- **Import** brings in a family tree: it reads a GEDCOM file and matches its people with yours, by ID, names, birth
+  years and relatives, with the AI's opinion on the unsure ones. You check every match before anything is added, and
+  nothing you entered is overwritten.
+- **Read into the family tree** (at the top of the Family page, or a document photo's page) takes an obituary, a
+  wedding or birth announcement, a letter or notes, pasted in or as photos, and the AI lists what it would add: new
+  people, other names, life events, parents, partners. Each change is a box to tick. People already in the tree are
+  found through their relatives ("his wife Kathy" is the wife the tree has, whatever her first name there), and you
+  can pick someone else, add them as new or leave them out. Where the text and the tree disagree, the change is
+  offered unticked, with what the tree has. Relatives the text doesn't place (grandchildren whose parents it doesn't
+  name) are listed, not added. Your ticks are kept as you click them. Once you make the ticked changes, the page shows
+  only what changed, and someone added by mistake can be removed from the tree right there; reading it again lists
+  what you left unticked once more. It needs the AI (Ollama) on; it takes a minute or two (the page shows an
+  hourglass meanwhile), and a long obituary is read in two halves.
+- **Remove** (at the bottom of a person's page, for admins) takes someone added by mistake out of the tree, with
+  their family links, life events and other names. It is offered only for someone in no photos and without an
+  account: for a face named wrongly, use **Check faces** or **Merge** instead.
 
 Keys on a person's page: `b` birth date, `e` add a life event, `1`–`9` change one, `r` add a relative.
 
 ### Sharing with the family
 
-With [family accounts](family-accounts.md), relatives sign in with Google and see their own branch of the tree and the photos
+With [family accounts](family-accounts.md), relatives sign in with Google or a passkey (the lock of their own phone or
+computer, from a link an admin sends them) and see their own branch of the tree and the photos
 its people are in. They name faces, add relatives and events, fix dates and upload their own photos. **Who is this?**
 on a face asks everyone who can see the photo, and those faces lead their Home page. Admins see every change under
 **Cleanup → Recent changes**, with undo.
@@ -77,11 +96,18 @@ Examples: "goat", "emma zoo 2012", "christmas tree", "happy birthday". Results a
   making (a birthday coming up, someone through the years, a holiday) and a few of your own tours. They change from
   day to day; one opens like a tour, and **Keep as a tour** saves it. Below come faces someone asked about, what
   others shared with you, then the newest photos by the day they were taken (Yesterday, Tuesday, then by month),
-  older photos added lately, and your own uploads. Admins also see how full the disk is.
+  older photos added lately, and your own uploads. A relative with a family account sees the newest photos of
+  themselves and their closest family (parents, partner, brothers and sisters, children) first, however long ago they
+  were taken, with **Show older photos of your family** to go further back, and then the rest. Their memories start
+  with their family's biggest days of photos and the latest, each named by a life event on those days, the event
+  its folder is named for, or what its photos show (a wedding, Christmas). Admins also see how full the disk is.
 - **Folders** shows the watched folders as they are on disk. A photo with copies in several folders shows in each.
   At the top of a folder, **Sharing and removing** shares it with family accounts or moves the whole folder to
   Removed (for a family member: a folder of their own uploads).
-- **Timeline** shows every year with photos. Its bars show January to December, so busy and quiet months stand out.
+- **Timeline** shows every year with photos, each with its events: its biggest days of photos, named by what they
+  were (a wedding, a birthday, the event a folder is named for) or by their dates. The two latest years show theirs;
+  point at another to see its events, and click one to see its photos. Its bars show January to December, so busy
+  and quiet months stand out.
 - **Map** shows where photos were taken, from their GPS or from a place in their folder's name, along with family
   events that have a place. A slider picks the year.
 - **Tags** lists every keyword the AI or you have given, with photo counts and a filter box. A tag's page shows its
@@ -190,8 +216,9 @@ Any search result has **Select photos to remove**.
 - downloads (face models, Ollama models, Whisper models);
 - red notes when something needs attention, such as Ollama not answering or a model that can't look at pictures;
 - **Storage**: how full each disk is that holds the watched folders or LineageBox's data folder, and how much of it
-  is photos and videos, LineageBox's previews and catalog (measured once a day), and other files. It turns red when
-  less than a tenth, or less than 20 GB, is free.
+  is photos and videos, removed files waiting in the Removed folders (emptying them gives that back), LineageBox's
+  previews and catalog (measured once a day), and other files. It turns red when less than a tenth, or less than
+  20 GB, is free.
 
 It refreshes itself every 10 seconds. The numbers link to their photos (all with GPS, all dated by file time, each
 format), and pointing at a line says what it counts. **Check now** starts a worker pass at once.
@@ -223,10 +250,11 @@ The menu at the side shows one part at a time (on a phone, it is above the setti
 - **Tours:** the kinds of tour.
 - **Cleanup:** the Blank and blurry cut-off, and how sure Turned photos must be.
 - **Browsing:** how long to point at a photo before it shows larger (0 turns that off).
-- **Address and HTTPS:** host names, the reverse proxy and the HTTPS certificate ([remote access](remote-access.md)).
+- **Address and HTTPS:** host names, the reverse proxy and the HTTPS certificate ([remote access](remote-access.md)),
+  and whether passkeys can be set up.
 - **Updates:** whether to look for a newer version once a day.
-- **Family accounts:** **Accounts and sign-in**, and **Codes for signing in at home**, when accounts are used
-  ([family accounts](family-accounts.md)).
+- **Family accounts:** **Accounts and sign-in** (with each account's passkeys and passkey links), and **Codes for
+  signing in at home**, when accounts are used ([family accounts](family-accounts.md)).
 
 ## Keyboard
 

@@ -197,6 +197,37 @@ def merge(con: sqlite3.Connection, pid: int, into: int) -> int:
     return into
 
 
+def why_kept(con: sqlite3.Connection, pid: int) -> str | None:
+    """Why someone can't be removed (remove), or None when they can. Someone named in photos stays: removing them
+    would take their name off every face quietly (Check faces, or merging them, does that knowingly). So does
+    someone with an account, which shows the family from them."""
+    name = (con.execute("SELECT name FROM person WHERE id = ?", (pid,)).fetchone() or ["They"])[0]
+    if con.execute("""SELECT EXISTS (SELECT 1 FROM face WHERE person_id = :p)
+                             OR EXISTS (SELECT 1 FROM image_person WHERE person_id = :p)""", {"p": pid}).fetchone()[0]:
+        return (f"{name} is named in photos, so stays: take their name off those faces first (Check faces on their "
+                f"page), or merge them into whoever they are.")
+    account = con.execute("SELECT email FROM account WHERE person_id = ?", (pid,)).fetchone()
+    if account:
+        return f"{name} has an account ({account[0]}): remove it first (Settings, Accounts)."
+    return None
+
+
+def remove(con: sqlite3.Connection, pid: int) -> str:
+    """Take someone added by mistake (by a reading, an import or by hand) out of the catalog. Their family links,
+    life events, other names, groups and citations go with them (ON DELETE CASCADE); tours that picked them leave
+    them out, and "This is me" is cleared if it was them. Returns their name. Commits."""
+    row = con.execute("SELECT name FROM person WHERE id = ?", (pid,)).fetchone()
+    if row is None:
+        raise Problem("They were removed already.")
+    if why := why_kept(con, pid):
+        raise Problem(why)
+    tours.forget(con, pid)
+    con.execute("DELETE FROM settings WHERE key = 'me' AND value = ?", (str(pid),))
+    con.execute("DELETE FROM person WHERE id = ?", (pid,))
+    con.commit()
+    return row[0]
+
+
 # ---- groups: people who aren't family, by what they are ------------------------------------------------------------
 
 GROUP_SUGGESTIONS = ("Family friends", "Friends", "Kids' friends", "Teachers", "Coaches", "Classmates", "Coworkers",

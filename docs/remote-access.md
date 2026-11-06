@@ -22,6 +22,9 @@ To use a name of your own, such as one for HTTPS with a real certificate, list i
 names**: `photos.example.com`, or `*.example.com` for every name under it. `ALLOWED_HOSTS` in `.env` gives the starting
 list. The page won't save a list that leaves out the name you opened it by, so you can't lock yourself out.
 
+[Passkeys](family-accounts.md#passkeys-signing-in-without-google) need the name listed exactly, and no `*` name in the
+list: a passkey belongs to one name, and browsers use it only there, over HTTPS with a certificate they trust.
+
 ## HTTPS with a reverse proxy (recommended)
 
 Caddy, Traefik, nginx, Nginx Proxy Manager and NAS reverse proxies handle certificates and their renewal. With Caddy:

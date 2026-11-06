@@ -4,7 +4,7 @@
 <div class="memories-wrap">
   <div class="memories" id="memory-row">
     {%- for x in memories %}
-    <a class="memory" href="{{ x.href }}" title="{{ x.title }}: {{ x.sub }}">
+    <a class="memory" href="{{ x.href }}" title="{{ x.title }}: {{ x.sub }}{% if x.why %}. Named so because {{ x.why }}.{% endif %}">
       <img src="/t/{{ x.cover }}" alt="" loading="lazy">
       <span class="memory-text"><b>{{ x.title }}</b><span>{{ x.sub }}</span></span>
     </a>

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% from "_home_days.html" import by_day, older_button %}
+{% block title %}{{ who.name }}{% endblock %}
+{% block main %}
+{#- Home as it would be of one person: their memories, then their newest photos, however long ago (routes/home.py). #}
+<nav class="crumbs"><a href="/home">Home</a><span class="sep">/</span><h1>{{ who.name }}</h1>
+  {%- if you %}<span class="kin-badge">you</span>{% elif kin_word %}<span class="kin-badge">your {{ kin_word }}</span>{% endif %}</nav>
+<p class="meta"><a href="/person/{{ who.id }}">{{ "Your" if you else who.name.split()[0] ~ "'s" }} page</a>: family, life
+  events and every photo.</p>
+
+<div id="memories" data-later="/home/person/{{ who.id }}/memories"><p class="hint loading">Looking for memories…</p></div>
+
+<section class="home-feed" id="person-latest">
+  <h2>Recent photos of {{ "you" if you else who.name.split()[0] }}</h2>
+  {%- if days %}
+  {{ by_day(days, 3) }}
+  {%- if older %}{{ older_button(days, who.id, "Show older photos") }}{% endif %}
+  {%- else %}
+  <p class="note">No photos of {{ "you" if you else who.name }} with a day they were taken yet.</p>
+  {%- endif %}
+</section>
+{% endblock %}

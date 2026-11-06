@@ -1,0 +1,23 @@
+{#- A year's events (memories.year_events): its biggest runs of days with photos, each opening its photos as a tour.
+    Loaded after the page: on the Timeline (the two latest years at once, the others when pointed at) and on the
+    year's own page. #}
+{%- if events %}
+<div class="events-wrap">
+<div class="year-events-list" id="events-{{ year }}">
+  {%- for x in events %}
+  <a class="event-card" href="{{ x.href }}" title="{{ x.title }}: {{ x.sub }}{% if x.why %}. Named so because {{ x.why }}.{% endif %}">
+    <img src="/t/{{ x.cover }}" alt="" loading="lazy">
+    <span class="event-text"><b>{{ x.title }}</b>
+      {%- if x.named %}<span>{{ x.when }}</span>{% elif x.who %}<span>With {{ x.who }}</span>{% endif %}
+      <span>{{ x.what }}</span></span>
+  </a>
+  {%- endfor %}
+</div>
+{%- if events|length > 4 %}
+<button type="button" class="scroll back" data-scroll="#events-{{ year }}" data-by="-1" aria-label="Earlier events">‹</button>
+<button type="button" class="scroll on" data-scroll="#events-{{ year }}" data-by="1" aria-label="Later events">›</button>
+{%- endif %}
+</div>
+{%- else %}
+<p class="hint">No events in {{ year }}: days with {{ least }} photos or more make one.</p>
+{%- endif %}

@@ -518,6 +518,16 @@ def merge(con: sqlite3.Connection, old: int, new: int) -> None:
                 con.execute(f"UPDATE {table} SET spec = ? WHERE id = ?", (json.dumps(spec), r["id"]))
 
 
+def forget(con: sqlite3.Connection, pid: int) -> None:
+    """Tours and tour types that pick pid leave them out, before pid is removed from the catalog."""
+    for table in ("tour", "tour_type"):
+        for r in con.execute(f"SELECT id, spec FROM {table}").fetchall():
+            spec = json.loads(r["spec"])
+            if pid in spec["who"]["person_ids"]:
+                spec["who"]["person_ids"] = [p for p in spec["who"]["person_ids"] if p != pid]
+                con.execute(f"UPDATE {table} SET spec = ? WHERE id = ?", (json.dumps(spec), r["id"]))
+
+
 def describe(con: sqlite3.Connection, spec: dict) -> list[str]:
     """The rules in words, for the tour's page."""
     who, when, pick = spec["who"], spec["when"], spec["pick"]

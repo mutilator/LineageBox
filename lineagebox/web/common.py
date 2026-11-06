@@ -79,6 +79,7 @@ class Paging:
 
 SEE_AS = "lineagebox_see_as"      # cookie: the member an admin is seeing the site as
 SIGNING_IN = "lineagebox_signin"  # cookie: the Google sign-in this browser started
+PASSKEY_STARTED = "lineagebox_passkey"  # cookie: the passkey this browser was asked to make or use
 PUBLIC, MEMBER, ADMIN = "public", "member", "admin"
 
 _NOT_PAGES = ("/api/", "/t/", "/p/", "/frame/", "/face/", "/play/", "/original/", "/download/", "/status/live",
@@ -605,6 +606,24 @@ class LocalBody(BaseModel):
 
 class CodeBody(BaseModel):
     code: str = Field(min_length=1, max_length=12)
+
+
+class PasskeyStart(BaseModel):
+    next: str = Field("/", max_length=500)
+
+
+class PasskeyBody(BaseModel):
+    """What the browser answered (navigator.credentials.create or get), as WebAuthn's JSON; passkeys.py reads it."""
+    credential: dict
+
+
+class InviteBody(BaseModel):
+    """The token of an admin's link for making a passkey, from after the link's #."""
+    token: str = Field(min_length=10, max_length=100)
+
+
+class PasskeyName(BaseModel):
+    name: str = Field(min_length=1, max_length=60)
 
 
 class AccountBody(BaseModel):

@@ -48,6 +48,8 @@ failures are recorded per photo without stopping the run.
 | `accounts disable\|enable\|remove <email>` | Switches an account off or on, or removes it. |
 | `accounts sign-out <email>` | Ends an account's sessions. |
 | `accounts local-code <email>` | Makes an admin's code for signing in at home without the internet. |
+| `accounts invite <email>` | Makes a link for making the account's passkey (one use; 7 days, a day for an admin). |
+| `accounts passkeys <email>` | Lists the account's passkeys. |
 | `accounts on\|off` | Turns family accounts on or off. |
 
 ## Running stages by hand, from source

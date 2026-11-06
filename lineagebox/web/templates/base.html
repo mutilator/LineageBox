@@ -60,6 +60,7 @@
       <p class="who"><strong>{{ signed_in.person_name or signed_in.email }}</strong>
         {%- if signed_in.person_name %}<span>{{ signed_in.email }}</span>{% endif %}
         <span class="hint">{{ "Admin: sees and changes everything" if signed_in.role == "admin" else "Family member" }}</span></p>
+      <a href="/passkeys">Passkeys</a>
       {%- if signed_in.role == "admin" %}
       <a href="/settings/codes">Code for signing in at home</a>
       {%- endif %}

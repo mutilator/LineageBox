@@ -1,11 +1,11 @@
 """Settings → Family accounts and Codes (admins): accounts, their rules, sign-in settings, seeing the site as a
-member."""
+member. The links for making passkeys are in routes/passkeys.py."""
 from collections import defaultdict
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
-from lineagebox import accounts, settings
+from lineagebox import accounts, passkeys, settings
 from lineagebox.web.common import (ADMIN, MEMBER, SEE_AS, AccountBody, AccountChange, CodeBody, MeBody, RuleBody,
                                    SeeAsBody, _from_app, _person_named, _redirect_uri, _uploads_root)
 from lineagebox.web.deps import con, page, site
@@ -40,7 +40,9 @@ def accounts_page(request: Request, c=Depends(con), s: Site = Depends(site)):
     rows = accounts.everyone(c)
     return page(request, "accounts.html", nav="settings", rows=rows, rules=rules, cfg=now, roles=accounts.ROLES,
                 redirect_uri=_redirect_uri(request, now), you=getattr(request.state, "account", None),
-                uploads_root=_uploads_root(now))
+                uploads_root=_uploads_root(now), keys=passkeys.by_account(c), links=passkeys.invites(c),
+                passkey_problem=passkeys.why_not(now), passkey_domain=passkeys.domain(now),
+                invite_days=passkeys.INVITE_DAYS, admin_hours=passkeys.ADMIN_INVITE_HOURS)
 
 
 @router.post("/api/accounts", dependencies=[Depends(_from_app)])
@@ -135,7 +137,8 @@ def remove_rule(account_id: int, body: MeBody, c=Depends(con)):
 
 @router.post("/api/settings/accounts", dependencies=[Depends(_from_app)])
 def save_account_settings(body: dict, c=Depends(con), s: Site = Depends(site)):
-    """Sign-in and uploads. The client secret is kept when the box is left empty (it is never shown)."""
+    """Sign-in and uploads. The client secret is kept when the box is left empty (it is never shown). A new address
+    from outside is a new name for passkeys: those made for the old one are said to stop working."""
     keys = ("accounts_enabled", "google_client_id", "google_client_secret", "public_url", "session_days",
             "uploads_folder", "uploads_into", "upload_max_gb")
     changes = {k: body[k] for k in keys if k in body}
@@ -147,13 +150,18 @@ def save_account_settings(body: dict, c=Depends(con), s: Site = Depends(site)):
         turning_on = settings._switch(changes.get("accounts_enabled", now.accounts_enabled), now)
         google = (changes.get("google_client_id", now.google_client_id)
                   and changes.get("google_client_secret", now.google_client_secret))
-        if turning_on and not now.accounts_enabled and not google and not c.execute(
+        if turning_on and not now.accounts_enabled and not google and not passkeys.admin_has_one(c) and not c.execute(
                 "SELECT 1 FROM account WHERE role = 'admin' AND local_secret IS NOT NULL").fetchone():
-            raise settings.Invalid("Set up Sign in with Google, or an admin's code for signing in at home, before "
-                                   "turning sign-in on: otherwise nobody could get in.")
+            raise settings.Invalid("Set up Sign in with Google, an admin's passkey, or an admin's code for signing in "
+                                   "at home, before turning sign-in on: otherwise nobody could get in.")
         settings.save(c, s.cfg, changes)
-    save()
+        return passkeys.domain(now), passkeys.domain(s.live(c))
+    was, now_named = save()
     s.shared["at"] = -1e9
+    left = c.execute("SELECT count(*) FROM passkey WHERE rp_id = ?", (was,)).fetchone()[0] if was != now_named else 0
+    if left:
+        return {"message": f"Saved. The {left} passkey{'s' if left > 1 else ''} made for {was} won't work on "
+                           f"{now_named or 'another address'}: each person makes a new one there."}  # not reloaded
     return {"message": "Saved.", "reload": True}
 
 

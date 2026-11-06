@@ -1,17 +1,19 @@
 """Pages to look around by: folders, years, search, a photo, tags, people, a person, the family."""
 import json
+from datetime import date
 from urllib.parse import quote, urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from lineagebox import (access, catalog, copies, documents, events, family, people, search, sharing, tagging, tours,
-                        writeback)
+from lineagebox import (access, catalog, copies, documents, events, family, family_reader, memories, people, search,
+                        sharing, tagging, tours, writeback)
 from lineagebox.folders import FolderIndex
 from lineagebox.web.common import (ADMIN, MEMBER, _covers, _kin_labels, _others_by_whose, _share_panel, _upload_labels,
                                    _within)
 from lineagebox.web.deps import con, page, paging, site, viewer, writer
 from lineagebox.web.routes.home import home_page
+from lineagebox.web.routes.reading import readings as reading_list
 from lineagebox.web.routes.tours import shown as tour_shown
 from lineagebox.web.site import Site
 
@@ -21,6 +23,7 @@ ACCESS = {
     "/folder/{folder_id}": MEMBER,
     "/timeline": MEMBER,
     "/timeline/{year}": MEMBER,
+    "/timeline/{year}/events": MEMBER,
     "/search": MEMBER,
     "/image/{image_id}": MEMBER,
     "/tags": MEMBER,
@@ -33,6 +36,7 @@ ACCESS = {
     "/person/{person_id}": MEMBER,
     "/person/{person_id}/faces": MEMBER,
     "/family": MEMBER,
+    "/family/tree": MEMBER,
 }
 
 
@@ -92,6 +96,16 @@ def timeline_page(request: Request, c=Depends(con)):
     years = catalog.timeline(c)
     peak = max((n for months in years.values() for n in months.values()), default=1)
     return page(request, "timeline.html", years=years, peak=peak)
+
+
+@router.get("/timeline/{year}/events", response_class=HTMLResponse)
+def year_events(request: Request, year: int, v=Depends(viewer), c=Depends(con), s: Site = Depends(site)):
+    """A year's events (memories.year_events), loaded after the page: picking them takes a moment in a busy year, so
+    each year's are kept 10 minutes for each viewer (and worked out again after a change)."""
+    today = date.today()
+    found = s.keep(v, ("year-events", year, today.isoformat()), 600,
+                   lambda: memories.year_events(c, year, today, s.live(c).blurry_below))
+    return page(request, "_year_events.html", events=found, year=year, least=memories.LEAST)
 
 
 @router.get("/timeline/{year}", response_class=HTMLResponse)
@@ -329,13 +343,14 @@ def cleanup_faces_page(request: Request, show: str | None = None, pg: int = Quer
 
 
 @router.get("/person/{person_id}", response_class=HTMLResponse)
-def person_page(request: Request, person_id: int, c=Depends(con)):
+def person_page(request: Request, person_id: int, v=Depends(viewer), c=Depends(con)):
     p = catalog.person(c, person_id)
     if p is None:
         raise HTTPException(404, "No such person")
     g = family.load(c)
     ego = family.me(c)
     return page(request, "person.html", nav="people", person=p, images=catalog.person_images(c, person_id),
+                removable=v.admin and people.why_kept(c, person_id) is None,
                 ctx=f"person:{person_id}", auto_count=len(catalog.person_faces(c, person_id, "auto")),
                 confirmed_count=len(catalog.person_faces(c, person_id, "user")),
                 g=g, fam=family.links(g, person_id), theirs=family.worked_out(g, person_id), ego=ego,
@@ -364,13 +379,13 @@ def person_faces_page(request: Request, person_id: int, c=Depends(con)):
 
 
 @router.get("/family", response_class=HTMLResponse)
-def family_page(request: Request, root: int | None = None, center: int | None = None, c=Depends(con)):
+def family_page(request: Request, root: int | None = None, center: int | None = None, v=Depends(viewer),
+                c=Depends(con), s: Site = Depends(site)):
+    if root is not None:  # the whole line down from one ancestor was on this page once: links to it still work
+        return RedirectResponse(f"/family/tree?root={root}", status_code=303)
     g = family.load(c)
     ego = family.me(c)
     kin = family.relations_to(g, ego) if ego else {}
-    tops = family.tops(g)
-    if root not in g.people and root not in g.effective_children:
-        root = family.tree_root(g, ego) if ego else tops[0][0] if tops else None
     groups: dict[str, list] = {}
     for pid, k in sorted(kin.items(), key=lambda kv: (kv[1].distance, g.name(kv[0]))):
         if pid != ego:
@@ -379,15 +394,38 @@ def family_page(request: Request, root: int | None = None, center: int | None = 
     linked = set(kin) | {p for r in g.relations for p in r[:2]} | set(g.parents) | set(g.children)
     linked |= set(g.partners) | set(g.siblings) | {p for ids in circles.values() for p in ids}
     named = catalog.people(c)
-    top_names = {p: family.top_name(g, p) for p in [*(t[0] for t in tops), *([root] if root is not None else [])]}
     if center not in g.people:  # the family around you; before "This is me", around whoever has the most photos
         in_family = set(g.parents) | set(g.children) | set(g.partners) | set(g.siblings)
         center = ego if ego is not None else next((p["id"] for p in named if p["id"] in in_family), None)
-    return page(request, "family.html", nav="family", g=g, ego=ego, kin=kin, tops=tops, root=root,
-                top_names=top_names, view=family.view(g, center, ego) if center is not None else None,
-                whole_tree=request.query_params.get("root") is not None,
-                tree=family.tree(g, root) if root is not None else None,
+    tops = family.tops(g)
+    # the whole line's page starts at the top of the family of whoever is in the middle, and shows them
+    line_root = family.tree_root(g, center) if center is not None else tops[0][0] if tops else None
+    reading = {}
+    if v.admin:  # reading into the family tree, in its panel at the top
+        reading = {"readings": reading_list(c), "ai_on": s.live(c).describe_enabled,
+                   "most_photos": family_reader.MOST_PHOTOS}
+    return page(request, "family.html", nav="family", g=g, ego=ego, kin=kin,
+                view=family.view(g, center, ego) if center is not None else None, line_root=line_root,
                 groups=[(name, groups[name]) for name in family.GROUPS if name in groups],
                 others=_others_by_whose(g),
                 unplaced=[p for p in named if p["id"] not in linked], covers=_covers(named), circles=circles,
-                names_to_check=c.execute("SELECT count(*) FROM person WHERE NOT names_checked").fetchone()[0])
+                names_to_check=c.execute("SELECT count(*) FROM person WHERE NOT names_checked").fetchone()[0],
+                **reading)
+
+
+@router.get("/family/tree", response_class=HTMLResponse)
+def family_tree_page(request: Request, root: int | None = None, person: int | None = None, c=Depends(con)):
+    """The whole line down from one ancestor, on a page of its own: to move around and zoom in a large family, and to
+    save as one picture. person: shown first (from the Family page, the one in the middle; from a person's page,
+    them)."""
+    g = family.load(c)
+    ego = family.me(c)
+    tops = family.tops(g)
+    if root not in g.people and root not in g.effective_children:
+        start = person if person in g.people else ego
+        root = family.tree_root(g, start) if start is not None else tops[0][0] if tops else None
+    top_names = {p: family.top_name(g, p) for p in [*(t[0] for t in tops), *([root] if root is not None else [])]}
+    return page(request, "family_tree.html", nav="family", g=g, ego=ego,
+                kin=family.relations_to(g, ego) if ego else {}, tops=tops, root=root, top_names=top_names,
+                tree=family.tree(g, root) if root is not None else None,
+                person=person if person in g.people else None, covers=_covers(catalog.people(c)))

@@ -24,6 +24,7 @@ ACCESS = {
     "/api/faces/{face_id}/reject": MEMBER,
     "/api/people/{person_id}/rename": MEMBER,
     "/api/people/{person_id}/merge": ADMIN,
+    "/api/people/{person_id}/remove": ADMIN,
     "/api/people/{person_id}/faces": MEMBER,
     "/api/people/identify": ADMIN,
 }
@@ -163,6 +164,14 @@ def merge_person(person_id: int, body: MergeBody, c=Depends(con)):
     if body.into == person_id:
         raise HTTPException(400, "Pick someone else to merge into.")
     return {"person_id": people.merge(c, person_id, body.into)}
+
+
+@router.post("/api/people/{person_id}/remove", dependencies=[Depends(_from_app)])
+def remove_person(person_id: int, c=Depends(con)):
+    """Someone added by mistake taken out of the family tree (people.remove says who can't be)."""
+    if catalog.person(c, person_id) is None:
+        raise HTTPException(404, "No such person")
+    return {"message": f"{people.remove(c, person_id)} was removed."}
 
 
 @router.post("/api/people/{person_id}/faces", dependencies=[Depends(_from_app)])

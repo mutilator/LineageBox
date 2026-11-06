@@ -93,6 +93,10 @@ class Site:
         self.upload_tries = accounts.Limiter(3000, 3600)  # files uploaded per account in an hour
         self.look_tries = accounts.Limiter(40, 3600)  # "Look for faces again" per member in an hour: 10-15 s CPU each
         self.google_started: dict[str, tuple[dict, float]] = {}  # state -> what a Google sign-in keeps until it's back
+        # passkeys: sign-ins started, and admins' links tried, per address in 15 minutes; what each start keeps until
+        # the browser answers (routes/passkeys.py)
+        self.passkey_tries = accounts.Limiter(30, 900)
+        self.passkey_started: dict[str, tuple[dict, float]] = {}
         self.suggested: dict = {}  # viewer -> {"at", "list"}: tours worked out from what that viewer sees
         self.kept = Kept()
         self.slow = collections.deque(maxlen=SLOW_KEPT)  # {"at", "method", "path", "seconds", "status", "who"}

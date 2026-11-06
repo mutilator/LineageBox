@@ -68,10 +68,13 @@ function confirmText(el) {
 async function run(el, url, body) {
   if (el.dataset.confirm && !confirm(confirmText(el))) return;
   const controls = el.matches("form") ? el.querySelectorAll("button, input") : [el];
-  const label = el.dataset.busy && el.textContent;
+  // what says it is busy: the button, or a form's submit button with data-busy ("Making the changes…")
+  const busy = el.matches("form") ? el.querySelector('button[type="submit"][data-busy]') : el.dataset.busy && el;
+  const label = busy?.textContent;
   controls.forEach((c) => (c.disabled = true));
-  if (label) el.textContent = el.dataset.busy;
+  if (busy) busy.textContent = busy.dataset.busy;
   try {
+    await ticksSaved; // the ticks just clicked are kept before what follows them (who is who) loads the page again
     const result = await post(url, body);
     everyone = null; // a name just given may be a new person: suggest them from now on
     if (result.errors?.length) {
@@ -95,7 +98,8 @@ async function run(el, url, body) {
     alert(`That didn't work: ${err.message}`);
   } finally {
     controls.forEach((c) => (c.disabled = false));
-    if (label) el.textContent = label;
+    if (busy) busy.textContent = label;
+    if (el.matches("form") && el.querySelector("[data-needs]")) followNeeds(el); // those switched off stay off
   }
 }
 
@@ -161,6 +165,75 @@ async function filesBody(form) {
   }
   return body;
 }
+// Forms with data-photos send their chosen photos as a list of data: URLs, each made a JPEG at most 2,000 pixels
+// across first (a phone's photo is many times that to send, and the AI reads at less), with the other fields as typed.
+// One the browser can't draw (HEIC, on some) goes as it is, and the server says whether it can read it.
+async function smaller(file, most = 2000) {
+  try {
+    const picture = await createImageBitmap(file, { imageOrientation: "from-image" });
+    const scale = Math.min(1, most / Math.max(picture.width, picture.height));
+    const canvas = Object.assign(document.createElement("canvas"),
+      { width: Math.round(picture.width * scale), height: Math.round(picture.height * scale) });
+    canvas.getContext("2d").drawImage(picture, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg", 0.9);
+  } catch {
+    return new Promise((done, failed) => {
+      const reader = new FileReader();
+      reader.onload = () => done(reader.result);
+      reader.onerror = failed;
+      reader.readAsDataURL(file);
+    });
+  }
+}
+async function photosBody(form) {
+  const body = {};
+  for (const el of form.elements) {
+    if (!el.name) continue;
+    body[el.name] = el.type === "file" ? await Promise.all([...el.files].map((f) => smaller(f))) : el.value;
+  }
+  return body;
+}
+
+// Ticked changes that need another (data-needs: its value, or several, space apart) are switched off while that one
+// isn't ticked, and so not sent: a new person's life events, when the person isn't to be added.
+function followNeeds(form) {
+  const boxes = [...form.querySelectorAll('input[type="checkbox"]')];
+  for (let round = 0; round < 5; round++) {  // switching one off can switch off those that need it
+    const on = new Set(boxes.filter((b) => b.checked && !b.disabled).map((b) => b.value));
+    let changed = false;
+    for (const box of boxes.filter((b) => b.dataset.needs)) {
+      const off = !box.dataset.needs.split(" ").every((key) => on.has(key));
+      if (box.disabled !== off) [box.disabled, changed] = [off, true];
+    }
+    if (!changed) break;
+  }
+}
+document.querySelectorAll("form").forEach((form) => form.querySelector("[data-needs]") && followNeeds(form));
+// A form with data-ticks="url" sends every box's tick to it as they change, so a page loaded again (a reading's, when
+// who someone is is picked) shows them as they were left. One at a time, in order; run() waits for them.
+let ticksSaved = Promise.resolve();
+function saveTicks(form) {
+  if (!form?.dataset.ticks) return;
+  const boxes = form.querySelectorAll('input[type="checkbox"]');
+  const ticked = Object.fromEntries([...boxes].map((b) => [b.value, b.checked]));
+  ticksSaved = ticksSaved.then(() => post(form.dataset.ticks, { ticked }))
+    .catch((err) => alert(`Those ticks weren't kept: ${err.message}`));
+}
+// A button with data-tick="all" or "none" ticks, or unticks, every box of its form.
+document.addEventListener("click", (e) => {
+  const button = e.target.closest("button[data-tick]");
+  if (!button) return;
+  button.form.querySelectorAll('input[type="checkbox"]').forEach((box) => (box.checked = button.dataset.tick === "all"));
+  followNeeds(button.form);
+  saveTicks(button.form);
+});
+document.addEventListener("change", (e) => {
+  const form = e.target.closest("form");
+  if (form?.querySelector("[data-needs]")) followNeeds(form);
+  if (e.target.matches('input[type="checkbox"]')) saveTicks(form);
+  // a field with data-submit sends its form as soon as it is changed (who someone is, on a reading's page)
+  if (e.target.matches("[data-submit]")) e.target.form?.requestSubmit();
+});
 document.querySelectorAll("form.select-form, form[data-faces]").forEach(updateSelection);
 document.addEventListener("change", (e) => {
   const form = e.target.closest("form.select-form, form[data-faces]");
@@ -186,6 +259,8 @@ document.addEventListener("submit", (e) => {
     run(form, form.dataset.api, addPicked(form, settingsBody(form)));
   } else if ("files" in form.dataset) {
     filesBody(form).then((body) => run(form, form.dataset.api, body));
+  } else if ("photos" in form.dataset) {
+    photosBody(form).then((body) => run(form, form.dataset.api, body), (err) => alert(`A photo couldn't be read: ${err}`));
   } else if ("faces" in form.dataset) {
     // faces suggested as someone: the ticked ones are them and the rest are not; "None of these" says none are
     const boxes = [...form.querySelectorAll('input[name="face"]')];
@@ -214,15 +289,17 @@ document.addEventListener("click", (e) => {
   if (copy) copyText(copy, copy.dataset.copy);
 });
 
-// Status page: the progress part reloads itself while the tab is visible.
+// Status page: the progress part reloads itself while the tab is visible, every 10 seconds or data-every. One that
+// answers with data-reload-page (a reading the AI has finished) has the whole page loaded again.
 document.querySelectorAll("[data-live]").forEach((el) => {
   setInterval(async () => {
     if (document.hidden) return;
     try {
       const r = await fetch(el.dataset.live);
       if (r.ok) el.innerHTML = await r.text();
+      if (el.querySelector("[data-reload-page]")) location.reload();
     } catch {}
-  }, 10000);
+  }, (Number(el.dataset.every) || 10) * 1000);
 });
 
 // A link with data-double="url": one click follows it (a moment later, to tell it from a double click), a double
@@ -235,6 +312,60 @@ document.addEventListener("click", (e) => {
   clearTimeout(doubleWait);
   if (e.detail >= 2) location.href = link.dataset.double;
   else doubleWait = setTimeout(() => (location.href = link.href), 250);
+});
+
+// A button with data-append="url" puts what the url answers in place of its part (.more-part): on Home, a member's
+// family's next older photos, with the button for those before them.
+document.addEventListener("click", async (e) => {
+  const button = e.target.closest("button[data-append]");
+  if (!button) return;
+  const label = button.textContent;
+  button.disabled = true;
+  if (button.dataset.busy) button.textContent = button.dataset.busy;
+  try {
+    const r = await fetch(button.dataset.append);
+    if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+    (button.closest(".more-part") ?? button).outerHTML = await r.text();
+  } catch (err) {
+    button.disabled = false;
+    button.textContent = label;
+    alert(`That didn't work: ${err.message}`);
+  }
+});
+
+// A details element with data-keep-open (an account, on the Accounts page) opens when the address's # names it, and
+// puts its id there while it is open: a change that loads the page again leaves it open.
+document.querySelectorAll("details[data-keep-open][id]").forEach((d) => {
+  if (location.hash === `#${d.id}`) {
+    d.open = true;
+    d.scrollIntoView({ block: "start" });
+  }
+  d.addEventListener("toggle", () => {
+    if (d.open) history.replaceState(null, "", `#${d.id}`);
+    else if (location.hash === `#${d.id}`) history.replaceState(null, "", location.pathname + location.search);
+  });
+});
+
+// A part with data-on-open="url" in a details element loads the first time it is wanted: when the details opens, or
+// as soon as its heading is pointed at (a Timeline year's events, which show a moment later).
+function loadOnOpen(part) {
+  if (!part || part.dataset.loading) return;
+  part.dataset.loading = "1";
+  fetch(part.dataset.onOpen)
+    .then((r) => (r.ok ? r.text() : Promise.reject(new Error(r.status))))
+    .then((html) => (part.innerHTML = html))
+    .catch(() => {
+      delete part.dataset.loading;  // asked again next time
+      const note = part.querySelector(".loading");
+      if (note) note.textContent = "Couldn't load: point at it again to try again";
+    });
+}
+document.addEventListener("toggle", (e) => {
+  if (e.target.open) loadOnOpen(e.target.querySelector?.(":scope > [data-on-open]"));
+}, true);
+document.querySelectorAll("details > summary").forEach((summary) => {
+  const part = summary.parentElement.querySelector(":scope > [data-on-open]");
+  if (part) summary.addEventListener("mouseenter", () => loadOnOpen(part), { once: true });
 });
 
 // Parts that take a while to work out (the Tours page's suggestions, the Cleanup page's numbers) load once the rest of
@@ -989,3 +1120,520 @@ document.addEventListener("click", (e) => {
   const row = button && document.querySelector(button.dataset.scroll);
   if (row) row.scrollBy({ left: Number(button.dataset.by || 1) * row.clientWidth * 0.9, behavior: "smooth" });
 });
+
+// Folded groups on the Family page and the Timeline's years (details with data-glance): pointing at one's heading for
+// a moment shows its cards floating over what follows, so one can be clicked without unfolding it, and moving off puts
+// them away. A click on the heading keeps it unfolded, and another folds it again; on touch screens a tap does that. A
+// link in the heading (a Timeline year) is followed as usual.
+const GLANCE_AFTER = 250;   // ms pointing at a heading before its cards show
+const GLANCE_LINGER = 300;  // ms off it before they go: time to cross a gap, or to come back
+if (matchMedia("(hover: hover) and (pointer: fine)").matches) {
+  const putAway = (group) => {
+    group.classList.remove("glancing");
+    group.open = false;
+  };
+  document.querySelectorAll("details[data-glance]").forEach((group) => {
+    const heading = group.querySelector(":scope > summary");
+    let opening = 0;
+    let closing = 0;
+    heading.addEventListener("mouseenter", () => {
+      if (group.open) return;
+      opening = setTimeout(() => {
+        document.querySelectorAll("details.glancing").forEach((other) => other !== group && putAway(other));
+        group.classList.add("glancing");
+        group.open = true;
+      }, GLANCE_AFTER);
+    });
+    heading.addEventListener("mouseleave", () => clearTimeout(opening));
+    group.addEventListener("mouseenter", () => clearTimeout(closing));
+    group.addEventListener("mouseleave", () => {
+      clearTimeout(opening);
+      if (group.classList.contains("glancing")) closing = setTimeout(() => putAway(group), GLANCE_LINGER);
+    });
+    heading.addEventListener("click", (e) => {
+      clearTimeout(opening);
+      // folded or unfolded for good, or a link: the click does as usual
+      if (!group.classList.contains("glancing") || e.target.closest("a[href]")) return;
+      e.preventDefault();  // showing for a moment: now it stays
+      group.classList.remove("glancing");
+    });
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") document.querySelectorAll("details.glancing").forEach(putAway);
+  });
+}
+
+// The whole line down from one ancestor (family_tree.html): the tree on a sheet in a frame. Dragging moves it (so do
+// the arrow keys, the frame focused); the wheel, a pinch and the buttons (+ − 0) zoom. A card still opens its person's
+// page with a click, but not at the end of a drag. It starts with all of the tree if that is still readable, else its
+// top at a readable size; or on the person asked for (data-person), marked.
+const treeFrame = document.querySelector("[data-pan-zoom]");
+if (treeFrame) {
+  const sheet = treeFrame.firstElementChild;
+  const READABLE = 0.6;  // the smallest zoom it starts at
+  const MOST = 3;
+  const EDGE = 16;       // px around the tree when all of it shows
+  const KEEP = 60;       // px of the tree that always stay in the frame
+  let scale = 1;
+  let x = 0;
+  let y = 0;
+  treeFrame.classList.add("panning");  // without this script the frame just scrolls
+  const across = () => sheet.offsetWidth;  // as laid out, before zooming
+  const down = () => sheet.offsetHeight;
+  const fitScale = () => Math.min(1, (treeFrame.clientWidth - 2 * EDGE) / across(),
+                                  (treeFrame.clientHeight - 2 * EDGE) / down());
+  const show = () => {
+    x = Math.min(treeFrame.clientWidth - KEEP, Math.max(KEEP - across() * scale, x));
+    y = Math.min(treeFrame.clientHeight - KEEP, Math.max(KEEP - down() * scale, y));
+    sheet.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+  };
+  const zoomAt = (factor, px, py) => {  // px, py: the point that stays put, from the frame's corner
+    const s = Math.min(MOST, Math.max(Math.min(0.25, fitScale()), scale * factor));
+    x = px - ((px - x) * s) / scale;
+    y = py - ((py - y) * s) / scale;
+    scale = s;
+    show();
+  };
+  const fit = () => {
+    scale = fitScale();
+    x = (treeFrame.clientWidth - across() * scale) / 2;
+    y = Math.max(EDGE, (treeFrame.clientHeight - down() * scale) / 2);
+    show();
+  };
+  const onto = (card) => {  // that card at full size, across the middle and a third of the way down (or the tree
+    // in the middle, if it fits across; its top at the top, if they are near it)
+    const s = sheet.getBoundingClientRect();
+    const c = card.getBoundingClientRect();
+    const cx = (c.left + c.width / 2 - s.left) / scale;
+    const cy = (c.top + c.height / 2 - s.top) / scale;
+    scale = 1;
+    x = across() <= treeFrame.clientWidth ? (treeFrame.clientWidth - across()) / 2 : treeFrame.clientWidth / 2 - cx;
+    y = Math.min(EDGE, treeFrame.clientHeight / 3 - cy);
+    show();
+  };
+  const wanted = treeFrame.dataset.person && sheet.querySelector(`a.fcard[href="/person/${treeFrame.dataset.person}"]`);
+  if (wanted) {
+    wanted.classList.add("here");
+    onto(wanted);
+  } else if (fitScale() >= READABLE) {
+    fit();
+  } else {
+    scale = READABLE;
+    x = (treeFrame.clientWidth - across() * scale) / 2;  // the top of the tree, in the middle
+    y = EDGE;
+    show();
+  }
+  addEventListener("resize", show);
+
+  const pointers = new Map();  // pointer id -> [x, y], last seen
+  let from = null;      // where the first pointer went down
+  let dragged = false;  // it moved far enough to be a drag, not a click
+  let swallow = false;  // the click that ends a drag opens nothing
+  let spread = 0;       // between two fingers, last seen
+  const together = () => {
+    const [[ax, ay], [bx, by]] = [...pointers.values()];
+    const r = treeFrame.getBoundingClientRect();
+    return { mid: [(ax + bx) / 2 - r.left, (ay + by) / 2 - r.top], apart: Math.hypot(ax - bx, ay - by) };
+  };
+  treeFrame.addEventListener("pointerdown", (e) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    pointers.set(e.pointerId, [e.clientX, e.clientY]);
+    if (pointers.size === 1) {
+      from = [e.clientX, e.clientY];
+      dragged = false;
+    } else if (pointers.size === 2) {
+      spread = together().apart;
+      dragged = true;
+    }
+  });
+  treeFrame.addEventListener("pointermove", (e) => {
+    const was = pointers.get(e.pointerId);
+    if (!was) return;
+    if (!dragged) {
+      if (Math.hypot(e.clientX - from[0], e.clientY - from[1]) < 5) return;
+      dragged = true;
+      treeFrame.setPointerCapture(e.pointerId);
+      treeFrame.classList.add("dragging");
+    }
+    if (pointers.size === 2) {
+      const before = together();
+      pointers.set(e.pointerId, [e.clientX, e.clientY]);
+      const now = together();
+      x += now.mid[0] - before.mid[0];
+      y += now.mid[1] - before.mid[1];
+      zoomAt(now.apart / (spread || now.apart), ...now.mid);
+      spread = now.apart;
+      return;
+    }
+    pointers.set(e.pointerId, [e.clientX, e.clientY]);
+    x += e.clientX - was[0];
+    y += e.clientY - was[1];
+    show();
+  });
+  const lifted = (e) => {
+    if (!pointers.delete(e.pointerId)) return;
+    if (pointers.size) return;
+    treeFrame.classList.remove("dragging");
+    if (dragged) {
+      swallow = true;
+      setTimeout(() => (swallow = false));
+    }
+  };
+  treeFrame.addEventListener("pointerup", lifted);
+  treeFrame.addEventListener("pointercancel", lifted);
+  treeFrame.addEventListener("click", (e) => {
+    if (!swallow) return;
+    e.preventDefault();
+    e.stopPropagation();
+    swallow = false;
+  }, true);
+  treeFrame.addEventListener("dragstart", (e) => e.preventDefault());  // a card's picture or link isn't dragged off
+  treeFrame.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const r = treeFrame.getBoundingClientRect();
+    const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? treeFrame.clientHeight : 1;
+    // a pinch on a touchpad comes as the wheel with Ctrl, in small steps
+    zoomAt(Math.exp(-e.deltaY * unit * (e.ctrlKey ? 0.01 : 0.0015)), e.clientX - r.left, e.clientY - r.top);
+  }, { passive: false });
+  treeFrame.addEventListener("keydown", (e) => {
+    const by = { ArrowLeft: [80, 0], ArrowRight: [-80, 0], ArrowUp: [0, 80], ArrowDown: [0, -80] }[e.key];
+    if (!by || e.altKey || e.ctrlKey || e.metaKey) return;
+    e.preventDefault();
+    e.stopPropagation();
+    x += by[0];
+    y += by[1];
+    show();
+  });
+  document.addEventListener("click", (e) => {
+    const button = e.target.closest("button[data-zoom]");
+    if (!button) return;
+    if (button.dataset.zoom === "fit") fit();
+    else zoomAt(button.dataset.zoom === "in" ? 1.25 : 0.8, treeFrame.clientWidth / 2, treeFrame.clientHeight / 2);
+  });
+
+  document.querySelector("[data-tree-picture]")?.addEventListener("click", async (e) => {
+    const button = e.currentTarget;
+    const note = document.querySelector("[data-tree-note]");
+    const said = note.textContent;
+    button.disabled = true;
+    note.textContent = "Drawing the picture…";
+    try {
+      const picture = await treePicture(sheet);
+      const link = Object.assign(document.createElement("a"),
+                                 { href: URL.createObjectURL(picture), download: button.dataset.file });
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(link.href), 60_000);
+      note.textContent = said;
+    } catch (err) {
+      note.textContent = `The picture couldn't be made: ${err.message}`;
+    } finally {
+      button.disabled = false;
+    }
+  });
+}
+
+// The tree as one PNG, drawn from the page as it is laid out: each box's background and border, the lines between
+// the cards (the stylesheet draws them with ::before and ::after), the faces and the words. Twice the size it is on
+// screen, or less for a tree too large for the browser to hold as one picture.
+const PICTURE_MOST_SIDE = 16_384;         // px: browsers refuse a canvas wider or taller
+const PICTURE_MOST_PIXELS = 120_000_000;  // and one larger than about this
+async function treePicture(sheet) {
+  const held = sheet.style.transform;
+  sheet.style.transform = "none";  // measured as laid out, unzoomed
+  const origin = sheet.getBoundingClientRect();
+  const items = [];
+  try {
+    measure(sheet, origin, items, 1);
+  } finally {
+    sheet.style.transform = held;
+  }
+  const faces = new Map();  // src -> the picture, loaded once (a card off screen may not have loaded its own)
+  await Promise.all(items.filter((i) => i.kind === "img").map(async (i) => {
+    const src = i.el.currentSrc || i.el.src;
+    if (!faces.has(src)) {
+      const picture = new Image();
+      picture.src = src;
+      faces.set(src, picture.decode().then(() => picture, () => null));
+    }
+    i.picture = await faces.get(src);
+  }));
+  const width = Math.ceil(origin.width);
+  const height = Math.ceil(origin.height);
+  const background = getComputedStyle(document.body).backgroundColor;
+  let scale = Math.min(2, PICTURE_MOST_SIDE / width, PICTURE_MOST_SIDE / height,
+                       Math.sqrt(PICTURE_MOST_PIXELS / (width * height)));
+  for (; scale >= 0.05; scale /= 2) {  // a browser that can't hold that much gives no picture: smaller, then
+    const canvas = Object.assign(document.createElement("canvas"),
+                                 { width: Math.round(width * scale), height: Math.round(height * scale) });
+    const ctx = canvas.getContext("2d");
+    if (!ctx) continue;
+    ctx.scale(scale, scale);
+    ctx.fillStyle = background;
+    ctx.fillRect(0, 0, width, height);
+    items.forEach((i) => drawItem(ctx, i));
+    const blob = await new Promise((done) => canvas.toBlob(done, "image/png"));
+    if (blob) return blob;
+  }
+  throw new Error("the tree is too large for this browser to draw as one picture");
+}
+
+const painted = (color) => color && color !== "transparent" && !/(,\s*0\)|\/\s*0\))$/.test(color);
+
+function corners(cs, box) {  // each corner's radius, in px: "10px", "50%" (a round face), "999px" (a pill)
+  return ["TopLeft", "TopRight", "BottomRight", "BottomLeft"].map((k) => {
+    const value = cs[`border${k}Radius`].split(" ")[0];
+    const n = parseFloat(value) || 0;
+    return Math.min(value.endsWith("%") ? (n / 100) * Math.min(box.w, box.h) : n, box.w / 2, box.h / 2);
+  });
+}
+
+function boxLook(cs, box) {  // what there is to draw of a box: its fill and its borders; null when nothing
+  const sides = ["Top", "Right", "Bottom", "Left"].map((s) => {
+    const side = { w: parseFloat(cs[`border${s}Width`]) || 0, style: cs[`border${s}Style`],
+                   color: cs[`border${s}Color`] };
+    return side.w > 0 && side.style !== "none" && side.style !== "hidden" && painted(side.color) ? side : null;
+  });
+  const fill = painted(cs.backgroundColor) ? cs.backgroundColor : null;
+  return fill || sides.some(Boolean) ? { fill, sides, radius: corners(cs, box) } : null;
+}
+
+function measure(el, origin, items, alpha) {
+  const cs = getComputedStyle(el);
+  if (cs.display === "none" || cs.visibility === "hidden") return;
+  alpha *= Number(cs.opacity);
+  const r = el.getBoundingClientRect();
+  const box = { x: r.left - origin.left, y: r.top - origin.top, w: r.width, h: r.height };
+  const look = boxLook(cs, box);
+  if (look) items.push({ kind: "box", box, look, alpha });
+  if (el.tagName === "IMG") items.push({ kind: "img", el, box, radius: corners(cs, box), alpha });
+  pseudo(el, "::before", cs, box, items, alpha, -1);
+  const mark = items.length;
+  for (const child of el.childNodes) {
+    if (child.nodeType === Node.TEXT_NODE) wordItems(child, cs, origin, items, alpha);
+    else if (child.nodeType === Node.ELEMENT_NODE) measure(child, origin, items, alpha);
+  }
+  pseudo(el, "::after", cs, box, items, alpha, mark);
+}
+
+function pseudo(el, which, owner, ownerBox, items, alpha, mark) {
+  const cs = getComputedStyle(el, which);
+  if (cs.content === "none" || cs.content === "normal" || cs.display === "none") return;
+  alpha *= Number(cs.opacity);
+  const px = (v) => parseFloat(v) || 0;
+  if (cs.position === "absolute") {  // a line between cards, placed against its li or ul (position: relative)
+    // the stylesheet's * { box-sizing } doesn't reach ::before and ::after: their width is inside the border
+    const extra = (a, b) => (cs.boxSizing === "border-box" ? 0 : px(cs[`padding${a}`]) + px(cs[`padding${b}`]) +
+                                                               px(cs[`border${a}Width`]) + px(cs[`border${b}Width`]));
+    const w = px(cs.width) + extra("Left", "Right");
+    const h = px(cs.height) + extra("Top", "Bottom");
+    const inner = { x: ownerBox.x + px(owner.borderLeftWidth), y: ownerBox.y + px(owner.borderTopWidth),
+                    w: ownerBox.w - px(owner.borderLeftWidth) - px(owner.borderRightWidth) };
+    const x = cs.left !== "auto" ? inner.x + px(cs.left) : inner.x + inner.w - px(cs.right) - w;
+    const box = { x, y: inner.y + px(cs.top), w, h };
+    const look = boxLook(cs, box);
+    if (look) items.push({ kind: "box", box, look, alpha });
+    return;
+  }
+  // words the stylesheet adds after an element's own (the † after a name): after its last word
+  const text = cs.content.replace(/^["']|["']$/g, "");
+  const last = mark < 0 ? null : items.slice(mark).findLast((i) => i.kind === "text");
+  if (!text.trim() || !last) return;
+  items.push({ kind: "text", text, x: last.right, y: last.y, h: last.h, right: last.right, alpha, color: cs.color,
+               font: `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}` });
+}
+
+function wordItems(node, cs, origin, items, alpha) {
+  if (!node.data.trim()) return;
+  const font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+  const upper = cs.textTransform === "uppercase";
+  const range = document.createRange();
+  const add = (text, r) => items.push({ kind: "text", text: upper ? text.toUpperCase() : text, x: r.left - origin.left,
+                                        y: r.top - origin.top, h: r.height, right: r.right - origin.left, font,
+                                        color: cs.color, alpha });
+  for (const m of node.data.matchAll(/\S+/g)) {
+    range.setStart(node, m.index);
+    range.setEnd(node, m.index + m[0].length);
+    const rects = [...range.getClientRects()].filter((r) => r.width > 0);
+    if (rects.length === 1) {
+      add(m[0], rects[0]);
+      continue;
+    }
+    for (let i = 0; i < m[0].length; i++) {  // a long name broken across lines: letter by letter
+      range.setStart(node, m.index + i);
+      range.setEnd(node, m.index + i + 1);
+      const r = range.getClientRects()[0];
+      if (r) add(m[0][i], r);
+    }
+  }
+}
+
+function pen(ctx, side) {
+  ctx.strokeStyle = side.color;
+  ctx.lineWidth = side.w;
+  ctx.setLineDash(side.style === "dashed" ? [side.w * 3, side.w * 2] : side.style === "dotted" ? [side.w, side.w] : []);
+}
+
+function drawItem(ctx, item) {
+  ctx.globalAlpha = item.alpha;
+  if (item.kind === "text") {
+    ctx.font = item.font;
+    ctx.fillStyle = item.color;
+    ctx.textBaseline = "alphabetic";
+    const m = ctx.measureText(item.text);
+    const [up, below] = [m.fontBoundingBoxAscent, m.fontBoundingBoxDescent];
+    ctx.fillText(item.text, item.x, up ? item.y + (item.h - up - below) / 2 + up : item.y + item.h * 0.8);
+    return;
+  }
+  const { x, y, w, h } = item.box;
+  if (item.kind === "img") {
+    const p = item.picture;
+    if (!p?.naturalWidth) return;
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, item.radius);
+    ctx.clip();
+    const s = Math.max(w / p.naturalWidth, h / p.naturalHeight);  // object-fit: cover
+    ctx.drawImage(p, x + (w - p.naturalWidth * s) / 2, y + (h - p.naturalHeight * s) / 2, p.naturalWidth * s,
+                  p.naturalHeight * s);
+    ctx.restore();
+    return;
+  }
+  const { fill, sides, radius } = item.look;
+  if (fill) {
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, radius);
+    ctx.fill();
+  }
+  if (sides.every(Boolean)) {  // a card's frame
+    const bw = sides[0].w;
+    pen(ctx, sides[0]);
+    ctx.beginPath();
+    ctx.roundRect(x + bw / 2, y + bw / 2, w - bw, h - bw, radius.map((r) => Math.max(0, r - bw / 2)));
+    ctx.stroke();
+    return;
+  }
+  // some sides only (the lines between cards): each run of sides one after another as one line, rounded where the
+  // stylesheet rounds the corner between two. Side k goes from corner k to corner k + 1 (top, right, bottom, left).
+  const half = (k) => (sides[k]?.w || 0) / 2;
+  const at = [[x + half(3), y + half(0)], [x + w - half(1), y + half(0)], [x + w - half(1), y + h - half(2)],
+              [x + half(3), y + h - half(2)]];
+  for (let first = 0; first < 4; first++) {
+    if (!sides[first] || sides[(first + 3) % 4]) continue;  // a run starts where the side before it isn't drawn
+    pen(ctx, sides[first]);
+    ctx.beginPath();
+    ctx.moveTo(...at[first]);
+    let k = first;
+    while (sides[(k + 1) % 4]) {
+      ctx.arcTo(...at[(k + 1) % 4], ...at[(k + 2) % 4], radius[(k + 1) % 4]);
+      k = (k + 1) % 4;
+    }
+    ctx.lineTo(...at[(k + 1) % 4]);
+    ctx.stroke();
+  }
+}
+
+// Passkeys (routes/passkeys.py). A button with data-passkey signs in with one ("signin"), makes the first with an
+// admin's link ("invite": the link's token is after its #, which never reaches the server) or adds one to the account
+// signed in ("add"). The server says what to ask for, the browser asks the person to unlock their phone or computer,
+// and the server checks what it signed. [data-passkey-able] shows where this browser can use passkeys,
+// [data-passkey-unable] where it can't; #passkey-said says what went wrong.
+const passkeysWork = !!(window.PublicKeyCredential && window.isSecureContext && navigator.credentials);
+document.querySelectorAll(passkeysWork ? "[data-passkey-able]" : "[data-passkey-unable]")
+  .forEach((el) => (el.hidden = false));
+
+// WebAuthn's JSON has its bytes as base64url
+const fromB64url = (s) => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/")
+  .padEnd(Math.ceil(s.length / 4) * 4, "=")), (c) => c.charCodeAt(0));
+const toB64url = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)))
+  .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+function passkeyOptions(o) {
+  const out = { ...o, challenge: fromB64url(o.challenge) };
+  if (o.user) out.user = { ...o.user, id: fromB64url(o.user.id) };
+  for (const list of ["excludeCredentials", "allowCredentials"]) {
+    if (o[list]) out[list] = o[list].map((c) => ({ ...c, id: fromB64url(c.id) }));
+  }
+  return out;
+}
+
+function passkeyAnswer(cred) {
+  const r = cred.response;
+  const response = { clientDataJSON: toB64url(r.clientDataJSON) };
+  if (r.attestationObject) {  // a passkey made
+    response.attestationObject = toB64url(r.attestationObject);
+    response.transports = r.getTransports?.() ?? [];
+  } else {  // a passkey used
+    response.authenticatorData = toB64url(r.authenticatorData);
+    response.signature = toB64url(r.signature);
+    if (r.userHandle) response.userHandle = toB64url(r.userHandle);
+  }
+  return { id: cred.id, rawId: toB64url(cred.rawId), type: cred.type, response,
+           authenticatorAttachment: cred.authenticatorAttachment || undefined,
+           clientExtensionResults: cred.getClientExtensionResults?.() ?? {} };
+}
+
+function passkeyTrouble(err) {
+  if (err.name === "NotAllowedError" || err.name === "AbortError") {
+    return "The passkey wasn't used: it was cancelled, or took too long. Try again.";
+  }
+  if (err.name === "InvalidStateError") return "This phone or computer has a passkey for this account already.";
+  if (err.name === "SecurityError") return "Passkeys don't work on this address.";
+  if (err.name === "NotSupportedError") return "This phone or computer can't make the kind of passkey this site needs.";
+  return err.message;
+}
+
+function passkeySay(words) {
+  const said = document.getElementById("passkey-said");
+  if (!said) return alert(words);
+  said.textContent = words;
+  said.hidden = !words;
+}
+
+const PASSKEY_URLS = {
+  signin: ["/auth/passkey/start", "/auth/passkey/finish"],
+  invite: ["/auth/invite/start", "/auth/invite/finish"],
+  add: ["/api/passkeys/start", "/api/passkeys/finish"],
+};
+
+async function usePasskey(button) {
+  const kind = button.dataset.passkey;
+  const [start, finish] = PASSKEY_URLS[kind];
+  button.disabled = true;
+  passkeySay("");
+  try {
+    const body = kind === "signin" ? { next: button.dataset.next || "/" }
+      : kind === "invite" ? { token: location.hash.slice(1) } : undefined;
+    const { options } = await post(start, body);
+    const publicKey = passkeyOptions(options);
+    const cred = kind === "signin" ? await navigator.credentials.get({ publicKey })
+      : await navigator.credentials.create({ publicKey });
+    const result = await post(finish, { credential: passkeyAnswer(cred) });
+    if (result.go) location.href = result.go;
+    else location.reload();
+  } catch (err) {
+    passkeySay(err instanceof DOMException ? passkeyTrouble(err) : err.message);
+    button.disabled = false;
+  }
+}
+
+document.addEventListener("click", (e) => {
+  const button = e.target.closest("button[data-passkey]");
+  if (button) usePasskey(button);
+});
+
+// An admin's link (passkey_invite.html): whom it is for, before making the passkey
+const invite = document.querySelector("[data-invite]");
+if (invite) {
+  const token = location.hash.slice(1);
+  if (!token) passkeySay("This link is missing its end. Open the whole link you were sent, or ask for it again.");
+  else {
+    post("/auth/invite/check", { token }).then((found) => {
+      invite.querySelector("[data-invite-name]").textContent = found.who;
+      invite.querySelector("[data-invite-email]").textContent = found.who === found.email ? "" : found.email;
+      invite.querySelector("[data-invite-who]").hidden = false;
+    }, (err) => passkeySay(err.message));
+  }
+}

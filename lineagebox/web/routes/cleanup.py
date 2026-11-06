@@ -250,7 +250,7 @@ def reference_page(request: Request, kind: str, pg: int = Query(1, alias="page",
 def removed_page(request: Request, c=Depends(con), s: Site = Depends(site)):
     batches = cleanup.removed_batches(c)
     return page(request, "cleanup_removed.html", batches=batches, total=sum(b["files"] for b in batches),
-                watched=s.live(c).folders)
+                total_bytes=sum(b["bytes"] for b in batches), watched=s.live(c).folders)
 
 
 @router.get("/cleanup/kept", response_class=HTMLResponse)

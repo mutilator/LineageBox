@@ -111,6 +111,16 @@ class Graph:
         return out
 
 
+def immediate(g: Graph, pid: int) -> list[int]:
+    """Someone and their immediate family, in that order: parents, current partner, brothers and sisters (half ones
+    too) and children, each by name. A member's Home shows their photos first."""
+    by_name = lambda ids: sorted(ids, key=lambda i: g.name(i).lower())  # noqa: E731
+    partners = {q for q, (current, _) in g.partners.get(pid, {}).items() if current}
+    ids = [pid, *by_name(g.effective_parents.get(pid, ())), *by_name(partners), *by_name(g.all_siblings(pid)),
+           *by_name(g.effective_children.get(pid, ()))]
+    return [i for i in dict.fromkeys(ids) if i in g.people]  # not the stand-in parent of siblings with none entered
+
+
 def load(con: sqlite3.Connection) -> Graph:
     people = {r["id"]: r for r in con.execute("SELECT id, name, sex, deceased, birth_date FROM person")}
     parents, children, siblings = defaultdict(set), defaultdict(set), defaultdict(set)

@@ -43,6 +43,20 @@ class Ollama:
         self.keep_alive = cfg.ollama_keep_alive
         # a sleeping or switched-off Ollama PC should fail fast, not after the long answer timeout
         self.http = httpx.Client(base_url=cfg.ollama_url, timeout=httpx.Timeout(timeout, connect=10))
+        self._thinks: bool | None = None
+
+    def thinks(self) -> bool:
+        """Whether the model thinks before it answers (qwen3, deepseek-r1), asked of Ollama once. Its thinking is
+        switched off: it spends the answer's tokens on it. Measured on Ollama 0.40: qwen3.5:4b, left to think, thought
+        through all 4,096 on a three-sentence obituary and never answered; told not to, it answered in 321.
+        deepseek-r1 thinks all the same, then answers."""
+        if self._thinks is None:
+            try:
+                r = self.http.post("/api/show", json={"model": self.model, "name": self.model}, timeout=30)
+                self._thinks = r.is_success and "thinking" in (r.json().get("capabilities") or [])
+            except (httpx.HTTPError, ValueError):
+                return False  # asked again next time
+        return self._thinks
 
     def reachable(self) -> bool:
         try:
@@ -90,13 +104,16 @@ class Ollama:
         message = {"role": "user", "content": user}
         if images:
             message["images"] = [base64.b64encode(im).decode() for im in images]
-        r = self.http.post("/api/chat", json={
+        body = {
             "model": self.model, "stream": False, "keep_alive": self.keep_alive, "format": schema,
             # No num_ctx: other clients (Open WebUI, say) may share this server, and a context size that differs
             # from the server default makes Ollama reload the model every time requests alternate.
             "options": {"temperature": temperature, "num_predict": max_tokens},
             "messages": [{"role": "system", "content": system}, message],
-        })
+        }
+        if self.thinks():
+            body["think"] = False
+        r = self.http.post("/api/chat", json=body)
         if not r.is_success:
             raise OllamaError(f"Ollama answered {r.status_code}: {_error_text(r)}")
         body = r.json()

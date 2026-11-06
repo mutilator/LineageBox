@@ -4,7 +4,7 @@ import threading
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 
-from lineagebox import db, https, llm, serving, settings, speech, tours
+from lineagebox import db, https, llm, passkeys, serving, settings, speech, tours
 from lineagebox.llm import Ollama
 from lineagebox.web.common import (ADMIN, FolderBody, _cert_name, _from_app, _host_allowed, _net_folders,
                                    _photos_per_watched)
@@ -43,7 +43,10 @@ def settings_page(request: Request, browse: str = "", c=Depends(con), s: Site = 
                 sources=settings.sources(s.cfg), problems=settings.problems(c),
                 net_folders=_net_folders(now, settings.sources(s.cfg)), net_paths=dict(now.network_paths),
                 cert=cert, host=host, cert_covers=cert is not None and https.covers(cert.names, host),
-                cert_name=_cert_name(cert, now.allowed_hosts, host), proxied="x-forwarded-for" in request.headers)
+                cert_name=_cert_name(cert, now.allowed_hosts, host), proxied="x-forwarded-for" in request.headers,
+                passkey_problem=passkeys.why_not(now), passkey_domain=passkeys.domain(now),
+                passkey_count=c.execute("SELECT count(*) FROM passkey WHERE rp_id = ?",
+                                        (passkeys.domain(now),)).fetchone()[0])
 
 
 @router.post("/api/settings", dependencies=[Depends(_from_app)])

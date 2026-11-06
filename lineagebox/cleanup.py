@@ -579,7 +579,8 @@ def reference_photos(con: sqlite3.Connection) -> dict[str, list[dict]]:
 
 def removed_batches(con: sqlite3.Connection) -> list[dict]:
     rows = con.execute("""SELECT removed_batch AS batch, removed_reason AS reason, min(removed_at) AS at,
-                                 count(*) AS files FROM file WHERE removed_at IS NOT NULL
+                                 count(*) AS files, COALESCE(SUM(size), 0) AS bytes
+                          FROM file WHERE removed_at IS NOT NULL
                           GROUP BY removed_batch ORDER BY removed_batch DESC""").fetchall()
     out = []
     for r in rows:

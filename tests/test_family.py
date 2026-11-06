@@ -149,9 +149,10 @@ def test_family_pages_and_api(con, cfg, fam):
     client = TestClient(webapp.create_app(cfg), client=LAN)
     app = {"X-Requested-With": "lineagebox"}
     page = client.get("/family").text
-    assert "Relationships as seen from" in page and 'class="tree"' in page
-    assert "Grandpa &amp; Grandma" in page and "former sister-in-law" in page
+    assert "Relationships as seen from" in page and "former sister-in-law" in page
     assert "Owen&#39;s friend" in page  # Jake
+    tree = client.get("/family/tree").text  # the whole line down from one ancestor: a page of its own
+    assert 'class="tree"' in tree and "Grandpa &amp; Grandma" in tree
     person = client.get(f"/person/{fam['Kyle']}").text
     assert "your nephew" in person and f'href="/person/{fam["Diane"]}">Diane</a>' in person
     for pid in fam.values():  # every kind of link renders
@@ -174,19 +175,19 @@ def test_family_pages_and_api(con, cfg, fam):
         assert bad.status_code == 400 and "worked out" in bad.json()["detail"]
     owen = client.get(f"/person/{fam['Owen']}").text
     assert "Worked out from these" in owen and "grandfather" in owen
-    assert 'class="step-tag">step</span>' in page  # Ava, under Mike and Rosa
-    assert 'class="fcard step' not in page and 'class="fcard direct stepkid"' in page  # .step is the viewer's arrows
+    assert 'class="step-tag">step</span>' in tree  # Ava, under Mike and Rosa
+    assert 'class="fcard step' not in tree and 'class="fcard direct stepkid"' in tree  # .step is the viewer's arrows
     # the family line has bold frames; partners married in do not
-    assert f'class="fcard direct" href="/person/{fam["Mike"]}"' in page
-    assert f'class="fcard" href="/person/{fam["Rosa"]}"' in page
+    assert f'class="fcard direct" href="/person/{fam["Mike"]}"' in tree
+    assert f'class="fcard" href="/person/{fam["Rosa"]}"' in tree
     assert re.search(r'/static/app\.js\?v=[0-9a-f]{10}"', page)  # a new script is fetched after each update
     # Mike has had two wives: each is a branch with her own children under her
-    branches = {seg.split('href="/person/')[1].split('"')[0]: seg for seg in page.split('<li class="union')[1:]}
+    branches = {seg.split('href="/person/')[1].split('"')[0]: seg for seg in tree.split('<li class="union')[1:]}
     assert f'/person/{fam["Kyle"]}"' in branches[str(fam["Diane"])] and "former partner" in branches[str(fam["Diane"])]
     assert f'/person/{fam["Ava"]}"' in branches[str(fam["Rosa"])]
     assert f'/person/{fam["Kyle"]}"' not in branches[str(fam["Rosa"])]
     stand_in = family.tree_root(family.load(con), fam["Ana"])
-    assert "Parents of Ana and Katherine" in client.get(f"/family?root={stand_in}").text
+    assert "Parents of Ana and Katherine" in client.get(f"/family/tree?root={stand_in}").text
 
     # adding someone new: they join the catalog and the family
     r = client.post(f"/api/people/{fam['Kyle']}/link", json={"word": "daughter", "name": "Zoe", "with_parent": ""},

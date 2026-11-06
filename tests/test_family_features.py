@@ -2,6 +2,7 @@
 ages, documents, event tours and the world map."""
 import dataclasses
 import io
+import json
 import zipfile
 from datetime import date
 
@@ -11,8 +12,10 @@ from fastapi.testclient import TestClient
 
 from lineagebox import documents, events, family, gedcom, gedcom_import, people, places, search, tours
 from lineagebox.web import app as webapp
+from tests import family_fixture as fx
 from tests.conftest import LAN
 from tests.test_gedcom import APP, fam  # noqa: F401 - the fixture
+from tests.test_access_web import signed_in, site  # noqa: F401 - site is a fixture
 
 FOREIGN = """0 HEAD
 1 SOUR ANCESTRY
@@ -334,9 +337,101 @@ def test_the_family_around_one_person(con, cfg):
     assert 'id="view"' in page and f'href="/family?center={ids["Grandpa"]}#view"' in page
     assert f'href="/person/{ids["Ana"]}"' in page  # the one in the middle opens their page
     assert f'data-double="/person/{ids["Grandpa"]}"' in page  # anyone else: a double click opens their page
-    assert "<summary><h2>The whole line down from one ancestor</h2></summary>" in page
+    # the whole line down from one ancestor is a page of its own, from the top of the family of whoever is in the
+    # middle, showing them
+    assert f'href="/family/tree?root={ids["Great"]}&amp;person={ids["Ana"]}"' in page and 'class="tree"' not in page
     climbed = client.get(f"/family?center={ids['Grandpa']}").text
     assert 'class="hint-path"' in climbed and ">You</a>" in climbed and "1 more generation" not in climbed
+
+
+def test_the_family_page_folds_away_all_but_the_family_around_you(con, cfg):
+    """Reading into the tree at the top (admins), the family around you open, the groups below folded, each
+    relationship a group of its own to glance at, and GEDCOM's Export and Import at the bottom."""
+    ids = {n: people.person_id(con, n) for n in ("Ana", "Dad", "Mum", "Sis", "Cousin", "Aunt", "Rex", "Coach")}
+    for who, word, other in (("Ana", "father", "Dad"), ("Ana", "mother", "Mum"), ("Ana", "sister", "Sis"),
+                             ("Mum", "sister", "Aunt"), ("Aunt", "son", "Cousin"), ("Ana", "pet", "Rex")):
+        family.link(con, ids[who], word, ids[other])
+    people.add_to_group(con, ids["Coach"], "Teachers")
+    con.execute("INSERT OR REPLACE INTO settings(key, value) VALUES ('me', ?)", (str(ids["Ana"]),))
+    con.commit()
+    page = TestClient(webapp.create_app(cfg), client=LAN).get("/family").text
+    main = page.split("<main", 1)[1]
+    order = [main.index(s) for s in ('<h1>Family</h1>', 'id="read"', 'id="view"', "Everyone, by relationship",
+                                     "Friends, pets and others", "Acquaintances, by group", 'id="gedcom"')]
+    assert order == sorted(order)
+    reading = main.split('id="read"', 1)[1].split("</details>", 1)[0]
+    assert "Use local AI to read family events from text documents and pictures" in reading
+    assert 'data-api="/api/family/read"' in reading and "presented for you to approve" in reading
+    # every section below the family around you is folded until opened, and so is each group in it
+    folded = main.split("Everyone, by relationship", 1)[0].rsplit("<details", 1)[1]
+    assert " open" not in folded.split(">", 1)[0]
+    assert main.count("<details") == main.count("</details>") and "<details open" not in main
+    assert '<summary class="group-head">Cousins <small>1</small></summary>' in main
+    assert main.count("data-glance") >= 4  # parents, sisters, aunts, cousins (and the pet, and the teachers)
+    gedcom = main.split('id="gedcom"', 1)[1]
+    assert "<h3>Export</h3>" in gedcom and "<h3>Import</h3>" in gedcom and "Read an obituary" not in gedcom
+
+
+def test_the_whole_line_is_a_page_to_move_around_and_save(con, cfg):
+    ids = {n: people.person_id(con, n) for n in ("Ana", "Dad", "Grandpa", "Kid")}
+    for who, word, other in (("Ana", "father", "Dad"), ("Dad", "father", "Grandpa"), ("Ana", "son", "Kid")):
+        family.link(con, ids[who], word, ids[other])
+    con.commit()
+    client = TestClient(webapp.create_app(cfg), client=LAN, follow_redirects=False)
+    page = client.get(f"/family/tree?root={ids['Grandpa']}&person={ids['Kid']}").text
+    assert "<title>The whole line down from Grandpa" in page and "data-pan-zoom" in page
+    assert f'data-person="{ids["Kid"]}"' in page and "data-tree-picture" in page and 'data-zoom="fit"' in page
+    assert f'class="fcard direct" href="/person/{ids["Kid"]}"' in page
+    # someone not in the catalog is left out; with no root, the line goes from the top of whoever is asked for
+    assert "data-person" not in client.get(f"/family/tree?root={ids['Grandpa']}&person=999999").text
+    assert f'<option value="{ids["Grandpa"]}" selected>' in client.get(f"/family/tree?person={ids['Kid']}").text
+    # the old address of the whole line, and a person's page's link to it
+    old = client.get(f"/family?root={ids['Grandpa']}")
+    assert old.status_code == 303 and old.headers["location"] == f"/family/tree?root={ids['Grandpa']}"
+    person = client.get(f"/person/{ids['Kid']}").text
+    assert f'href="/family/tree?root={ids["Grandpa"]}&amp;person={ids["Kid"]}"' in person
+
+
+def test_only_admins_read_into_the_tree_from_the_family_page(site, cfg, con):
+    sam = signed_in(cfg, con, site["who"]["Sam"]).get("/family").text
+    cora = signed_in(cfg, con, site["who"]["Cora"]).get("/family").text
+    assert 'id="read"' in sam and 'id="read"' not in cora and "/api/family/read" not in cora
+    assert "<h3>Export</h3>" in cora and "<h3>Import</h3>" not in cora
+
+
+def test_removing_someone_added_by_mistake(site, cfg, con):
+    p = site["people"]
+    sam = signed_in(cfg, con, site["who"]["Sam"])
+    wrong = people.person_id(con, "Wrong Person")
+    family.link(con, wrong, "mother", p["Old Nell"])
+    events.save(con, None, tag="BIRT", person_id=wrong, date_text="1950")
+    tour = tours.save_tour(con, None, None, tours.clean({"title": "Two", "who": {"mode": "people",
+                                                                                "person_ids": [wrong, p["Cora"]]}}), "Two")
+    con.execute("INSERT OR REPLACE INTO settings(key, value) VALUES ('me', ?)", (str(wrong),))
+    con.commit()
+    assert f'data-api="/api/people/{wrong}/remove"' in sam.get(f"/person/{wrong}").text
+    assert "/remove" not in sam.get(f"/person/{p['Cora']}").text.split("<h2>Photos</h2>")[1]  # in photos: stays
+    r = sam.post(f"/api/people/{wrong}/remove", headers=APP)
+    assert r.status_code == 200 and r.json()["message"] == "Wrong Person was removed."
+    for sql in ("SELECT 1 FROM person WHERE id = ?", "SELECT 1 FROM parent WHERE child_id = ?",
+                "SELECT 1 FROM event WHERE person_id = ?"):
+        assert not con.execute(sql, (wrong,)).fetchone(), sql
+    spec = con.execute("SELECT spec FROM tour WHERE id = ?", (tour,)).fetchone()[0]
+    assert json.loads(spec)["who"]["person_ids"] == [p["Cora"]]
+    assert not con.execute("SELECT 1 FROM settings WHERE key = 'me'").fetchone()
+    assert sam.post(f"/api/people/{wrong}/remove", headers=APP).status_code == 404
+    # someone named in photos, or with an account, stays
+    in_photos = con.execute("SELECT person_id FROM face WHERE person_id IS NOT NULL").fetchone()[0]
+    r = sam.post(f"/api/people/{in_photos}/remove", headers=APP)
+    assert r.status_code == 400 and "is named in photos" in r.json()["detail"]
+    signs_in = people.person_id(con, "Signs In")
+    fx.account(con, signs_in, "signs.in@example.com")
+    r = sam.post(f"/api/people/{signs_in}/remove", headers=APP)
+    assert r.status_code == 400 and "has an account (signs.in@example.com)" in r.json()["detail"]
+    # members can't: for them there is no such thing
+    assert signed_in(cfg, con, site["who"]["Cora"]).post(f"/api/people/{p['Jim']}/remove",
+                                                         headers=APP).status_code == 404
+    assert con.execute("SELECT 1 FROM person WHERE id = ?", (p["Jim"],)).fetchone()
 
 
 def test_place_lookups_follow_the_nominatim_policy(cfg, monkeypatch):

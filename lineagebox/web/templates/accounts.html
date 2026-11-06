@@ -5,7 +5,8 @@
 <div class="settings-page">
 {% include "_settings_nav.html" %}
 <div class="settings-body">
-<p class="meta">Family members sign in with Google. A member sees their own part of the family: their ancestors, every
+<p class="meta">Family members sign in with Google, or with a passkey: the lock of their own phone or computer, for
+those without a Google account. A member sees their own part of the family: their ancestors, every
 blood relative, the partners of those and their children, and their own partner's side; the photos those people are
 in; what they upload; and what others share with them. An admin sees and changes everything.
 <a href="/folders">What is shared</a> lists everything shared, by whom and with whom.</p>
@@ -24,8 +25,25 @@ in; what they upload; and what others share with them. An admin sees and changes
       placeholder="{{ 'kept; type a new one to change it' if cfg.google_client_secret else 'from Google Cloud' }}"></label></p>
     <p><label>Address from outside <input name="public_url" value="{{ cfg.public_url }}" placeholder="https://photos.example.com"></label>
       <span class="hint">In Google Cloud → APIs &amp; Services → Credentials, the client's authorised redirect URI is
-      <code>{{ redirect_uri }}</code>.</span></p>
+      <code>{{ redirect_uri }}</code>. Passkeys are made for this name too: change it later, and everyone's passkeys
+      stop working until they make new ones.</span></p>
     <p><label>Stay signed in for <input name="session_days" type="number" min="1" max="365" value="{{ cfg.session_days }}"> days</label></p>
+    <h3 id="passkeys">Passkeys</h3>
+    {%- if passkey_problem %}
+    <p class="state off">Passkeys can't be set up yet.</p>
+    <p class="note">{{ passkey_problem }}</p>
+    {%- else %}
+    <p class="state on">Ready, for {{ passkey_domain }}.</p>
+    {%- endif %}
+    <p class="hint">A passkey signs someone in with the lock of their phone or computer (their face, fingerprint or
+      PIN) instead of Google: for those without a Google account, or anyone who would rather. To give someone one,
+      open their account below, press <b>Make a passkey link</b> and send them the link: it works once, for
+      {{ invite_days }} days ({{ admin_hours }} hours for an admin's account). Once signed in, they can add passkeys
+      on their other devices from the round button at the top → Passkeys.</p>
+    <p class="hint">Passkeys need three things: <b>HTTPS</b> (a certificate, or a reverse proxy that does HTTPS: see
+      <a href="/settings#address">Address and HTTPS</a>); the <b>Address from outside</b> above, a name such as
+      photos.example.com; and that <b>name listed exactly under Host names</b>, with no name with * there. Browsers
+      only use a passkey on the one name it was made for, over HTTPS with a certificate they trust.</p>
     <h3>Uploads</h3>
     <p><label>Folder <input name="uploads_folder" value="{{ cfg.uploads_folder }}"></label>
       <label>in <select name="uploads_into">
@@ -39,12 +57,55 @@ in; what they upload; and what others share with them. An admin sees and changes
 </section>
 
 <section class="panel" id="accounts">
-  <h2>Accounts</h2>
+  <h2>Accounts <small>{{ rows|length }}</small></h2>
+  <h3 id="add-account">Add an account</h3>
+  <form class="inline-facts" data-api="/api/accounts">
+    <input name="email" type="email" required placeholder="email address" aria-label="Email address">
+    <input name="name" data-names autocomplete="off" maxlength="80" placeholder="who they are in the family tree" aria-label="Who they are">
+    <select name="role" aria-label="Role">{% for r in roles %}<option{% if r == "member" %} selected{% endif %}>{{ r }}</option>{% endfor %}</select>
+    <button type="submit">Add</button>
+  </form>
+  {%- if rows|length > 1 %}
+  <p class="account-find"><input type="search" id="account-filter" data-filter=".account-row" data-count="#account-count"
+    placeholder="Find an account: a name, an email, admin, member" aria-label="Find an account"> <span class="hint inline" id="account-count"></span></p>
+  {%- endif %}
+  {#- each account folded: its person's name (or email) to click; its settings and exceptions inside. The one open
+      stays open when a change loads the page again (data-keep-open: its id goes in the address). #}
   {%- for a in rows %}
-  <div class="account-row" id="a{{ a.id }}">
-    <h3>{{ a.email }} <span class="hint inline">{{ a.role }}{% if a.person_name %} · {{ a.person_name }}{% endif %}
+  <details class="account-row" id="a{{ a.id }}" data-keep-open
+    data-text="{{ a.person_name or '' }} {{ a.email }} {{ a.role }}{% if a.disabled_at %} switched off{% endif %}">
+    <summary><b>{{ a.person_name or a.email }}</b>
+      <span class="hint inline">{% if a.person_name %}{{ a.email }} · {% endif %}{{ a.role }}
       {%- if a.disabled_at %} · switched off{% endif %}{% if a.last_seen_at %} · last here {{ a.last_seen_at|date(false) }}{% endif %}
-      {%- if a.sessions %} · signed in on {{ a.sessions }} browser{{ "" if a.sessions == 1 else "s" }}{% endif %}</span></h3>
+      {%- if keys.get(a.id) %} · {{ keys[a.id]|length }} passkey{{ "" if keys[a.id]|length == 1 else "s" }}{% endif %}</span></summary>
+    <div class="account-body">
+    {%- if a.sessions %}<p class="hint">Signed in on {{ a.sessions }} browser{{ "" if a.sessions == 1 else "s" }}.</p>{% endif %}
+    <div class="passkeys">
+      {%- for k in keys.get(a.id, []) %}
+      <p class="passkey-line">{% include "_passkey_icon.html" %} {{ k.name }}
+        <span class="hint inline">made {{ k.created_at|date(false) }}{% if k.last_used_at %} · last used {{ k.last_used_at|date(false) }}{% endif %}
+        {%- if k.rp_id != passkey_domain %} · made for {{ k.rp_id }}, so it doesn't work here any more{% endif %}</span>
+        <button type="button" class="quiet" data-api="/api/passkeys/{{ k.id }}/remove" data-reload
+          data-confirm="Take away the passkey {{ k.name }} of {{ a.email }}? It stops signing them in, and wherever it signed them in is signed out.">Take it away</button></p>
+      {%- endfor %}
+      <p class="actions">
+        {%- if passkey_problem %}
+        <button type="button" disabled>Make a passkey link</button>
+        <span class="hint inline">Passkeys can't be set up yet: see <a href="#passkeys">Passkeys</a> above.</span>
+        {%- elif a.disabled_at %}
+        <span class="hint inline">Switched off: no passkey link until it is switched back on.</span>
+        {%- else %}
+        <button type="button" data-api="/api/accounts/{{ a.id }}/invite" data-html="#link{{ a.id }}"
+          {%- if links.get(a.id) %} data-confirm="Make a new link for {{ a.email }}? The one made before stops working."{% endif %}>
+          {{- "Make a new passkey link" if links.get(a.id) else "Make a passkey link" }}</button>
+        {%- if links.get(a.id) %}
+        <span class="hint inline">A link is out, until {{ links[a.id]|date }}.</span>
+        <button type="button" class="quiet" data-api="/api/accounts/{{ a.id }}/invite/cancel" data-reload>Stop the link</button>
+        {%- endif %}
+        {%- endif %}
+      </p>
+      <div id="link{{ a.id }}"></div>
+    </div>
     <form class="inline-facts" data-api="/api/accounts/{{ a.id }}">
       <input name="name" data-names autocomplete="off" maxlength="80" value="{{ a.person_name or '' }}" aria-label="Who they are in the family tree" placeholder="who they are">
       <select name="role" aria-label="Role">{% for r in roles %}<option{% if r == a.role %} selected{% endif %}>{{ r }}</option>{% endfor %}</select>
@@ -74,18 +135,11 @@ in; what they upload; and what others share with them. An admin sees and changes
       </form>
     </div>
     {%- endif %}
-  </div>
+    </div>
+  </details>
   {%- else %}
   <p class="note">No accounts yet. Add your own first, as an admin.</p>
   {%- endfor %}
-
-  <h3>Add an account</h3>
-  <form class="inline-facts" data-api="/api/accounts">
-    <input name="email" type="email" required placeholder="email address" aria-label="Email address">
-    <input name="name" data-names autocomplete="off" maxlength="80" placeholder="who they are in the family tree" aria-label="Who they are">
-    <select name="role" aria-label="Role">{% for r in roles %}<option{% if r == "member" %} selected{% endif %}>{{ r }}</option>{% endfor %}</select>
-    <button type="submit">Add</button>
-  </form>
 </section>
 </div>
 </div>

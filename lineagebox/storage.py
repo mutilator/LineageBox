@@ -2,7 +2,8 @@
 
 Each disk is shown once, however many watched folders are on it (in Docker each photo source is its own mount, but
 several are often folders of one disk): how big it is, what is free, and how much of it is the library's photos and
-videos, LineageBox's previews, thumbnails and catalog, and other files. The data folder holds tens of thousands of
+videos, the files Cleanup moved to the Removed folders (room that Empty gives back), LineageBox's previews, thumbnails
+and catalog, and other files. The data folder holds tens of thousands of
 small files, too many to add up while a page waits, so the worker measures it once a day (measure_data).
 """
 import os
@@ -10,7 +11,7 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
-from lineagebox import catalog, settings
+from lineagebox import catalog, cleanup, settings
 from lineagebox.config import Config
 
 KEY = "storage"  # settings key: {"data_bytes", "measured_at"}, written by the worker
@@ -46,7 +47,9 @@ def _size(folder: Path) -> int:
 
 def disks(con, cfg: Config) -> list[dict]:
     """The disks the watched folders and the data folder are on, the fullest first: total, used and free bytes, what
-    it holds (photos and videos, LineageBox's own files, other files) and the watched folders on it."""
+    it holds (photos and videos, removed files, LineageBox's own files, other files) and the watched folders on it.
+    A watched folder's Removed folder is on its disk: cleanup moves files there by renaming them, which only works
+    within one."""
     found: dict = {}
 
     def disk(path: Path) -> dict | None:
@@ -55,7 +58,7 @@ def disks(con, cfg: Config) -> list[dict]:
         except OSError:  # a source that isn't mounted just now
             return None
         return found.setdefault(device, {"total": usage.total, "used": usage.used, "free": usage.free,
-                                         "photos": 0, "ours": None, "folders": []})
+                                         "photos": 0, "removed": 0, "ours": None, "folders": []})
 
     for folder in cfg.folders:
         d = disk(cfg.share_root / folder)
@@ -63,17 +66,21 @@ def disks(con, cfg: Config) -> list[dict]:
             d["folders"].append(folder)
             d["photos"] += con.execute("SELECT COALESCE(SUM(size), 0) FROM main.file WHERE NOT missing "
                                        "AND path LIKE ? ESCAPE '!'", (catalog.under(folder),)).fetchone()[0]
+            removed = catalog.under(cleanup.removed_folder(cfg, folder))
+            d["removed"] += con.execute("SELECT COALESCE(SUM(size), 0) FROM main.file WHERE removed_at IS NOT NULL "
+                                        "AND removed_path LIKE ? ESCAPE '!'", (removed,)).fetchone()[0]
     if (d := disk(cfg.data_dir)) is not None:
         d["ours"] = (settings.get(con, KEY) or {}).get("data_bytes")
         d["data"] = True
     out = []
     for d in found.values():
-        d["other"] = max(0, d["used"] - d["photos"] - (d["ours"] or 0))
+        d["other"] = max(0, d["used"] - d["photos"] - d["removed"] - (d["ours"] or 0))
         d["low"] = d["free"] < LOW_BYTES or d["total"] and d["free"] / d["total"] < LOW_SHARE
         d["share"] = d["used"] / d["total"] if d["total"] else 0
-        # the parts of the bar, as shares of the disk (photos, LineageBox's files, the rest of what is used)
+        # the parts of the bar, as shares of the disk (photos, removed, LineageBox's files, the rest of what is used)
         d["parts"] = [(key, min(1.0, n / d["total"]) if d["total"] else 0)
-                      for key, n in (("photos", d["photos"]), ("ours", d["ours"] or 0), ("other", d["other"]))]
+                      for key, n in (("photos", d["photos"]), ("removed", d["removed"]), ("ours", d["ours"] or 0),
+                                     ("other", d["other"]))]
         out.append(d)
     return sorted(out, key=lambda d: -d["share"])
 

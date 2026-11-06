@@ -10,6 +10,11 @@
     {%- if next_year %}<a href="/timeline/{{ next_year }}" rel="next">{{ next_year }} →</a>{% endif %}
   </span>
 </nav>
+<section class="year-events-here">
+  <h2>Events</h2>
+  <div class="year-events" data-later="/timeline/{{ year }}/events"><p class="hint loading">Looking for events in
+    {{ year }}…</p></div>
+</section>
 <nav class="months">
 {%- for mo, imgs in months.items() %}<a href="#m{{ mo }}">{{ month_names[mo][:3] }} <small>{{ imgs|length }}</small></a>{% endfor %}
 </nav>

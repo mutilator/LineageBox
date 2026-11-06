@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Make your passkey{% endblock %}
+{% block main %}
+{#- Where an admin's link for making a passkey leads (routes/passkeys.py). The link's token is after its #: app.js
+    reads it, asks whom it is for, and makes the passkey with it. #}
+<div class="signin passkey-invite">
+  <h1>Family photos</h1>
+  {%- if problem %}
+  <p class="note problem" role="alert">This link can't be used just now: passkeys aren't set up on this site. Tell
+    whoever sent it.</p>
+  {%- if viewer.admin %}<p class="hint">{{ problem }}</p>{% endif %}
+  {%- elif not here %}
+  <p class="note problem" role="alert">Open the link just as it was sent: it starts with {{ origin }}, and passkeys
+    work only there.</p>
+  {%- else %}
+  <div data-invite>
+    <div data-invite-who hidden>
+      <p>This link makes a passkey for <b data-invite-name></b> <span class="hint inline" data-invite-email></span>:
+        a way to sign in to the family's photos without a password.</p>
+      <p class="hint">Make it on their own phone or computer: whoever unlocks it later signs in as them.</p>
+      <p data-passkey-able hidden><button type="button" class="primary passkey-button" data-passkey="invite">
+        {%- include "_passkey_icon.html" %}<span>Make my passkey</span></button></p>
+      <p class="hint" data-passkey-able hidden>Your phone or computer asks you to unlock it, with your face,
+        fingerprint or PIN, and keeps the passkey. If it offers to keep it in a password manager (iCloud Keychain,
+        Google Password Manager), say yes: your other devices then have it too.</p>
+      <p class="note" data-passkey-unable hidden>This browser can't make passkeys. Open the link on your phone, or in
+        a browser from the last few years (Safari, Chrome, Edge or Firefox).</p>
+    </div>
+    <p class="note problem" id="passkey-said" role="alert" hidden></p>
+  </div>
+  {%- endif %}
+</div>
+{% endblock %}

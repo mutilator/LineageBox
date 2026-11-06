@@ -287,13 +287,28 @@ scanned within a minute. Progress is on the <a href="/status">Status</a> page.</
       <textarea id="hosts" name="allowed_hosts" rows="3" placeholder="photos.example.com">{{ cfg.allowed_hosts|join("\n") }}</textarea>
       <span class="hint">Names besides its address that LineageBox answers to, one per line; <code>*.example.com</code>
       covers every name under it. Its addresses and home-network names (nas, photos.lan) always work. Other names are refused unless listed here, so that no other
-      website can reach your photos through your browser. Point the name at this machine in your router's or domain's DNS.</span></p>
+      website can reach your photos through your browser. Point the name at this machine in your router's or domain's DNS.
+      A name with * keeps passkeys from being set up: they belong to one exact name, so list each name itself.</span></p>
     <p><label>Reverse proxy <input name="trusted_proxies" value="{{ cfg.trusted_proxies|join(', ') }}" placeholder="172.18.0.0/16"></label>
       <span class="hint">Only if Caddy, Nginx Proxy Manager, Traefik or your NAS does HTTPS in front of LineageBox: its address or
       Docker network. LineageBox then checks the person behind the proxy, not the proxy itself. The proxy must send
       X-Forwarded-For and X-Forwarded-Proto.</span></p>
     <p><button type="submit" class="primary">Save</button> <span class="hint inline" id="address-saved"></span></p>
   </form>
+
+  <h3 id="passkeys">Passkeys</h3>
+  {%- if passkey_problem %}
+  <p class="state off">Passkeys can't be set up yet.</p>
+  <p class="note">{{ passkey_problem }}</p>
+  {%- else %}
+  <p class="state on">Ready, for {{ passkey_domain }}{% if passkey_count %}: {{ passkey_count }} made{% endif %}.</p>
+  {%- endif %}
+  <p class="hint">Family members without a Google account sign in with a passkey: the lock of their own phone or
+    computer. Browsers make and use passkeys only over <b>HTTPS</b>, with a certificate they trust (one from Let's
+    Encrypt or your NAS; not a self-signed one), and only on the <b>one name</b> each was made for: the Address from
+    outside on <a href="/accounts#passkeys">Family accounts</a>. So that name must be listed exactly under Host names
+    above, with no name with *, and HTTPS must be on: a certificate below, or a reverse proxy that does HTTPS (listed
+    under Reverse proxy). Admins make each person's first passkey link on Family accounts.</p>
 
   <h3 id="https">HTTPS certificate</h3>
   {% if problems.https %}<p class="note problem">{{ problems.https.message }}</p>{% endif %}

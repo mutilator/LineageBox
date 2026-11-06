@@ -30,7 +30,8 @@ MENU = (("/home", "Home", "memories, faces someone asked about, and the newest p
         ("/timeline", "Timeline", "photos by the year and month they were taken"),
         ("/map", "Map", "where photos were taken and where family lived, year by year"),
         ("/people", "People", "faces to name, and everyone named; type to find someone"),
-        ("/family", "Family", "the family tree, acquaintances by group, and family tree programs (GEDCOM)"),
+        ("/family", "Family", "the family tree, reading obituaries and notes into it, acquaintances by group, and "
+                                    "family tree programs (GEDCOM)"),
         ("/tours", "Tours", "slideshows picked by rules: a person, a season, anniversaries"),
         ("/tags", "Tags", "keywords given by the AI or by you; open one to work on its photos"),
         ("/cleanup", "Cleanup", "duplicates, blurry and similar shots to move to the Removed folder"),
@@ -49,8 +50,19 @@ PAGES = {
         "Who is this?: faces someone in the family asked about. Type who it is, or Don't know to stop seeing it.",
         "Below them, the folders, tours and photos others shared with you, then the newest photos by the day they "
         "were taken, older photos added lately, and your own latest uploads.",
+        "With a family account, the newest photos of you and your closest family (parents, partner, brothers and "
+        "sisters, children) come first, under Recent photos of your family, however long ago they were taken; a "
+        "button above them for each of them opens their memories and photos. Show "
+        "older photos of your family goes further back. Most recent photos has the rest. Your memories start with "
+        "your family's biggest days of photos and their latest, named by what they were (a wedding, a birthday).",
         "For admins, Storage at the top shows how full the disk is; it opens the Status page, which says what takes "
         "the room.")),
+    "home_person": Page("One of your family", (
+        "Home as it would be of one person: their memories (their biggest days of photos, named by what they were, "
+        "and this week in earlier years), then their newest photos, however long ago they were taken. Show older "
+        "photos goes further back.",
+        "The buttons above Recent photos of your family on Home open this page for each of your closest family. "
+        "Their page has their family, life events and every photo of them.")),
     "folders": Page("Folders", (
         "Your uploads: open one of your folders to see its photos, share it, or move it to the Removed folder. "
         "Select photos in a folder to move only those.",
@@ -63,7 +75,24 @@ PAGES = {
         "your part of the family, or an address typed wrong. The start page has everything you can see.",)),
     "signin": Page("Signing in", (
         "Sign in with the Google account of the email address you were invited with.",
+        "Or with a passkey: Sign in with a passkey, then unlock your phone or computer as you always do (your face, "
+        "fingerprint or PIN). On a computer without your passkey, choose your phone in the window that opens. Your "
+        "first passkey comes from a link an admin sends you.",
         "At home, when the internet is down, an admin can sign in with the code from their authenticator app.")),
+    "passkey_invite": Page("Making your passkey", (
+        "This page comes from a link an admin sent you. Make my passkey asks your phone or computer to make a "
+        "passkey for this site: unlock it as you always do, and it keeps the passkey. You are then signed in.",
+        "Make it on your own phone or computer: whoever unlocks it later signs in as you. The link works once.",
+        "If your phone offers to keep the passkey in a password manager (iCloud Keychain, Google Password "
+        "Manager), say yes: your other devices then have it too, and a new phone gets it back.")),
+    "passkeys": Page("Passkeys", (
+        "Your passkeys: each signs you in with the lock of a phone or computer, instead of Google. Rename one so "
+        "you know which is which; Take it away stops it signing in and signs out wherever it signed you in (a lost "
+        "phone).",
+        "Add a passkey makes one on the phone or computer you are using. For safety it works only soon after "
+        "signing in (15 minutes, or 3 hours after your very first sign-in): otherwise sign out and in again.",
+        "On a computer without a passkey, you can also sign in with your phone's: choose your phone in the window "
+        "that opens, and point it at the code the computer shows.")),
     "upload": Page("Uploading", (
         "Drop photos, videos or whole folders on the box, or pick them. They go into your own folder, and the worker "
         "reads them within a minute or so: then faces are found and named, and the AI describes them.",
@@ -90,7 +119,15 @@ PAGES = {
         "Each account is an email address tied to someone in the family tree. A member sees their own part of the "
         "family: their ancestors, every blood relative, the partners of those and their children, and their own "
         "partner's side; the photos those people are in; and what they upload. An admin sees everything.",
+        "Add an account is at the top of the list. Each account below shows its person's name: click it to change "
+        "who they are, their role and their exceptions; it stays open while you do. Find an account narrows the "
+        "list as you type a name, an email address, admin or member.",
         "Exceptions show someone more, or less, to one account: alone, or with their family.",
+        "Passkeys, for those without a Google account: Make a passkey link on an account gives a link (and a QR code "
+        "for their phone's camera) that makes their first passkey. It works once, for a week (a day for an admin's "
+        "account). Their passkeys are listed on their account, each with Take it away. Passkeys need HTTPS, the "
+        "Address from outside, and that name listed exactly under Host names, with no name with *: Passkeys, in "
+        "Sign-in, says what is missing.",
         "See as shows the site exactly as that member sees it, until you stop; nothing can be changed meanwhile.",
         "Sign in with Google needs a client from Google Cloud: its redirect address is shown here to paste there.")),
     "codes": Page("Codes for signing in at home", (
@@ -111,9 +148,13 @@ PAGES = {
     "timeline": Page("Timeline", (
         "Every year with photos, newest first. The bars show January to December, so busy and quiet months stand "
         "out. Open a year to see its photos month by month.",
+        "Under each year are its events: its biggest days of photos, named by what they were (a wedding, a "
+        "birthday, the event a folder is named for) or by their dates. The two latest years show theirs; point at "
+        "another year to see its events, and click one to see its photos.",
         "Photos dated only by their file's time can be in the wrong year: Status → Where dates come from lists them.")),
     "year": Page("A year", (
-        "The year's photos, month by month. The months at the top jump to each one.",), (
+        "The year's events at the top (its biggest days of photos: click one to see them), then its photos, month "
+        "by month. The months above them jump to each one.",), (
         ("← →", "the year before or after"),)),
     "map": Page("Map", (
         "Where photos were taken (by their GPS, or the place in their folder's name) and where family events "
@@ -148,22 +189,50 @@ PAGES = {
         "in the list adds one; a child with one parent entered offers their parent's partners as the other.",
         "Life events: births, deaths, weddings, moves, with dates as exact as you know them (1984-06-12, June 1984, "
         "about 1950, between 1950 and 1955). Press the number of an event to change it.",
-        "After adding a life event, the Add box is ready for the next one.")),
+        "After adding a life event, the Add box is ready for the next one.",
+        "For admins, at the bottom of the page of someone in no photos: Remove, for someone added by mistake (by "
+        "reading a notice into the tree, say). Their family links, life events and other names go with them.")),
     "person_faces": Page("Checking faces", (
         "The faces recognised as this person, the least certain first, and the ones you named. Click × on any face "
         "that isn't them: the name comes off, it is never recognised as them again, and it can be named as whoever "
         "it is on its photo.",)),
     "family": Page("Family", (
+        "At the top, for admins: read into the family tree. Paste an obituary, an announcement, a letter or notes, or "
+        "add photos of one; the AI lists what it would add, and you approve each change.",
         "The family around one person, from their grandparents down to their children, starting with you (the "
         "person marked “This is me”). Click anyone to put them in the middle, to climb up or down the tree a "
         "generation at a time; double-click someone to open their page. The line above says the way back to you.",
-        "Below, folded away: the whole line down from one ancestor, everyone by relationship, and the "
-        "acquaintances (teachers, friends, bands) by group.",
-        "Family tree programs: export a GEDCOM file (with photos as a .gdz if you like), or bring one in; people in "
-        "it are matched to those here and you check each match before anything changes.")),
+        "View in classic family tree style opens the whole line down from one ancestor on a page of its own, to "
+        "move around and save as a picture.",
+        "Below, folded away: everyone by relationship, friends and pets, acquaintances (teachers, friends, bands) by "
+        "group, and those not placed yet. Point at a group's name to see who is in it, or click it to keep it open.",
+        "Family tree programs (GEDCOM), at the bottom: Export downloads a GEDCOM file (with photos as a .gdz if you "
+        "like); Import brings one in, its people matched to those here, and you check each match before anything "
+        "changes.")),
+    "family_tree": Page("The whole line down from one ancestor", (
+        "Everyone descended from one ancestor, with their partners: pick whom it starts from at the top. A bold "
+        "frame is the family line; a plain one married in; a dashed one a former partner.",
+        "Drag the tree to move around it, or use the arrow keys once it is clicked. Scroll or pinch to zoom in and "
+        "out; Show it all fits the whole tree in the frame. Click someone to open their page.",
+        "Save as a picture downloads the whole tree as one large PNG, however much of it shows."), (
+        ("← → ↑ ↓", "move around the tree (click it first)"),)),
     "family_names": Page("Names to check", (
         "Family tree programs keep given names and surnames apart. Each name here was split at its last word; fix "
         "the ones that are wrong and confirm the rest.",)),
+    "family_read": Page("Read into the family tree", (
+        "Paste an obituary, a wedding or birth announcement, a letter or notes, or add photos of one. The AI reads it "
+        "and lists the changes it would make to the family tree, for you to tick.",
+        "It takes a minute or two; you can leave the page meanwhile. Readings stay here, to look over later.")),
+    "family_read_review": Page("What it read", (
+        "Each person the text names, who they are in the tree, and the changes the text suggests for them. Check who "
+        "is who first (an unsure match is marked; pick someone, someone new, or leave them out): the changes follow.",
+        "Ticked changes add what the tree lacks. Where the text and the tree differ, the change is unticked and says "
+        "what the tree has: tick it only if the text is right. Changes for someone new are made only with them. "
+        "Your ticks are kept as you click them, also when picking who someone is loads the page again.",
+        "Once the ticked changes are made, the page shows only what changed. Someone it added by mistake can be "
+        "removed there with Remove from the tree.",
+        "What the AI copied from photos can be corrected under What was read, then read again; reading it again also "
+        "lists what wasn't ticked once more.")),
     "family_import": Page("Bringing in a family tree", (
         "Who in the file is who here: the unsure matches come first. Pick the person they are, or “add as new”. "
         "Nothing changes until you apply it, and what is already here is kept where the file disagrees.",)),
@@ -256,8 +325,8 @@ PAGES = {
         "Point at a line to see what it counts. Numbers that are links open those photos, such as all photos with "
         "GPS or all dated only by their file's time.",
         "Storage: how full each disk is that holds the watched folders or LineageBox's data folder, and how much of "
-        "it is photos and videos, LineageBox's previews and catalog, and other files. It turns red when space runs "
-        "low.",
+        "it is photos and videos, removed files (until Cleanup → Removed is emptied), LineageBox's previews and "
+        "catalog, and other files. It turns red when space runs low.",
         "Slow pages lists the pages that took more than a second to answer since LineageBox last started: where to "
         "look when the site feels slow.")),
     "settings": Page("Settings", (
@@ -267,7 +336,7 @@ PAGES = {
         "show it larger; the address and HTTPS; updates; and family accounts with the codes for signing in at home.",
         "Address and HTTPS: the host names LineageBox answers to, a reverse proxy in front of it, and its HTTPS "
         "certificate (files it can read, or uploaded). Switching HTTPS restarts the web server and moves the page "
-        "to its new address.",
+        "to its new address. Passkeys there says whether passkeys can be set up, and what is missing if not.",
         "Changes apply on the worker's next pass, which saving starts right away.")),
     "empty": Page("No photos yet", (
         "Add a watched folder in Settings; the worker then finds and reads the photos in it.",)),

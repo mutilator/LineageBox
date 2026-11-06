@@ -59,6 +59,24 @@ def test_what_the_model_can_do(cfg):
     assert "no model named qwen2.5vl" in mock_ollama(missing, show()).check()  # the list of models doesn't have it
 
 
+def test_a_model_that_thinks_is_asked_not_to(cfg):
+    """A thinking model (qwen3, deepseek-r1) would spend the answer's tokens thinking: it is told not to. One that
+    doesn't think is asked as before, without the word, which an older Ollama doesn't know."""
+    for capabilities, think in ((["completion", "thinking"], False), (["completion", "vision"], None)):
+        sent = []
+
+        def handler(request):
+            if request.url.path == "/api/show":
+                return httpx.Response(200, json={"capabilities": capabilities})
+            sent.append(json.loads(request.content))
+            return httpx.Response(200, json={"message": {"content": '{"ok": true}'}, "done_reason": "stop"})
+
+        o = mock_ollama(cfg, handler)
+        assert o.chat_json("system", "user", {})[0] == {"ok": True}
+        o.chat_json("system", "user", {})
+        assert [b.get("think") for b in sent] == [think, think]
+
+
 def test_ollama_errors_say_what_ollama_said(cfg):
     o = mock_ollama(dataclasses.replace(cfg, ollama_model="llama3"), show())
     try:

@@ -48,12 +48,14 @@ lists the exact set. Each package's licence files are in its `*.dist-info` folde
 
 | Licence | Packages |
 |---|---|
-| MIT | annotated-doc, annotated-types, anyio, charset-normalizer, fastapi, h11, insightface (the library; its models are [below](#downloaded-when-lineagebox-runs)), narwhals, onnxruntime, pip, pydantic, pydantic-core, rawpy, typing-inspection, urllib3 |
-| BSD-3-Clause | click, cloudpickle, httpcore, httpx, idna, Jinja2, joblib, lazy-loader, MarkupSafe, networkx, numpy (some parts 0BSD, MIT, Zlib or CC0-1.0), protobuf, scikit-image (some parts BSD-2-Clause), scikit-learn, scipy, segno, starlette, threadpoolctl, tifffile, uvicorn |
+| MIT | annotated-doc, annotated-types, anyio, cbor2, charset-normalizer, fastapi, h11, insightface (the library; its models are [below](#downloaded-when-lineagebox-runs)), narwhals, onnxruntime, pip, pydantic, pydantic-core, rawpy, typing-inspection, urllib3 |
+| BSD-3-Clause | click, cloudpickle, httpcore, httpx, idna, Jinja2, joblib, lazy-loader, MarkupSafe, networkx, numpy (some parts 0BSD, MIT, Zlib or CC0-1.0), protobuf, pycparser, scikit-image (some parts BSD-2-Clause), scikit-learn, scipy, segno, starlette, threadpoolctl, tifffile, uvicorn, webauthn |
+| MIT-0 | cffi |
 | MIT and BSD-3-Clause | PyWavelets |
-| BSD-2-Clause | ImageHash, imageio |
-| Apache-2.0 | flatbuffers, ml_dtypes, onnx, opencv-python-headless, opentelemetry-api, requests |
+| BSD-2-Clause | ImageHash, imageio, pyasn1, pyasn1-modules |
+| Apache-2.0 | flatbuffers, ml_dtypes, onnx, opencv-python-headless, opentelemetry-api, pyOpenSSL, requests |
 | Apache-2.0 or BSD-2-Clause | packaging |
+| Apache-2.0 or BSD-3-Clause | cryptography |
 | MPL-2.0 | certifi; tqdm (MPL-2.0 and MIT) |
 | PSF-2.0 | typing_extensions |
 | MIT-CMU | Pillow |
@@ -74,6 +76,8 @@ or inside the package:
 - **numpy and scipy:** OpenBLAS with LAPACK (BSD-3-Clause), the GCC Fortran runtime (GPL-3.0-or-later with the GCC
   Runtime Library Exception) and libquadmath (**LGPL-2.1-or-later**). Their texts are in each one's `LICENSE.txt`.
 - **scikit-learn:** GCC's OpenMP runtime (GPL-3.0-or-later with the GCC Runtime Library Exception).
+- **cryptography** (for passkeys): OpenSSL 4 (Apache-2.0) compiled in, and the Rust crates it is built from (most MIT
+  or Apache-2.0). Their texts are in `cryptography-*.dist-info/licenses/`.
 - **onnxruntime and ml_dtypes:** code compiled in from other projects, among them Eigen (MPL-2.0), listed with their
   texts in `onnxruntime/ThirdPartyNotices.txt` and `ml_dtypes-*.dist-info/licenses/`.
 

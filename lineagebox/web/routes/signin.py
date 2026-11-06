@@ -1,11 +1,11 @@
-"""Signing in and out: Google, the code for signing in at home, sessions."""
+"""Signing in and out: Google, the code for signing in at home, sessions. Passkeys: routes/passkeys.py."""
 import hmac
 import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 
-from lineagebox import accounts, activity
+from lineagebox import accounts, activity, passkeys
 from lineagebox.web.common import (MEMBER, PUBLIC, SEE_AS, SIGNING_IN, LocalBody, _client_ip, _from_app, _local_path,
                                    _redirect_uri)
 from lineagebox.web.deps import page, site
@@ -22,10 +22,12 @@ ACCESS = {
 }
 
 
-def start_session(s: Site, request: Request, c, account_id: int, response: Response) -> Response:
+def start_session(s: Site, request: Request, c, account_id: int, response: Response,
+                  passkey_id: int | None = None) -> Response:
+    """Sign in: the session's cookie on the response. passkey_id: the passkey signed in with (routes/passkeys.py)."""
     now = s.shared_cfg()
     token = accounts.new_session(c, account_id, now.session_days, _client_ip(request),
-                                 request.headers.get("user-agent", ""))
+                                 request.headers.get("user-agent", ""), passkey_id)
     response.set_cookie(accounts.COOKIE, token, max_age=now.session_days * 86400, httponly=True, samesite="lax",
                         secure=request.url.scheme == "https")
     response.delete_cookie(SIGNING_IN)
@@ -41,8 +43,12 @@ def show_signin(s: Site, request: Request, next: str = "/", error: str = ""):
     now = s.shared_cfg()
     if not now.accounts_enabled or getattr(request.state, "account", None):
         return RedirectResponse(_local_path(next), 303)
+    with s.own_con() as c:
+        offer = passkeys.any_for(c, now)  # once anyone has one: before that it would only puzzle Google's users
     return page(request, "signin.html", next=_local_path(next), error=error,
-                google=bool(now.google_client_id and now.google_client_secret), at_home=request.state.at_home)
+                google=bool(now.google_client_id and now.google_client_secret), at_home=request.state.at_home,
+                passkeys=offer, passkey_here=passkeys.here(now, request.url.scheme, request.headers.get("host", "")),
+                passkey_origin=passkeys.origin(now))
 
 
 @router.get("/auth/google")

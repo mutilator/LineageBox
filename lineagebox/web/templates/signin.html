@@ -16,9 +16,26 @@
     <span>Sign in with Google</span>
   </a></p>
   <p class="hint">With the Google account of the email address you were invited with.</p>
-  {% else %}
+  {% elif not passkeys %}
   <p class="note">Signing in with Google isn't set up yet.</p>
   {% endif %}
+  {%- if passkeys %}
+  {#- once anyone has a passkey (routes/passkeys.py); app.js shows the button only where the browser can use one #}
+  <div class="passkey-signin">
+    {%- if passkey_here %}
+    <p data-passkey-able hidden><button type="button" class="primary passkey-button" data-passkey="signin" data-next="{{ next }}">
+      {%- include "_passkey_icon.html" %}<span>Sign in with a passkey</span></button></p>
+    <p class="hint" data-passkey-able hidden>With the passkey on your phone or computer: unlock it as you always do,
+      with your face, fingerprint or PIN. On a computer without one, choose your phone in the window that opens.</p>
+    <p class="note" data-passkey-unable hidden>This browser can't use passkeys. Try your phone, or a browser from the
+      last few years (Safari, Chrome, Edge or Firefox).</p>
+    <p class="note problem" id="passkey-said" role="alert" hidden></p>
+    {%- else %}
+    <p class="hint">Signing in with a passkey works at
+      <a href="{{ passkey_origin }}/signin?next={{ next|urlencode }}">{{ passkey_origin }}</a>.</p>
+    {%- endif %}
+  </div>
+  {%- endif %}
   {% if at_home %}
   <details class="info-panel"{% if not google %} open{% endif %}>
     <summary><h2>Sign in without internet</h2></summary>

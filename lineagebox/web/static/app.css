@@ -11,6 +11,7 @@
   --keep: #1f7a3f;
   --ours: #c26a1b;     /* storage: LineageBox's own files (photos and videos are --accent) */
   --other: #a3a29b;    /* storage: other files on the disk */
+  --removed: #c4477a;  /* storage: files in the Removed folders */
   --header-h: 46px;
   color-scheme: light;
 }
@@ -28,6 +29,7 @@
     --keep: #4ac26b;
     --ours: #e8a05c;
     --other: #5d5c57;
+    --removed: #e27ba6;
     color-scheme: dark;
   }
 }
@@ -106,6 +108,30 @@ h2 small, .months small { color: var(--muted); font-weight: 400; }
 .bars { display: grid; grid-template-columns: repeat(12, 1fr); gap: 3px; height: 28px; align-items: end; }
 .bars i { display: block; height: max(var(--h), 2px); background: var(--accent); border-radius: 2px 2px 0 0; }
 .bars i.z { background: var(--line); }
+/* each year's events (data-glance): the two latest unfolded, the others floating while the year is pointed at */
+.year-glance { position: relative; min-width: 0; }  /* a grid item: its events' row scrolls, not the page */
+.year-glance > summary { display: block; list-style: none; }
+.year-glance > summary::-webkit-details-marker { display: none; }
+.year-glance[open]:not(.glancing) > .year-events { padding: 10px 0 8px; }
+.year-glance[open] > .year-events:has(> .loading) { min-height: 140px; }  /* the row's room, kept while it loads */
+.year-glance.glancing > .year-events { position: absolute; z-index: 20; top: calc(100% + 4px); left: 0;
+  width: min(960px, calc(100vw - 48px)); max-height: min(60vh, 520px); overflow: auto; padding: 12px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 10px 28px rgb(0 0 0 / .18); }
+.year-glance .year-events .hint { margin: 0; }
+.events-wrap { position: relative; }
+.year-events-list { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: thin;
+  padding-bottom: 6px; }
+.event-card { position: relative; flex: 0 0 176px; aspect-ratio: 4 / 3; overflow: hidden; border-radius: 10px;
+  background: var(--tile); color: #fff; scroll-snap-align: start; }
+.event-card img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform .2s; }
+.event-card:hover { text-decoration: none; }
+.event-card:hover img { transform: scale(1.04); }
+.event-text { position: absolute; inset: auto 0 0; display: grid; gap: 1px; padding: 24px 10px 8px;
+  background: linear-gradient(transparent, rgb(0 0 0 / .75)); }
+.event-text b { font-size: .92rem; font-weight: 600; line-height: 1.2; }
+.event-text span { font-size: .74rem; opacity: .92; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.year-events-here { margin: 8px 0 4px; }
+@media (max-width: 760px) { .event-card { flex-basis: 44vw; } .events-wrap .scroll { display: none; } }
 .months { position: sticky; top: var(--header-h); z-index: 5; display: flex; flex-wrap: wrap; gap: 6px 16px;
           padding: 8px 0; margin: 8px 0; background: var(--bg); }
 h2[id] { scroll-margin-top: calc(var(--header-h) + 56px); }
@@ -183,7 +209,7 @@ h2[id] { scroll-margin-top: calc(var(--header-h) + 56px); }
 button, .button { font: inherit; font-size: .9rem; padding: 4px 12px; border-radius: 6px; cursor: pointer;
                   border: 1px solid var(--line); background: var(--surface); color: var(--text); }
 button:hover { border-color: var(--accent); }
-button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.primary, a.button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 nav a.update-ready { color: var(--accent); font-weight: 600; }
 button.quiet, a.button.quiet { background: none; color: var(--muted); }
 button:disabled { opacity: .5; cursor: wait; }
@@ -404,7 +430,6 @@ button.x:hover { color: var(--danger); }
 button.small { padding: 0 6px; font-size: .78rem; }
 .tree-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 8px; }
 .tree-pick select { font: inherit; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--text); }
-.tree-wrap { overflow-x: auto; padding: 8px 0 16px; }
 .tree, .tree ul { display: flex; justify-content: center; margin: 0; padding: 0; }
 .tree { width: max-content; min-width: 100%; }
 .tree ul { position: relative; padding-top: 18px; }
@@ -463,6 +488,27 @@ a.fcard:hover { text-decoration: none; border-color: var(--accent); }
 .group-head { font-size: .98rem; margin: 18px 0 8px; }
 .group-head small { color: var(--muted); font-weight: 400; }
 .other-head { margin: 10px 0 6px; color: var(--muted); font-size: .88rem; }
+.whole-line { margin: 20px 0 8px; }
+/* folded groups (data-glance): pointed at, the cards float over what follows until the pointer moves off */
+details.glance { position: relative; }
+details.glance > summary { width: fit-content; cursor: pointer; font-weight: 600; }
+details.glance.glancing > .family-cards { position: absolute; z-index: 20; top: 100%; left: 0; margin: 0;
+                                          width: min(960px, calc(100vw - 64px)); max-height: min(60vh, 520px);
+                                          overflow: auto; padding: 12px; background: var(--surface);
+                                          border: 1px solid var(--line); border-radius: 10px;
+                                          box-shadow: 0 10px 28px rgb(0 0 0 / .18); }
+/* the whole line down from one ancestor: the tree on a sheet, moved and zoomed in its frame (app.js); without the
+   script the frame scrolls */
+.tree-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 8px; }
+.tree-tools [data-zoom="in"], .tree-tools [data-zoom="out"] { min-width: 2.4em; font-weight: 600; }
+.tree-frame { position: relative; overflow: auto; height: calc(100dvh - var(--header-h) - 240px); min-height: 360px;
+              background: var(--bg); border: 1px solid var(--line); border-radius: 10px; }
+.tree-frame.panning { overflow: hidden; cursor: grab; touch-action: none; }
+.tree-frame.dragging, .tree-frame.dragging a { cursor: grabbing; }
+.tree-frame:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tree-sheet { position: absolute; top: 0; left: 0; width: max-content; padding: 16px; transform-origin: 0 0; }
+.tree-frame.panning .tree-sheet { user-select: none; }
+.tree-sheet .fcard.here { outline: 3px solid var(--accent); outline-offset: 3px; }
 
 /* tours */
 .tour-list { display: grid; gap: 8px; max-width: 900px; }
@@ -639,6 +685,13 @@ kbd { display: inline-block; min-width: 1.4em; margin-right: 3px; padding: 0 5px
 .changes .when { color: var(--muted); font-size: .85rem; margin-right: 8px; }
 .changes .widened { color: var(--danger); font-weight: 600; }
 .account-row { border-top: 1px solid var(--line); padding: 8px 0; }
+.account-row > summary { cursor: pointer; padding: 2px 0; }
+.account-row > summary b { font-weight: 600; }
+.account-row[open] > summary { margin-bottom: 6px; }
+.account-body { padding: 0 0 4px 18px; }
+.account-find { margin: 14px 0 6px; }
+.account-find input { font: inherit; width: min(100%, 26em); padding: 4px 8px; border-radius: 6px;
+                      border: 1px solid var(--line); background: var(--bg); color: var(--text); }
 .account-row .code { overflow-wrap: anywhere; }
 .new-code { display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: flex-start; margin: 8px 0 4px; }
 .new-code .qr svg { display: block; border-radius: 6px; }  /* 265 px: fits a phone */
@@ -703,16 +756,30 @@ kbd { display: inline-block; min-width: 1.4em; margin-right: 3px; padding: 0 5px
                background: linear-gradient(transparent, rgb(0 0 0 / .72)); text-shadow: 0 1px 3px rgb(0 0 0 / .5); }
 .memory-text b { font-size: 1.2rem; font-weight: 600; line-height: 1.2; }
 .memory-text span { font-size: .82rem; opacity: .92; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.memories-wrap .scroll { position: absolute; top: calc(50% - 21px); z-index: 1; width: 36px; height: 36px; padding: 0;
-                         border-radius: 50%; box-shadow: 0 2px 8px rgb(0 0 0 / .25); font-size: 1.2rem; }
-.memories-wrap .scroll.back { left: -10px; }
-.memories-wrap .scroll.on { right: -10px; }
+.memories-wrap .scroll, .events-wrap .scroll { position: absolute; top: calc(50% - 21px); z-index: 1; width: 36px;
+  height: 36px; padding: 0; border-radius: 50%; box-shadow: 0 2px 8px rgb(0 0 0 / .25); font-size: 1.2rem; }
+.memories-wrap .scroll.back, .events-wrap .scroll.back { left: -10px; }
+.memories-wrap .scroll.on, .events-wrap .scroll.on { right: -10px; }
 .days { --row: 190px; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 18px 22px; margin-top: 18px; }
 .days .month { flex: 0 0 100%; margin: 22px 0 -6px; font-size: 1.5rem; font-weight: 400; }
 /* a day is as wide as its photos side by side, and shares a line with others that fit; one too wide for a line
    wraps, and its rows but the last are stretched to the edge (where a day fits on one line there is nothing to fill) */
 .day { flex: 0 1 auto; min-width: 0; max-width: 100%; }
-.day h3 { margin: 0 0 8px; font-size: .9rem; font-weight: 600; }
+.day h3, .day h4 { margin: 0 0 8px; font-size: .9rem; font-weight: 600; }
+.home-feed { margin-top: 26px; }  /* a member's Home: their family's photos, then everyone's */
+.home-feed > h2 { margin: 0; }
+.home-feed > .meta { margin: 4px 0 0; }
+.home-feed .more-part { margin: 16px 0 0; }
+/* a member's Home: a big button for each of their closest family, opening that one's memories and photos */
+.kin-buttons { display: flex; flex-wrap: wrap; gap: 10px; margin: 24px 0 0; }
+.kin-button { display: flex; align-items: center; gap: 10px; padding: 6px 18px 6px 6px; border-radius: 999px;
+  background: var(--surface); border: 2px solid var(--accent); color: var(--text); }
+.kin-button:hover { text-decoration: none; background: var(--accent); color: #fff; }
+.kin-button img, .kin-button .ph { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; flex: none; }
+.kin-button .ph { display: grid; place-items: center; background: var(--tile); font-weight: 600; }
+.kin-button > span:last-child { display: grid; line-height: 1.25; }
+.kin-button b { font-size: 1.05rem; font-weight: 600; }
+.kin-button small { font-size: .8rem; opacity: .8; }
 .day-tiles { display: flex; flex-wrap: wrap; gap: 4px; }
 .day-tiles .tile { flex: var(--r) 0 auto; width: calc(var(--row) * var(--r)); max-width: 100%; height: var(--row);
                    aspect-ratio: auto; }
@@ -726,6 +793,7 @@ kbd { display: inline-block; min-width: 1.4em; margin-right: 3px; padding: 0 5px
 .meter.parts i { border-radius: 0; }
 .meter.parts i.ours, .legend i.ours { background: var(--ours); }
 .meter.parts i.other, .legend i.other { background: var(--other); }
+.meter.parts i.removed, .legend i.removed { background: var(--removed); }
 .legend { display: grid; grid-template-columns: max-content auto; gap: 3px 18px; margin: 8px 0 0; }
 .legend dt { color: var(--muted); }
 .legend dd { margin: 0; font-variant-numeric: tabular-nums; }
@@ -741,3 +809,63 @@ kbd { display: inline-block; min-width: 1.4em; margin-right: 3px; padding: 0 5px
 .peek-face { position: absolute; border: 2px solid #fff; border-radius: 4px;
              box-shadow: 0 0 0 2px rgb(0 0 0 / .55), 0 0 0 100vmax rgb(0 0 0 / .22); }
 .peek-face[hidden] { display: none; }
+.read-form textarea, .read-text textarea { display: block; width: 100%; margin: 4px 0 10px; padding: 6px 8px;
+  border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; }
+.read-form > label { display: block; margin-top: 12px; font-weight: 600; }
+.read-form input:not([type]) { font: inherit; width: min(100%, 30em); padding: 4px 8px; border-radius: 6px;
+                               border: 1px solid var(--line); background: var(--bg); color: var(--text); }
+.read-photo img, .read-text img { height: 96px; border-radius: 4px; vertical-align: middle; margin-right: 8px; }
+.read-person { border-top: 1px solid var(--line); padding: 2px 0 10px; }
+.read-person h3 { margin: 14px 0 4px; font-size: 1rem; }
+.read-person.how-unsure { border-left: 4px solid var(--danger); padding-left: 10px; }
+.read-person .how { font-size: .78rem; text-transform: uppercase; color: var(--muted); margin-right: 4px; }
+.read-person select { max-width: 100%; }
+.read-changes { list-style: none; padding: 0; margin: 6px 0; }
+.read-changes li { margin: 4px 0; }
+.read-changes label { cursor: pointer; }
+.read-changes label:has(input:disabled) { opacity: .5; cursor: default; }
+.read-changes .now::before { content: "· "; }
+.read-unplaced li { margin: 3px 0; }
+.read-apply { position: sticky; bottom: 0; margin: 12px 0 0; padding: 10px 0; background: var(--bg);
+  border-top: 1px solid var(--line); }
+.readings li { margin: 4px 0; }
+/* A reading the AI is at: an hourglass whose sand runs down, then turns over (the full bulb on top again, so it
+   goes round without a jump), and how long it has been */
+.read-waiting { display: flex; gap: 20px; align-items: center; margin: 16px 0; padding: 18px 20px;
+  background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 10px; }
+.read-waiting h2 { margin: 0 0 4px; font-size: 1.25rem; }
+.read-waiting p { margin: 4px 0; }
+.read-took { font-variant-numeric: tabular-nums; }
+.hourglass { flex: none; width: 54px; height: 76px; margin: 0 11px;  /* room to turn: 76px across, on its side */
+  animation: hourglass-turn 2.4s ease-in-out infinite; }
+.hourglass .frame { fill: var(--muted); }
+.hourglass .glass { fill: none; stroke: var(--muted); stroke-width: 1.6; }
+.hourglass .sand { fill: var(--accent); }
+.hourglass .top { transform-origin: 20px 26px; animation: sand-out 2.4s linear infinite; }
+.hourglass .bottom { transform-origin: 20px 46px; animation: sand-in 2.4s linear infinite; }
+.hourglass .stream { stroke: var(--accent); stroke-width: 1.2; animation: sand-stream 2.4s linear infinite; }
+@keyframes hourglass-turn { 0%, 78% { transform: rotate(0deg); } 100% { transform: rotate(180deg); } }
+@keyframes sand-out { 0% { transform: scaleY(1); } 78%, 100% { transform: scaleY(0); } }
+@keyframes sand-in { 0% { transform: scaleY(0); } 78%, 100% { transform: scaleY(1); } }
+@keyframes sand-stream { 0%, 76% { opacity: 1; } 78%, 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .hourglass { animation: none; }
+  .hourglass .top, .hourglass .bottom, .hourglass .stream { animation-duration: 8s; }
+}
+/* Once the ticked changes are made: what changed, by person */
+.read-summary h4 { margin: 12px 0 2px; font-size: .95rem; }
+.read-made, .read-added { margin: 4px 0 8px; padding-left: 1.2em; }
+.read-made li, .read-added li { margin: 3px 0; }
+.read-added button { margin-left: 6px; }
+
+/* Passkeys: the button that signs in with one or makes one (beside Google's on the sign-in page), and each passkey
+   on the Passkeys page and on Family accounts */
+.passkey-signin { margin-top: 18px; }
+.passkey-button { display: inline-flex; align-items: center; gap: 10px; height: 40px; padding: 0 16px;
+                  border-radius: 20px; font-weight: 600; white-space: nowrap; }
+.passkey-button svg { flex: none; display: block; }
+.passkey-invite .note, .passkey-signin .note { text-align: left; }
+.passkey-row { border-top: 1px solid var(--line); padding: 10px 0; }
+.passkey-row .actions, .passkey-row .note { margin: 6px 0 0; }
+.passkey-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 4px 0; }
+.passkey-line svg { width: 16px; height: 16px; color: var(--muted); }

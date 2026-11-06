@@ -3,7 +3,7 @@ when the internet is down.
 
 An account is an email address tied to someone in the family tree, as an admin or a member. Admins see and do
 everything; a member sees their own part of the family (access.py). Nobody signs themselves up: an admin adds the
-email, and Google says who is signing in.
+email, and Google says who is signing in, or a passkey made with the admin's link does (passkeys.py).
 
 Sign in with Google is OpenID Connect's code flow with PKCE. The code is swapped for the ID token directly with Google
 over HTTPS, so the token can be trusted without checking its signature (OIDC Core 3.1.3.7, item 6): only its issuer,
@@ -137,14 +137,19 @@ def _hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def new_session(con: sqlite3.Connection, account_id: int, days: int, ip: str = "", user_agent: str = "") -> str:
-    """Sign someone in: returns the token for their cookie."""
+def new_session(con: sqlite3.Connection, account_id: int, days: int, ip: str = "", user_agent: str = "",
+                passkey_id: int | None = None) -> str:
+    """Sign someone in: returns the token for their cookie. passkey_id: the passkey they signed in with, whose
+    removal ends this session. The account's first sign-in ever is marked (passkeys.may_add)."""
     token = secrets.token_urlsafe(32)
     now = _now()
-    con.execute("""INSERT INTO session(token_hash, account_id, created_at, last_seen_at, expires_at, ip, user_agent)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+    first = con.execute("SELECT last_seen_at IS NULL FROM account WHERE id = ?", (account_id,)).fetchone()
+    con.execute("""INSERT INTO session(token_hash, account_id, created_at, last_seen_at, expires_at, ip, user_agent,
+                                       passkey_id, first_sign_in)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (_hash(token), account_id, now.isoformat(), now.isoformat(),
-                 (now + timedelta(days=days)).isoformat(), ip[:64], user_agent[:300]))
+                 (now + timedelta(days=days)).isoformat(), ip[:64], user_agent[:300], passkey_id,
+                 int(bool(first and first[0]))))
     con.execute("UPDATE account SET last_seen_at = ? WHERE id = ?", (now.isoformat(), account_id))
     con.commit()
     return token
@@ -159,7 +164,9 @@ def session_account(con: sqlite3.Connection, token: str | None, days: int) -> sq
     if not token or len(token) > 100:
         return None
     h = _hash(token)
-    row = con.execute("""SELECT a.*, s.last_seen_at AS session_seen, p.name AS person_name
+    row = con.execute("""SELECT a.*, s.last_seen_at AS session_seen, s.created_at AS session_made,
+                                s.first_sign_in AS session_first, s.passkey_id AS session_passkey,
+                                p.name AS person_name
                          FROM session s JOIN account a ON a.id = s.account_id LEFT JOIN person p ON p.id = a.person_id
                          WHERE s.token_hash = ? AND s.expires_at > ? AND a.disabled_at IS NULL""",
                       (h, _now().isoformat())).fetchone()

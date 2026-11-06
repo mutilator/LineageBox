@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m %}
+{% from "_home_days.html" import by_day, older_button %}
 {% block title %}Home{% endblock %}
 {% block main %}
 <div class="home-top">
@@ -37,27 +38,29 @@
 </section>
 {% endif %}
 
-<div id="latest">
-{% if days %}
-<div class="days">
-  {%- for d in days %}
-  {%- if d.month %}
-  <h2 class="month">{{ d.month }}</h2>
-  {%- endif %}
-  <section class="day">
-    <h3>{{ d.label }}</h3>
-    <div class="day-tiles">
-      {%- for im in d.photos %}
-      <a class="tile" href="/image/{{ im.id }}?ctx={{ ('year:' ~ im.taken_at[:4])|urlencode }}" style="--r: {{ im.ratio }}" title="{{ im.taken_at|date }}">
-        <img src="/t/{{ im.sha256 }}" loading="lazy" alt="{{ 'Video' if im.media == 'video' else 'Photo' }} from {{ im.taken_at|date(false) }}">
-        {%- if im.media == "video" %}<span class="badge video" title="Video">▶ {{ im.duration|duration }}</span>{% endif %}
-        {%- if date_source_label[im.taken_at_source] %}<span class="badge" title="{{ date_source_label[im.taken_at_source] }}">≈</span>{% endif %}
-      </a>
-      {%- endfor %}
-    </div>
-  </section>
+
+{% if family_of %}
+<nav class="kin-buttons" aria-label="The memories and photos of one of your family">
+  {%- for p in family_of %}
+  <a class="kin-button" href="/home/person/{{ p.id }}">
+    {%- if p.face %}<img src="/face/{{ p.face }}" alt="" width="48" height="48" loading="lazy">{% else %}<span class="ph">{{ p.name[:1] }}</span>{% endif %}
+    <span><b>{{ p.name }}</b>{% if kin_words.get(p.id) %}<small>your {{ kin_words[p.id] }}</small>{% endif %}</span></a>
   {%- endfor %}
-</div>
+</nav>
+{% endif %}
+{% if ours %}
+<section class="home-feed" id="family-latest">
+  <h2>Recent photos of your family</h2>
+  <p class="meta">Photos of you{% if kin %} and your closest family: {{ kin|join(", ") }}{% endif %}.</p>
+  {{ by_day(ours, 3) }}
+  {%- if ours_older %}{{ older_button(ours) }}{% endif %}
+</section>
+{% endif %}
+
+<div id="latest"{% if ours %} class="home-feed"{% endif %}>
+{% if ours and (days or added) %}<h2>Most recent photos</h2>{% endif %}
+{% if days %}
+{{ by_day(days, 3 if ours else 2) }}
 {% if older %}<p class="hint"><a href="/timeline/{{ days[-1].day.year }}">Older photos are on the Timeline</a></p>{% endif %}
 {% endif %}
 
@@ -65,7 +68,7 @@
 <h2>Recently added</h2>
 <p class="meta">Photos added to the library lately that were taken longer ago, or whose day isn't known.</p>
 {{ m.grid(added, "") }}
-{% elif not days %}
+{% elif not days and not ours %}
 <p class="note">No photos of your family yet.</p>
 {% endif %}
 </div>

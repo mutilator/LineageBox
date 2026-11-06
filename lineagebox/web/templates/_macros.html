@@ -170,7 +170,8 @@
     {%- if d.low %} <strong>Space is running low:</strong> uploads stop when less than 2 GB is left, and new photos
     get no previews.{% endif %}</p>
   <dl class="legend">
-    {%- if d.folders %}<dt><i></i>Photos and videos</dt><dd>{{ d.photos|size }}</dd>{% endif %}
+    {%- if d.folders %}<dt><i></i>Photos and videos</dt><dd>{{ d.photos|size }}</dd>
+    <dt><i class="removed"></i>Removed files, until the Removed folder is emptied</dt><dd>{% if d.removed %}<a href="/cleanup/removed" title="Cleanup → Removed: restore them, or empty it for good">{{ d.removed|size }}</a>{% else %}none{% endif %}</dd>{% endif %}
     {%- if d.data %}<dt><i class="ours"></i>LineageBox's previews, thumbnails and catalog</dt><dd>{% if d.ours is not none %}{{ d.ours|size }}{% else %}measured once a day by the worker{% endif %}</dd>{% endif %}
     <dt><i class="other"></i>Other files</dt><dd>{{ d.other|size }}</dd>
     <dt><i class="free"></i>Free</dt><dd>{{ d.free|size }}</dd>
