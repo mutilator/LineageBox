@@ -1,5 +1,6 @@
 // The photo frame (photo_frame.html, routes/frame.py): asks for its list of photos, shows each in turn with a slow
-// fade and its date and caption, small, and keeps going whatever happens to the server.
+// fade and its date and caption, small, and keeps going whatever happens to the server. A tap or click anywhere (or →)
+// shows the next one now, to look through them all before the link is shared.
 //
 // Written for old browsers on purpose (an old tablet, a TV, a dashboard): no arrow functions, let, fetch or promises
 // of its own. While the server doesn't answer (restarting, the network down) the frame keeps cycling through the
@@ -195,6 +196,11 @@
   document.addEventListener("touchstart", showButton);
   document.addEventListener("keydown", function (e) {
     if (e.key === "ArrowRight" || e.keyCode === 39) { later(0); }
+  });
+  // a tap or click anywhere but the Full screen button: the next photo now
+  document.addEventListener("click", function (e) {
+    if (e.target === full || !photos.length) return;
+    later(0);
   });
 
   say(t("Getting the photos…"));

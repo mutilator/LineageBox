@@ -22,6 +22,10 @@
 </head>
 <body class="{% block body_class %}{% endblock %}" data-hover-preview="{{ hover_preview_ms|default(500) }}">
 <a class="skip" href="#main">{% trans %}Skip to the page{% endtrans %}</a>
+{% if demo_resets %}
+<div class="demo-note" role="note">{% trans resets=demo_resets %}This is a demo: the family, their photos and their papers are all
+  made up. Change what you like: it all goes back as it was {{ resets }}.{% endtrans %}</div>
+{% endif %}
 {% if viewer.seeing_as %}
 <div class="see-as" role="status">{% trans email=viewer.account.email %}You are seeing the site as {{ email }} sees it: nothing can be changed.{% endtrans %}
   <button type="button" data-api="/api/see-as/stop">{% trans %}Stop{% endtrans %}</button></div>
@@ -107,13 +111,19 @@
   {#- not "who": pages have their own (tour types' choices), which a set here would replace #}
   {%- set initials = (signed_in.person_name or signed_in.email).split() %}
   <div class="profile">
-    <button type="button" class="avatar" data-panel="profile" aria-expanded="false" aria-controls="profile" aria-label="{{ _('Signed in as %(email)s', email=signed_in.email) }}" title="{{ signed_in.email }}">
+    {%- set shown_as = signed_in.person_name if demo_resets else signed_in.email %}{#- a demo's visitors' emails are made up #}
+    <button type="button" class="avatar" data-panel="profile" aria-expanded="false" aria-controls="profile" aria-label="{{ _('Signed in as %(email)s', email=shown_as) }}" title="{{ shown_as }}">
       {{- (initials[0][:1] ~ (initials[-1][:1] if initials|length > 1 else ""))|upper }}</button>
     <div class="profile-menu" id="profile">
+      {%- if demo_resets %}
+      <p class="who"><strong>{{ signed_in.person_name }}</strong>
+        <span class="hint">{% trans %}Trying the demo as a family member{% endtrans %}</span></p>
+      {%- else %}
       <p class="who"><strong>{{ signed_in.person_name or signed_in.email }}</strong>
         {%- if signed_in.person_name %}<span>{{ signed_in.email }}</span>{% endif %}
         <span class="hint">{{ _("Admin: sees and changes everything") if signed_in.role == "admin" else _("Family member") }}</span></p>
       <a href="/passkeys">{% trans %}Passkeys{% endtrans %}</a>
+      {%- endif %}
       {%- if signed_in.role == "admin" %}
       <a href="/settings/codes">{% trans %}Code for signing in at home{% endtrans %}</a>
       {%- endif %}

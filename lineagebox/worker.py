@@ -225,6 +225,12 @@ def run_once(con: sqlite3.Connection, cfg: Config, stop: Stopper | None = None) 
                 recognised = stage("recognise", lambda: people.identify(con))
                 groups = stage("group faces", lambda: people.cluster(con))
                 log(con, f"people: recognised {recognised} faces, {groups[0] if groups else '?'} unnamed groups")
+        # photos ticked on Cleanup → No faces found to be looked at again, more closely: ASKED_MINUTES a pass at most
+        if (again := stage("look again", lambda: faces.look_again_waiting(con, cfg, stop=_for_minutes(
+                ASKED_MINUTES, stop)))) and again[0]:
+            recognised = stage("recognise", lambda: people.identify(con, again[1])) if again[1] else 0
+            log(con, f"faces: looked again at {again[0]} photo{'' if again[0] == 1 else 's'}, found {len(again[1])} "
+                     f"more faces, recognised {recognised or 0}")
         # a video's faces that plainly are someone named on its other frames (people.IN_VIDEO_SIMILARITY)
         if n := stage("faces in videos", lambda: people.name_in_videos(con)):
             log(con, f"people: named {n} faces in videos after the same person on other frames")

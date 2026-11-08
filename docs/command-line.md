@@ -52,6 +52,8 @@ failures are recorded per photo without stopping the run.
 | `accounts passkeys <email>` | Lists the account's passkeys. |
 | `accounts on\|off` | Turns family accounts on or off. |
 | `backup` | Copies the catalog now, checks the copy and keeps it with the nightly ones (Settings → Backup's folder). |
+| `demo save` | Keeps a [public demo](demo.md) as it is now: a checked copy of the catalog, the data folder and the watched folders, in `data_dir/demo-seed`. |
+| `demo reset` | Puts a demo back as `demo save` kept it, deleting every account, change and upload made since. Only with `[demo] enabled` on, and with the web app and the worker stopped. |
 | `backup --check <file>` | Reads a copy of the catalog whole and says what it holds: its catalog version, and how many photos, people and named faces. It needs no config or catalog, so it works before a copy is [put back](install.md#backups). |
 | `export <file>` | Writes the family tree and what the family said about every photo as one zip, for other programs ([the export format](export.md)). Given a folder, it writes `lineagebox-export-<date>.zip` in it. |
 

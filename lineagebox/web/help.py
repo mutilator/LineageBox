@@ -105,6 +105,12 @@ PAGES = {
            "fingerprint or PIN). On a computer without your passkey, choose your phone in the window that opens. Your "
            "first passkey comes from a link an admin sends you."),
         N_("At home, when the internet is down, an admin can sign in with the code from their authenticator app."))),
+    "signin_demo": Page(N_("Trying the demo"), (  # the sign-in page of a demo (demo.py)
+        N_("Sign in to demo makes an account just for you, as someone in this made-up family, and signs you in. Nothing "
+           "else is needed."),
+        N_("Change what you like: name faces, fix dates, add to the family tree. Everyone trying the demo sees those "
+           "changes, until it all goes back as it was. A few photos of your own can be uploaded too: only you see them, "
+           "and they are deleted then."))),
     "passkey_invite": Page(N_("Making your passkey"), (
         N_("This page comes from a link an admin sent you. Make my passkey asks your phone or computer to make a "
            "passkey for this site: unlock it as you always do, and it keeps the passkey. You are then signed in."),
@@ -171,6 +177,12 @@ PAGES = {
            "once, in the hours it describes photos, and Read the date on it asks now), a date the AI's description "
            "saw on it, the family tree (a marriage certificate takes the marriage's date), and who is in it (not "
            "before anyone in it was born). Date it uses one; or type the date as you know it, as on a photo's page."),
+        N_("Looks too young: photos, scanned or not, where someone named looks as they did as a child while the "
+           "photo's date makes them grown up: an old print photographed with a phone, a copy dated when it was made. "
+           "A face looks like their childhood when it looks like a young child's, or most like their own photos as a "
+           "child (photos dated when they were 12 or younger); the date suggested is about when those photos were "
+           "taken. It finds more as you name and date their childhood photos. If it isn't them, Not them takes the "
+           "name off."),
         N_("A dated scan leaves the list, and Recent changes can undo the date. Its date is right leaves the date as "
            "it is and takes it off the list."))),
     "accounts": Page(N_("Family accounts"), (
@@ -270,11 +282,20 @@ PAGES = {
            "the faces to that person. When the faces together look like someone already named, their name is filled "
            "in: Enter takes it. Don't know them sets aside a group nobody in the family knows."),
         N_("Ages to check: faces named as someone who can't be them by their age, because the photo is dated before "
-           "they were born or the face looks like a young child's while they were grown up. Usually the name is right "
+           "they were born, or the face looks like a young child's while they were grown up and the photo's date was "
+           "set by hand or said to be right (else it is under Suggested dates → Looks too young). Usually the name is right "
            "and the photo's date is wrong, often a whole camera's: Camera clocks puts those right. Not them takes the "
            "name off; for an admin, Right as it is stops listing it."),
-        N_("Faces missed: group photos where the description counts more people than faces were found. Look for faces "
-           "again looks more closely; family photos come first."))),
+        N_("Faces missed: group photos where some faces were found and the description counts more people. Look for "
+           "faces again looks more closely; family photos come first. Photos with no face found at all are under "
+           "Cleanup → No faces found."))),
+    "cleanup_no_faces": Page(N_("No faces found"), (
+        N_("Photos where the AI's description sees people but no face was found in them, the newest first. Hover over "
+           "a photo for what the description says."),
+        N_("Look again: the ticked photos are looked at again more closely (at twice the size, keeping fainter faces), "
+           "in the background, a few a minute; the faces found are recognised where they clearly match. No faces to "
+           "find: their people face away or are too far off, and they aren't listed again; Undo, or Recent changes, "
+           "lists them again. Either takes them off this list."))),
     "person": Page(N_("A person"), (
         N_("Everything about one person: their name, sex, birth, family and other relationships, life events, "
            "documents and photos."),

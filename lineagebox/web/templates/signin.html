@@ -2,9 +2,16 @@
 {% block title %}{% trans %}Sign in{% endtrans %}{% endblock %}
 {% block main %}
 <div class="signin">
-  <h1>{% trans %}Family photos{% endtrans %}</h1>
+  <h1>{{ _("LineageBox demo") if demo else _("Family photos") }}</h1>
   {% if error %}<p class="note problem" role="alert">{{ error }}</p>{% endif %}
-  {% if google %}
+  {% if demo %}
+  {#- a demo (demo.py): an account of their own, made as they click; no other way in #}
+  <p class="meta">{% trans %}A family archive to try out: the photos, papers and family tree of a family that never existed.
+    Name the faces, fix the dates, add to the tree, upload a few photos of your own.{% endtrans %}</p>
+  <p><button type="button" class="primary" data-api="/auth/demo" data-body='{{ {"next": next}|tojson }}' data-busy="{{ _('Signing in…') }}">{% trans %}Sign in to demo{% endtrans %}</button></p>
+  <p class="hint">{% trans %}No account or email needed. What you change is seen by everyone trying it, until it all goes
+    back as it was; what you upload is seen by you alone, and deleted then too.{% endtrans %}</p>
+  {% elif google %}
   {# As Google's branding guidelines draw it: the standard-colour G, in the light theme, on light and dark pages #}
   <p><a class="google-signin" href="/auth/google?next={{ next|urlencode }}">
     <svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true" focusable="false">
@@ -19,7 +26,7 @@
   {% elif not passkeys %}
   <p class="note">{% trans %}Signing in with Google isn't set up yet.{% endtrans %}</p>
   {% endif %}
-  {%- if passkeys %}
+  {%- if passkeys and not demo %}
   {#- once anyone has a passkey (routes/passkeys.py); app.js shows the button only where the browser can use one #}
   <div class="passkey-signin">
     {%- if passkey_here %}
@@ -36,7 +43,7 @@
     {%- endif %}
   </div>
   {%- endif %}
-  {% if at_home %}
+  {% if at_home and not demo %}
   <details class="info-panel"{% if not google %} open{% endif %}>
     <summary><h2>{% trans %}Sign in without internet{% endtrans %}</h2></summary>
     <p class="hint">{% trans %}For admins at home: the code from your authenticator app.{% endtrans %}</p>

@@ -8,8 +8,16 @@
 accounts.{% endtrans %}</p>
 {% else %}
 <section class="upload" data-upload>
+  {%- if demo_left is not none %}
+  {#- a demo (demo.py): a few from each address, seen by the uploader alone #}
+  <p class="meta">{% trans %}Drop a few photos here, or pick them, and see the faces in them found. Only you see what you upload,
+  and it is deleted when the demo goes back as it was.{% endtrans %}</p>
+  <p class="note">{% trans count=demo_left, left=demo_left, most=demo_most %}{{ left }} upload left of the {{ most }} allowed
+    from here.{% pluralize %}{{ left }} uploads left of the {{ most }} allowed from here.{% endtrans %}</p>
+  {%- else %}
   <p class="meta">{% trans %}Drop photos, videos or whole folders here, or pick them. They go into your own folder; the people in
   them are found and named like any others, and whoever is in them sees them too.{% endtrans %}</p>
+  {%- endif %}
   <p><label>{% trans %}Put them in a folder called{% endtrans %} <input name="folder" maxlength="100" placeholder="{{ _('e.g. Christmas 2025') }}"></label>
     <span class="hint">{% trans %}Leave it empty to keep the folders you drop as they are.{% endtrans %}</span></p>
   <p class="hint">{% trans %}On an Android phone, LineageBox can be put on the home screen (the browser's menu → Install app),
@@ -19,7 +27,7 @@ accounts.{% endtrans %}</p>
     <p><b>{% trans %}Drop them here{% endtrans %}</b></p>
     <p><label class="button file-pick">{% trans %}Pick photos{% endtrans %} <input type="file" multiple accept="{{ extensions|join(',') }},image/*,video/*" data-pick></label>
       <label class="button file-pick">{% trans %}Pick a folder{% endtrans %} <input type="file" webkitdirectory multiple data-pick></label></p>
-    <p class="hint">{% trans extensions=extensions|join(", ")|upper|replace(".", "") %}{{ extensions }} · up to {{ max_gb }} GB a file{% endtrans %}</p>
+    <p class="hint">{% trans extensions=extensions|join(", ")|upper|replace(".", "") %}{{ extensions }} · up to {{ max_size }} a file{% endtrans %}</p>
   </div>
   <p class="hint" data-upload-status role="status"></p>
   <ul class="upload-list" data-upload-list></ul>

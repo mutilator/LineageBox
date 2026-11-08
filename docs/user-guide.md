@@ -83,12 +83,18 @@ from every face you name, so each answer helps it find the rest.
   on a face takes out one that doesn't belong; **Don't know them** sets aside a group nobody knows; who a group looks
   like is filled in). Two more lists check what was found:
   - **Ages to check:** faces named as someone who can't be them by their age: the photo is dated before they were
-    born, or the face looks like a young child's while they were grown up then. Usually the name is right and the
-    photo's date is wrong (see [Dates](#dates)); **Not them** takes the name off, and an admin's **Right as it is**
-    stops listing one.
-  - **Faces missed:** group photos where the AI's description counts more people than faces were found, family photos
-    first. **Look for faces again** looks more closely; the photo then leaves the list (**All found**, for an admin,
-    takes it off as it is).
+    born, or the face looks like a young child's while they were grown up then and the photo's date was set by hand
+    or said to be right (otherwise it is under **Suggested dates → Looks too young**). Usually the name is right and
+    the photo's date is wrong (see [Dates](#dates)); **Not them** takes the name off, and an admin's **Right as it
+    is** stops listing one.
+  - **Faces missed:** group photos where some faces were found and the AI's description counts more people, family
+    photos first. **Look for faces again** looks more closely; the photo then leaves the list (**All found**, for an
+    admin, takes it off as it is).
+- **Cleanup → No faces found** (admins) lists the photos where the AI's description sees people but no face was found
+  at all, the newest first (hover over one for the description). Tick those with faces to find and press **Look
+  again**: the worker looks at them more closely in the background, a few a minute, and recognises the faces it
+  finds. Tick those whose people face away or are too far off and press **No faces to find**: they aren't listed
+  again (Undo, or Recent changes, lists them again).
 
   Admins' **Find more photos of these people**, on People, names the faces elsewhere that clearly match.
 - A face's look can't tell anyone's age (it takes children for adults), so ages are never used to recognise anyone.
@@ -242,7 +248,8 @@ An old tablet, a smart TV's browser or a Home Assistant dashboard can show memor
 one photo
 at a time with a slow fade, its date and caption small at the foot, and videos playing silently. It asks for its
 photos again every half hour and keeps going while LineageBox restarts; where the browser allows it (over HTTPS) it
-keeps the screen on, and elsewhere set the device's screen never to turn off.
+keeps the screen on, and elsewhere set the device's screen never to turn off. A tap or click anywhere on it (or → on a
+keyboard) shows the next photo at once, to look through them all before you share its link.
 
 - **On a device someone signs in on**, open `/photo-frame` for your own memories (this week in earlier years, then
   the best of other years), or **As a photo frame** on a tour's page.
@@ -510,12 +517,17 @@ back. Photos of that camera read later are moved the same way, dates set by hand
 each change (photos of the camera read since go back too).
 
 **Scans:** a scanner, or a phone's scanning app, dates what it scans by the day it was scanned, so a letter from 1952
-scanned this year is dated this year. **Cleanup → Suggested dates** (for admins) lists them in two tabs:
+scanned this year is dated this year. **Cleanup → Suggested dates** (for admins) lists them in three tabs:
 
 - **Documents:** photos marked as a document on their page, or that the AI describes as one, that were scanned, plus
   documents with no date at all but their file's time. A document dated by its folder is left alone: someone named
   that folder.
 - **Scanned photos:** old prints scanned the same way.
+- **Looks too young:** other photos where someone named looks as they did as a child while the photo's date makes
+  them 18 or older: an old print photographed with a phone, a copy dated the day it was made. A face looks like their
+  childhood when it looks like a young child's, or looks most like their own photos from when they were 12 or younger
+  (photos with a camera's date, or dated by hand). Each face is shown with **Not them**, for a name that is wrong. It
+  finds more as you name and date their childhood photos.
 
 A scan is known by its scanner (its camera name, such as an HP ScanJet or Epson Perfection) or by "scan" in the name
 of its folder or file (ScannedPhotos, CamScanner, Scan_0001). Under each, what can tell its real date, best first:
@@ -527,7 +539,9 @@ of its folder or file (ScannedPhotos, CamScanner, Scan_0001). Under each, what c
   death certificate, obituary or diploma of someone takes the date of that event;
 - the scans just before and after it in its folder that you dated by hand (an album is scanned in its order);
   for a document that isn't a scan, the camera-dated photos beside it;
-- who is in it: not before anyone in it was born, nor after anyone in it died.
+- who is in it: not before anyone in it was born, nor after anyone in it died; and for someone who looks as they did
+  as a child in it, about when their childhood photos it looks most like were taken, or else their childhood (birth
+  to 12).
 
 **Date it** gives it that date, as if you had typed it on its page; or type the date as you know it. Either can be
 undone on Recent changes, and the scan leaves the list. **Its date is right** leaves it as it is and takes it off.
@@ -642,8 +656,9 @@ photo from its page. **Empty the Removed folder** is the only thing in LineageBo
   **Different people** stops listing them.
 - **Camera clocks:** cameras whose photos show people before they were born, to put their dates right at once (see
   [Dates](#dates)).
-- **Suggested dates:** scanned documents and photos dated by the day they were scanned, each with what can tell its
-  real date (see [Dates](#dates)).
+- **Suggested dates:** scanned documents and photos dated by the day they were scanned, and photos where someone looks
+  too young for the date, each with what can tell its real date (see [Dates](#dates)).
+- **No faces found:** photos where the AI sees people and no face was found, to look at again or set aside.
 - **Keep** takes photos off the lists for good. Tick them and press **Keep**, press **Keep all** on a group of similar
   shots, or **Keep both** on a pair of folders. **Kept** lists them all and can put any back.
 - **Recent changes:** what was changed on the site (names given, people merged or removed, tags, dates, the family

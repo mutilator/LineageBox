@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from lineagebox import changes, documents, events, llm, people, scan_dates, settings
 from lineagebox.web import app as webapp
 from tests.conftest import LAN
-from tests.test_face_checks import A, born, face, like, photo
+from tests.test_face_checks import A, B, born, face, like, photo
 
 APP = {"X-Requested-With": "lineagebox"}
 
@@ -60,7 +60,7 @@ def test_which_scans_are_listed(con):
     assert ids["ultrasound"] not in {d["id"] for d in scan_dates.scans(con)["documents"]}
     # a phone's photo of a receipt is dated right; a date set by hand is the family's; a beach photo isn't a scan
     assert [p["id"] for p in found["photos"]] == [ids["print"]]
-    assert scan_dates.counts(con) == {"documents": 4, "photos": 1}
+    assert scan_dates.counts(con) == {"documents": 4, "photos": 1, "young": 0}
     settings.put(con, scan_dates.OK_KEY, [ids["undated"]])  # its date is right, an admin said
     assert ids["undated"] not in {d["id"] for d in scan_dates.scans(con)["documents"]}
 
@@ -183,7 +183,7 @@ def test_the_suggested_dates_page(con, cfg, monkeypatch):
     assert page.index('id="sd1"') < page.index('id="sd3"')  # with a date to use first
     assert 'id="sd2"' in client.get("/cleanup/dates", params={"show": "photos"}).text
     card = client.get("/cleanup/counts/dates").text  # the number is both tabs together
-    assert "Suggested dates" in card and '<span class="num">6</span>' in card and "5 documents,\n1 photo." in card
+    assert "Suggested dates" in card and '<span class="num">6</span>' in card and "5 documents,\n1 photo,\n0 photos" in card
     # dated from the list: by hand, undoable, off the list
     r = client.post(f"/api/images/{ids['letter']}/date", json={"date": "Jun 3, 1952"}, headers=APP)
     assert r.status_code == 200
@@ -264,3 +264,63 @@ def test_a_document_with_no_date_takes_the_photos_beside_it(con):
     item = scan_dates.scans(con)["documents"][0]
     assert item["id"] == ticket and item["found"] == "no date"
     assert scan_dates.suggestions(con, item)[0]["text"] == "January 2016"
+
+
+def childhood(con):
+    """Owen, born 1980: photos of him as a child (1984 to 1990) and grown up (2008 to 2015), by a camera's date. His
+    face as a child is like A, grown up like B."""
+    owen = people.person_id(con, "Owen Miller")
+    born(con, owen, "1980-04-02")
+    for n, year in enumerate((1984, 1985, 1986, 1987, 1988), start=20):
+        face(con, photo(con, n, f"{year}-06-01T10:00:00", folder=2), like(A, 0.2), owen, "user", age=25)
+    for n, year in enumerate((2008, 2010, 2012, 2015), start=30):
+        face(con, photo(con, n, f"{year}-06-01T10:00:00", folder=2), like(B, 0.2), owen, "user", age=31)
+    return owen
+
+
+def test_someone_looks_too_young_for_the_date(con):
+    """A face most like the person's own childhood photos, on a photo dated when they were grown up: an old print
+    photographed with a phone, a scan. Dated about when those childhood photos were taken."""
+    owen = childhood(con)
+    phone = photo(con, 40, "2021-03-01T10:00:00", folder=3, camera="Google Pixel")  # a phone's photo of a print
+    scan = photo(con, 41, "2009-03-01T10:00:00", "filename", folder=4, path="lib/Scans/Scan_0041.jpg")
+    grown = photo(con, 42, "2016-03-01T10:00:00", folder=3)  # him grown up, rightly dated
+    by_hand = photo(con, 43, "2003-01-01T00:00:00", "user", folder=3)  # dated by hand: the family's word
+    looks = photo(con, 44, "2019-01-01T10:00:00", folder=3)  # a face that looks like a young child's
+    for image_id in (phone, scan, by_hand):
+        face(con, image_id, like(A, 0.2), owen, "auto", age=24)
+    face(con, grown, like(B, 0.2), owen, "auto", age=33)
+    face(con, looks, like(B, 0.2), owen, "user", age=6)
+    con.commit()
+    found = scan_dates.young(con)
+    assert set(found) == {phone, scan, looks}
+    assert [(f["why"], f["day"].year, f["age"]) for f in found[phone]] == [("like", 1986, 40)]
+    assert found[looks][0]["why"] == "looks" and found[looks][0]["day"] is None
+    assert scan_dates.young(con, {phone}).keys() == {scan, looks}
+    # the scan is with the scanned photos, the rest on a list of their own
+    lists = scan_dates.scans(con)
+    assert [i["id"] for i in lists["photos"]] == [scan] and lists["photos"][0]["young"][0]["why"] == "like"
+    assert [i["id"] for i in lists["young"]] == [phone, looks]
+    suggested = [s["text"] for s in scan_dates.suggestions(con, lists["young"][0])]
+    assert suggested[:2] == ["about 1986", "between 1980 and 1992"]
+    why = scan_dates.suggestions(con, lists["young"][0])[0]["why"]
+    assert why == "Most like Owen Miller's photos from about 1986, aged about 6; its date makes Owen Miller 40."
+    assert "between 1980 and 1992" in [s["text"] for s in scan_dates.suggestions(con, lists["young"][1])]
+
+
+def test_the_looks_too_young_list(con, cfg):
+    childhood(con)
+    owen = people.person_id(con, "Owen Miller")
+    phone = photo(con, 40, "2021-03-01T10:00:00", folder=3, camera="Google Pixel")
+    young_face = face(con, phone, like(A, 0.2), owen, "auto", age=24)
+    con.commit()
+    client = TestClient(webapp.create_app(cfg), client=LAN)
+    page = client.get("/cleanup/dates", params={"show": "young"}).text
+    assert 'id="sd40"' in page and "Looks too young <small>1</small>" in page
+    assert "Looks like Owen Miller's own photos as a child; its date makes Owen Miller 40." in page
+    assert f'data-api="/api/faces/{young_face}/not"' in page and "Date it about 1986" in page
+    card = client.get("/cleanup/counts/dates").text
+    assert '<span class="num">1</span>' in card and "1 photo where someone looks too young for its date." in card
+    # its date is right: off the list
+    assert client.post(f"/api/images/{phone}/date-ok", headers=APP).status_code == 200
+    assert 'id="sd40"' not in client.get("/cleanup/dates", params={"show": "young"}).text

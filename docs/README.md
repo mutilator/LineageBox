@@ -19,6 +19,8 @@ photos and home videos they appear in, and shared with relatives who sign in wit
 - [Reaching it by name, HTTPS and from outside](remote-access.md), and putting it on phones' home screens.
 - [Family accounts](family-accounts.md): relatives signing in with Google, who sees what, uploads, New for you, and
   photo frames' device links.
+- [A public demo](demo.md): a made-up family's photos for anyone to try, signed in with one click and put back as
+  they were every day.
 - [Troubleshooting](troubleshooting.md).
 
 ## Using LineageBox

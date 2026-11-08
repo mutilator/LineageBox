@@ -147,6 +147,22 @@ you has no settings: it is shown inside the site only, and nothing is ever sent.
 Environment variables: `LINEAGEBOX_XMP_SIDECARS`, `LINEAGEBOX_XMP_IMPORT`. Naming photos with GPS after the nearest
 town has no setting: it uses the list of towns that comes with LineageBox, and asks nothing online.
 
+### A public demo
+
+For a copy anyone may try, with a made-up family's photos ([A public demo](demo.md)). None of these are on the
+Settings page.
+
+| Setting | Default | Page | What it is |
+|---|---|---|---|
+| `[demo] enabled` | false | - | One button to sign in, no other way in, the AI, Whisper and everything else that reaches the network off, and `lineagebox demo reset` allowed. |
+| `[demo] person` | "" | - | Who visitors are in the family tree: a name, or a person's number. |
+| `[demo] uploads` | 5 | - | Uploads from each address until the next reset (0 to 1000; 0 for none). |
+| `[demo] upload_max_mb` | 10 | - | The most one of them may be, in MB (1 to 4096). |
+| `[demo] resets` | every day | - | When it goes back as it was, in words, for the note at the top of every page: "every day at 4:00 UTC". |
+
+Environment variables: `LINEAGEBOX_DEMO_ENABLED`, `LINEAGEBOX_DEMO_PERSON`, `LINEAGEBOX_DEMO_UPLOADS`,
+`LINEAGEBOX_DEMO_UPLOAD_MAX_MB`, `LINEAGEBOX_DEMO_RESETS`.
+
 ### Other environment variables
 
 | Variable | What it is |

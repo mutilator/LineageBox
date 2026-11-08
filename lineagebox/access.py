@@ -204,9 +204,11 @@ def hidden(con: sqlite3.Connection) -> tuple[str, list]:
     return sql, [a for p in folders for a in (p, under(p))]
 
 
-def images_for(con: sqlite3.Connection, people: set[int], account_id: int | None, upload_folder: str | None) -> set[int]:
+def images_for(con: sqlite3.Connection, people: set[int], account_id: int | None, upload_folder: str | None,
+               alone: bool = False) -> set[int]:
     """The photos a member sees: someone they see is in it, by a face named by hand or recognised or added by hand,
-    unless hidden by an admin; and their own uploads, hidden or not."""
+    unless hidden by an admin; and their own uploads, hidden or not. alone (a demo, demo.py): never what other
+    accounts uploaded, whoever is in it."""
     not_shown, args = hidden(con)
     of_people = con.execute(f"""
         WITH seen(id) AS (SELECT value FROM json_each(?))
@@ -214,12 +216,32 @@ def images_for(con: sqlite3.Connection, people: set[int], account_id: int | None
         UNION SELECT image_id FROM image_person WHERE person_id IN seen
         EXCEPT {not_shown}""", (json.dumps(sorted(people)), *args))
     out = {r[0] for r in of_people}
+    if alone:
+        out -= others_uploads(con, account_id)
     if account_id is not None:
         out |= {r[0] for r in con.execute("SELECT image_id FROM upload WHERE account_id = ?", (account_id,))}
     if upload_folder:
         out |= {r[0] for r in con.execute("""SELECT image_id FROM file WHERE image_id IS NOT NULL
                                              AND path LIKE ? ESCAPE '!'""", (under(upload_folder),))}
     return out
+
+
+def others_uploads(con: sqlite3.Connection, account_id: int | None) -> set[int]:
+    """The photos other accounts uploaded: recorded as theirs, or in their uploads folders. Not a photo the library has
+    a copy of outside every uploads folder: uploading a copy of it doesn't hide it from everyone else."""
+    folders = [r[0] for r in con.execute("SELECT upload_folder FROM main.account WHERE upload_folder IS NOT NULL "
+                                         "AND id IS NOT ?", (account_id,))]
+    mine = con.execute("SELECT upload_folder FROM main.account WHERE id IS ?", (account_id,)).fetchone()
+    every = folders + ([mine[0]] if mine and mine[0] else [])
+    theirs = {r[0] for r in con.execute("SELECT image_id FROM main.upload WHERE account_id IS NOT ?", (account_id,))}
+    library = set()
+    files = con.execute("SELECT image_id, path FROM main.file WHERE image_id IS NOT NULL AND NOT missing")
+    for image_id, path in files:
+        if any(within(path, f) for f in folders):
+            theirs.add(image_id)
+        elif not any(within(path, f) for f in every):
+            library.add(image_id)
+    return theirs - library
 
 
 def folders_for(con: sqlite3.Connection, images: set[int], upload_folder: str | None, shared=()) -> set[int]:
@@ -316,9 +338,10 @@ def shared_with(con: sqlite3.Connection, account_id: int) -> Shared:
     return Shared(frozenset(images), frozenset(tours), frozenset(folders), frozenset(albums))
 
 
-def compute(con: sqlite3.Connection, account: dict, shared: bool = True) -> Viewer:
+def compute(con: sqlite3.Connection, account: dict, shared: bool = True, alone: bool = False) -> Viewer:
     """Work out what an account sees, on a connection that sees everything. shared False: without what others shared
-    with them, which is what a tour of theirs passes on when they share it (routes/tours.py)."""
+    with them, which is what a tour of theirs passes on when they share it (routes/tours.py). alone: without what
+    other accounts uploaded (a demo)."""
     if account["role"] == "admin":
         return admin(account)
     g = family.load(con)
@@ -328,7 +351,7 @@ def compute(con: sqlite3.Connection, account: dict, shared: bool = True) -> View
                                           UNION SELECT person_id FROM person_group WHERE added_by = :a""",
                                        {"a": account["id"]})}
     people = people_for(g, account["person_id"], [tuple(r) for r in rules], added)
-    images = images_for(con, people, account["id"], account["upload_folder"])
+    images = images_for(con, people, account["id"], account["upload_folder"], alone)
     others = shared_with(con, account["id"]) if shared else Shared()
     granted = others.images - images
     images |= granted
@@ -352,7 +375,9 @@ class Viewers:
     crops a page asks for at once all need it, and each working it out for itself (0.4 s for a member who sees 40,000
     photos) kept every one of them waiting several seconds on the others."""
 
-    def __init__(self):
+    def __init__(self, alone: bool = False):
+        """alone: no member sees what other accounts uploaded (a demo, demo.py)."""
+        self.alone = alone
         self.kept: dict[tuple, tuple[Viewer, float, int]] = {}
         self.generation = 0
         self.lock = threading.Lock()
@@ -383,7 +408,7 @@ class Viewers:
                 return found
             with self.lock:
                 generation = self.generation
-            viewer = compute(con, account, shared)
+            viewer = compute(con, account, shared, self.alone)
             with self.lock:
                 self.kept = {k: v for k, v in self.kept.items() if k[0] != account["id"] or k[-1] != shared}
                 self.kept[key] = (viewer, time.monotonic(), generation)

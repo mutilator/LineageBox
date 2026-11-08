@@ -293,6 +293,8 @@ sends them through the usual upload (which needs a session); signing out forgets
 - Suggestions worked out against everyone (who a face or a group of faces looks like: `people.suggest_for_face`,
   `people.looks_like`, on `w`) are shown to a member only for people they see. Confirm faces' **Ages to check** and
   **Faces missed** read the member's own views (`c`); marking a face's age or a photo's faces as fine is for admins.
+  **No faces found** (`/cleanup/no-faces`, looking again and setting aside) and Suggested dates' **Looks too young**
+  are admins' only.
 
 ### Uploads
 

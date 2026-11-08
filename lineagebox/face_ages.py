@@ -71,12 +71,16 @@ def births(con: sqlite3.Connection) -> dict[int, str]:
 def age_checks(con: sqlite3.Connection, ok: set[int] = frozenset()) -> list[dict]:
     """Faces named as someone (by hand or recognised) that can't be them by their age (Cleanup → Confirm faces →
     Ages to check): the photo was taken before they were born (often a camera's clock: see camera_clock.py), or the
-    face looks like a young child's while they were grown up then. ok: faces said to be right. Each with the person,
-    how it was named, why, and the photo's date and camera; by person, then date. On a member's connection, the faces
-    and people they see."""
+    face looks like a young child's while they were grown up then, on a photo whose date someone set or said is right
+    (otherwise the date is the likelier mistake: Suggested dates → Looks too young, scan_dates.young). ok: faces said
+    to be right. Each with the person, how it was named, why, and the photo's date and camera; by person, then date.
+    On a member's connection, the faces and people they see."""
+    from lineagebox import scan_dates, settings
+
     born = births(con)
     if not born:
         return []
+    dated_right = set(settings.get(con, scan_dates.OK_KEY, []))
     rows = con.execute(f"""
         SELECT f.id, f.image_id, f.person_id, f.assigned_by, f.est_age, ({usable_faces_sql()}) AS usable,
                i.taken_at, i.taken_at_source, i.date_from, i.date_to, i.camera, p.name
@@ -92,7 +96,8 @@ def age_checks(con: sqlite3.Connection, ok: set[int] = frozenset()) -> list[dict
         if days[1] < _first(b):
             why = "born after"
         elif (r["usable"] and r["est_age"] is not None and r["est_age"] < CHILD_LOOKS
-              and (days[0] - _last(b)).days / 365.25 >= GROWN_UP):
+              and (days[0] - _last(b)).days / 365.25 >= GROWN_UP
+              and (r["taken_at_source"] == "user" or r["image_id"] in dated_right)):
             why = "child"
         if why:
             out.append({"face_id": r["id"], "image_id": r["image_id"], "person_id": r["person_id"], "name": r["name"],

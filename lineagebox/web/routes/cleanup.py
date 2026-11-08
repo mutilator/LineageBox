@@ -52,6 +52,8 @@ COUNTS = {
     "blurry": lambda c, now: cleanup.summary(c, now.blurry_below, {"blurry", "unmeasured"}),
     "reference": lambda c, now: cleanup.summary(c, now.blurry_below, {"reference"}),
     "faces": lambda c, now: _faces_counts(c),
+    "nofaces": lambda c, now: {"photos": faces.no_faces(c, 0, 0)[1],  # routes/face_checks.py
+                               "waiting": len(settings.get(c, faces.LOOK_AGAIN_KEY, []))},
     "family": lambda c, now: {"issues": len(family_check.check(c))},
     "turned": lambda c, now: {"turned": len(orientation.suggestions(c, now.turn_suggest))},
     "damaged": lambda c, now: check.progress(c),

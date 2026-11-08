@@ -1,8 +1,9 @@
 {#- Cleanup → Confirm faces → Faces missed (cleanup_faces.html; faces.missed, routes/face_checks.py): photos where the
     AI's description counts more people than faces were found, to look for faces again. -#}
-<p class="meta">{% trans %}Group photos where the description counts more people than faces were found: small faces at the back,
-or faces turned a little. <b>Look for faces again</b> looks more closely (about 20 seconds each); the faces it finds are
-recognised where they clearly match, and the photo leaves this list. Photos with family named in them come first.{% endtrans %}</p>
+<p class="meta">{% trans %}Group photos where some faces were found and the description counts more people: small faces at the
+back, or faces turned a little. <b>Look for faces again</b> looks more closely (about 20 seconds each); the faces it finds
+are recognised where they clearly match, and the photo leaves this list. Photos with family named in them come first.{% endtrans %}
+{%- if viewer.admin %} {% trans %}Photos with no face found at all are under <a href="/cleanup/no-faces">Cleanup → No faces found</a>.{% endtrans %}{% endif %}</p>
 {% include "_pager.html" %}
 <div class="missed-faces">
   {%- for im in missed_photos %}

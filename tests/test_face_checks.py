@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-from lineagebox import date_hints, dedup, face_ages, faces, people, settings
+from lineagebox import date_hints, dedup, face_ages, faces, people, scan_dates, settings
 from lineagebox.web import app as webapp
 from tests.conftest import LAN, rel, write_jpeg
 
@@ -69,7 +69,12 @@ def test_names_that_dont_fit_an_age(con):
     undated = face(con, photo(con, 5, "2001-01-01T00:00:00", "mtime"), like(A), kid, "user", age=30)  # a file's time
     con.commit()
     found = {c["face_id"]: c["why"] for c in face_ages.age_checks(con)}
-    assert found == {early: "born after", child: "child"}
+    # a child's face on a photo dated when she was grown up: its date is the likelier mistake (Suggested dates → Looks
+    # too young), until someone says its date is right; then it is the name
+    assert found == {early: "born after"} and 3 in scan_dates.young(con)
+    settings.put(con, scan_dates.OK_KEY, [3])
+    found = {c["face_id"]: c["why"] for c in face_ages.age_checks(con)}
+    assert found == {early: "born after", child: "child"} and 3 not in scan_dates.young(con, {3})
     assert fine not in found and adult not in found and undated not in found
     assert [c["face_id"] for c in face_ages.age_checks(con, {early})] == [child]
     assert face_ages.before_birth_by_camera(con) == {"Cam": 1}

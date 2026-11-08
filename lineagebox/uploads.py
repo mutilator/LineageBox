@@ -55,6 +55,11 @@ class TooBig(Problem):
     status = 413
 
 
+def size_text(most: int) -> str:
+    """An upload limit as people read it: 4 GB, or 10 MB (a demo's, demo.py)."""
+    return f"{most // 2**30} GB" if most >= 2**30 and most % 2**30 == 0 else f"{most // 2**20} MB"
+
+
 def clean_parts(text: str) -> list[str]:
     """A folder or file path as typed or dropped, as safe names: no '..', nothing hidden, no characters Windows
     can't have in a name, each shortened to NAME_BYTES with its extension kept."""
@@ -134,7 +139,7 @@ async def receive(chunks, target: Path, most: int, expected: int = 0) -> int:
                     continue
                 size += len(chunk)
                 if size > most:
-                    raise TooBig(f"{target.name} is over {most // 2**30} GB, the most one upload may be.")
+                    raise TooBig(f"{target.name} is over {size_text(most)}, the most one upload may be.")
                 if not checked:
                     head += chunk[:64]
                     if len(head) >= 16:

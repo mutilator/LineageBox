@@ -252,6 +252,24 @@ def check_backup(path: str) -> None:
           f"{fmt_size(found['bytes'])}.")
 
 
+def cmd_demo(con, cfg, args):
+    """A public demo (demo.py, docs/demo.md): keep it as it is now, or put it back."""
+    from lineagebox import demo
+
+    try:
+        if args.action == "save":
+            done = demo.save(con, cfg)
+            print(f"saved the demo as it is now in {demo.seed_dir(cfg)} (catalog version {done['catalog_version']}, "
+                  f"{len(done['folders'])} watched folders; {done['copied']} files copied, {done['removed']} "
+                  "deleted there): `lineagebox demo reset` puts this back")
+        else:
+            done = demo.reset(cfg)
+            print(f"put the demo back as it was saved {done['saved_at']}: {done['copied']} files copied back, "
+                  f"{done['removed']} files and folders made since deleted")
+    except demo.Problem as e:
+        sys.exit(f"LineageBox: {e}")
+
+
 def cmd_export(con, cfg, args):
     from lineagebox import export
 
@@ -398,6 +416,10 @@ def main(argv=None):
     p = sub.add_parser("export", help="the family tree (GEDCOM) and every photo's dates, tags, names on faces, "
                                       "captions and comments, as one zip (docs/export.md)")
     p.add_argument("file", help="the zip to write, or a folder to write lineagebox-export-<date>.zip in")
+    p = sub.add_parser("demo", help="a public demo (docs/demo.md): save keeps the catalog, the data folder and the "
+                                    "watched folders as they are now; reset, with web and worker stopped, puts them "
+                                    "back, deleting everything made since")
+    p.add_argument("action", choices=["save", "reset"])
     args = parser.parse_args(argv)
     if args.command in ("worker", "copies", "updater") and not getattr(args, "once", False):
         _stop_on_sigterm()
@@ -423,7 +445,7 @@ def main(argv=None):
                 "transcribe": cmd_transcribe, "copies": cmd_copies, "index": cmd_index,
                 "status": cmd_status, "worker": cmd_worker, "serve": cmd_serve,
                 "https": cmd_https, "accounts": cmd_accounts, "check-files": cmd_check_files, "backup": cmd_backup,
-                "export": cmd_export}
+                "export": cmd_export, "demo": cmd_demo}
     try:
         with awake:
             commands[args.command](con, cfg, args)

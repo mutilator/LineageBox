@@ -215,7 +215,7 @@ h2[id] { scroll-margin-top: calc(var(--header-h) + 56px); }
 .face-row.lit { background: color-mix(in srgb, var(--accent) 16%, transparent); border-radius: 8px; transition: background .3s; }
 /* only the photo: a tap on it on a phone, ⛶, or v; Esc or another tap brings the rest back */
 body.immersive .top, body.immersive .stage-bar, body.immersive .step, body.immersive .face-boxes,
-body.immersive .info, body.immersive .see-as { display: none; }
+body.immersive .info, body.immersive .see-as, body.immersive .demo-note { display: none; }
 body.immersive .viewer { height: 100dvh; grid-template-columns: minmax(0, 1fr); }
 .sheet-handle { display: none; }
 .wide-only { display: inline; }
@@ -778,6 +778,8 @@ kbd { display: inline-block; min-width: 1.4em; margin-right: 3px; padding: 0 5px
 
 /* Family accounts: the See-as strip, who is signed in, signing in, Who is this?, uploads, Recent changes */
 .see-as { background: var(--accent); color: var(--on-accent); padding: 6px 16px; text-align: center; font-size: .9rem; }
+.demo-note { background: var(--surface); border-bottom: 1px solid var(--line); border-top: 3px solid var(--ours);
+  padding: 6px 16px; text-align: center; font-size: .9rem; }
 .see-as button { margin-left: 8px; }
 .signin { max-width: 460px; margin: 48px auto; text-align: center; }
 .signin details { text-align: left; }
@@ -1318,11 +1320,17 @@ table.cameras th, table.cameras td { text-align: left; padding: 6px 8px; border-
 .scan-type { margin: 8px 0 4px; }
 .scan-type input { min-width: min(330px, 100%); }
 .scan-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.scan-young { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 6px; }
+.scan-young li { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.scan-young img { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; background: var(--tile); }
+.scan-young span { flex: 1 1 14em; }
 @media (max-width: 560px) {
   .scan-date { grid-template-columns: 72px minmax(0, 1fr); gap: 10px; }
   .scan-thumb img { width: 72px; height: 72px; }
 }
-@media (pointer: coarse) { .scan-suggest button, .scan-actions button, .scan-type button, .scan-type input { min-height: 44px; } }
+@media (pointer: coarse) {
+  .scan-suggest button, .scan-actions button, .scan-type button, .scan-type input, .scan-young button { min-height: 44px; }
+}
 
 /* ---- Albums, favourites, tours with stories (albums.py, favourites.py, slideshow.py; album.html, tour.html) ---- */
 .player .title-card { display: grid; gap: 10px; justify-items: center; text-align: center; color: #fff; padding: 24px;

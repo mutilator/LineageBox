@@ -7,9 +7,9 @@
 {% block main %}
 <nav class="crumbs"><a href="/cleanup">{% trans %}Cleanup{% endtrans %}</a><span class="sep">/</span><h1>{% trans %}Suggested dates{% endtrans %}</h1></nav>
 <p class="meta">{% trans %}A scanner dates what it scans by the day it was scanned, so an old letter or photo scanned this year is dated
-this year. Here are the scanned documents and photos, and documents with no date of their own, with what can tell
-their real date: a date written on them (the AI reads it), the family tree (the event a certificate is for), and who is
-in them. Use a suggestion, or type the date as you know it; either can be undone from
+this year. Here are the scanned documents and photos, documents with no date of their own, and photos where someone
+looks as they did as a child while the date makes them grown up, with what can tell their real date: a date written on
+them (the AI reads it), the family tree (the event a certificate is for), and who is in them. Use a suggestion, or type the date as you know it; either can be undone from
 <a href="/cleanup/changes">Recent changes</a>.{% endtrans %}</p>
 <nav class="tabs" aria-label="{{ _('Scans') }}">
   {%- for key, label in tabs.items() %}
@@ -35,7 +35,18 @@ in them. Use a suggestion, or type the date as you know it; either can be undone
         {%- if it.found == "scanner" %}{% trans camera=it.camera %}, a scanner ({{ camera }}): the day it was scanned.{% endtrans %}
         {%- elif it.found == "folder" %}{% trans %}, in a scan's folder or name: likely the day it was scanned.{% endtrans %}
         {%- elif it.found == "no date" %}{% trans %}: it has no date of its own.{% endtrans %}
+        {%- elif it.found == "young" %}{% trans %}, but someone in it looks as they did as a child.{% endtrans %}
         {%- else %}{% trans %}: a photo of a document is dated when the photo was taken, not the document.{% endtrans %}{% endif %}</p>
+      {%- if it.young %}
+      <ul class="scan-young">
+        {%- for f in it.young %}
+        <li id="sy{{ f.face_id }}"><a href="/image/{{ it.id }}" target="_blank" title="{{ _('Open the photo') }}"><img src="/face/{{ f.face_id }}" alt="{{ _('The face') }}" width="48" height="48" loading="lazy"></a>
+          <span>{% if f.why == "looks" %}{% trans name=f.name, age=f.age %}{{ name }}'s face looks like a young child's; its date makes {{ name }} {{ age }}.{% endtrans %}{% else %}{% trans name=f.name, age=f.age %}Looks like {{ name }}'s own photos as a child; its date makes {{ name }} {{ age }}.{% endtrans %}{% endif %}</span>
+          <button type="button" class="quiet" data-api="/api/faces/{{ f.face_id }}/not" data-remove="#sy{{ f.face_id }}"
+                  title="{{ _("It isn't %(name)s: take the name off", name=f.name) }}">{% trans %}Not them{% endtrans %}</button></li>
+        {%- endfor %}
+      </ul>
+      {%- endif %}
       {%- set ns = namespace(first=true) %}
       {%- for sg in it.suggestions %}
       {%- if sg.text %}
@@ -65,6 +76,6 @@ in them. Use a suggestion, or type the date as you know it; either can be undone
 </ul>
 {% include "_pager.html" %}
 {%- else %}
-<p class="note">{% if show == "documents" %}{% trans %}No scanned document is waiting for a date.{% endtrans %}{% else %}{% trans %}No scanned photo is waiting for a date.{% endtrans %}{% endif %}</p>
+<p class="note">{% if show == "documents" %}{% trans %}No scanned document is waiting for a date.{% endtrans %}{% elif show == "young" %}{% trans %}No photo where someone looks younger than its date makes them. More are found as childhood photos are named and dated.{% endtrans %}{% else %}{% trans %}No scanned photo is waiting for a date.{% endtrans %}{% endif %}</p>
 {%- endif %}
 {% endblock %}

@@ -7,9 +7,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
-from lineagebox import access, accounts, activity, catalog, db, scan, sidecars, tours, uploads
-from lineagebox.web.common import (ADMIN, MEMBER, PRIVATE, ZIP_BYTES, ZIP_MOST, HiddenBody, _attachment, _from_app,
-                                   _image_or_404, _uploads_root, _within)
+from lineagebox import access, accounts, activity, catalog, db, demo, scan, sidecars, tours, uploads
+from lineagebox.web.common import (ADMIN, MEMBER, PRIVATE, ZIP_BYTES, ZIP_MOST, HiddenBody, _attachment, _client_ip,
+                                   _from_app, _image_or_404, _uploads_root, _within)
 from lineagebox.web.deps import con, page, site, viewer, writer
 from lineagebox.web.routes.tours import shown
 from lineagebox.web.site import Site
@@ -47,8 +47,10 @@ def upload_page(request: Request, c=Depends(con), w=Depends(writer), s: Site = D
                              ORDER BY i.id DESC LIMIT 60""", (catalog.under(folder),)).fetchall()
         row = w.execute("SELECT id FROM folder WHERE path = ?", (folder,)).fetchone()
         folder_id = row[0] if row else None
+    most = now.demo_upload_max_mb * 2**20 if now.demo_enabled else now.upload_max_gb * 2**30
+    left = demo.uploads_left(w, _client_ip(request), now.demo_uploads) if now.demo_enabled else None
     return page(request, "upload.html", nav="upload", account=account, counts=counts, mine=mine,
-                folder_id=folder_id, max_gb=now.upload_max_gb,
+                folder_id=folder_id, max_size=uploads.size_text(most), demo_left=left, demo_most=now.demo_uploads,
                 extensions=sorted({*now.image_extensions, *now.video_extensions, *now.audio_extensions}))
 
 
@@ -62,7 +64,16 @@ async def upload_file(request: Request, path: str = Query(min_length=1, max_leng
     if not s.upload_tries.allow(str(account["id"])):
         raise HTTPException(429, "That's a lot of files at once: wait an hour, then go on.")
     now = s.shared_cfg()
-    most = now.upload_max_gb * 2**30
+    most = now.demo_upload_max_mb * 2**20 if now.demo_enabled else now.upload_max_gb * 2**30
+    counted = ""  # a demo's: the address this upload was counted against, until it is taken (demo.take_upload)
+    if now.demo_enabled:
+        def count() -> bool:
+            with s.own_con() as c:
+                return demo.take_upload(c, _client_ip(request), now.demo_uploads)
+        if not await run_in_threadpool(count):
+            raise HTTPException(403, f"That's all the uploads from here: {now.demo_uploads} in this demo, until it "
+                                     f"all goes back as it was ({now.demo_resets}).")
+        counted = _client_ip(request)
 
     def place():
         with s.own_con() as c:
@@ -82,8 +93,9 @@ async def upload_file(request: Request, path: str = Query(min_length=1, max_leng
         target, rel = await run_in_threadpool(place)
         size = int(request.headers.get("content-length") or 0)
         if size > most:
-            raise uploads.TooBig(f"{target.name} is over {now.upload_max_gb} GB, the most one upload may be.")
+            raise uploads.TooBig(f"{target.name} is over {uploads.size_text(most)}, the most one upload may be.")
         await uploads.receive(request.stream(), target, most, size)
+        counted = ""  # taken: it counts
     except uploads.TooBig as e:
         raise HTTPException(413, str(e)) from None
     except (uploads.Problem, accounts.Problem) as e:
@@ -95,6 +107,12 @@ async def upload_file(request: Request, path: str = Query(min_length=1, max_leng
             activity.log(c, f"An upload by {account['email']} could not be written: {e.strerror or e}")
         raise HTTPException(503, "The uploads folder can't be written to just now. Tell an admin: the Status "
                                  "page says why.") from None
+    finally:
+        if counted:  # not taken (too big, not a photo, the connection dropped): it doesn't count
+            def give_back():
+                with s.own_con() as c:
+                    demo.give_back(c, counted)
+            await run_in_threadpool(give_back)
     await run_in_threadpool(s.ask_worker)
     return {"saved": rel}
 

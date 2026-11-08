@@ -10,6 +10,8 @@ prints scanned with it. This finds them:
   that folder (on the library this was made with, 51 documents were dated by folders such as "2014/Ultrasound Feb",
   rightly).
 - scanned photos: the others that were scanned.
+- looks too young (young()): any photo, scanned or not, where someone named looks as they did as a child while its
+  date makes them grown up: an old print photographed with a phone, a copy dated when it was copied.
 
 Scanned means a scanner's camera name (HP ScanJet, Canon CanoScan, Fujitsu ScanSnap, Epson Perfection), or "scan" in
 the name of its folder or file (ScannedPhotos, CamScanner, PhotoScan, Scan_0001). A date set by hand is the family's
@@ -26,7 +28,8 @@ What can tell the real date, best first (suggestions()), each to take with one c
    scanned the same day). For a document with no date at all, the camera-dated photos beside it, as on its page
    (date_hints).
 5. Who is in it (date_hints): not before anyone in it was born, nor after anyone in it died; a year or a few when the
-   two come close, else only "not before".
+   two come close, else only "not before". Someone who looks as they did as a child in it (young()): about the time of
+   their childhood photos they look most like, else their childhood.
 
 The worker has the AI read every scan on the list once, documents first (a print's date stamp, or what was written on
 its back, dates a photo as well).
@@ -35,10 +38,14 @@ import io
 import json
 import re
 import sqlite3
-from datetime import datetime
+from collections import defaultdict
+from datetime import date, datetime
 
-from lineagebox import date_hints, dates, events, retry, settings
+import numpy as np
+
+from lineagebox import date_hints, dates, events, face_ages, retry, settings
 from lineagebox.catalog import VISIBLE
+from lineagebox.faces import usable_faces_sql
 
 SCANNER = re.compile(r"scan|perfection|doxie|flatbed", re.I)  # in a camera's name: a scanner
 SCAN_PATH = "%scan%"  # in a folder's or file's name (LIKE, any case)
@@ -59,6 +66,16 @@ KIND_EVENTS = {"Birth certificate": ("BIRT", "the birth it records"),
                "Obituary": ("DEAT", "the death (an obituary is printed within days)"),
                "Marriage certificate": ("MARR", "the marriage it records"), "Diploma": ("GRAD", "the graduation")}
 retry.STAGES[STAGE] = "documents to read the dates on"
+# Looks too young (young()). A face looks as its person did as a child when it looks like a young child's
+# (face_ages.CHILD_LOOKS), or when, of that person's faces whose age is known, the nearest by likeness is a child's
+# (face_ages.CHILD_AT_MOST or less) and so are YOUNG_OF of the YOUNG_NEAR nearest. Measured on the library LineageBox
+# was developed on (2026-11-08): of 943 faces of grown-ups named by hand on photos with a camera's date, 1 was taken
+# for a child's that way; of 2,588 of children, none was missed. A face's age is known from a photo with a date that
+# can be trusted (a camera's that isn't a scanner's, a file name's, one set by hand to a year or less), or from a face
+# that looks like a young child's; so it finds more as childhood photos are named and dated. The estimated age alone
+# can't say more (face_ages.py), nor the AI's description: it calls one grown-up in nine a girl or a boy.
+YOUNG_NEAR, YOUNG_OF = 3, 2
+YOUNG_DATES = 10  # the dated childhood faces among this many nearest say when it was taken (the middle of them)
 
 READ_SYSTEM = """You find the dates written on a scanned document or photo: a letter, a certificate, a newspaper
 clipping, an obituary, a card, a form, a page of a family Bible, a date printed on a photo's border or written on its
@@ -98,24 +115,120 @@ def scans(con: sqlite3.Connection) -> dict[str, list[dict]]:
                OR EXISTS (SELECT 1 FROM file f WHERE f.image_id = i.id AND NOT f.missing AND f.path LIKE :scan))
         ORDER BY path, i.id""", {"scan": SCAN_PATH, "cameras": json.dumps(cameras),
                                  "no_date": json.dumps(NO_DATE)}).fetchall()
-    out: dict[str, list[dict]] = {"documents": [], "photos": []}
+    young_faces = young(con, ok)
+    out: dict[str, list[dict]] = {"documents": [], "photos": [], "young": []}
     for r in rows:
         if r["id"] in ok:
             continue
         found = ("scanner" if r["camera"] in cameras else "folder" if r["named"]
                  else "no date" if r["taken_at_source"] in NO_DATE else None)
         item = {k: r[k] for k in ("id", "sha256", "taken_at", "taken_at_source", "camera", "path", "kind")}
+        item["young"] = young_faces.get(r["id"])
         if r["kind"] is not None or r["type"] == DOCUMENT:
             if found or r["kind"] is not None:
                 out["documents"].append({**item, "found": found or "marked"})
         elif found in ("scanner", "folder"):
             out["photos"].append({**item, "found": found})
+    listed = {i["id"] for i in out["documents"] + out["photos"]}
+    rest = [i for i in young_faces if i not in listed]  # the others: on a list of their own
+    for r in con.execute("""
+            SELECT i.id, i.sha256, i.taken_at, i.taken_at_source, i.camera, d.kind,
+                   (SELECT f.path FROM file f WHERE f.image_id = i.id AND NOT f.missing ORDER BY f.id LIMIT 1) AS path
+            FROM image i LEFT JOIN document d ON d.image_id = i.id
+            WHERE i.id IN (SELECT value FROM json_each(?)) ORDER BY path, i.id""", (json.dumps(rest),)):
+        out["young"].append({**dict(r), "found": "young", "young": young_faces[r["id"]]})
     return out
+
+
+def _trusted_day(r, scanned: set[int]) -> date | None:
+    """The day a photo was taken, when its date can be trusted to tell someone's age in it: a camera's (not a
+    scanner's), a copy's or a file name's, or one set by hand to a year or less (its middle)."""
+    if r["taken_at_source"] == "user":
+        if r["date_from"] and r["date_to"]:
+            a, b = date.fromisoformat(r["date_from"]), date.fromisoformat(r["date_to"])
+            if (b - a).days <= 366:
+                return date.fromordinal((a.toordinal() + b.toordinal()) // 2)
+        return None
+    if r["taken_at_source"] in face_ages.SURE and r["taken_at"] and r["image_id"] not in scanned:
+        return date.fromisoformat(r["taken_at"][:10])
+    return None
+
+
+def young(con: sqlite3.Connection, ok: set[int] = frozenset()) -> dict[int, list[dict]]:
+    """Photos where someone named or recognised looks as they did as a child (see YOUNG_NEAR) while the photo's date
+    makes them grown up (face_ages.GROWN_UP or more): image id -> those faces, each {"face_id", "person_id", "name",
+    "born", "age" (by the photo's date), "why": "looks" (like a young child's) or "like" (their own childhood faces),
+    "day": the middle of their dated childhood faces it looks most like, or None}. Not photos dated by hand, nor
+    those in ok (said to be dated right)."""
+    born = face_ages.births(con)
+    if not born:
+        return {}
+    cameras = [c for (c,) in con.execute("SELECT DISTINCT camera FROM image WHERE camera IS NOT NULL")
+               if SCANNER.search(c)]
+    scanned = {i for (i,) in con.execute(
+        """SELECT id FROM image WHERE camera IN (SELECT value FROM json_each(?))
+           UNION SELECT image_id FROM file WHERE path LIKE ? AND image_id IS NOT NULL""",
+        (json.dumps(cameras), SCAN_PATH))}
+    rows = con.execute(f"""
+        SELECT f.id, f.image_id, f.person_id, f.est_age, ({usable_faces_sql()}) AS usable, f.embedding, p.name,
+               i.taken_at, i.taken_at_source, i.date_from, i.date_to, coalesce(i.dup_group_id, i.id) AS grp
+        FROM face f JOIN image i ON i.id = f.image_id JOIN person p ON p.id = f.person_id
+        WHERE f.assigned_by IN ('user', 'auto') AND i.media = 'photo' AND {VISIBLE}
+          AND f.person_id IN (SELECT value FROM json_each(?))""", (json.dumps(sorted(born)),)).fetchall()
+    by_person = defaultdict(list)
+    for r in rows:
+        by_person[r["person_id"]].append(r)
+    out: dict[int, list[dict]] = defaultdict(list)
+    for pid, faces in by_person.items():
+        first = face_ages._first(born[pid])
+        looks = [bool(r["usable"]) and r["est_age"] is not None and r["est_age"] < face_ages.CHILD_LOOKS for r in faces]
+        # the faces whose age is known: a child's (True), a grown-up's (False)
+        refs, kinds, days = [], [], []
+        for n, r in enumerate(faces):
+            day = _trusted_day(r, scanned)
+            age = (day - first).days / 365.25 if day else None
+            if age is not None and 0 <= age < face_ages.CHILD_AT_MOST + 1:
+                refs.append(n); kinds.append(True); days.append(day)
+            elif age is not None and age >= face_ages.GROWN_UP:
+                refs.append(n); kinds.append(False); days.append(day)
+            elif looks[n]:
+                refs.append(n); kinds.append(True); days.append(None)
+        # the faces on photos dated when they were grown up, but not by hand or said to be right
+        asked = [n for n, r in enumerate(faces) if r["taken_at"] and r["taken_at_source"] != "user"
+                 and r["image_id"] not in ok and r["grp"] == r["image_id"]  # one of a group of copies
+                 and (date.fromisoformat(r["taken_at"][:10]) - first).days / 365.25 >= face_ages.GROWN_UP]
+        if not asked:
+            continue
+        found = {n: None for n in asked if looks[n]}  # n -> the day their alike childhood faces say, or None
+        if sum(kinds) >= YOUNG_OF and len(refs) >= YOUNG_NEAR:
+            R = np.stack([np.frombuffer(faces[n]["embedding"], dtype=np.float32) for n in refs])
+            C = np.stack([np.frombuffer(faces[n]["embedding"], dtype=np.float32) for n in asked])
+            sims = C @ R.T
+            groups = np.array([faces[n]["grp"] for n in refs])
+            sims[np.array([faces[n]["grp"] for n in asked])[:, None] == groups[None, :]] = -np.inf  # not its photo
+            child = np.array(kinds)
+            top = min(YOUNG_DATES, len(refs))
+            for row, n in enumerate(asked):
+                order = np.argpartition(-sims[row], top - 1)[:top]
+                order = order[np.argsort(-sims[row, order])]
+                order = order[np.isfinite(sims[row, order])]
+                near = child[order[:YOUNG_NEAR]]
+                if len(near) < YOUNG_NEAR or not near[0] or near.sum() < YOUNG_OF:
+                    continue
+                dated = sorted(days[k] for k in order if child[k] and days[k] is not None)
+                found[n] = dated[len(dated) // 2] if dated else None
+        for n, day in found.items():
+            r = faces[n]
+            out[r["image_id"]].append({
+                "face_id": r["id"], "person_id": pid, "name": r["name"], "born": born[pid],
+                "age": int((date.fromisoformat(r["taken_at"][:10]) - first).days // 365.25),
+                "why": "looks" if looks[n] and day is None else "like", "day": day})
+    return dict(out)
 
 
 def counts(con: sqlite3.Connection) -> dict[str, int]:
     found = scans(con)
-    return {"documents": len(found["documents"]), "photos": len(found["photos"])}
+    return {"documents": len(found["documents"]), "photos": len(found["photos"]), "young": len(found["young"])}
 
 
 # ---- what can tell its date ---------------------------------------------------------------------------------------
@@ -271,6 +384,16 @@ def suggestions(con: sqlite3.Connection, item: dict, south: bool = False, day_fi
             add(dates.photo_date(said, south, day_first), why)
         except dates.Problem:
             pass
+    for f in item.get("young") or ():  # someone who looks as they did as a child in it
+        year = int(f["born"][:4])
+        if f["day"]:
+            aged = "as a baby" if f["day"].year <= year else f"aged about {f['day'].year - year}"
+            add(dates.photo_date(f"about {f['day'].year}", south),
+                f"Most like {f['name']}'s photos from about {f['day'].year}, {aged}; its date makes {f['name']} "
+                f"{f['age']}.")
+        add(dates.photo_date(f"between {year} and {year + face_ages.CHILD_AT_MOST}", south),
+            f"{f['name']} looks like a child in it, {face_ages.CHILD_AT_MOST} or younger; its date makes {f['name']}"
+            f" {f['age']}.", label=f"between {year} and {year + face_ages.CHILD_AT_MOST}")
     lower, upper, why = date_hints._from_people(con, item["id"])
     if item.get("found") == "no date" and (near := date_hints._from_neighbours(con, item["id"])):
         said, last, reason = near  # not a scan: the camera-dated photos beside it are from its time (date_hints)

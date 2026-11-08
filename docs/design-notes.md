@@ -70,7 +70,12 @@ faces. DeepFace pulls in TensorFlow.
   second.
 - **Faces missed:** the AI counts the people it sees. 3,495 of 36,969 described photos had 3 or more people and at least
   2 more than faces found, 882 of them with someone named. Those come first; the rest are often crowds or people seen
-  from behind. Looking again (1280 px, a lower bar) is offered on each.
+  from behind. Looking again (1280 px, a lower bar) is offered on each. Since 2026-11-08 the list keeps to photos with
+  some faces found, and **No faces found** has those with none: 5,578 of 38,743 photos, 4,089 of them with one or two
+  people, which Faces missed never listed. Re-run with the first look's settings, a sample of 10 from each part of the
+  library found clear faces in none, except one stretch of 1,400 phone photos whose faces had never been looked for
+  properly (half had clear faces); so the list is for looking at again (in the worker, the models loaded once) or
+  setting aside, not a fault in the detector. Face ids had no gaps: nothing found had been lost.
 - InsightFace licenses these models for **non-commercial research purposes only**. LineageBox downloads them; it doesn't
   include them.
 
@@ -97,9 +102,20 @@ time. So the rule is:
 
 - **Recognition doesn't use ages.** Birth dates do help: nobody is recognised or suggested in a photo taken before they
   were born.
+- **Dating a photo by faces** (measured 2026-11-08 on 5,382 faces named by hand on dated photos). Birth date plus the
+  estimated age: half more than 20 years off. The person's 10 most alike faces of other times (more than 60 days
+  away): half within a year, three in four within two (young children: 92%) when they have photos from about then;
+  with none within 3 years it is about 4 years off, and neither how alike they are nor dated faces on both sides tells
+  that apart. On 21 scans dated by hand it was 11 years off: old prints are older than anyone's camera photos. So no
+  date is suggested from likeness alone; what is used is narrower: whether a face is the person as a child. Of the
+  person's faces of known age, the nearest by likeness a child's (12 or less) and 2 of the 3 nearest: of 943 faces of
+  grown-ups named by hand, 1 was taken for a child's; of 2,588 of children, none was missed. A photo whose date makes
+  them grown up then goes under Suggested dates → **Looks too young**, dated about when their alike childhood photos
+  were taken. The AI's description can't tell it: it called 11% of grown-ups in one-person photos a girl or a boy.
 - **Only "a young child" is said.** All 134 faces estimated under 15 were children of 10 or less (2 of 1,563
   recognised ones were 12 or 13), though only one face in seven of a child under 7 is estimated that young. So a face
-  estimated under 15 named as someone 18 or older then is listed under Confirm faces → **Ages to check**; and someone
+  estimated under 15 named as someone 18 or older then is listed under Confirm faces → **Ages to check** when the
+  photo's date was set by hand or said to be right, and under Suggested dates → **Looks too young** otherwise; and someone
   with no birth date whose face looks that young on two days or more gets a hint by Born: born at most 12 years
   before the second-latest of those days, and not after their first photo (nothing when the two disagree). Nothing
   is said of an adult's age.

@@ -28,7 +28,8 @@ NOT_SETTINGS = {"LINEAGEBOX_CONFIG", "LINEAGEBOX_FFMPEG", "LINEAGEBOX_HOST", "LI
 # Whole-number settings and the values that work, here and on the Settings page (settings.py)
 RANGES = {"ingest_threads": (1, 16), "worker_interval_minutes": (5, 1440), "llm_workers": (1, 8),
           "session_days": (1, 365), "upload_max_gb": (1, 100), "video_threads": (1, 8), "copy_threads": (1, 32),
-          "hover_preview_ms": (0, 5000), "backup_keep_daily": (1, 90), "backup_keep_weekly": (0, 104)}
+          "hover_preview_ms": (0, 5000), "backup_keep_daily": (1, 90), "backup_keep_weekly": (0, 104),
+          "demo_uploads": (0, 1000), "demo_upload_max_mb": (1, 4096)}
 
 
 class ConfigError(ValueError):
@@ -119,6 +120,12 @@ class Config:
     places_contact: str = ""                          # an email Nominatim may write to about this install's lookups
     map_tiles: str = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
     map_attribution: str = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    # A public demo (demo.py, docs/demo.md): anyone signs in with one click, as demo_person; reset every day
+    demo_enabled: bool = False
+    demo_person: str = ""                             # who visitors are in the family tree: a name, or a person's id
+    demo_uploads: int = 5                             # uploads from each address until the next reset (0: none)
+    demo_upload_max_mb: int = 10                      # the most one of them may be
+    demo_resets: str = "every day"                    # when, for the note on every page: "every day at 4:00 UTC"
 
     @property
     def db_path(self) -> Path:
@@ -202,6 +209,8 @@ KEYS = {
     ("updates", "check"): "update_check", ("updates", "repository"): "update_repository",
     ("backups", "enabled"): "backup_enabled", ("backups", "folder"): "backup_folder",
     ("backups", "keep_daily"): "backup_keep_daily", ("backups", "keep_weekly"): "backup_keep_weekly",
+    ("demo", "enabled"): "demo_enabled", ("demo", "person"): "demo_person", ("demo", "uploads"): "demo_uploads",
+    ("demo", "upload_max_mb"): "demo_upload_max_mb", ("demo", "resets"): "demo_resets",
 }
 _SECTIONS = {s for s, _ in KEYS if s}
 _TYPES = {f.name: f.type for f in dataclasses.fields(Config)}

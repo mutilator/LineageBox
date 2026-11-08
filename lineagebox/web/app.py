@@ -30,7 +30,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from lineagebox import access, db, errors, i18n
+from lineagebox import access, db, demo, errors, i18n
 from lineagebox.config import Config
 from lineagebox.web import frames, routes
 from lineagebox.web.common import (ADMIN, HERE, PUBLIC, LiveProxyHeaders, _allowed, _content_policy, _host_allowed,
@@ -66,6 +66,8 @@ def route_gate(request: Request, v: access.Viewer = Depends(viewer)) -> None:
         raise HTTPException(500, "This page has no access rule yet (ACCESS in its module in web/routes/).")
     if v.device is not None and route.path not in frames.ROUTES:
         raise HTTPException(404)  # a photo frame's link opens its frame and the pictures on it, nothing else
+    if route.path in demo.CLOSED and request.app.state.site.cfg.demo_enabled:
+        raise HTTPException(403, demo.OFF)  # other ways in, sharing, recordings (demo.py)
     if kind != PUBLIC and v is access.NOBODY:
         raise HTTPException(401, "Sign in first.")
     if kind == ADMIN and not v.admin:

@@ -37,6 +37,10 @@ name or confirm{% endtrans %}{% if n %}: {% trans count=n.beside, num=n.beside|n
 {% trans count=n.groups, num=n.groups|number %}{{ num }} unnamed group{% pluralize %}{{ num }} unnamed groups{% endtrans %},
 {% trans count=n.ages, num=n.ages|number %}{{ num }} age to check{% pluralize %}{{ num }} ages to check{% endtrans %} and
 {% trans count=n.missed, num=n.missed|number %}{{ num }} photo with faces missed{% pluralize %}{{ num }} photos with faces missed{% endtrans %}{% endif %}.{% endcall %}
+{%- elif part == "nofaces" %}
+{% call card("/cleanup/no-faces", _("No faces found"), n and n.photos) %}{% trans %}photos where the AI's description sees people
+but no face was found: look again more closely, or set aside those whose people face away.{% endtrans %}
+{%- if n and n.waiting %} {% trans count=n.waiting, num=n.waiting|number %}{{ num }} is waiting to be looked at again.{% pluralize %}{{ num }} are waiting to be looked at again.{% endtrans %}{% endif %}{% endcall %}
 {%- elif part == "family" %}
 {% call card("/cleanup/family", _("Family tree"), n and n.issues) %}{% trans %}things that look wrong or unfinished in the family
 tree: one parent entered, dates that can't be right, someone perhaps entered twice.{% endtrans %}{% endcall %}
@@ -58,11 +62,12 @@ under a name already here, or with faces that look like one person's.{% endtrans
 {% call card("/cleanup/camera-clock", _("Camera clocks"), n and n.cameras) %}{% trans %}cameras whose photos show people before they
 were born: their clock was probably wrong for a while. Put all their dates right at once.{% endtrans %}{% endcall %}
 {%- elif part == "dates" %}
-{#- the number is both tabs together; the words say how many of each #}
-{% call card("/cleanup/dates", _("Suggested dates"), n and n.documents + n.photos) %}{% trans %}scanned documents and photos dated by
-the day they were scanned, or with no date of their own, with what can tell their real date: a date written on them, the
-family tree, who is in them.{% endtrans %}{% if n %} {% trans count=n.documents, num=n.documents|number %}{{ num }} document{% pluralize %}{{ num }} documents{% endtrans %},
-{% trans count=n.photos, num=n.photos|number %}{{ num }} photo.{% pluralize %}{{ num }} photos.{% endtrans %}{% endif %}{% endcall %}
+{#- the number is the tabs together; the words say how many each has #}
+{% call card("/cleanup/dates", _("Suggested dates"), n and n.documents + n.photos + n.young) %}{% trans %}scanned documents and photos dated by
+the day they were scanned, or with no date of their own, and photos where someone looks as they did as a child, with
+what can tell their real date: a date written on them, the family tree, who is in them.{% endtrans %}{% if n %} {% trans count=n.documents, num=n.documents|number %}{{ num }} document{% pluralize %}{{ num }} documents{% endtrans %},
+{% trans count=n.photos, num=n.photos|number %}{{ num }} photo{% pluralize %}{{ num }} photos{% endtrans %},
+{% trans count=n.young, num=n.young|number %}{{ num }} photo where someone looks too young for its date.{% pluralize %}{{ num }} photos where someone looks too young for their date.{% endtrans %}{% endif %}{% endcall %}
 {%- elif part == "kept" %}
 {% call card("/cleanup/kept", _("Kept"), n and n.kept + n.pairs) %}{% trans %}photos and folder pairs you marked to keep, so cleanup
 stops suggesting them. Undo any of them here.{% endtrans %}{% if n %} {% trans count=n.kept, num=n.kept|number %}{{ num }} photo{% pluralize %}{{ num }} photos{% endtrans %},

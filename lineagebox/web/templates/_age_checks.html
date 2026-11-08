@@ -1,7 +1,8 @@
 {#- Cleanup → Confirm faces → Ages to check (cleanup_faces.html; face_ages.age_checks, routes/face_checks.py): faces
     named as someone who can't be in that photo by their age, by person. -#}
 <p class="meta">{% trans %}Faces named as someone who can't be them by their age: the photo is dated before they were born, or
-the face looks like a young child's while they were grown up then. Often the name is right and the photo's date is
+the face looks like a young child's while they were grown up then, on a photo whose date was set by hand or said to be
+right (the others are under Suggested dates → Looks too young). Often the name is right and the photo's date is
 wrong, a camera with its clock set wrong for a while: put the date right on the photo's page{% endtrans %}{% if viewer.admin %}{% trans %}, or
 a whole camera's dates at once under <a href="/cleanup/camera-clock">Camera clocks</a>{% endtrans %}{% endif %}{% trans %}. If it isn't them,
 <b>Not them</b> takes the name off.{% endtrans %}</p>

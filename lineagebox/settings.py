@@ -13,7 +13,7 @@ import sqlite3
 from datetime import datetime, time, timedelta
 from pathlib import Path
 
-from lineagebox import accounts, config, errors, https, mounts, scan
+from lineagebox import accounts, config, demo, errors, https, mounts, scan
 from lineagebox.config import Config
 
 EDITABLE = ("folders", "ignore_dirs", "ingest_threads", "worker_interval_minutes", "describe_schedule", "describe_from",
@@ -41,7 +41,8 @@ class Invalid(errors.Problem):
 
 
 def current(con: sqlite3.Connection, cfg: Config) -> Config:
-    """config.toml's settings with every change made on the Settings page applied."""
+    """config.toml's settings with every change made on the Settings page applied, but for those a demo holds to
+    (demo.FORCED)."""
     stored = {}
     for key, value in con.execute(f"SELECT key, value FROM settings WHERE key IN ({','.join('?' * len(EDITABLE))})",
                                   EDITABLE):
@@ -49,7 +50,7 @@ def current(con: sqlite3.Connection, cfg: Config) -> Config:
         if key == "network_paths":
             value = [tuple(pair) for pair in value]
         stored[key] = tuple(value) if isinstance(value, list) else value
-    return dataclasses.replace(cfg, **stored)
+    return dataclasses.replace(cfg, **{**stored, **demo.forced(cfg)})
 
 
 def save(con: sqlite3.Connection, cfg: Config, changes: dict) -> Config:

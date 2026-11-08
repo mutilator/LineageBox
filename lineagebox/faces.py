@@ -7,6 +7,7 @@ recognition like dozens of photos.
 import hashlib
 import importlib.util
 import itertools
+import json
 import shutil
 import sqlite3
 import threading
@@ -225,11 +226,13 @@ def detect(con: sqlite3.Connection, cfg: Config, limit: int | None = None, gpu: 
     return stats
 
 
-def look_again(con: sqlite3.Connection, cfg: Config, image_id: int) -> tuple[list[int], list[int]]:
+def look_again(con: sqlite3.Connection, cfg: Config, image_id: int, app=None) -> tuple[list[int], list[int]]:
     """Look for faces in one photo (or a video's frames) again, more closely than the first time. Faces not found
     before are added; one found before and marked as not a face is brought back. Returns (new faces, faces brought
-    back)."""
+    back). app: the closer look's models, loaded already (look_again_waiting); else they are loaded for this one."""
     img = con.execute("SELECT sha256, media FROM image WHERE id = ?", (image_id,)).fetchone()
+    if img is None:
+        raise FileNotFoundError("That photo isn't in the catalog any more.")
     pictures = [(None, cfg.preview_path(img["sha256"]))]
     if img["media"] == "video":
         pictures = [(idx, cfg.frame_path(img["sha256"], idx)) for (idx,) in con.execute(
@@ -241,8 +244,9 @@ def look_again(con: sqlite3.Connection, cfg: Config, image_id: int) -> tuple[lis
                         (image_id,)).fetchall()
     found, back = [], set()
     with _looking:
-        ensure_models(con, cfg.models_dir)
-        app = load_model(cfg.models_dir, det_size=LOOK_AGAIN_SIZES, det_thresh=LOOK_AGAIN_THRESHOLD)
+        if app is None:
+            ensure_models(con, cfg.models_dir)
+            app = closer_look_model(cfg)
         from insightface.app.common import Face
         for frame, path in pictures:
             bgr = np.asarray(Image.open(path).convert("RGB"))[:, :, ::-1].copy()
@@ -276,6 +280,77 @@ def look_again(con: sqlite3.Connection, cfg: Config, image_id: int) -> tuple[lis
     return new, sorted(back)
 
 
+def closer_look_model(cfg: Config):
+    """The models as look_again uses them: each photo scaled to twice the size, and faces kept from a lower bar."""
+    return load_model(cfg.models_dir, det_size=LOOK_AGAIN_SIZES, det_thresh=LOOK_AGAIN_THRESHOLD)
+
+
+# Photos with no face found where the AI's description sees people (Cleanup → No faces found). Looking again more
+# closely finds the faces of some (turned a little, small, in shadow); the rest are people seen from behind or too far
+# off, which an admin sets aside (NONE_OK_KEY) so that they aren't listed again. Faces missed (missed) is the group
+# photos with some faces found, so a photo is on one list or the other, and one looked at again (faces_again) leaves
+# both. On the library LineageBox was developed on (2026-11-08), 5,578 of 38,743 photos were like that. In one stretch
+# of 1,400 phone photos whose faces had never been looked for properly (in a move between two computers), half had
+# clear faces that the first look finds today; elsewhere a sample of 60 had none to find.
+NONE_OK_KEY = "no_faces_ok"  # settings: photos an admin said have no faces to find
+LOOK_AGAIN_KEY = "faces_look_again"  # settings: photos ticked to be looked at again by the worker (look_again_waiting)
+
+
+def no_faces(con: sqlite3.Connection, offset: int = 0, limit: int = 50) -> tuple[list[dict], int]:
+    """Photos looked at for faces with none found, where the AI's description counts people: not looked at again,
+    set aside or waiting to be looked at again. The newest first, so an event's photos come together. (The page, each
+    with the people counted and the description's caption; how many there are.)"""
+    from lineagebox import settings
+
+    left_out = set(settings.get(con, NONE_OK_KEY, [])) | set(settings.get(con, LOOK_AGAIN_KEY, []))
+    ids = [r[0] for r in con.execute(f"""
+        WITH counted AS (SELECT image_id, max(people_count) AS people FROM analysis GROUP BY image_id)
+        SELECT i.id FROM image i JOIN counted n ON n.image_id = i.id
+        WHERE i.media = 'photo' AND (i.stage & {STAGE_FACES}) AND i.faces_again IS NULL AND n.people >= 1
+          AND {VISIBLE}
+          AND NOT EXISTS (SELECT 1 FROM face f WHERE f.image_id = i.id
+                          AND (f.assigned_by IS NULL OR f.assigned_by != 'not_a_face'))
+        ORDER BY i.taken_at DESC, i.id""") if r[0] not in left_out]
+    shown = ids[offset:offset + limit]
+    rows = {r["id"]: dict(r) for r in con.execute("""
+        SELECT i.id, i.sha256, i.taken_at, i.taken_at_source, i.media,
+               (SELECT max(a.people_count) FROM analysis a WHERE a.image_id = i.id) AS people,
+               (SELECT a.caption FROM analysis a WHERE a.image_id = i.id ORDER BY a.created_at DESC LIMIT 1) AS caption
+        FROM image i WHERE i.id IN (SELECT value FROM json_each(?))""", (json.dumps(shown),))}
+    return [rows[i] for i in shown if i in rows], len(ids)
+
+
+def look_again_waiting(con: sqlite3.Connection, cfg: Config, stop=None) -> tuple[int, list[int]]:
+    """Look again, more closely, at the photos ticked for it (LOOK_AGAIN_KEY), the models loaded once, until stop()
+    says so; each is taken off the waiting list as it is done. Returns (photos looked at, faces found or brought
+    back)."""
+    from lineagebox import settings
+
+    if not settings.get(con, LOOK_AGAIN_KEY, []):
+        return 0, []
+    ensure_models(con, cfg.models_dir)
+    app = closer_look_model(cfg)
+    done, faces = 0, []
+    while waiting := settings.get(con, LOOK_AGAIN_KEY, []):
+        if stop is not None and stop():
+            break
+        image_id = waiting[0]
+        try:
+            new, back = look_again(con, cfg, image_id, app=app)
+            faces += new + back
+        except FileNotFoundError:  # no preview to look at (it is being made again), or the photo is gone
+            pass
+        except sqlite3.OperationalError as e:  # the web app holds the catalog: the rest wait for the next pass
+            con.rollback()
+            if "locked" not in str(e):
+                raise
+            break
+        # read again: someone may have ticked more meanwhile
+        settings.put(con, LOOK_AGAIN_KEY, [i for i in settings.get(con, LOOK_AGAIN_KEY, []) if i != image_id])
+        done += 1
+    return done, faces
+
+
 # Photos with faces missed (Cleanup → Confirm faces → Faces missed): the AI's description counts the people it sees
 # (analysis.people_count), and where it counts MISSED_GROUP or more and MISSED_MORE more than the faces found, looking
 # again (look_again, at twice the size and a lower bar) may find the small faces of a group photo. On the library
@@ -287,7 +362,8 @@ MISSED_MORE = 2
 
 def missed(con: sqlite3.Connection, offset: int = 0, limit: int = 25) -> tuple[list[sqlite3.Row], int]:
     """Photos where the AI counted more people than faces were found (see MISSED_GROUP), not yet looked at again,
-    those with someone named in them first, then the most missed: (the page, how many there are)."""
+    those with someone named in them first, then the most missed: (the page, how many there are). Only photos with
+    some faces found: those with none are on the list of no faces found (no_faces)."""
     rows = con.execute(f"""
         WITH counted AS (SELECT image_id, max(people_count) AS people FROM analysis GROUP BY image_id)
         SELECT i.id, i.sha256, i.taken_at, i.taken_at_source, i.media, n.people,
@@ -298,6 +374,8 @@ def missed(con: sqlite3.Connection, offset: int = 0, limit: int = 25) -> tuple[l
         WHERE i.media = 'photo' AND i.faces_again IS NULL AND n.people >= {MISSED_GROUP} AND {VISIBLE}
           AND n.people - (SELECT count(*) FROM face f WHERE f.image_id = i.id
                           AND (f.assigned_by IS NULL OR f.assigned_by != 'not_a_face')) >= {MISSED_MORE}
+          AND EXISTS (SELECT 1 FROM face f WHERE f.image_id = i.id
+                      AND (f.assigned_by IS NULL OR f.assigned_by != 'not_a_face'))
         ORDER BY named DESC, n.people - found DESC, i.taken_at DESC, i.id""").fetchall()
     return rows[offset:offset + limit], len(rows)
 

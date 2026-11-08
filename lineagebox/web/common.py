@@ -684,6 +684,10 @@ class LocalBody(BaseModel):
     next: str = Field("/", max_length=500)
 
 
+class DemoBody(BaseModel):
+    next: str = Field("/", max_length=500)
+
+
 class CodeBody(BaseModel):
     code: str = Field(min_length=1, max_length=12)
 

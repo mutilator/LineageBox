@@ -73,6 +73,8 @@ def page(request: Request, name: str, **context) -> HTMLResponse:
     context.setdefault("signed_in", getattr(request.state, "account", None))
     context.setdefault("signed_out", s.shared_cfg().accounts_enabled and context["signed_in"] is None)
     context.setdefault("hover_preview_ms", s.shared_cfg().hover_preview_ms)  # for app.js, on <body>
+    # a demo (demo.py): the note at the top of every page says so, and when it all goes back as it was
+    context.setdefault("demo_resets", (s.cfg.demo_resets.strip() or "every day") if s.cfg.demo_enabled else "")
     if context["viewer"].admin:
         context.setdefault("update_ready", s.update_ready())
     if not context["signed_out"] and context["viewer"].device is None:  # the count by New for you, at the top

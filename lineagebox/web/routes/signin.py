@@ -1,13 +1,14 @@
-"""Signing in and out: Google, the code for signing in at home, sessions. Passkeys: routes/passkeys.py."""
+"""Signing in and out: Google, the code for signing in at home, a demo's one button (demo.py), sessions. Passkeys:
+routes/passkeys.py."""
 import hmac
 import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 
-from lineagebox import accounts, activity, passkeys
-from lineagebox.web.common import (MEMBER, PUBLIC, SEE_AS, SIGNING_IN, LocalBody, _client_ip, _from_app, _local_path,
-                                   _redirect_uri)
+from lineagebox import accounts, activity, demo, passkeys
+from lineagebox.web.common import (MEMBER, PUBLIC, SEE_AS, SIGNING_IN, DemoBody, LocalBody, _client_ip, _from_app,
+                                   _local_path, _redirect_uri)
 from lineagebox.web.deps import page, site
 from lineagebox.web.site import Site
 
@@ -17,6 +18,7 @@ ACCESS = {
     "/auth/google": PUBLIC,
     "/auth/google/callback": PUBLIC,
     "/auth/local": PUBLIC,
+    "/auth/demo": PUBLIC,
     "/auth/signout": MEMBER,
     "/auth/signout-everywhere": MEMBER,
 }
@@ -43,6 +45,8 @@ def show_signin(s: Site, request: Request, next: str = "/", error: str = ""):
     now = s.shared_cfg()
     if not now.accounts_enabled or getattr(request.state, "account", None):
         return RedirectResponse(_local_path(next), 303)
+    if now.demo_enabled:  # one button, and nothing else
+        return page(request, "signin.html", next=_local_path(next), error=error, demo=True, help_page="signin_demo")
     with s.own_con() as c:
         offer = passkeys.any_for(c, now)  # once anyone has one: before that it would only puzzle Google's users
     return page(request, "signin.html", next=_local_path(next), error=error,
@@ -120,6 +124,19 @@ def local_sign_in(request: Request, body: LocalBody, s: Site = Depends(site)):
             raise HTTPException(400, "That email and code don't go together. The code changes every 30 seconds.")
         activity.log(c, f"{row['email']} signed in with a code, at home")
         return start_session(s, request, c, row["id"], JSONResponse({"go": _local_path(body.next)}))
+
+
+@router.post("/auth/demo", dependencies=[Depends(_from_app)])
+def demo_sign_in(request: Request, body: DemoBody, s: Site = Depends(site)):
+    """Sign in to a demo: an account of the visitor's own, made as they click (demo.visitor)."""
+    now = s.shared_cfg()
+    if not now.demo_enabled:
+        raise HTTPException(404)
+    if not s.sign_ins.allow(_client_ip(request)):
+        raise HTTPException(429, "Too many sign-ins from here just now. Wait a few minutes, then try again.")
+    with s.own_con() as c:
+        account_id = demo.visitor(c, now)
+        return start_session(s, request, c, account_id, JSONResponse({"go": _local_path(body.next)}))
 
 
 def signed_out(response: Response) -> Response:

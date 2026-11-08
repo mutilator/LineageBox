@@ -2,7 +2,8 @@
 (scan_dates.py), to date with one click or by typing it. Dating one goes through POST /api/images/{id}/date, as on
 its page (undoable); it then leaves the list.
 
-- GET /cleanup/dates?show=documents|photos&page=: the documents, or the scanned photos, with their suggestions.
+- GET /cleanup/dates?show=documents|photos|young&page=: the documents, the scanned photos, or the photos where
+  someone looks too young for their date (scan_dates.young), with their suggestions.
 - POST /api/images/{id}/read-date: the AI reads the dates written on it now (about 20 seconds), kept for the list.
 - POST /api/images/{id}/date-ok: its date is right as it is; it leaves the list.
 """
@@ -22,7 +23,7 @@ ACCESS = {
     "/api/images/{image_id}/read-date": ADMIN,
     "/api/images/{image_id}/date-ok": ADMIN,
 }
-TABS = {"documents": "Documents", "photos": "Scanned photos"}
+TABS = {"documents": "Documents", "photos": "Scanned photos", "young": "Looks too young"}
 FOUND_FOR = 60  # seconds the list of scans is kept for the page (any change clears it)
 
 

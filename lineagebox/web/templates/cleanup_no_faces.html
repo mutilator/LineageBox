@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% set nav = "cleanup" %}
+{% block title %}{% trans %}No faces found{% endtrans %}{% endblock %}
+{#- Cleanup → No faces found (routes/face_checks.py, faces.no_faces): photos where the AI's description sees people and
+    no face was found. Ticked photos are looked at again by the worker, more closely, or set aside as having no faces
+    to find; either takes them off the list for good (Undo puts back those set aside). -#}
+{% block main %}
+<nav class="crumbs"><a href="/cleanup">{% trans %}Cleanup{% endtrans %}</a><span class="sep">/</span><h1>{% trans %}No faces found{% endtrans %}</h1></nav>
+<p class="meta">{% trans %}Photos where the AI's description sees people but no face was found in them. A closer look finds the
+faces in some: turned a little, small, in shadow. Tick those and press <b>Look again</b>: it is done in the background,
+and the faces found are recognised where they clearly match. The rest show people facing away or too far off: tick
+them and press <b>No faces to find</b>, and they aren't listed again. Either way they leave this list; Undo, or
+<a href="/cleanup/changes">Recent changes</a>, puts back those set aside. Photos where some faces were found and more
+people are seen are under <a href="/cleanup/faces?show=missed">Confirm faces → Faces missed</a>.{% endtrans %}</p>
+{%- if not faces_on %}
+<p class="note">{% trans %}Face recognition is switched off in Settings, so nothing is looked at again until it is on.{% endtrans %}</p>
+{%- endif %}
+{%- if waiting %}
+<p class="note">{% trans count=waiting, n=waiting|number %}{{ n }} photo is waiting to be looked at again.{% pluralize %}{{ n }} photos are waiting to be looked at again.{% endtrans %}</p>
+{%- endif %}
+
+{% include "_pager.html" %}
+{%- if photos %}
+{%- set alts = tile_alts(photos) %}
+<form class="select-form" data-reason="no faces found">
+  <div class="grid selectable">
+    {%- for im in photos %}
+    <label class="tile pick" title="{{ im.caption or (im.taken_at|date) }}">
+      <input type="checkbox" name="image" value="{{ im.id }}" aria-label="{{ alts[im.id] }}">
+      {{ m.tile_img(im, alts) }}
+      <a class="open" href="/image/{{ im.id }}" target="_blank" title="{{ _('Open in a new tab') }}" aria-label="{{ _('Open in a new tab') }}">↗</a>
+      <span class="badge wide">{% trans count=im.people, n=im.people|number %}{{ n }} person{% pluralize %}{{ n }} people{% endtrans %}</span>
+    </label>
+    {%- endfor %}
+  </div>
+  <div class="select-bar">
+    <button type="button" data-select="all" data-key="a">{% trans %}Select all{% endtrans %}</button>
+    <button type="button" data-select="none" data-key="n">{% trans %}Select none{% endtrans %}</button>
+    <button type="submit" class="primary" data-api="/api/images/look-again" data-label="{{ _('Look again at {n}') }}" disabled
+            title="{{ _('Look for faces in the ticked photos again, more closely, in the background') }}">{% trans %}Look again at 0{% endtrans %}</button>
+    <button type="submit" data-api="/api/images/no-faces-ok" data-label="{{ _('No faces to find in {n}') }}" disabled
+            title="{{ _("Their people face away or are too far off: don't list them again") }}">{% trans %}No faces to find in 0{% endtrans %}</button>
+  </div>
+</form>
+{% include "_pager.html" %}
+{%- else %}
+<p class="note">{% trans %}No photo where the description sees people is without a face.{% endtrans %}{% if set_aside %} {% trans count=set_aside, n=set_aside|number %}{{ n }} photo is set aside as having no faces to find.{% pluralize %}{{ n }} photos are set aside as having no faces to find.{% endtrans %}{% endif %}</p>
+{%- endif %}
+{% endblock %}

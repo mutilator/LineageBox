@@ -85,7 +85,7 @@ class Site:
         self.cfg, self.google_http = cfg, google_http
         self.networks = [ipaddress.ip_network(n) for n in cfg.allowed_networks]
         self.shared = {"at": -1e9, "cfg": cfg}
-        self.viewers = access.Viewers()
+        self.viewers = access.Viewers(alone=cfg.demo_enabled)  # in a demo, a visitor's uploads are theirs alone
         self.sign_ins = accounts.Limiter(20, 900)  # Google sign-ins started per address in 15 minutes
         self.code_tries = accounts.Limiter(5, 900)  # local sign-in codes tried per address and email in 15 minutes
         # ... and per email from every address together: many addresses on the home network can't share out the guessing
