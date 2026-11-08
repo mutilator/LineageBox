@@ -1,61 +1,65 @@
 {% extends "base.html" %}
-{% block title %}Bringing in {{ imp.file_name }}{% endblock %}
+{% block title %}{% trans file_name=imp.file_name %}Bringing in {{ file_name }}{% endtrans %}{% endblock %}
 {% block main %}
-<nav class="crumbs"><a href="/family">Family</a><span class="sep">/</span><h1>Bringing in {{ imp.file_name }}</h1></nav>
+<nav class="crumbs"><a href="/family">{% trans %}Family{% endtrans %}</a><span class="sep">/</span><h1>{% trans file_name=imp.file_name %}Bringing in {{ file_name }}{% endtrans %}</h1></nav>
 {% if report %}
-<p class="note">Done {{ imp.applied_at|date }}: {{ report.new }} people added, {{ report.matched }} matched with people
-here; {{ report.names }} names, {{ report.events }} events and {{ report.links }} family links added.</p>
+<p class="note">{% trans applied_at=imp.applied_at|date, new=report.new, matched=report.matched, names=report.names, events=report.events, links=report.links %}Done {{ applied_at }}: {{ new }} people added, {{ matched }} matched with people
+here; {{ names }} names, {{ events }} events and {{ links }} family links added.{% endtrans %}
+{%- if report.sources or report.citations %} {% trans sources=report.sources, citations=report.citations %}{{ sources }} sources added, cited {{ citations }} times.{% endtrans %}{% endif %}
+{%- if report.photos_found %} {% trans photos_found=report.photos_found %}{{ photos_found }} of its photos were found in the library, and the people they are of added to them.{% endtrans %}{% endif %}
+{%- if report.files_kept %} {% trans files_kept=report.files_kept %}{{ files_kept }} files it links to aren't in the library: each person's page lists theirs.{% endtrans %}{% endif %}
+{%- if report.places %} {% trans places=report.places %}{{ places }} places put on the map from the coordinates in the file.{% endtrans %}{% endif %}</p>
 {% if report.conflicts %}
-<h2>Where the file and the catalog disagree <small>{{ report.conflicts|length }}</small></h2>
-<p class="meta">What is here was kept. Change it on the person's page if the file is right.</p>
+<h2>{% trans %}Where the file and the catalog disagree{% endtrans %} <small>{{ report.conflicts|length }}</small></h2>
+<p class="meta">{% trans %}What is here was kept. Change it on the person's page if the file is right.{% endtrans %}</p>
 <ul>{% for c in report.conflicts %}<li>{{ c }}</li>{% endfor %}</ul>
 {% endif %}
 {% if report.skipped %}
-<h2>Left out <small>{{ report.skipped|length }}</small></h2>
+<h2>{% trans %}Left out{% endtrans %} <small>{{ report.skipped|length }}</small></h2>
 <ul>{% for c in report.skipped %}<li>{{ c }}</li>{% endfor %}</ul>
 {% endif %}
-<p><a href="/family">Back to the family</a> · <a href="/family/names">Names to check</a></p>
+<p>{% trans %}<a href="/family">Back to the family</a> · <a href="/family/names">Names to check</a>{% endtrans %}</p>
 {% else %}
-<p class="meta">{{ rows|length }} people and {{ families }} families in the file.
-  {%- for how, label in (("uid", "the same person as before"), ("sure", "sure matches"), ("likely", "likely matches"), ("ai", "matched by the AI"), ("chosen", "chosen by you"), ("unsure", "unsure"), ("new", "new")) %}
+<p class="meta">{% trans rows=rows|length %}{{ rows }} people and {{ families }} families in the file.{% endtrans %}
+  {%- for how, label in (("uid", _("the same person as before")), ("sure", _("sure matches")), ("likely", _("likely matches")), ("ai", _("matched by the AI")), ("chosen", _("chosen by you")), ("unsure", _("unsure")), ("new", _("new"))) %}
   {%- if counts.get(how) %} · {{ counts[how] }} {{ label }}{% endif %}{% endfor %}</p>
-<p class="meta">Check who is who: the unsure come first. Pick the person they are here, or "add as new". Nothing
-changes until you press Bring it in, and then only what the catalog lacks is added; nothing here is overwritten.</p>
+<p class="meta">{% trans %}Check who is who: the unsure come first. Pick the person they are here, or "add as new". Nothing
+changes until you press Bring it in, and then only what the catalog lacks is added; nothing here is overwritten.{% endtrans %}</p>
 <p>
   {%- if counts.get("unsure") %}
-  <button type="button" data-api="/api/family/import/{{ imp.id }}/ai" data-busy="The AI is comparing them…" data-reload
-    {%- if not ai_on %} disabled title="The AI is off on the Settings page"{% endif %}>Ask the AI about the unsure ones</button>
-  <span class="hint inline">Ollama compares names, dates and relatives, 20 at a time.</span>
+  <button type="button" data-api="/api/family/import/{{ imp.id }}/ai" data-busy="{{ _('The AI is comparing them…') }}" data-reload
+    {%- if not ai_on %} disabled title="{{ _('The AI is off on the Settings page') }}"{% endif %}>{% trans %}Ask the AI about the unsure ones{% endtrans %}</button>
+  <span class="hint inline">{% trans %}Ollama compares names, dates and relatives, 20 at a time.{% endtrans %}</span>
   {%- endif %}
 </p>
 <form class="import-review" data-api="/api/family/import/{{ imp.id }}/choices" data-settings data-show="#choices-saved">
   <table>
-    <thead><tr><th>In the file</th><th>Here</th><th>Why</th></tr></thead>
+    <thead><tr><th>{% trans %}In the file{% endtrans %}</th><th>{% trans %}Here{% endtrans %}</th><th>{% trans %}Why{% endtrans %}</th></tr></thead>
     <tbody>
       {%- for r in rows %}
       <tr class="how-{{ r.how }}">
-        <td><b>{{ r.name }}</b>{% if r.pet %} <span class="hint inline">pet</span>{% endif %}
-          <span class="hint">{% if r.born %}born {{ r.born }}{% endif %}{% if r.died %}{{ " · " if r.born }}died {{ r.died_on }}{% endif %}
-          {%- if r.parents %}{{ " · " if r.born or r.died }}child of {{ r.parents|join(" and ") }}{% endif %}
-          {%- if r.other_names %} · also {{ r.other_names|join(", ") }}{% endif %}</span></td>
+        <td><b>{{ r.name }}</b>{% if r.pet %} <span class="hint inline">{% trans %}pet{% endtrans %}</span>{% endif %}
+          <span class="hint">{% if r.born %}{% trans born=r.born %}born {{ born }}{% endtrans %}{% endif %}{% if r.died %}{% trans value=" · " if r.born, died_on=r.died_on %}{{ value }}died {{ died_on }}{% endtrans %}{% endif %}
+          {%- if r.parents %}{% trans value=" · " if r.born or r.died, parents=r.parents|join(" and ") %}{{ value }}child of {{ parents }}{% endtrans %}{% endif %}
+          {%- if r.other_names %} · {% trans other_names=r.other_names|join(", ") %}also {{ other_names }}{% endtrans %}{% endif %}</span></td>
         <td>
-          <select name="{{ r.xref }}" aria-label="Who {{ r.name }} is here">
-            <option value="new"{% if not r.choice %} selected{% endif %}>add as new</option>
-            {%- for c in r.candidates %}<option value="{{ c.id }}"{% if r.choice == c.id %} selected{% endif %}>{{ c.name }}{% if c.born %}, born {{ c.born }}{% endif %}{% if c.score %} ({{ (c.score * 100)|round|int }}%){% endif %}</option>{% endfor %}
+          <select name="{{ r.xref }}" aria-label="{{ _('Who %(name)s is here', name=r.name) }}">
+            <option value="new"{% if not r.choice %} selected{% endif %}>{% trans %}add as new{% endtrans %}</option>
+            {%- for c in r.candidates %}<option value="{{ c.id }}"{% if r.choice == c.id %} selected{% endif %}>{{ c.name }}{% if c.born %}{% trans born=c.born %}, born {{ born }}{% endtrans %}{% endif %}{% if c.score %} ({{ (c.score * 100)|round|int }}%){% endif %}</option>{% endfor %}
           </select>
-          <input name="name:{{ r.xref }}" data-names autocomplete="off" placeholder="or someone else" aria-label="Someone else">
+          <input name="name:{{ r.xref }}" data-names autocomplete="off" placeholder="{{ _('or someone else') }}" aria-label="{{ _('Someone else') }}">
         </td>
         <td><span class="how">{{ r.how }}</span> {{ r.why }}
-          {%- if r.ai %}<br><span class="hint">AI: {% if r.ai.error %}could not ask ({{ r.ai.error }}){% else %}{{ "same person" if r.ai.same else "not the same" }} ({{ (r.ai.confidence * 100)|round|int }}%): {{ r.ai.reason }}{% endif %}</span>{% endif %}</td>
+          {%- if r.ai %}<br><span class="hint">{% trans %}AI:{% endtrans %} {% if r.ai.error %}{% trans error=r.ai.error %}could not ask ({{ error }}){% endtrans %}{% else %}{{ _("same person") if r.ai.same else _("not the same") }} ({{ (r.ai.confidence * 100)|round|int }}%): {{ r.ai.reason }}{% endif %}</span>{% endif %}</td>
       </tr>
       {%- endfor %}
     </tbody>
   </table>
-  <p><button type="submit">Save these choices</button> <span class="hint inline" id="choices-saved"></span></p>
+  <p><button type="submit">{% trans %}Save these choices{% endtrans %}</button> <span class="hint inline" id="choices-saved"></span></p>
 </form>
-<p><button type="button" class="primary" data-api="/api/family/import/{{ imp.id }}/apply" data-busy="Bringing it in…"
-  data-confirm="Bring in {{ rows|length }} people as matched? Save your choices first.">Bring it in</button>
-  <span class="hint inline">Adds the new people, and to those matched: other names, life events, families and
-  relationships they lack.</span></p>
+<p><button type="button" class="primary" data-api="/api/family/import/{{ imp.id }}/apply" data-busy="{{ _('Bringing it in…') }}"
+  data-confirm="{{ _('Bring in %(rows)s people as matched? Save your choices first.', rows=rows|length) }}">{% trans %}Bring it in{% endtrans %}</button>
+  <span class="hint inline">{% trans %}Adds the new people, and to those matched: other names, life events, families and
+  relationships they lack.{% endtrans %}</span></p>
 {% endif %}
 {% endblock %}

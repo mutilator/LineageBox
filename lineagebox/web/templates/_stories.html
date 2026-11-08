@@ -1,0 +1,63 @@
+{#- Recorded stories (stories.py): a photo's, or a person's and their life events'. about: {"kind": "image" or
+    "person", "id", and for a person "name" and "events", (id, label) of each life event}. Recording in the browser
+    needs a secure address (https, or the machine itself); the file box works everywhere, and on a phone it opens its
+    recorder (app.js, data-story-form). -#}
+{%- set event_label = dict(about.events or []) %}
+<section class="stories" id="stories">
+  <h2>{% trans %}Stories{% endtrans %}{% if stories %} <small>{{ stories|length }}</small>{% endif %}</h2>
+  {%- if stories %}
+  <ul class="story-list">
+    {%- for st in stories %}
+    <li class="story" id="story{{ st.id }}">
+      <p class="story-head"><b>{{ st.title or _("A story") }}</b>
+        {%- if st.event_id and event_label.get(st.event_id) %} <span class="hint inline">{% trans event_id=event_label[st.event_id] %}about {{ event_id }}{% endtrans %}</span>{% endif %}</p>
+      <audio controls preload="none" src="/story/{{ st.id }}" aria-label="{{ _('Play %(story)s', story=st.title or _('the story')) }}"></audio>
+      <p class="hint">{% if st.by %}{{ st.by }} · {% endif %}{{ st.at|date(false) }}{% if st.seconds %} · {{ st.seconds|duration }}{% endif %}</p>
+      {%- if st.words %}
+      <p class="said story-words">{{ st.words }}</p>
+      <p class="hint">{{ _("Written down by hand") if st.corrected else _("Written down by Whisper; words can be wrong") if viewer.admin else _("Written down automatically; words can be wrong") }}.</p>
+      {%- elif st.heard %}
+      <p class="hint">{% trans %}Nothing anyone said could be made out.{% endtrans %}</p>
+      {%- else %}
+      <p class="hint">{% trans %}Not written down yet{% endtrans %}{% if viewer.admin %}{% trans %}: Whisper does it when it next runs, if it is set up{% endtrans %}{% else %}{% trans %}: that is done for every story, when it is set up{% endtrans %}{% endif %}.</p>
+      {%- endif %}
+      {%- if viewer.admin or (st.account_id and st.account_id == viewer.account_id) %}
+      <p class="story-tools">
+        <button type="button" class="link" data-toggle="#story-edit{{ st.id }}" data-toggle-label="{{ _('cancel') }}" aria-expanded="false" aria-controls="story-edit{{ st.id }}">{% trans %}correct{% endtrans %}</button>
+        <button type="button" class="link" data-api="/api/stories/{{ st.id }}/remove" data-remove="#story{{ st.id }}" data-confirm="{{ _('Take this story away? Undo brings it back.') }}">{% trans %}take away{% endtrans %}</button>
+      </p>
+      <form class="words-form" id="story-edit{{ st.id }}" data-api="/api/stories/{{ st.id }}/words" hidden>
+        <input name="title" value="{{ st.title or '' }}" maxlength="120" placeholder="{{ _('Its title') }}" aria-label="{{ _("The story's title") }}">
+        <textarea name="words" rows="4" maxlength="20000" aria-label="{{ _('What is said in it') }}">{{ st.words or "" }}</textarea>
+        <button type="submit">{% trans %}Save{% endtrans %}</button>
+      </form>
+      {%- endif %}
+    </li>
+    {%- endfor %}
+  </ul>
+  {%- endif %}
+  <details class="story-record"{% if not stories and about.kind == "person" %} open{% endif %}>
+    <summary>{{ _("Record another story") if stories else _("Record a story") }}</summary>
+    <form class="story-form" data-story-form="/api/stories?{{ 'image' if about.kind == 'image' else 'person' }}={{ about.id }}" data-most-seconds="{{ most_minutes * 60 }}">
+      <p class="hint">{% trans %}Tell what you remember{% endtrans %}{% if about.kind == "image" %} {% trans %}about this photo{% endtrans %}{% elif about.name %} {% trans name=about.name %}about {{ name }}{% endtrans %}{% endif %}{% trans %}, in your own words: who, where, what happened. Up to {{ most_minutes }} minutes.{% endtrans %}</p>
+      {%- if about.kind == "person" and about.events %}
+      <p><label>{% trans %}About{% endtrans %} <select name="event">
+        <option value="">{{ about.name }}</option>
+        {%- for id, label in about.events %}<option value="{{ id }}">{{ label }}</option>{% endfor %}
+      </select></label></p>
+      {%- endif %}
+      <p><label>{% trans %}Title{% endtrans %} <input name="title" maxlength="120" placeholder="{{ _('How we met, the farm, the old house…') }}"></label></p>
+      <p class="recorder" data-recorder hidden>
+        <button type="button" class="primary" data-record>{% trans %}● Record{% endtrans %}</button>
+        <button type="button" data-record-stop hidden>{% trans %}■ Stop{% endtrans %}</button>
+        <span class="record-time" data-record-time aria-live="polite"></span>
+      </p>
+      <p class="hint" data-recorder-away hidden>{% trans %}Recording on this page needs the site's secure (https) address. Use
+        your phone's or computer's own recorder instead, with the button below.{% endtrans %}</p>
+      <p><label class="story-file">{% trans %}Or pick a recording{% endtrans %} <input type="file" name="sound" accept="audio/*" capture></label></p>
+      <audio controls data-recorded hidden aria-label="{{ _('Listen to it before keeping it') }}"></audio>
+      <p data-recorded-actions hidden><button type="submit" class="primary">{% trans %}Keep this story{% endtrans %}</button>
+        <button type="button" class="quiet" data-record-again>{% trans %}Start again{% endtrans %}</button></p>
+    </form>
+  </details>
+</section>

@@ -1,5 +1,5 @@
-"""A person's details: family links typed on their page, documents and citations, groups, sex, life events and
-names, and checking how names are split."""
+"""A person's details: family links typed on their page, documents and citations, written sources, groups, sex,
+life events and names, their life story and notes, their portrait, and checking how names are split."""
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -7,8 +7,9 @@ from fastapi.responses import HTMLResponse
 
 from lineagebox import catalog, changes, documents, events, family, people
 from lineagebox.web.common import (MEMBER, CitationBody, DetailsBody, DocumentBody, EventBody, GroupBody, LinkBody,
-                                   NamePartsBody, OtherNameBody, SexBody, _among, _by, _document_spec, _family_spec,
-                                   _from_app, _images_or_404, _people_or_404)
+                                   NamePartsBody, OtherNameBody, PortraitBody, SexBody, SourceBody, SourceEditBody,
+                                   StoryBody, _among, _by, _document_spec, _family_spec, _from_app, _images_or_404,
+                                   _people_or_404)
 from lineagebox.web.deps import con, page, viewer, writer
 
 router = APIRouter()
@@ -29,6 +30,11 @@ ACCESS = {
     "/api/names/{name_id}/delete": MEMBER,
     "/family/names": MEMBER,
     "/api/family/names/confirm": MEMBER,
+    "/api/people/{person_id}/story": MEMBER,
+    "/api/people/{person_id}/portrait": MEMBER,
+    "/api/people/{person_id}/sources": MEMBER,
+    "/api/sources/{source_id}": MEMBER,
+    "/api/source-citations/{citation_id}/delete": MEMBER,
 }
 
 
@@ -227,3 +233,90 @@ def confirm_names(v=Depends(viewer), c=Depends(con), w=Depends(writer)):
         n = w.execute("UPDATE person SET names_checked = 1 WHERE id IN (SELECT value FROM json_each(?))",
                       (ids,)).rowcount
     return {"confirmed": n}
+
+
+@router.post("/api/people/{person_id}/story", dependencies=[Depends(_from_app)])
+def save_story(person_id: int, body: StoryBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
+    """Their life story, as the family writes it, or their notes (the sources a reading added, notes from another
+    tree): anyone who sees them may write either, and can undo it."""
+    p = catalog.person(c, person_id)
+    if p is None:
+        raise HTTPException(404, "No such person")
+    fields = {k: (val.replace("\r\n", "\n").strip() or None) for k, val in
+              (("biography", body.biography), ("notes", body.notes)) if val is not None}
+    if not fields:
+        return {}
+    what = "life story" if "biography" in fields else "notes"
+    with changes.tracking(w, v, "person", f"Wrote {p['name']}'s {what}", _family_spec(v, person_id)) as kept:
+        w.execute(f"UPDATE person SET {', '.join(f'{k} = ?' for k in fields)} WHERE id = ?",
+                  (*fields.values(), person_id))
+    return {"message": "Saved.", "undo": kept.id}
+
+
+@router.post("/api/people/{person_id}/portrait", dependencies=[Depends(_from_app)])
+def set_portrait(person_id: int, body: PortraitBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
+    """The portrait shown for them on People, Family, the tree and in exports: one of the faces named as them, in a
+    photo the viewer sees. None goes back to the clearest of them, picked anew as faces are named."""
+    p = catalog.person(c, person_id)
+    if p is None:
+        raise HTTPException(404, "No such person")
+    if body.face_id is not None and not c.execute("""SELECT 1 FROM face WHERE id = ? AND person_id = ?
+                                                     AND assigned_by IN ('user', 'auto')""",
+                                                  (body.face_id, person_id)).fetchone():
+        raise HTTPException(404, f"That face isn't named {p['name']}.")
+    with changes.tracking(w, v, "person", f"Chose {p['name']}'s portrait", _family_spec(v, person_id)) as kept:
+        w.execute("UPDATE person SET cover_face_id = ? WHERE id = ?", (body.face_id, person_id))
+    return {"undo": kept.id}
+
+
+def _target_of(c, person_id: int, target: str) -> None:
+    """A citation on someone's page is for them or one of their own (or their couples') life events."""
+    kind, _, number = target.partition(":")
+    ok = number.isdecimal() and (
+        (kind == "p" and int(number) == person_id) or kind == "e" and c.execute(
+            "SELECT 1 FROM event WHERE id = :e AND (person_id = :p OR :p IN (couple_a, couple_b))",
+            {"e": int(number), "p": person_id}).fetchone() is not None)
+    if not ok:
+        raise HTTPException(404, "No such person or event")
+
+
+@router.post("/api/people/{person_id}/sources", dependencies=[Depends(_from_app)])
+def add_source(person_id: int, body: SourceBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
+    """Cite a written source for someone or one of their life events: one already here (picked, or typed by the
+    same title), or a new one."""
+    p = catalog.person(c, person_id)
+    if p is None:
+        raise HTTPException(404, "No such person")
+    _target_of(c, person_id, body.target)
+    source_id = body.source_id
+    if source_id is not None and not c.execute("SELECT 1 FROM source WHERE id = ?", (source_id,)).fetchone():
+        raise HTTPException(404, "No such source")
+    if source_id is None and body.title.strip():  # the same title typed again is the same source, if theirs to see
+        source_id = documents.find_source(c, body.title, body.author)
+    with changes.tracking(w, v, "person", f"Cited a source for {p['name']}", _family_spec(v, person_id)) as kept:
+        if source_id is None:
+            source_id = documents.save_source(w, None, body.title, body.author, body.publication, body.note, _by(v))
+        documents.cite_source(w, source_id, body.target, body.page)
+    return {"undo": kept.id}
+
+
+@router.post("/api/sources/{source_id}", dependencies=[Depends(_from_app)])
+def edit_source(source_id: int, body: SourceEditBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
+    """Change a source's title, author, publication or note, wherever it is cited."""
+    if not c.execute("SELECT 1 FROM source WHERE id = ?", (source_id,)).fetchone():
+        raise HTTPException(404, "No such source")
+    with changes.tracking(w, v, "person", f"Changed the source {body.title}",
+                          lambda new: [("source", "id = ?", (source_id,))]) as kept:
+        documents.save_source(w, source_id, body.title, body.author, body.publication, body.note)
+    return {"message": "Saved.", "undo": kept.id}
+
+
+@router.post("/api/source-citations/{citation_id}/delete", dependencies=[Depends(_from_app)])
+def delete_source_citation(citation_id: int, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
+    row = c.execute("""SELECT coalesce(c.person_id, e.person_id, e.couple_a) AS pid, e.couple_b FROM source_citation c
+                       LEFT JOIN event e ON e.id = c.event_id WHERE c.id = ?""", (citation_id,)).fetchone()
+    if row is None:
+        raise HTTPException(404, "No such citation")
+    with changes.tracking(w, v, "person", "Took a source off", _family_spec(v, row["pid"], row["couple_b"])) as kept:
+        documents.uncite_source(w, citation_id)
+    return {"undo": kept.id}

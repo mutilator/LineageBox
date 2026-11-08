@@ -30,9 +30,9 @@ from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from lineagebox import access, db, errors
+from lineagebox import access, db, errors, i18n
 from lineagebox.config import Config
-from lineagebox.web import routes
+from lineagebox.web import frames, routes
 from lineagebox.web.common import (ADMIN, HERE, PUBLIC, LiveProxyHeaders, _allowed, _content_policy, _host_allowed,
                                    _is_page, _plain_error, _public_path, _small_body)
 from lineagebox.web.common import SEE_AS, _local_path, locate, network_path, on_network  # as they were: tests use them
@@ -64,6 +64,8 @@ def route_gate(request: Request, v: access.Viewer = Depends(viewer)) -> None:
     kind = ROUTES.get(getattr(route, "path", None))
     if kind is None:
         raise HTTPException(500, "This page has no access rule yet (ACCESS in its module in web/routes/).")
+    if v.device is not None and route.path not in frames.ROUTES:
+        raise HTTPException(404)  # a photo frame's link opens its frame and the pictures on it, nothing else
     if kind != PUBLIC and v is access.NOBODY:
         raise HTTPException(401, "Sign in first.")
     if kind == ADMIN and not v.admin:
@@ -88,12 +90,21 @@ def create_app(cfg: Config, google_http: httpx.Client | None = None) -> FastAPI:
         now = s.shared_cfg()
         request.state.at_home = _allowed(request.client.host if request.client else "", s.networks)
         request.state.account = None
+        request.state.device = None
+        token = request.scope.get(frames.TOKEN)  # a photo frame's link: frames.DevicePath took it off the address
         if not now.accounts_enabled and not request.state.at_home:
             return PlainTextResponse("This photo catalog is only available on the home network.", status_code=403)
         if not _host_allowed(request.headers.get("host", ""), now.allowed_hosts):
             return PlainTextResponse("This photo catalog is not set up to be reached by this name. Open it by its "
                                      "address and add the name on its Settings page.", status_code=400)
-        if now.accounts_enabled:
+        if token is not None:  # no account, whatever cookies come with it: only the frame and its pictures
+            link = await run_in_threadpool(frames.link_for, s, token, request.client.host if request.client else "")
+            if link is None:
+                return PlainTextResponse(frames.OFF, status_code=404)
+            if link["home_only"] and not request.state.at_home:
+                return PlainTextResponse(frames.AWAY, status_code=404)
+            request.state.device = link
+        elif now.accounts_enabled:
             request.state.account = await run_in_threadpool(s.signed_in, request, now)
             if request.state.account is None and not _public_path(request.url.path):
                 if request.method == "GET" and _is_page(request.url.path):
@@ -104,7 +115,11 @@ def create_app(cfg: Config, google_http: httpx.Client | None = None) -> FastAPI:
                 # Signing in needs a few hundred bytes. FastAPI reads a whole body before any check runs, so anyone on
                 # the internet could otherwise fill the memory with one large request.
                 return JSONResponse({"detail": "That request is too large."}, status_code=413)
-        response = await call_next(request)
+        # every page and answer in the visitor's language (i18n.py): with English only, always English
+        request.state.language = i18n.choose(request.headers.get("accept-language", ""),
+                                             request.cookies.get(i18n.COOKIE), now.language)
+        with i18n.speaking(request.state.language):
+            response = await call_next(request)
         took = time.perf_counter() - started
         s.note_if_slow(request, took, response.status_code)
         response.headers.setdefault("Server-Timing", f"app;dur={took * 1000:.0f}")  # in the browser's developer tools
@@ -113,12 +128,15 @@ def create_app(cfg: Config, google_http: httpx.Client | None = None) -> FastAPI:
             s.kept.changed()  # and the counts kept a while, and who is signed in (signing out, an account turned off)
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("Referrer-Policy", "same-origin")
-        response.headers.setdefault("X-Frame-Options", "DENY")
-        response.headers.setdefault("Content-Security-Policy", _content_policy(now.map_tiles))
+        framed = request.state.device is not None  # a photo frame may be shown in a dashboard's frame: it changes nothing
+        if not framed:
+            response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Content-Security-Policy", _content_policy(now.map_tiles, framed))
         if now.accounts_enabled and request.url.scheme == "https":
             response.headers.setdefault("Strict-Transport-Security", "max-age=31536000")
         return response
 
+    app.add_middleware(frames.DevicePath)  # before the gate: /d/<token>/... is the address without it, to the gate
     # added last, so it runs first: the checks above see the client behind the proxy
     app.add_middleware(LiveProxyHeaders, proxies=lambda: s.shared_cfg().trusted_proxies)
 

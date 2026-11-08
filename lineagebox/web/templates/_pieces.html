@@ -1,0 +1,70 @@
+{#- A long list of photos in pieces (pieces.py): the scrubber at the side, "Show earlier photos" when the page starts
+    further down the list, the photos, and "Show more", which app.js loads as the page is scrolled near it (plain links
+    without it). `p` is what pieces.part() worked out: w (the window: start, end, total), here (the page's other
+    parameters), marks and current (the scrubber), anchor ("month" on a year's page: its months' headings; else
+    "tile"), ctx, select, images (the window's) and months (a year's page: the window's photos by month). #}
+{%- import "_macros.html" as m %}
+
+{% macro href(p, skip, upto=none) -%}
+?{% if upto is none %}{{ dict(p.here, skip=skip)|urlencode }}{% else %}{{ dict(p.here, skip=skip, upto=upto)|urlencode }}{% endif %}
+{%- endmacro %}
+
+{% macro earlier(p) %}
+{%- if p.w.earlier is not none %}
+<p class="pieces-earlier"><a class="button quiet" href="{{ href(p, p.w.earlier) }}" data-earlier="{{ href(p, p.w.earlier, p.w.start) }}">{% trans %}Show earlier photos{% endtrans %}</a></p>
+{%- endif %}
+{% endmacro %}
+
+{% macro more(p) %}
+{%- if p.w.later is not none %}
+<p class="pieces-more"><a class="button" href="{{ href(p, p.w.later) }}" data-more>{% trans left=p.w.left|number %}Show more <span class="hint inline">({{ left }} more)</span>{% endtrans %}</a></p>
+{%- endif %}
+{% endmacro %}
+
+{#- The window's photos: one grid, or (a year's page) a heading and a grid for each month. A part already on the page
+    (a month the piece before ended in) joins its grid there, and its heading isn't repeated (app.js). #}
+{% macro photos(p) %}
+{%- if p.months is not none %}
+{%- for mo in p.months %}
+{%- if mo.head %}<h2 id="m{{ mo.month }}" data-grid-head="m{{ mo.month }}">{{ month_names[mo.month] }} <small>{{ mo.count|number }}</small></h2>{% endif %}
+{%- if p.select %}{{ m.select_grid(mo.images, p.ctx, part="m%d"|format(mo.month)) }}{% else %}{{ m.grid(mo.images, p.ctx, part="m%d"|format(mo.month)) }}{% endif %}
+{%- endfor %}
+{%- elif p.select %}
+{{ m.select_grid(p.images, p.ctx, part="all") }}
+{%- else %}
+{{ m.grid(p.images, p.ctx, part="all") }}
+{%- endif %}
+{% endmacro %}
+
+{#- Years, and the months of the year in view, at the side (a strip above the photos on a phone). Each is a link to the
+    page from there; app.js scrolls to it instead when it is already loaded, and marks the one in view. #}
+{% macro scrubber(p) %}
+{%- if p.marks %}
+<nav class="scrubber" aria-label="{{ _('Jump to a month') if p.anchor == 'month' else _('Jump to a year or month') }}" data-scrubber>
+  <ol>
+  {%- for y in p.marks %}
+    {%- set on = y.ym == (p.current[1] if p.anchor == "month" else p.current[0]) %}
+    <li class="scrub-year{% if on %} on{% endif %}"><a href="{{ href(p, y.at) }}#{{ 'm%d'|format(y.ym[5:7]|int) if p.anchor == 'month' else 't%d'|format(y.id) }}" data-at="{{ y.at }}" data-ym="{{ y.ym }}" title="{{ ngettext('%(name)s: %(n)s photo', '%(name)s: %(n)s photos', y.count, name=y.name, n=y.count|number) }}"{% if on %} aria-current="true"{% endif %}>{{ y.label }}</a>
+    {%- if y.months|length > 1 %}
+      <ol class="scrub-months">
+      {%- for mo in y.months %}
+        <li><a href="{{ href(p, mo.at) }}#t{{ mo.id }}" data-at="{{ mo.at }}" data-ym="{{ mo.ym }}" title="{{ ngettext('%(name)s: %(n)s photo', '%(name)s: %(n)s photos', mo.count, name=mo.name, n=mo.count|number) }}"{% if mo.ym == p.current[1] %} aria-current="true"{% endif %}>{{ mo.label }}</a></li>
+      {%- endfor %}
+      </ol>
+    {%- endif %}</li>
+  {%- endfor %}
+  </ol>
+</nav>
+{%- endif %}
+{% endmacro %}
+
+{% macro pieced(p) %}
+<div class="pieced{% if p.marks %} scrubbed{% endif %}">
+  {{- scrubber(p) }}
+  <div class="pieces" data-pieces data-start="{{ p.w.start }}" data-end="{{ p.w.end }}" data-total="{{ p.w.total }}">
+    {{- earlier(p) }}
+    {{- photos(p) }}
+    {{- more(p) }}
+  </div>
+</div>
+{% endmacro %}

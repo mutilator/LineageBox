@@ -68,7 +68,8 @@ Linux. Follow [docs/whisper.md](../whisper.md#on-a-windows-pc-with-an-nvidia-gra
 
 ## In the browser
 
-Open **http://&lt;the NAS's address&gt;:8000**, then on the **Settings** page:
+Open **http://&lt;the NAS's address&gt;:8000** (it opens on **Getting started**, the first steps, each ticked off once
+it is done), then on the **Settings** page:
 
 1. **Watched folders → Watch another folder:** open `local`, go to your photos and press **Watch**.
 2. **AI (Ollama):** press **Check the connection**. It should find the PC and say the model can look at pictures. If

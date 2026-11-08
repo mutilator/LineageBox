@@ -1,80 +1,82 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m %}
 {% from "_home_days.html" import by_day, older_button %}
-{% block title %}Home{% endblock %}
+{% block title %}{% trans %}Home{% endtrans %}{% endblock %}
 {% block main %}
 <div class="home-top">
-  <h1>{% if first_name %}Hello, {{ first_name }}{% else %}Home{% endif %}</h1>
+  <h1>{% if first_name %}{% trans %}Hello, {{ first_name }}{% endtrans %}{% else %}{% trans %}Home{% endtrans %}{% endif %}</h1>
   {% if disks %}{{ m.storage_meter(disks) }}{% endif %}
 </div>
+{% include "_first_run.html" %}
 
-<div id="memories" data-later="/home/memories"><p class="hint loading">Looking for memories…</p></div>
+<div id="memories" data-later="/home/memories"><p class="hint loading">{% trans %}Looking for memories…{% endtrans %}</p></div>
 
 {% if questions %}
 <section class="who-is-this">
-  <h2>Who is this?</h2>
-  <p class="meta">Someone in the family asked. If you know them, type their name; if not, Don't know.</p>
+  <h2>{% trans %}Who is this?{% endtrans %}</h2>
+  <p class="meta">{% trans %}Someone in the family asked. If you know them, type their name; if not, Don't know.{% endtrans %}</p>
   <div class="questions">
     {%- for q in questions %}
     <div class="question" id="q{{ q.face_id }}">
-      <a href="/image/{{ q.image_id }}"><img src="/face/{{ q.face_id }}" alt="A face someone asked about" width="96" height="96"></a>
-      <span class="hint">{% if q.asker %}{{ q.asker }} asked{% else %}asked{% endif %} {{ q.asked_at|date(false) }}</span>
+      <a href="/image/{{ q.image_id }}"><img src="/face/{{ q.face_id }}" alt="{{ _('A face someone asked about') }}" width="96" height="96"></a>
+      <span class="hint">{% if q.asker %}{% trans asker=q.asker %}{{ asker }} asked{% endtrans %}{% else %}{% trans %}asked{% endtrans %}{% endif %} {{ q.asked_at|date(false) }}</span>
       <form class="name-form compact" data-api="/api/faces/{{ q.face_id }}/name" data-remove="#q{{ q.face_id }}">
-        <input name="name" data-names autocomplete="off" required maxlength="80" placeholder="Who is this?" aria-label="Who is this?">
+        <input name="name" data-names autocomplete="off" required maxlength="80" placeholder="{{ _('Who is this?') }}" aria-label="{{ _('Who is this?') }}">
       </form>
-      <button type="button" class="quiet" data-api="/api/faces/{{ q.face_id }}/skip" data-remove="#q{{ q.face_id }}">Don't know</button>
+      <button type="button" class="quiet" data-api="/api/faces/{{ q.face_id }}/skip" data-remove="#q{{ q.face_id }}">{% trans %}Don't know{% endtrans %}</button>
     </div>
     {%- endfor %}
   </div>
+  <p class="hint"><a href="/people/name">{% trans %}More faces to name, one at a time{% endtrans %}</a></p>
 </section>
 {% endif %}
 
-{% if shared.folders or shared.tours or shared.photos %}
+{% if shared.folders or shared.tours or shared.photos or shared.albums %}
 <section class="shared-home">
-  <h2>Shared with you</h2>
+  <h2>{% trans %}Shared with you{% endtrans %}</h2>
   {{ m.shared_with_you(shared, 8) }}
   {%- set more = [shared.folders|length - 8, 0]|max + [shared.tours|length - 8, 0]|max + [shared.photos|length - 8, 0]|max %}
-  <p class="hint"><a href="/folders#shared">{% if more %}{{ more }} more shared with you{% else %}Everything shared with you{% endif %}</a></p>
+  <p class="hint"><a href="/folders#shared">{% if more %}{% trans %}{{ more }} more shared with you{% endtrans %}{% else %}{% trans %}Everything shared with you{% endtrans %}{% endif %}</a></p>
 </section>
 {% endif %}
 
 
 {% if family_of %}
-<nav class="kin-buttons" aria-label="The memories and photos of one of your family">
+<nav class="kin-buttons" aria-label="{{ _('The memories and photos of one of your family') }}">
   {%- for p in family_of %}
   <a class="kin-button" href="/home/person/{{ p.id }}">
     {%- if p.face %}<img src="/face/{{ p.face }}" alt="" width="48" height="48" loading="lazy">{% else %}<span class="ph">{{ p.name[:1] }}</span>{% endif %}
-    <span><b>{{ p.name }}</b>{% if kin_words.get(p.id) %}<small>your {{ kin_words[p.id] }}</small>{% endif %}</span></a>
+    <span><b>{{ p.name }}</b>{% if kin_words.get(p.id) %}<small>{% trans p_id=kin_words[p.id] %}your {{ p_id }}{% endtrans %}</small>{% endif %}</span></a>
   {%- endfor %}
 </nav>
 {% endif %}
 {% if ours %}
 <section class="home-feed" id="family-latest">
-  <h2>Recent photos of your family</h2>
-  <p class="meta">Photos of you{% if kin %} and your closest family: {{ kin|join(", ") }}{% endif %}.</p>
+  <h2>{% trans %}Recent photos of your family{% endtrans %}</h2>
+  <p class="meta">{% trans %}Photos of you{% endtrans %}{% if kin %} {% trans kin=kin|join(", ") %}and your closest family: {{ kin }}{% endtrans %}{% endif %}.</p>
   {{ by_day(ours, 3) }}
   {%- if ours_older %}{{ older_button(ours) }}{% endif %}
 </section>
 {% endif %}
 
 <div id="latest"{% if ours %} class="home-feed"{% endif %}>
-{% if ours and (days or added) %}<h2>Most recent photos</h2>{% endif %}
+{% if ours and (days or added) %}<h2>{% trans %}Most recent photos{% endtrans %}</h2>{% endif %}
 {% if days %}
 {{ by_day(days, 3 if ours else 2) }}
-{% if older %}<p class="hint"><a href="/timeline/{{ days[-1].day.year }}">Older photos are on the Timeline</a></p>{% endif %}
+{% if older %}<p class="hint"><a href="/timeline/{{ days[-1].day.year }}">{% trans %}Older photos are on the Timeline{% endtrans %}</a></p>{% endif %}
 {% endif %}
 
 {% if added %}
-<h2>Recently added</h2>
-<p class="meta">Photos added to the library lately that were taken longer ago, or whose day isn't known.</p>
+<h2>{% trans %}Recently added{% endtrans %}</h2>
+<p class="meta">{% trans %}Photos added to the library lately that were taken longer ago, or whose day isn't known.{% endtrans %}</p>
 {{ m.grid(added, "") }}
 {% elif not days and not ours %}
-<p class="note">No photos of your family yet.</p>
+<p class="note">{% trans %}No photos of your family yet.{% endtrans %}</p>
 {% endif %}
 </div>
 
 {% if viewer.account %}
-<h2>Your uploads</h2>
-{% if mine %}{{ m.grid(mine, "") }}{% else %}<p class="note">Nothing uploaded yet.</p>{% endif %}
+<h2>{% trans %}Your uploads{% endtrans %}</h2>
+{% if mine %}{{ m.grid(mine, "") }}{% else %}<p class="note">{% trans %}Nothing uploaded yet.{% endtrans %}</p>{% endif %}
 {% endif %}
 {% endblock %}

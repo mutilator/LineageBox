@@ -1,27 +1,34 @@
 {% extends "base.html" %}
 {% set nav = "timeline" %}
 {% import "_macros.html" as m %}
+{% import "_pieces.html" as pc %}
 {% block title %}{{ year }}{% endblock %}
 {% block main %}
 <nav class="crumbs">
-  <a href="/timeline">Timeline</a><span class="sep">/</span><h1>{{ year }}</h1>
+  <a href="/timeline">{% trans %}Timeline{% endtrans %}</a><span class="sep">/</span><h1>{{ year }}</h1>
   <span class="pager">
     {%- if prev_year %}<a href="/timeline/{{ prev_year }}" rel="prev">← {{ prev_year }}</a>{% endif %}
     {%- if next_year %}<a href="/timeline/{{ next_year }}" rel="next">{{ next_year }} →</a>{% endif %}
   </span>
 </nav>
 <section class="year-events-here">
-  <h2>Events</h2>
-  <div class="year-events" data-later="/timeline/{{ year }}/events"><p class="hint loading">Looking for events in
-    {{ year }}…</p></div>
+  <h2>{% trans %}Events{% endtrans %}</h2>
+  <div class="year-events" data-later="/timeline/{{ year }}/events"><p class="hint loading">{% trans %}Looking for events in
+    {{ year }}…{% endtrans %}</p></div>
 </section>
-<nav class="months">
-{%- for mo, imgs in months.items() %}<a href="#m{{ mo }}">{{ month_names[mo][:3] }} <small>{{ imgs|length }}</small></a>{% endfor %}
-</nav>
-{% for mo, imgs in months.items() %}
-<h2 id="m{{ mo }}">{{ month_names[mo] }} <small>{{ "{:,}".format(imgs|length) }}</small></h2>
-{{ m.grid(imgs, ctx) }}
+{% if images %}
+{#- Its photos month by month, a piece at a time, with the months at the side (_pieces.html) #}
+<p class="meta">{% trans count=images|length, images=images|length|number %}{{ images }} photo{% pluralize %}{{ images }} photos{% endtrans %}
+  · {% if select %}<a href="/timeline/{{ year }}" data-key="s">{% trans %}Done selecting{% endtrans %}</a>{% else %}<a href="/timeline/{{ year }}?select=1" data-key="s" title="{{ _('Tick photos to date them, tag them, add someone to them or put them in an album') }}">{% trans %}Select photos{% endtrans %}</a>{% endif %}</p>
+{% if select %}
+<form class="select-form" data-select-api="/api/images/remove" data-reason="year: {{ year }}" data-show=".select-bar .done">
+  {{ pc.pieced(photos) }}
+  {{ m.bulk_bar(models=viewer.admin, everything=everything) }}
+</form>
 {% else %}
-<p class="note">No photos dated {{ year }}.</p>
-{% endfor %}
+{{ pc.pieced(photos) }}
+{% endif %}
+{% else %}
+<p class="note">{% trans %}No photos dated {{ year }}.{% endtrans %}</p>
+{% endif %}
 {% endblock %}

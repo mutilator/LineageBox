@@ -1,15 +1,16 @@
 {% extends "base.html" %}
 {% set nav = "cleanup" %}
-{% block title %}Cleanup{% endblock %}
+{% block title %}{% trans %}Cleanup{% endtrans %}{% endblock %}
 {% block main %}
-<h1>Cleanup</h1>
+<h1>{% trans %}Cleanup{% endtrans %}</h1>
 {% if not viewer.limited %}
-<p class="meta">Nothing is removed until you select it. Removed photos move to the Removed folder of the watched folder
-they are in ({% for w in watched %}<code>{{ media_path(removed_folder(w)) }}</code>{% if on_network(removed_folder(w)) %} (on the network: <code>{{ on_network(removed_folder(w)) }}</code>){% endif %}{{ ", " if not loop.last }}{% endfor %}),
+<p class="meta">{% trans %}Nothing is removed until you select it. Removed photos move to the Removed folder of the watched folder
+they are in ({% endtrans %}{% for w in watched %}<code>{{ media_path(removed_folder(w)) }}</code>{% if on_network(removed_folder(w)) %} {% trans on_network=on_network(removed_folder(w)) %}(on the network: <code>{{ on_network }}</code>){% endtrans %}{% endif %}{{ ", " if not loop.last }}{% endfor %}{% trans %}),
 keeping their folder path, and can be restored from <a href="/cleanup/removed">Removed</a> until you empty it.
-Photos you mark <b>Keep</b> are not suggested again.</p>
+Photos you mark <b>Keep</b> are not suggested again.{% endtrans %}</p>
 {% else %}
-<p class="meta">Faces to name, and things to check in your part of the family tree.</p>
+<p class="meta">{% trans %}Faces to name, things to check in your part of the family tree, and blank, blurry and similar shots
+among the photos you uploaded.{% endtrans %}</p>
 {% endif %}
 
 <div class="cards">

@@ -241,3 +241,32 @@ def test_turned_photos_pages(con, cfg, turned, monkeypatch):
     assert 'data-body=\'{"degrees": 90}\'' in client.get(f"/image/{turned['monkey_bars']}").text
     client.post(f"/api/images/{turned['monkey_bars']}/turn", json={"degrees": 180}, headers=APP)
     assert done[-1] == (turned["monkey_bars"], 180)
+
+
+@pytest.mark.skipif(writeback.exiftool() is None, reason="needs ExifTool")
+@pytest.mark.parametrize("compression, already", [("tiff_lzw", 1), ("tiff_adobe_deflate", 6), ("jpeg", 1)])
+def test_a_turned_tiff_agrees_with_how_pillow_turns_it(con, cfg, library, compression, already):
+    """ExifTool writes the turn into a TIFF's own tags, and Pillow turns a TIFF upright as it reads it: the preview
+    is turned once, by the turn asked for on top of the one the file had."""
+    picture = Image.new("RGB", (300, 200), (220, 220, 220))
+    picture.paste((0, 0, 0), (0, 0, 150, 200))  # its left half dark, to see where it goes
+    exif = Image.Exif()
+    exif[0x0112] = already
+    (library / "Scans").mkdir()
+    path = library / "Scans" / "scan.tif"
+    picture.save(path, "TIFF", compression=compression, exif=exif)
+    scan(con, cfg)
+    ingest(con, cfg)
+    image_id = con.execute("SELECT image_id FROM file WHERE path = ?", (rel("Scans", "scan.tif"),)).fetchone()[0]
+    orientation.turn(con, cfg, image_id, 90)
+    with Image.open(path) as im:
+        assert im.getexif()[0x0112] == {1: 6, 6: 3}[already]
+    row = con.execute("SELECT * FROM image WHERE id = ?", (image_id,)).fetchone()
+    assert row["sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()
+    shown = Image.open(cfg.preview_path(row["sha256"])).convert("L")
+    if already == 1:  # turned a quarter clockwise: the dark half is at the top
+        assert (row["width"], row["height"]) == (200, 300) and shown.height > shown.width
+        assert shown.getpixel((shown.width // 2, 10)) < 60 and shown.getpixel((shown.width // 2, shown.height - 10)) > 160
+    else:  # it was shown a quarter turned already: now upside down, the dark half on the right
+        assert (row["width"], row["height"]) == (300, 200) and shown.width > shown.height
+        assert shown.getpixel((shown.width - 10, shown.height // 2)) < 60 and shown.getpixel((10, shown.height // 2)) > 160

@@ -1,25 +1,45 @@
 {% extends "base.html" %}
 {% set nav = "people" %}
 {% import "_macros.html" as m %}
-{% block title %}{{ person.name }}: faces{% endblock %}
+{% block title %}{% trans name=person.name %}{{ name }}: faces{% endtrans %}{% endblock %}
 {% block main %}
-<nav class="crumbs"><a href="/people">People</a><span class="sep">/</span><a href="/person/{{ person.id }}">{{ person.name }}</a><span class="sep">/</span><h1>Faces</h1></nav>
-<p class="meta">{{ "{:,}".format(confirmed_count) }} faces named by you · {{ "{:,}".format(auto_count) }} recognised automatically</p>
+<nav class="crumbs"><a href="/people">{% trans %}People{% endtrans %}</a><span class="sep">/</span><a href="/person/{{ person.id }}">{{ person.name }}</a><span class="sep">/</span><h1>{% trans %}Faces{% endtrans %}</h1></nav>
+<p class="meta">{% trans confirmed_count=confirmed_count|number, auto_count=auto_count|number %}{{ confirmed_count }} faces named by you · {{ auto_count }} recognised automatically{% endtrans %}</p>
 
 {% if auto_faces %}
-<h2>Recognised automatically <small>least certain first</small></h2>
-<p class="meta">Click × on any face that isn't {{ person.name }}: the name comes off, it is never recognised as them again,
-and it can be named as whoever it is on its photo.</p>
-{{ m.review_faces(auto_faces, "Not " ~ person.name, "not") }}
-{% if auto_count > auto_faces|length %}<p class="meta">Showing the {{ auto_faces|length }} least certain of {{ auto_count }}.</p>{% endif %}
+{%- set about = {"person_id": person.id}|tojson %}
+<h2>{% trans %}Recognised automatically <small>least certain first</small>{% endtrans %}</h2>
+<p class="meta">{% trans name=person.name %}Is each of these {{ name }}? ✓ says yes: the face counts as named by you, and recognition learns
+from it. × (not them) says no: the name comes off, it is never recognised as them again, and it can be named as whoever it is on
+its photo. Or untick any you aren't sure of and say yes to the rest at once; the unticked ones stay as they are.
+<a href="/people/name?only=recognised">One at a time</a> asks about them with bigger pictures.{% endtrans %}</p>
+<form class="check-faces" data-yes-faces="/api/people/{{ person.id }}/yes" data-reload>
+  <div class="faces">
+    {%- for f in auto_faces %}
+    <span class="face" id="f{{ f.id }}">
+      <label class="pick"><input type="checkbox" name="face" value="{{ f.id }}" checked aria-label="{{ person.name }}">
+        <img src="/face/{{ f.id }}" alt="" loading="lazy" width="96" height="96"></label>
+      <a class="open" href="/image/{{ f.image_id }}" target="_blank" title="{{ _('Open the photo in a new tab') }}">↗</a>
+      <button type="button" class="no" data-api="/api/faces/{{ f.id }}/not" data-remove="#f{{ f.id }}" title="{{ _('Not them: not %(name)s', name=person.name) }}" aria-label="{{ _('Not them: not %(name)s', name=person.name) }}">×</button>
+      <button type="button" class="yes" data-api="/api/faces/{{ f.id }}/yes" data-body='{{ about }}' data-remove="#f{{ f.id }}" title="{{ _("Yes, that's %(name)s", name=person.name) }}" aria-label="{{ _("Yes, that's %(name)s", name=person.name) }}">✓</button>
+    </span>
+    {%- endfor %}
+  </div>
+  <p class="name-form">
+    <button type="submit" class="primary" data-label="{{ _('Yes, the {n} ticked are %(name)s', name=person.name) }}">{% trans auto_faces=auto_faces|length, name=person.name %}Yes, the {{ auto_faces }} ticked are {{ name }}{% endtrans %}</button>
+    <button type="button" class="quiet" data-tick="all">{% trans %}Tick all{% endtrans %}</button>
+    <button type="button" class="quiet" data-tick="none">{% trans %}Untick all{% endtrans %}</button>
+  </p>
+</form>
+{% if auto_count > auto_faces|length %}<p class="meta">{% trans auto_faces=auto_faces|length %}Showing the {{ auto_faces }} least certain of {{ auto_count }}.{% endtrans %}</p>{% endif %}
 {% endif %}
 
 {% if named_faces %}
-<h2>Named by you <small>least like the others first</small></h2>
-<p class="meta">Including every face of the groups you named. Recognition learns from these, so click × on any face that
-isn't {{ person.name }}, such as a stranger who was in the group: the name comes off, and it can be named as whoever it is
-on its photo.</p>
-{{ m.review_faces(named_faces, "Not " ~ person.name, "not") }}
-{% if confirmed_count > named_faces|length %}<p class="meta">Showing the {{ named_faces|length }} least like the others of {{ confirmed_count }}.</p>{% endif %}
+<h2>{% trans %}Named by you <small>least like the others first</small>{% endtrans %}</h2>
+<p class="meta">{% trans name=person.name %}Including every face of the groups you named. Recognition learns from these, so click × (not them) on any face that
+isn't {{ name }}, such as someone else who was in the group: the name comes off, and it can be named as whoever it is
+on its photo.{% endtrans %}</p>
+{{ m.review_faces(named_faces, _("Not them: not %(name)s", name=person.name), "not") }}
+{% if confirmed_count > named_faces|length %}<p class="meta">{% trans named_faces=named_faces|length %}Showing the {{ named_faces }} least like the others of {{ confirmed_count }}.{% endtrans %}</p>{% endif %}
 {% endif %}
 {% endblock %}

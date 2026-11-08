@@ -6,6 +6,7 @@ pydantic==2.14.1
 httpx==0.28.1
 numpy==2.5.4
 pillow==13.0.0
+pillow-heif==1.8.1
 imagehash==4.3.2
 rawpy==0.27.1
 tqdm==4.70.1

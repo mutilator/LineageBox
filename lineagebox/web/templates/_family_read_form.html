@@ -1,38 +1,38 @@
 {# What to read, and the readings before: on its own page (family_read.html) and in the Family page's panel.
    read_heading: the level of "Read before" there (h2 on its own page, h3 in the panel). #}
 {% if not ai_on %}
-<p class="note problem">The AI is turned off on the Settings page (AI descriptions), and it does the reading. Turn it
-on to read something.</p>
+<p class="note problem">{% trans %}The AI is turned off on the Settings page (AI descriptions), and it does the reading. Turn it
+on to read something.{% endtrans %}</p>
 {% endif %}
 <form class="panel read-form" data-api="/api/family/read" data-photos>
   {%- if img %}
   <input type="hidden" name="image_id" value="{{ img.id }}">
-  <p class="read-photo"><img src="/t/{{ img.sha256 }}" alt=""> The text in <a href="/image/{{ img.id }}">this photo</a>
-    is read first; anything typed below is read with it.</p>
+  <p class="read-photo"><img src="/t/{{ img.sha256 }}" alt=""> {% trans img_id=img.id %}The text in <a href="/image/{{ img_id }}">this photo</a>
+    is read first; anything typed below is read with it.{% endtrans %}</p>
   {%- endif %}
-  <label for="read-text">The text</label>
-  <textarea id="read-text" name="text" rows="14" maxlength="20000" data-key="t" data-key-label="Type or paste the text"
-    placeholder="Margaret “Peggy” (Baker) Miller, 84, of Lakeview, Ohio, died Tuesday, March 3, 2015…"></textarea>
+  <label for="read-text">{% trans %}The text{% endtrans %}</label>
+  <textarea id="read-text" name="text" rows="14" maxlength="20000" data-key="t" data-key-label="{{ _('Type or paste the text') }}"
+    placeholder="{{ _('Margaret “Peggy” (Baker) Miller, 84, of Lakeview, Ohio, died Tuesday, March 3, 2015…') }}"></textarea>
   <p class="inline-facts">
-    <label>Photos of it <input type="file" name="photos" accept="image/*" multiple
+    <label>{% trans %}Photos of it{% endtrans %} <input type="file" name="photos" accept="image/*" multiple
       aria-describedby="read-photos-hint"></label>
-    <span class="hint inline" id="read-photos-hint">Up to {{ most_photos }}: a newspaper clipping, a funeral card,
-      a page of a family Bible. Each is read on its own, in order.</span>
+    <span class="hint inline" id="read-photos-hint">{% trans %}Up to {{ most_photos }}: a newspaper clipping, a funeral card,
+      a page of a family Bible. Each is read on its own, in order.{% endtrans %}</span>
   </p>
-  <p><label>Where it's from <input name="source" class="wide" maxlength="300"
-    placeholder="a web address, or the newspaper and its date"></label>
-    <span class="hint">Optional. Each life event it adds notes it, and so do the people's notes, which family tree
-    programs show.</span></p>
-  <p><button type="submit" class="primary" data-busy="Sending it to the AI…"{% if not ai_on %} disabled{% endif %}>Read it</button>
-    <span class="hint inline">It takes the AI a minute or two; you can leave the page and come back.</span></p>
+  <p><label>{% trans %}Where it's from{% endtrans %} <input name="source" class="wide" maxlength="300"
+    placeholder="{{ _('a web address, or the newspaper and its date') }}"></label>
+    <span class="hint">{% trans %}Optional. Each life event it adds notes it, and so do the people's notes, which family tree
+    programs show.{% endtrans %}</span></p>
+  <p><button type="submit" class="primary" data-busy="{{ _('Sending it to the AI…') }}"{% if not ai_on %} disabled{% endif %}>{% trans %}Read it{% endtrans %}</button>
+    <span class="hint inline">{% trans %}It takes the AI a minute or two; you can leave the page and come back.{% endtrans %}</span></p>
 </form>
 {% if readings %}
 {%- set h = read_heading|default("h2") %}
-<{{ h }}>Read before</{{ h }}>
+<{{ h }}>{% trans %}Read before{% endtrans %}</{{ h }}>
 <ul class="readings">
   {%- for r in readings %}
   <li><a href="/family/read/{{ r.id }}">{{ r.title }}</a>
-    <span class="hint inline">{{ r.created_at|date }}{% if r.state == "reading" %} · being read{% elif r.state == "failed" %} · couldn't be read{% elif r.applied_at %} · changes made {{ r.applied_at|date }}{% else %} · to look over{% endif %}</span></li>
+    <span class="hint inline">{{ r.created_at|date }}{% if r.state == "reading" %} · {% trans %}being read{% endtrans %}{% elif r.state == "failed" %} · {% trans %}couldn't be read{% endtrans %}{% elif r.applied_at %} · {% trans applied_at=r.applied_at|date %}changes made {{ applied_at }}{% endtrans %}{% else %} · {% trans %}to look over{% endtrans %}{% endif %}</span></li>
   {%- endfor %}
 </ul>
 {% endif %}

@@ -1,47 +1,57 @@
 {% extends "base.html" %}
 {% set nav = "people" %}
-{% block title %}People{% endblock %}
+{% block title %}{% trans %}People{% endtrans %}{% endblock %}
 {% block main %}
-<h1>People</h1>
-<p class="meta">{{ "{:,}".format(s.faces) }} faces found · {{ "{:,}".format(s.people) }} people named</p>
+<h1>{% trans %}People{% endtrans %}</h1>
+<p class="meta">{% trans faces=s.faces|number, people=s.people|number %}{{ faces }} faces found · {{ people }} people named{% endtrans %}</p>
+{%- if s.faces %}
+<p class="naming-start">
+  {% trans %}<a class="button primary" href="/people/name" data-key="w" data-key-label="Name faces, one at a time">Name faces</a>
+  <span class="hint inline">One face at a time: say whether it's who it looks like, or type who it is.</span>{% endtrans %}
+</p>
+{%- endif %}
 
 {% if named %}
 <p class="people-filter">
-  <input type="search" id="people-filter" data-key="f" data-key-label="Find someone" data-filter=".people .person-card" data-count="#people-shown" data-limit="30"
-         placeholder="Find someone: a name, a maiden name, a group, a relationship" aria-label="Find someone" autocomplete="off">
+  <input type="search" id="people-filter" data-key="f" data-key-label="{{ _('Find someone') }}" data-filter=".people .person-card" data-count="#people-shown" data-limit="30"
+         placeholder="{{ _('Find someone: a name, a maiden name, a group, a relationship') }}" aria-label="{{ _('Find someone') }}" autocomplete="off">
   <span class="hint inline" id="people-shown"></span>
 </p>
 {%- if circles %}
-<p class="chips">Groups:
+<p class="chips">{% trans %}Groups:{% endtrans %}
   {%- for name, ids in circles.items() %} <button type="button" class="chip" data-fill="#people-filter" data-value="{{ name }}">{{ name }} <small>{{ ids|length }}</small></button>{% endfor %}
 </p>
 {%- endif %}
 <div class="people">
 {%- for p in named %}
   <a class="person-card" href="/person/{{ p.id }}"{% if loop.index > 30 %} hidden{% endif %} data-text="{{ p.name }} {{ also.get(p.id, '') }} {{ kin.get(p.id, '') }}">
-    <img src="/face/{{ p.cover_face }}" alt="" loading="lazy">
+    {%- if p.cover_face %}<img src="/face/{{ p.cover_face }}" alt="" loading="lazy">
+    {%- elif p.cover_photo %}<img src="/t/{{ p.cover_photo }}" alt="" loading="lazy">
+    {%- else %}<span class="ph" aria-hidden="true">{{ p.name[:1] }}</span>{% endif %}
     <span class="name">{{ p.name }}</span>
     {%- if kin.get(p.id) %}<span class="kin">{{ kin[p.id] }}</span>{% endif %}
-    <span class="count">{{ "{:,}".format(p.photos) }} photo{{ "" if p.photos == 1 else "s" }}</span>
+    <span class="count">{% trans count=p.photos, photos=p.photos|number %}{{ photos }} photo{% pluralize %}{{ photos }} photos{% endtrans %}</span>
   </a>
 {%- endfor %}
 </div>
 {%- if named|length > 30 %}
-<p class="more-people"><button type="button" data-more="#people-filter" data-key="m" data-key-label="Show more people">Show more</button>
-  <span class="hint inline" data-more-left="#people-filter">{{ "{:,}".format(named|length - 30) }} more</span></p>
+<p class="more-people"><button type="button" data-more="#people-filter" data-key="m" data-key-label="{{ _('Show more people') }}">{% trans %}Show more{% endtrans %}</button>
+  <span class="hint inline" data-more-left="#people-filter">{% trans named=(named|length - 30)|number %}{{ named }} more{% endtrans %}</span></p>
 {%- endif %}
 {% if viewer.admin %}
 <p>
-  <button type="button" class="primary" data-api="/api/people/identify" data-busy="Looking through every face…" data-reload>Find more photos of these people</button>
-  <span class="hint inline">Labels unnamed faces that clearly match one named person and no one else. Runs in a few seconds.</span>
+  <button type="button" class="primary" data-api="/api/people/identify" data-busy="{{ _('Looking through every face…') }}" data-reload>{% trans %}Find more photos of these people{% endtrans %}</button>
+  <span class="hint inline">{% trans %}Labels unnamed faces that clearly match one named person and no one else. Runs in a few seconds.{% endtrans %}</span>
 </p>
 {% endif %}
 {% endif %}
 {%- if total_groups or beside %}
-<p class="note">{{ "{:,}".format(total_groups) }} group{{ "" if total_groups == 1 else "s" }} of faces {{ "is" if total_groups == 1 else "are" }} waiting for a name{% if beside %}, and
-{{ "{:,}".format(beside) }} unnamed faces are in photos with people you've named{% endif %}:
-<a href="/cleanup/faces">Cleanup → Confirm faces</a>.</p>
+<p class="note">{% trans count=total_groups, total_groups=total_groups|number %}{{ total_groups }} group of faces is waiting for a name{% pluralize %}{{ total_groups }} groups of faces are waiting for a name{% endtrans %}{% if beside %}{% trans beside=beside|number %}, and
+{{ beside }} unnamed faces are in photos with people you've named{% endtrans %}{% endif %}{% trans %}:
+<a href="/people/name">Name faces</a> asks about them one at a time, and <a href="/cleanup/faces">Cleanup → Confirm faces</a>
+lists them all at once.{% endtrans %}</p>
 {%- elif not s.faces %}
-<p class="note">No faces found yet: run <code>python -m lineagebox faces</code>, then <code>python -m lineagebox people</code>.</p>
+<p class="note">{% trans %}No faces found yet. Faces are looked for as the photos are read{% endtrans %}{% if viewer.admin %}{% trans %}: <a href="/status">Status</a>
+shows how far that is, and Settings → <a href="/settings#faces">AI, speech and faces</a> whether finding faces is on{% endtrans %}{% endif %}.</p>
 {%- endif %}
 {% endblock %}

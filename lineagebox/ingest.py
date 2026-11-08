@@ -2,7 +2,14 @@
 
 A video is read once to hash it (in chunks: some are 4 GB), then ffmpeg takes frames from it: one every 10 s or so,
 leaving out blank and near-identical ones. The clearest frame becomes its preview and thumbnail, so every page shows
-videos like photos; faces and descriptions use all the frames.
+videos like photos; faces and descriptions use all the frames. A Live Photo's clip (live.py) gets one frame, and is
+paired with its still at the end of each pass, before the stages that leave it out.
+
+A sound file (a digitised cassette, a voice memo; also a "video" file with no picture in it) is a recording: hashed
+like a video, with a picture of its sound wave as its preview and thumbnail, and nothing for the faces and describing
+stages to look at (their bits are set at once). One tagged as a song from an album (video.SONG_TAGS) is music, not a
+family recording: it is recorded as an image with an error starting "song:", so it is never read again and never
+shown, and it is left off the list of files that could not be read (catalog.undecodable).
 """
 import hashlib
 import os
@@ -13,16 +20,20 @@ from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field, fields, replace
 from typing import Callable
 
+from PIL import Image
 from tqdm import tqdm
 
-from lineagebox import dates, media, quality, video
-from lineagebox.catalog import VISIBLE, under
+from lineagebox import camera_clock, dates, live, media, quality, video
+from lineagebox.catalog import ON_SHARE, under
 from lineagebox.config import Config
 
 STAGE_INGEST = 1
 MAX_PHOTO_BYTES = 500 << 20  # a photo is read whole into memory, several at a time; no camera makes one this big
 SAVE_EVERY, SAVE_SECONDS = 200, 3  # read files are recorded together, at most this many or this often
-_FORMATS = {".jpg": "jpeg", ".jpeg": "jpeg", ".png": "png", ".nef": "nef"}
+# image.format of a photo that can't be read, by its extension; raw files' are their extensions (media.RAW_FORMATS)
+_FORMATS = {".jpg": "jpeg", ".jpeg": "jpeg", ".png": "png", **{ext: "heic" for ext in media.HEIF_EXTENSIONS}}
+NOTHING_TO_SEE = 2 | 4  # faces.STAGE_FACES | describe.STAGE_LLM: a recording has no picture for them (they import this)
+SONG = "song: tagged as a song from an album (its artist, album and track), so left out as music"
 BLANK_FRAME = 5.0  # sharpness below this: a black, white or completely blurred frame (see quality.py)
 SAME_FRAME = 4     # frames whose fingerprints are this close show the same thing; only the first is kept
 
@@ -40,6 +51,7 @@ class IngestStats:
     seconds: float = 0.0
     rebuilt: int = 0  # photos back on the share whose preview had been deleted (cleanup.drop_derivatives)
     no_ffmpeg: int = 0  # videos left for now: ffmpeg isn't there to read them
+    live: int = 0  # Live Photos' clips paired with their stills, or let go of (live.pair)
 
 
 @dataclass
@@ -56,6 +68,13 @@ def ingest(con: sqlite3.Connection, cfg: Config, limit: int | None = None, retry
            folder: str | None = None) -> IngestStats:
     """Read every pending file (only those under folder, if given), cfg.ingest_threads at a time. stop() is asked as
     files finish; once it says so, the files already being read are finished and recorded, and no more are started."""
+    # files left out as songs under an older rule (SONG changes with it) are read again once: the rule may now know
+    # them for the family's recordings they are
+    old_songs = "SELECT id FROM image WHERE error LIKE 'song:%' AND error != ?"
+    if con.execute(old_songs + " LIMIT 1", (SONG,)).fetchone():
+        con.execute(f"UPDATE file SET image_id = NULL WHERE image_id IN ({old_songs})", (SONG,))
+        con.execute(f"DELETE FROM image WHERE id IN ({old_songs})", (SONG,))
+        con.commit()
     if retry_errors:  # e.g. after a decoder fix: forget undecodable images so their files are read again
         con.execute("UPDATE file SET image_id = NULL WHERE image_id IN (SELECT id FROM image WHERE error IS NOT NULL)")
         con.execute("DELETE FROM video_frame WHERE image_id IN (SELECT id FROM image WHERE error IS NOT NULL)")
@@ -69,13 +88,15 @@ def ingest(con: sqlite3.Connection, cfg: Config, limit: int | None = None, retry
                            WHERE f.image_id IS NULL AND f.missing = 0 AND d.ignored = 0 {only}
                            ORDER BY f.path""", (under(folder),) if folder else ()).fetchall()
     left = 0
+    timed = {*cfg.video_extensions, *cfg.audio_extensions}  # videos and recordings: read through ffmpeg
     if not video.available():  # each video would be read whole for nothing: they wait until ffmpeg is installed
-        kept = [r for r in rows if os.path.splitext(r["path"])[1].lower() not in cfg.video_extensions]
+        kept = [r for r in rows if os.path.splitext(r["path"])[1].lower() not in timed]
         rows, left = kept, len(rows) - len(kept)
     if limit is not None:
         rows = rows[:limit]
     stats = IngestStats(pending=len(rows), rebuilt=_rebuild(con, cfg, stop), no_ffmpeg=left)
     if not rows:
+        stats.live = live.pair(con)
         return stats
     # Content hashes already in the catalog or being decoded by a worker. Claiming under the lock means each
     # unique image is decoded once even when copies of it are in flight on several threads at the same time.
@@ -95,7 +116,7 @@ def ingest(con: sqlite3.Connection, cfg: Config, limit: int | None = None, retry
                 if not stats.stopped and stop is not None and stop():
                     stats.stopped = True
                 while not stats.stopped and len(running) < window and (row := next(todo, None)) is not None:
-                    if os.path.splitext(row["path"])[1].lower() in cfg.video_extensions:
+                    if os.path.splitext(row["path"])[1].lower() in timed:
                         running.add(videos.submit(_process_video, cfg, claimed, lock, row))
                     else:
                         running.add(pool.submit(_process, cfg, claimed, lock, row))
@@ -116,6 +137,7 @@ def ingest(con: sqlite3.Connection, cfg: Config, limit: int | None = None, retry
         finally:
             if results:
                 _save(con, results, waiting, stats)  # if even this fails, those files are read again next time
+    stats.live = live.pair(con)  # before the next stages, which leave a paired clip out
     stats.seconds = time.monotonic() - t0
     return stats
 
@@ -194,7 +216,11 @@ def _process_video(cfg: Config, claimed: set[str], lock: threading.Lock, row) ->
     ext = os.path.splitext(row["path"])[1].lower()
     try:
         p = video.probe(path)
-        frames = _video_frames(cfg, path, p, sha)
+        if p.sound_only:
+            return _sound(cfg, row, sha, ext, path, p, bytes(head))
+        # a Live Photo's clip is shown with its still: one frame of it, from the middle, is enough
+        clip = live.looks_like_clip(path, p.duration)
+        frames = _video_frames(cfg, path, p, sha, [round(p.duration / 2, 3)] if clip else None)
     except (video.Unavailable, video.TimedOut) as e:  # nothing known to be wrong with it: read again next time
         with lock:
             claimed.discard(sha)
@@ -212,13 +238,46 @@ def _process_video(cfg: Config, claimed: set[str], lock: threading.Lock, row) ->
     }, frames)
 
 
-def _video_frames(cfg: Config, path, p: video.Probe, sha: str) -> list[tuple[int, float]]:
+def _sound(cfg: Config, row, sha: str, ext: str, path, p: video.Probe, head: bytes) -> _Result:
+    """A recording: its sound wave as its picture, its length and dates. Runs in a worker thread."""
+    if p.song:
+        return _Result(row["id"], sha, {"format": ext.lstrip("."), "media": "audio", "error": SONG})
+    _sound_picture(cfg, path, sha)
+    taken_at, source = video.taken_at(p, head, os.path.basename(row["path"]))
+    if not taken_at:
+        taken_at, source = dates.from_mtime(row["mtime"]), "mtime"
+    return _Result(row["id"], sha, {
+        "format": ext.lstrip("."), "media": "audio", "duration": p.duration, "codecs": p.codecs,
+        "playable": "original" if video.plays_in_browsers(ext, p) else "needed",
+        "taken_at": taken_at, "taken_at_source": source, "camera": p.camera,
+        "gps_lat": p.gps[0] if p.gps else None, "gps_lon": p.gps[1] if p.gps else None,
+        "stage": STAGE_INGEST | NOTHING_TO_SEE,
+    })
+
+
+def _sound_picture(cfg: Config, path, sha: str) -> None:
+    """A recording's preview and thumbnail: its sound wave, or a plain picture when it can't be drawn."""
+    try:
+        picture = video.waveform(path)
+    except (video.Unavailable, video.TimedOut):  # nothing known to be wrong with it: read again later
+        raise
+    except video.Error:  # its sound plays, but ffmpeg can't draw it: the tile still says it is a recording
+        picture = Image.new("RGB", (1600, 600), (238, 241, 245))
+    media.save_derivatives(picture, cfg.preview_path(sha), cfg.thumb_path(sha), cfg.thumb_size)
+
+
+def _video_frames(cfg: Config, path, p: video.Probe, sha: str,
+                  times: list[float] | None = None) -> list[tuple[int, float]]:
     """Take and save a video's frames; the clearest becomes its preview and thumbnail. Returns (idx, seconds)."""
     kept: list[tuple[float, int]] = []  # (seconds, fingerprint) of the frames saved
     first = poster = None
-    for at in video.sample_times(p.duration):
+    for at in times or video.sample_times(p.duration):
         try:
             im = video.frame(path, at, cfg.preview_size, p)
+        except video.TimedOut:  # a tape with no index decoded from its start: every later frame would take longer
+            if first is None:   # still (120 on a two-hour tape), so it keeps those it has; none: read again later
+                raise
+            break
         except video.Error:
             continue  # past the real end (durations are estimates), or a damaged stretch
         first = first or (at, im)
@@ -229,6 +288,8 @@ def _video_frames(cfg: Config, path, p: video.Probe, sha: str) -> list[tuple[int
         if poster is None or sharp > poster[0]:
             poster = (sharp, im)
         kept.append((at, fingerprint))
+    if first is None and times:  # the frames asked for (a Live Photo's clip) couldn't be read: the usual ones
+        return _video_frames(cfg, path, p, sha)
     if not kept:  # only blank frames: keep one anyway, so the video can be seen and played
         if first is None:
             raise video.Error("no frame could be read")
@@ -244,14 +305,17 @@ def _rebuild(con: sqlite3.Connection, cfg: Config, stop: Callable[[], bool] | No
     on the next pass."""
     rows = con.execute(f"""SELECT i.id, i.sha256, i.media, (SELECT min(f.path) FROM file f
                                                          WHERE f.image_id = i.id AND NOT f.missing) AS path
-                           FROM image i WHERE NOT (i.stage & {STAGE_INGEST}) AND {VISIBLE}""").fetchall()
+                           FROM image i WHERE NOT (i.stage & {STAGE_INGEST}) AND {ON_SHARE}""").fetchall()
     done = 0
     for r in rows:
         if stop is not None and stop():
             break
         path = cfg.source_path(r["path"])
         try:
-            if r["media"] == "video":
+            if r["media"] == "audio":
+                path.stat()  # gone for now (a share hiccup): not drawn as a blank, which would be kept
+                _sound_picture(cfg, path, r["sha256"])
+            elif r["media"] == "video":
                 p = video.probe(path)
                 poster = None
                 for idx, at in con.execute("SELECT idx, at FROM video_frame WHERE image_id = ? ORDER BY idx",
@@ -297,7 +361,7 @@ def _record(con: sqlite3.Connection, r: _Result, waiting: dict[str, list[int]], 
         return
     row = {"media": "photo", "width": None, "height": None, "phash": None, "taken_at": None, "taken_at_source": None,
            "camera": None, "gps_lat": None, "gps_lon": None, "duration": None, "codecs": None, "playable": None,
-           "error": None, **r.image, "sha256": r.sha256, "stage": STAGE_INGEST}
+           "error": None, "stage": STAGE_INGEST, **r.image, "sha256": r.sha256}
     image_id = con.execute("""
         INSERT INTO image(sha256, media, format, width, height, phash, taken_at, taken_at_source, camera,
                           gps_lat, gps_lon, duration, codecs, playable, stage, error)
@@ -305,6 +369,7 @@ def _record(con: sqlite3.Connection, r: _Result, waiting: dict[str, list[int]], 
                 :gps_lat, :gps_lon, :duration, :codecs, :playable, :stage, :error)""", row).lastrowid
     con.executemany("INSERT INTO video_frame(image_id, idx, at) VALUES (?, ?, ?)",
                     ((image_id, idx, at) for idx, at in r.frames))
+    camera_clock.apply_new(con, image_id, row["camera"])  # a camera's clock put right before: this photo too
     stats.new_images += 1
     stats.decode_errors += row["error"] is not None
     _link(con, image_id, [r.file_id, *waiting.pop(r.sha256, [])])

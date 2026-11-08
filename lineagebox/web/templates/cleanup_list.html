@@ -3,26 +3,30 @@
 {% set nav = "cleanup" %}
 {% block title %}{{ title }}{% endblock %}
 {% block main %}
-<nav class="crumbs"><a href="/cleanup">Cleanup</a><span class="sep">/</span><h1>{{ title }}</h1></nav>
-{% if kind == "blurry" %}
-<p class="meta">{{ "{:,}".format(total) }} photos with almost no sharp detail anywhere, worst first. The first pages are mostly black
+<nav class="crumbs"><a href="/cleanup">{% trans %}Cleanup{% endtrans %}</a><span class="sep">/</span><h1>{{ title }}</h1></nav>
+{% if kind == "blurry" and viewer.limited %}
+<p class="meta">{% trans total=total|number %}{{ total }} of the photos you uploaded have almost no sharp detail anywhere, worst first:
+black frames, blank sky, lens-cap and shaky shots. Look before you tick: soft photos of babies or dim rooms may be ones
+you want.{% endtrans %}</p>
+{% elif kind == "blurry" %}
+<p class="meta">{% trans total=total|number %}{{ total }} photos with almost no sharp detail anywhere, worst first. The first pages are mostly black
 frames, blank sky and lens-cap shots; further on, soft but wanted photos (babies, dim rooms) start to appear, so
-look before you tick. Tick the ones you want and press Keep, and they are not listed again.{% if unmeasured %} {{ "{:,}".format(unmeasured) }} photos have not been measured yet.{% endif %}</p>
+look before you tick. Tick the ones you want and press Keep, and they are not listed again.{% endtrans %}{% if unmeasured %} {% trans unmeasured=unmeasured|number %}{{ unmeasured }} photos have not been measured yet.{% endtrans %}{% endif %}</p>
 {% else %}
-<p class="meta">{{ "{:,}".format(total) }} photos without people whose AI description mentions
-{% for p in phrases[:8] %}“{{ p }}”{{ ", " if not loop.last }}{% endfor %} or similar. The matched words are on each
-photo; hover for the description. Tick the ones you want and press Keep, and they are not listed again.
-{%- if described < to_describe %} Covers the {{ "{:,}".format(described) }} of {{ "{:,}".format(to_describe) }} photos described so far.{% endif %}</p>
+<p class="meta">{% trans total=total|number %}{{ total }} photos without people whose AI description mentions{% endtrans %}
+{% for p in phrases[:8] %}“{{ p }}”{{ ", " if not loop.last }}{% endfor %} {% trans %}or similar. The matched words are on each
+photo; hover for the description. Tick the ones you want and press Keep, and they are not listed again.{% endtrans %}
+{%- if described < to_describe %} {% trans described=described|number, to_describe=to_describe|number %}Covers the {{ described }} of {{ to_describe }} photos described so far.{% endtrans %}{% endif %}</p>
 {% endif %}
 
 {% include "_pager.html" %}
 {% if images %}
 <form class="select-form" data-select-api="/api/images/remove" data-reason="{{ reason }}">
   {{ m.select_grid(images, "") }}
-  {{ m.select_bar(keep=true) }}
+  {{ m.select_bar(keep=not viewer.limited, admin=not viewer.limited) }}
 </form>
 {% else %}
-<p class="note">Nothing here{% if kind == "blurry" and unmeasured %} yet{% endif %}.</p>
+<p class="note">{% trans %}Nothing here{% endtrans %}{% if kind == "blurry" and unmeasured %} {% trans %}yet{% endtrans %}{% endif %}.</p>
 {% endif %}
 {% include "_pager.html" %}
 {% endblock %}

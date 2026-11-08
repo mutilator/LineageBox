@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}Read into the family tree{% endblock %}
+{% block title %}{% trans %}Read into the family tree{% endtrans %}{% endblock %}
 {% block main %}
-<nav class="crumbs"><a href="/family">Family</a><span class="sep">/</span><h1>Read into the family tree</h1></nav>
+<nav class="crumbs"><a href="/family">{% trans %}Family{% endtrans %}</a><span class="sep">/</span><h1>{% trans %}Read into the family tree{% endtrans %}</h1></nav>
 <p class="meta">{% include "_family_read_about.html" %}</p>
 {% include "_family_read_form.html" %}
 {% endblock %}

@@ -1,9 +1,9 @@
 {# Cleanup → Confirm faces: who the unnamed faces beside named people are (cleanup_faces.html). #}
-<p class="meta">{{ "{:,}".format(faces) }} of the {{ "{:,}".format(beside) }} unnamed faces in photos with people you've
+<p class="meta">{% trans faces=faces|number, beside=beside|number %}{{ faces }} of the {{ beside }} unnamed faces in photos with people you've
 named look like someone else you've named, grouped by who. Nobody is in a photo twice, so each face is compared only
-with the people not named in its photo yet.</p>
-<p class="meta">Untick any face that isn't them, then confirm: the ticked faces are named, and the unticked ones are
-never suggested or recognised as them again (they can still be named on their photo). ↗ opens a face's photo.</p>
+with the people not named in its photo yet.{% endtrans %}</p>
+<p class="meta">{% trans %}Untick any face that isn't them, then confirm: the ticked faces are named, and the unticked ones are
+never suggested or recognised as them again (they can still be named on their photo). ↗ opens a face's photo.{% endtrans %}</p>
 {% include "_pager.html" %}
 {% for g in groups %}
 {%- set name = names[g.person_id] %}
@@ -12,29 +12,29 @@ never suggested or recognised as them again (they can still be named on their ph
   <h2 class="group-head">
     {%- if covers.get(g.person_id) %}<img class="who" src="/face/{{ covers[g.person_id] }}" alt="" loading="lazy">{% endif %}
     <a href="/person/{{ g.person_id }}">{{ name }}</a>?
-    <small>{{ "{:,}".format(g.faces|length) }} face{{ "" if g.faces|length == 1 else "s" }} · in photos with
+    <small>{% trans count=g.faces|length, faces=g.faces|length|number %}{{ faces }} face · in photos with{% pluralize %}{{ faces }} faces · in photos with{% endtrans %}
       {%- for pid, n in g.seen_with[:3] %} {{ names[pid] }} ({{ n }}){{ "," if not loop.last }}{% endfor %}
-      {%- if g.seen_with|length > 3 %} and {{ g.seen_with|length - 3 }} more{% endif %}</small>
+      {%- if g.seen_with|length > 3 %} {% trans seen_with=g.seen_with|length - 3 %}and {{ seen_with }} more{% endtrans %}{% endif %}</small>
   </h2>
   <div class="faces">
     {%- for f in shown %}
     <label class="face pick">
       <input type="checkbox" name="face" value="{{ f.id }}" checked aria-label="{{ name }}">
       <img src="/face/{{ f.id }}" alt="" loading="lazy" width="80" height="80">
-      <a class="open" href="/image/{{ f.image_id }}" target="_blank" title="Open the photo in a new tab">↗</a>
+      <a class="open" href="/image/{{ f.image_id }}" target="_blank" title="{{ _('Open the photo in a new tab') }}">↗</a>
     </label>
     {%- endfor %}
   </div>
   <p class="name-form">
-    <button type="submit" data-label="These {n} are {{ name }}">These {{ shown|length }} are {{ name }}</button>
-    <button type="submit" class="quiet" data-none>None of these are {{ name }}</button>
+    <button type="submit" data-label="{{ _('These {n} are %(name)s', name=name) }}">{% trans shown=shown|length %}These {{ shown }} are {{ name }}{% endtrans %}</button>
+    <button type="submit" class="quiet" data-none>{% trans %}None of these are {{ name }}{% endtrans %}</button>
     {%- if g.faces|length > shown|length %}
-    <span class="hint inline">{{ "{:,}".format(g.faces|length - shown|length) }} more after these, each less alike</span>
+    <span class="hint inline">{% trans faces=(g.faces|length - shown|length)|number %}{{ faces }} more after these, each less alike{% endtrans %}</span>
     {%- endif %}
   </p>
 </form>
 {% else %}
-<p class="note">{% if beside %}No suggestions: none of these faces is close enough to someone not already in its
-photo.{% else %}No unnamed faces in photos with people you've named.{% endif %}</p>
+<p class="note">{% if beside %}{% trans %}No suggestions: none of these faces is close enough to someone not already in its
+photo.{% endtrans %}{% else %}{% trans %}No unnamed faces in photos with people you've named.{% endtrans %}{% endif %}</p>
 {% endfor %}
 {% include "_pager.html" %}

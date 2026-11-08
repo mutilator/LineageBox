@@ -1,0 +1,8 @@
+{#- One piece of a long list of photos (pieces.py), for app.js to add to the page: the photos, and the links on to the
+    pieces before and after it. #}
+{%- import "_pieces.html" as pc %}
+<div data-piece data-start="{{ p.w.start }}" data-end="{{ p.w.end }}" data-total="{{ p.w.total }}">
+{{- pc.earlier(p) }}
+{{- pc.photos(p) }}
+{{- pc.more(p) }}
+</div>

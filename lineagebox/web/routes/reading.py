@@ -165,7 +165,9 @@ def reading_page(request: Request, reading_id: int, c=Depends(con)):
     return page(request, "family_read_review.html", nav="family", reading=row, found=found, proposal=proposal,
                 names=names, img=img, stopped=_stopped(row), took=_took(row), report=report, applied=applied,
                 made=_made(report) if applied else [], added=added, gone=gone,
-                removable={pid for pid in added if pid in names and people.why_kept(c, pid) is None},
+                # only those in no photos yet: its confirmation says nothing of faces losing their name
+                removable={pid for pid in added if pid in names and people.why_kept(c, pid) is None
+                           and not people.in_photos(c, pid)},
                 show_date=events.show_date)
 
 

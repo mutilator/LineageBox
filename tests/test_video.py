@@ -79,7 +79,9 @@ def test_copy_names():
     assert video.is_copy("00005.MTS.720p.mp4") and video.is_copy("clip.MOV.720P.MP4")
     assert not video.is_copy("holiday.720p.mp4") and not video.is_copy("00005.MTS")
     assert video.sample_times(None) == [0.0]
-    assert len(video.sample_times(5)) == video.MIN_FRAMES and len(video.sample_times(5000)) == video.MAX_FRAMES
+    assert len(video.sample_times(5)) == video.MIN_FRAMES and len(video.sample_times(36000)) == video.MAX_FRAMES
+    # one every 10 s for the first 20 (a phone's clip), then one a minute: a 44-minute video 61, a 2-hour tape 120
+    assert [video.frame_count(s) for s in (12, 200, 2627, 5000, 7200)] == [3, 20, 61, 100, 120]
     assert video._gps({"location": "+45.5152-122.6784/"}) == (45.5152, -122.6784)
     assert video._gps({"location": "+00.0000+000.0000/"}) is None
 

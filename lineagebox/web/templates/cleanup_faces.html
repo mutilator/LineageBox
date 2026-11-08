@@ -1,17 +1,25 @@
 {% extends "base.html" %}
 {% set nav = "cleanup" %}
-{% block title %}Confirm faces{% endblock %}
+{% block title %}{% trans %}Confirm faces{% endtrans %}{% endblock %}
 {% block main %}
-<nav class="crumbs"><a href="/cleanup">Cleanup</a><span class="sep">/</span><h1>Confirm faces</h1></nav>
-<nav class="tabs" aria-label="Faces to confirm">
-  <a href="/cleanup/faces?show=together"{% if show == "together" %} aria-current="page"{% endif %}>Seen together
-    <small>{{ "{:,}".format(beside) }} faces</small></a>
-  <a href="/cleanup/faces?show=finish"{% if show == "finish" %} aria-current="page"{% endif %}>Photos to finish
-    <small>{{ "{:,}".format(finish) }}</small></a>
-  <a href="/cleanup/faces?show=groups"{% if show == "groups" %} aria-current="page"{% endif %}>Unnamed groups
-    <small>{{ "{:,}".format(total_groups) }}</small></a>
+<nav class="crumbs"><a href="/cleanup">{% trans %}Cleanup{% endtrans %}</a><span class="sep">/</span><h1>{% trans %}Confirm faces{% endtrans %}</h1></nav>
+<p class="meta">{% trans %}All at once here; <a href="/people/name">People → Name faces</a> asks about them one at a time, with
+bigger pictures and buttons, and also about the faces recognised automatically.{% endtrans %}</p>
+<nav class="tabs" aria-label="{{ _('Faces to confirm') }}">
+  <a href="/cleanup/faces?show=together"{% if show == "together" %} aria-current="page"{% endif %}>{% trans %}Seen together{% endtrans %}
+    <small>{% trans beside=beside|number %}{{ beside }} faces{% endtrans %}</small></a>
+  <a href="/cleanup/faces?show=finish"{% if show == "finish" %} aria-current="page"{% endif %}>{% trans %}Photos to finish{% endtrans %}
+    <small>{{ finish|number }}</small></a>
+  <a href="/cleanup/faces?show=groups"{% if show == "groups" %} aria-current="page"{% endif %}>{% trans %}Unnamed groups{% endtrans %}
+    <small>{{ total_groups|number }}</small></a>
+  {%- for key, label in (check_tabs or {}).items() %}
+  <a href="/cleanup/faces?show={{ key }}"{% if show == key %} aria-current="page"{% endif %}>{{ label }}
+    {%- if check_counts and check_counts[key] is not none %} <small>{{ check_counts[key]|number }}</small>{% endif %}</a>
+  {%- endfor %}
 </nav>
 {% if show == "together" %}{% include "_together.html" %}
 {% elif show == "finish" %}{% include "_to_finish.html" %}
+{% elif show == "ages" %}{% include "_age_checks.html" %}
+{% elif show == "missed" %}{% include "_missed_faces.html" %}
 {% else %}{% include "_unnamed_groups.html" %}{% endif %}
 {% endblock %}

@@ -9,7 +9,8 @@ __pycache__/
 /config.toml
 # your own changes to compose.yaml (docs/install.md)
 /compose.override.yaml
-# builds and tools
+# builds and tools (and the catalogs' templates, made again by pybabel extract: docs/translating.md)
+/lineagebox/locale/*.pot
 dist/
 build/
 .ruff_cache/

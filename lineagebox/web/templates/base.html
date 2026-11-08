@@ -1,77 +1,130 @@
 <!doctype html>
-<html lang="en">
+<html lang="{{ language()|replace('_', '-') }}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}Photos{% endblock %} · LineageBox</title>
+<title>{% block title %}{% trans %}Photos{% endtrans %}{% endblock %} · LineageBox</title>
+{#- light or dark as chosen in this browser, before anything is drawn (More → Colours) #}
+<script src="/static/theme.js?v={{ static_version }}"></script>
 <link rel="stylesheet" href="/static/app.css?v={{ static_version }}">
 <script src="/static/app.js?v={{ static_version }}" defer></script>
+{%- if script_text() %}
+{#- the scripts' text in this page's language (i18n.script_catalog), for app.js t(); none in English #}
+<script type="application/json" id="lineagebox-text">{{ script_text()|tojson }}</script>
+{%- endif %}
+{#- the app on the phone (routes/phone.py): its manifest, icons and colour #}
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/static/icons/icon.svg" type="image/svg+xml">
+<link rel="icon" href="/static/icons/icon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+<meta name="theme-color" content="#2f62c9">
 {% block head %}{% endblock %}
 </head>
 <body class="{% block body_class %}{% endblock %}" data-hover-preview="{{ hover_preview_ms|default(500) }}">
+<a class="skip" href="#main">{% trans %}Skip to the page{% endtrans %}</a>
 {% if viewer.seeing_as %}
-<div class="see-as" role="status">You are seeing the site as {{ viewer.account.email }} sees it: nothing can be changed.
-  <button type="button" data-api="/api/see-as/stop">Stop</button></div>
+<div class="see-as" role="status">{% trans email=viewer.account.email %}You are seeing the site as {{ email }} sees it: nothing can be changed.{% endtrans %}
+  <button type="button" data-api="/api/see-as/stop">{% trans %}Stop{% endtrans %}</button></div>
 {% endif %}
 <header class="top">
   {%- if not signed_out %}
-  <button type="button" class="menu-button" data-panel="menu" aria-expanded="false" aria-controls="menu" aria-label="Menu" title="Menu">
+  <button type="button" class="menu-button" data-panel="menu" aria-expanded="false" aria-controls="menu" aria-label="{{ _('Menu') }}" title="{{ _('Menu') }}">
     <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M2 4h14M2 9h14M2 14h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
   {%- endif %}
-  <a class="brand" href="/">LineageBox</a>
+  {#- the logo always goes Home, also on a phone, where only the picture shows #}
+  <a class="brand" href="/home" aria-label="{{ _('LineageBox: Home') }}" title="{{ _('Home') }}"><img src="/static/icons/icon.svg" alt="" width="24" height="24"><span class="brand-name">LineageBox</span></a>
   {%- if not signed_out %}
-  <nav id="menu">
-    <a href="/home"{% if nav == "home" %} aria-current="page"{% endif %}>Home</a>
+  {#- The menu: the pages used most up front, the rest under More, which opens on a click (app.js openPanel). When
+      the links don't fit (app.js measures them; on phones always) they all fold into ☰, More's after the others. The
+      help's "Every page" list says what each is (help.py MENU). #}
+  {#- named menu_*: a set out here is seen by every page's own blocks (passkeys.html has its "here") #}
+  {%- set menu_path = request.url.path if request is defined else "" %}
+  {%- set menu_more = (("/timeline", _("Timeline"), nav == "timeline"), ("/map", _("Map"), nav == "map"),
+                       ("/tours", _("Tours"), nav == "tours" and not menu_path.startswith("/album")
+                                           and menu_path != "/favourites"),
+                       ("/albums", _("Albums"), menu_path.startswith("/album")),
+                       ("/favourites", _("Favourites"), menu_path == "/favourites")) %}
+  {%- set menu_work = (("/people/name", _("Name faces"), menu_path.startswith("/people/name")),
+                       ("/tags", _("Tags"), nav == "tags"), ("/cleanup", _("Cleanup"), nav == "cleanup")) %}
+  <nav id="menu" aria-label="{{ _('Pages') }}">
+    <a href="/home"{% if nav == "home" %} aria-current="page"{% endif %}>{% trans %}Home{% endtrans %}</a>
+    <a href="/people"{% if nav == "people" and not menu_path.startswith("/people/name") %} aria-current="page"{% endif %}>{% trans %}People{% endtrans %}</a>
+    <a href="/family"{% if nav == "family" %} aria-current="page"{% endif %}>{% trans %}Family{% endtrans %}</a>
     {%- if signed_in %}
-    <a href="/upload"{% if nav == "upload" %} aria-current="page"{% endif %}>Upload</a>
+    <a href="/upload"{% if nav == "upload" %} aria-current="page"{% endif %}>{% trans %}Upload{% endtrans %}</a>
     {%- endif %}
+    <a href="{{ '/' if viewer.admin else '/folders' }}"{% if nav == "folders" %} aria-current="page"{% endif %}>{% trans %}Folders{% endtrans %}</a>
+    <div class="more{% if (menu_more + menu_work)|selectattr(2)|list %} here{% endif %}">
+      <button type="button" class="more-button" data-panel="more-menu" aria-expanded="false" aria-controls="more-menu">{% trans %}More{% endtrans %}<span aria-hidden="true"> ▾</span></button>
+      <div class="more-menu" id="more-menu">
+        {%- for group in (menu_more, menu_work) %}
+        <div class="more-group">
+          {%- for href, name, on in group %}
+          <a href="{{ href }}"{% if on %} aria-current="page"{% endif %}>{{ name }}</a>
+          {%- endfor %}
+        </div>
+        {%- endfor %}
+        {#- kept in this browser only (app.js, theme.js) #}
+        <div class="theme-pick" role="group" aria-labelledby="theme-pick-label">
+          <span id="theme-pick-label">{% trans %}Colours{% endtrans %}</span>
+          <button type="button" data-theme-choice="" aria-pressed="false" title="{{ _('Light or dark as this computer or phone is set') }}">{% trans %}Automatic{% endtrans %}</button>
+          <button type="button" data-theme-choice="light" aria-pressed="false">{% trans %}Light{% endtrans %}</button>
+          <button type="button" data-theme-choice="dark" aria-pressed="false">{% trans %}Dark{% endtrans %}</button>
+        </div>
+        {%- if languages()|length > 1 %}
+        {#- once a translation is installed (i18n.py): the pages' language in this browser, kept in a cookie
+            (routes/language.py); Automatic is the first the browser asks for that is here #}
+        {%- set picked_language = request.cookies.get("lang", "") if request is defined else "" %}
+        <div class="theme-pick" role="group" aria-labelledby="language-pick-label">
+          <span id="language-pick-label">{% trans %}Language{% endtrans %}</span>
+          <button type="button" data-api="/api/language" data-body='{"lang": ""}' aria-pressed="{{ 'false' if picked_language else 'true' }}" title="{{ _('As this browser asks for') }}">{% trans %}Automatic{% endtrans %}</button>
+          {%- for code in languages() %}
+          <button type="button" data-api="/api/language" data-body='{{ {"lang": code}|tojson }}' aria-pressed="{{ 'true' if picked_language == code else 'false' }}" lang="{{ code|replace('_', '-') }}">{{ language_name(code) }}</button>
+          {%- endfor %}
+        </div>
+        {%- endif %}
+      </div>
+    </div>
     {%- if viewer.admin %}
-    <a href="/"{% if nav == "folders" %} aria-current="page"{% endif %}>Folders</a>
-    {%- else %}
-    <a href="/folders"{% if nav == "folders" %} aria-current="page"{% endif %}>Folders</a>
-    {%- endif %}
-    <a href="/timeline"{% if nav == "timeline" %} aria-current="page"{% endif %}>Timeline</a>
-    <a href="/map"{% if nav == "map" %} aria-current="page"{% endif %}>Map</a>
-    <a href="/people"{% if nav == "people" %} aria-current="page"{% endif %}>People</a>
-    <a href="/family"{% if nav == "family" %} aria-current="page"{% endif %}>Family</a>
-    <a href="/tours"{% if nav == "tours" %} aria-current="page"{% endif %}>Tours</a>
-    <a href="/tags"{% if nav == "tags" %} aria-current="page"{% endif %}>Tags</a>
-    <a href="/cleanup"{% if nav == "cleanup" %} aria-current="page"{% endif %}>Cleanup</a>
-    {%- if viewer.admin %}
-    <a href="/status"{% if nav == "status" %} aria-current="page"{% endif %}>Status</a>
-    <a href="/settings"{% if nav == "settings" %} aria-current="page"{% endif %}>Settings</a>
+    <a href="/status"{% if nav == "status" %} aria-current="page"{% endif %}>{% trans %}Status{% endtrans %}</a>
+    <a href="/settings"{% if nav == "settings" %} aria-current="page"{% endif %}>{% trans %}Settings{% endtrans %}</a>
     {%- if update_ready %}
     <a class="update-ready" href="/status#updates"
-       title="LineageBox {{ update_ready.version }} is out">Update available</a>
+       title="{{ _('LineageBox %(version)s is out', version=update_ready.version) }}">{% trans %}Update available{% endtrans %}</a>
     {%- endif %}
     {%- endif %}
   </nav>
   <form class="search" action="/search" role="search">
-    <input type="search" name="q" value="{{ q or '' }}" placeholder="Search: zoo, birthday cake, snow, a name…" aria-label="Search photos" title="Search (key /)">
+    <input type="search" name="q" value="{{ q or '' }}" placeholder="{{ _('Search: zoo, birthday cake, snow, a name…') }}" aria-label="{{ _('Search photos') }}" title="{{ _('Search (key /)') }}" autocomplete="off" data-search-suggest="/api/search/suggest">
   </form>
-  <button type="button" class="help-button" data-help aria-label="Help and keyboard keys" title="Help and keyboard keys (?)">?</button>
+  {%- if news_count is defined %}{% set news = news_count() %}
+  <a class="news-button{% if news %} has-news{% endif %}" href="/news"{% if nav == "news" %} aria-current="page"{% endif %} aria-label="{{ _('New for you') }}{% if news %}{{ _(': %(news)s new', news=news) }}{% endif %}" title="{{ _('New for you') }}">
+    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 2.2a4.6 4.6 0 0 0-4.6 4.6v3.1L3 12.6h12l-1.4-2.7V6.8A4.6 4.6 0 0 0 9 2.2zM7.2 14.3a1.9 1.9 0 0 0 3.6 0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+    {%- if news %}<span class="count">{{ news if news < 100 else "99+" }}</span>{% endif %}</a>
+  {%- endif %}
+  <button type="button" class="help-button" data-help aria-label="{{ _('Help and keyboard keys') }}" title="{{ _('Help and keyboard keys (?)') }}">?</button>
   {%- if signed_in %}
   {#- not "who": pages have their own (tour types' choices), which a set here would replace #}
   {%- set initials = (signed_in.person_name or signed_in.email).split() %}
   <div class="profile">
-    <button type="button" class="avatar" data-panel="profile" aria-expanded="false" aria-controls="profile" aria-label="Signed in as {{ signed_in.email }}" title="{{ signed_in.email }}">
+    <button type="button" class="avatar" data-panel="profile" aria-expanded="false" aria-controls="profile" aria-label="{{ _('Signed in as %(email)s', email=signed_in.email) }}" title="{{ signed_in.email }}">
       {{- (initials[0][:1] ~ (initials[-1][:1] if initials|length > 1 else ""))|upper }}</button>
     <div class="profile-menu" id="profile">
       <p class="who"><strong>{{ signed_in.person_name or signed_in.email }}</strong>
         {%- if signed_in.person_name %}<span>{{ signed_in.email }}</span>{% endif %}
-        <span class="hint">{{ "Admin: sees and changes everything" if signed_in.role == "admin" else "Family member" }}</span></p>
-      <a href="/passkeys">Passkeys</a>
+        <span class="hint">{{ _("Admin: sees and changes everything") if signed_in.role == "admin" else _("Family member") }}</span></p>
+      <a href="/passkeys">{% trans %}Passkeys{% endtrans %}</a>
       {%- if signed_in.role == "admin" %}
-      <a href="/settings/codes">Code for signing in at home</a>
+      <a href="/settings/codes">{% trans %}Code for signing in at home{% endtrans %}</a>
       {%- endif %}
-      <button type="button" data-api="/auth/signout" title="Sign out of this browser">Sign out</button>
-      <button type="button" class="quiet" data-api="/auth/signout-everywhere" data-confirm="Sign out on every computer and phone you are signed in on?">Sign out everywhere</button>
+      <button type="button" data-api="/auth/signout" title="{{ _('Sign out of this browser') }}">{% trans %}Sign out{% endtrans %}</button>
+      <button type="button" class="quiet" data-api="/auth/signout-everywhere" data-confirm="{{ _('Sign out on every computer and phone you are signed in on?') }}">{% trans %}Sign out everywhere{% endtrans %}</button>
     </div>
   </div>
   {%- endif %}
   {%- endif %}
 </header>
-<main>
+<main id="main" tabindex="-1">
 {% block main %}{% endblock %}
 </main>
 {% include "_help.html" %}

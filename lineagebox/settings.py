@@ -22,8 +22,12 @@ EDITABLE = ("folders", "ignore_dirs", "ingest_threads", "worker_interval_minutes
             "transcribe_enabled", "faces_enabled",
             "places_lookup", "network_paths", "allowed_hosts", "trusted_proxies", "tls_cert", "tls_key",
             "accounts_enabled", "google_client_id", "google_client_secret", "public_url", "session_days",
-            "uploads_folder", "uploads_into", "upload_max_gb", "update_check", "hover_preview_ms")
-SCHEDULES = ("always", "hours", "paused")
+            "uploads_folder", "uploads_into", "upload_max_gb", "update_check", "hover_preview_ms",
+            "backup_enabled", "backup_folder", "backup_keep_daily", "backup_keep_weekly")
+EDITABLE += ("ollama_embed_model",)  # search by meaning (embeddings.py)
+EDITABLE += ("sidecars_enabled", "import_enabled")  # Settings → Other programs (sidecars.py, imports.py)
+EDITABLE += ("whisper_language",)  # Settings → Speech (speech.py)
+SCHEDULES =("always", "hours", "paused")
 TURN_LEVELS = ("sure", "more", "off")  # Cleanup → Turned photos, see orientation.py
 DAY_NAMES = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 SKIP_ON_SHARE = {"system volume information", "lost+found", "$recycle.bin", "@eadir", "#recycle"}
@@ -233,7 +237,9 @@ def put(con: sqlite3.Connection, key: str, value) -> None:
 
 
 PROBLEM_SERVICES = {"ollama": "Ollama", "whisper": "Whisper", "https": "HTTPS", "ffmpeg": "Videos",
-                    "places": "OpenStreetMap", "faces": "Faces"}
+                    "places": "OpenStreetMap", "faces": "Faces", "backup": "Backup"}
+PROBLEM_SERVICES["meaning"] = "Search by meaning"  # its model missing from Ollama (embeddings.py)
+PROBLEM_SERVICES["sidecars"] = "Sidecars"  # photo folders it can't write in (sidecars.py); its panel's id
 
 
 def set_problem(con: sqlite3.Connection, service: str, message: str | None) -> bool:
@@ -346,6 +352,14 @@ def _whisper_url(value, cfg: Config) -> str:
     if value and (problem := config.url_problem(value)):
         raise Invalid(f"That Whisper address {problem}. It looks like http://192.168.1.10:9300 (or leave it empty for "
                       "no transcripts)")
+    return value
+
+
+def _whisper_language(value, cfg: Config) -> str:
+    value = str(value).strip().lower() or "auto"
+    if not config.language_ok(value):
+        raise Invalid("The language is auto (Whisper tells from the speech), or a language's two-letter code: en, "
+                      "de, es, fr…")
     return value
 
 
@@ -507,10 +521,47 @@ def _uploads_read(cfg: Config, moved: bool) -> None:
                       f"shown: pick another name for the uploads folder, or take it off the folders to skip.")
 
 
+def _backup_folder(value, cfg: Config) -> str:
+    """Where the nightly copies of the catalog go (backup.py): "" for the data folder's backups/nightly, else a folder
+    this machine (in Docker, the web and worker containers) can write to, outside the photo folders: the scan would
+    list the copies, and in Docker the worker only reads the photos (there the media root is a mount of its own, apart
+    from the data folder)."""
+    value = str(value).strip()
+    if not value:
+        return ""
+    if len(value) > 500 or "\n" in value:
+        raise Invalid("The backup folder is one path, like /backups.")
+    where = Path(value)
+    if not where.is_absolute():
+        raise Invalid("Give the backup folder's whole path, as this machine sees it, like /backups (or leave it empty "
+                      "for the data folder's backups).")
+    where = where.resolve()
+    share = Path(cfg.share_root).resolve()
+    photos = [share / f for f in cfg.folders]
+    if not Path(cfg.data_dir).resolve().is_relative_to(share):  # the photos are a mount of their own
+        photos.append(share)
+    if any(where == p or p in where.parents for p in photos):
+        raise Invalid("Pick a folder outside the photo folders: LineageBox only reads those.")
+    if not where.is_dir():
+        raise Invalid(f"There is no folder {value} here. In Docker, mount it into the web and worker containers first "
+                      "(docs/install.md, Updating and backups).")
+    if not os.access(where, os.W_OK | os.X_OK):
+        raise Invalid(f"LineageBox can't write in {value}: give the user it runs as (PUID) that folder.")
+    return str(where)
+
+
 def _model(value, cfg: Config) -> str:
     value = str(value).strip()
     if not value or len(value) > 100 or any(c.isspace() for c in value):
         raise Invalid("Give the model's name as Ollama lists it, e.g. ministral-3.")
+    return value
+
+
+def _embed_model(value, cfg: Config) -> str:
+    """The model search by meaning reads words with; "" switches it off (search finds words only)."""
+    value = str(value).strip()
+    if len(value) > 100 or any(c.isspace() for c in value):
+        raise Invalid("Give the model's name as Ollama lists it, e.g. nomic-embed-text, or leave it empty.")
     return value
 
 
@@ -534,4 +585,10 @@ _CHECKS = {
     "uploads_folder": _folder_name, "uploads_into": _uploads_into,
     "upload_max_gb": _ranged("upload_max_gb", "The largest upload"),
     "hover_preview_ms": _ranged("hover_preview_ms", "The time to point at a photo"),
+    "backup_enabled": _switch, "backup_folder": _backup_folder,
+    "backup_keep_daily": _ranged("backup_keep_daily", "Days of daily copies"),
+    "backup_keep_weekly": _ranged("backup_keep_weekly", "Weeks of weekly copies"),
 }
+_CHECKS["ollama_embed_model"] = _embed_model
+_CHECKS.update(sidecars_enabled=_switch, import_enabled=_switch)
+_CHECKS["whisper_language"] = _whisper_language

@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
-from lineagebox import access, accounts, activity, catalog, db, scan, tours, uploads
+from lineagebox import access, accounts, activity, catalog, db, scan, sidecars, tours, uploads
 from lineagebox.web.common import (ADMIN, MEMBER, PRIVATE, ZIP_BYTES, ZIP_MOST, HiddenBody, _attachment, _from_app,
                                    _image_or_404, _uploads_root, _within)
 from lineagebox.web.deps import con, page, site, viewer, writer
@@ -49,7 +49,7 @@ def upload_page(request: Request, c=Depends(con), w=Depends(writer), s: Site = D
         folder_id = row[0] if row else None
     return page(request, "upload.html", nav="upload", account=account, counts=counts, mine=mine,
                 folder_id=folder_id, max_gb=now.upload_max_gb,
-                extensions=sorted({*now.image_extensions, *now.video_extensions}))
+                extensions=sorted({*now.image_extensions, *now.video_extensions, *now.audio_extensions}))
 
 
 @router.post("/api/upload", dependencies=[Depends(_from_app)])
@@ -75,7 +75,8 @@ async def upload_file(request: Request, path: str = Query(min_length=1, max_leng
                 raise uploads.Problem("The photo folder can't be reached just now. Is its disk or share connected? "
                                       "Try again later.")
             return uploads.destination(s.cfg.share_root, into, folder, path,
-                                       {*now.image_extensions, *now.video_extensions}, now.ignore_dirs)
+                                       {*now.image_extensions, *now.video_extensions, *now.audio_extensions},
+                                       now.ignore_dirs)
 
     try:
         target, rel = await run_in_threadpool(place)
@@ -100,8 +101,10 @@ async def upload_file(request: Request, path: str = Query(min_length=1, max_leng
 
 def zipped(s: Site, c, image_ids, name: str) -> StreamingResponse:
     """The viewer's photos among image_ids, as a zip made as it is sent (ZIP64, stored: photos are compressed
-    already). A name in it twice gets " (2)"."""
+    already). A name in it twice gets " (2)". Each photo the family gave names, a caption, tags, a date or a place has
+    its XMP sidecar beside it (IMG_1234.JPG.xmp, sidecars.py), so other programs see them too."""
     files, seen = [], set()
+    xmp = sidecars.for_files(c, image_ids[:ZIP_MOST])
     for image_id in image_ids[:ZIP_MOST]:
         f = next((f for f in catalog.image_files(c, image_id) if not f["missing"]), None)
         if f is None:
@@ -113,9 +116,11 @@ def zipped(s: Site, c, image_ids, name: str) -> StreamingResponse:
             entry = f"{stem} ({n}).{ext}" if dot else f"{ext} ({n})"
         seen.add(entry.lower())
         files.append((s.cfg.source_path(f["path"]), entry))
+        if image_id in xmp:
+            files.append((xmp[image_id], entry + sidecars.SUFFIX))
     if not files:
         raise HTTPException(404, "None of those photos can be downloaded.")
-    if sum(p.stat().st_size for p, _ in files if p.is_file()) > ZIP_BYTES:
+    if sum(p.stat().st_size for p, _ in files if not isinstance(p, bytes) and p.is_file()) > ZIP_BYTES:
         raise HTTPException(413, f"That's over {ZIP_BYTES // 2**30} GB: pick fewer photos.")
     return StreamingResponse(uploads.zip_stream(files), media_type="application/zip",
                              headers={"Content-Disposition": _attachment(f"{name}.zip"), **PRIVATE})
@@ -128,6 +133,9 @@ async def download_ticked(request: Request, v=Depends(viewer), s: Site = Depends
         raise HTTPException(429, "That's a lot of downloads in one hour. Wait a while, then try again.")
     fields = parse_qs((await request.body()).decode("utf-8", "replace"))
     ids = list(dict.fromkeys(int(i) for i in fields.get("image", []) if i.isdecimal()))
+    if len(ids) > ZIP_MOST:  # never a zip with fewer than were ticked, as if that were all of them (app.js says so first)
+        raise HTTPException(413, f"That's {len(ids):,} photos: one download holds at most {ZIP_MOST:,}. Tick fewer, "
+                                 "and download them in parts.")
 
     def make():
         c = access.scope(db.connect(s.cfg, migrate_schema=False, check_same_thread=False), v)

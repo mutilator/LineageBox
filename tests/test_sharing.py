@@ -286,4 +286,4 @@ def test_shares_go_with_what_they_share(site, con, cfg):
     accounts.remove(con, site["who"]["Cora"]["id"])
     con.commit()
     assert not con.execute("SELECT 1 FROM share").fetchone()
-    assert "share" in changes.KEYS and sharing.KINDS == ("folder", "image", "tour")
+    assert "share" in changes.KEYS and sharing.KINDS == ("folder", "image", "tour", "album")

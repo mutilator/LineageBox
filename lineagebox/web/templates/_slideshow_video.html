@@ -1,0 +1,24 @@
+{#- A tour's or an album's slideshow saved as one video file (routes/tours.py video_part, slideshow.py): Save as a
+    video, how far the worker is with it, and the file once it is made. The page asks for this part again while the
+    video is being made (data-live); once it is ready (or failed) the page is loaded again. #}
+{%- set made = video.made %}
+{%- set ask = "/api/%ss/%d/video"|format(video.kind, video.item_id) %}
+{%- if made and made.state == "done" %}
+  {%- if video.polled %}<span data-reload-page hidden></span>{% endif %}
+  {% trans kind=video.kind, item_id=video.item_id, bytes=made.bytes|size, until=made.until %}<a class="button primary" href="/download/{{ kind }}/{{ item_id }}/video" download>Download the video</a>
+  <span class="hint inline">{{ bytes }}, kept until {{ until }}: send it, or keep a copy.</span>{% endtrans %}
+  <button type="button" class="quiet" data-api="{{ ask }}" data-busy="{{ _('Asking…') }}" title="{{ _('Make the video again, with the photos as they are now') }}">{% trans %}Make it again{% endtrans %}</button>
+{%- elif made and made.state in ("waiting", "making") %}
+  <span role="status">{% if made.state == "waiting" %}{% trans %}The video is waiting its turn: it is started within a few minutes.{% endtrans %}
+    {%- else %}{% trans done=made.done, total=made.total %}Making the video: {{ done }} of {{ total }} slides.{% endtrans %}{% endif %}
+    {% trans %}You can leave this page; it will be here when it is ready.{% endtrans %}</span>
+  <progress max="{{ made.total }}" value="{{ made.done }}" aria-label="{{ _('How far the video is') }}"></progress>
+{%- else %}
+  {%- if made and made.state == "failed" %}
+  {%- if video.polled %}<span data-reload-page hidden></span>{% endif %}
+  <p class="note">{% trans %}The video couldn't be made{% endtrans %}{% if viewer.admin and made.message %} ({{ made.message }}){% endif %}{% trans %}. Try again, or ask an admin.{% endtrans %}</p>
+  {%- endif %}
+  <button type="button" data-api="{{ ask }}" data-busy="{{ _('Asking…') }}" title="{{ _('The slideshow as one video file (its photos, words and videos), to send to someone') }}">{% trans %}Save as a video{% endtrans %}</button>
+  <span class="hint inline">{% trans most_minutes=video.most_minutes %}One file to send, up to {{ most_minutes }} minutes long. Making it takes a few minutes;
+    this page says when it is ready.{% endtrans %}</span>
+{%- endif %}

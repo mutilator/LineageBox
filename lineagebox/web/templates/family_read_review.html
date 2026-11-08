@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% block title %}{{ reading.title }}{% endblock %}
 {% block main %}
-<nav class="crumbs"><a href="/family">Family</a><span class="sep">/</span><a href="/family/read">Read into the
-  tree</a><span class="sep">/</span><h1>{{ reading.title }}</h1></nav>
-{% set how_words = {"sure": "in the tree", "likely": "probably", "unsure": "pick who", "new": "new", "chosen": "picked",
-                    "added": "added", "skip": "left out"} %}
+<nav class="crumbs">{% trans %}<a href="/family">Family</a><span class="sep">/</span><a href="/family/read">Read into the
+  tree</a>{% endtrans %}<span class="sep">/</span><h1>{{ reading.title }}</h1></nav>
+{% set how_words = {"sure": _("in the tree"), "likely": _("probably"), "unsure": _("pick who"), "new": _("new"), "chosen": _("picked"),
+                    "added": _("added"), "skip": _("left out")} %}
 {% if reading.state == "reading" and not stopped %}
 <section class="read-waiting" role="status">
   {#- an hourglass whose sand runs down, and which turns over, while the AI reads #}
@@ -17,70 +17,72 @@
     <line class="stream" x1="20" y1="26" x2="20" y2="46"/>
   </svg>
   <div>
-    <h2>The AI is reading it…</h2>
+    <h2>{% trans %}The AI is reading it…{% endtrans %}</h2>
     <div data-live="/family/read/{{ reading.id }}/progress" data-every="3">{% include "_family_read_waiting.html" %}</div>
   </div>
 </section>
 {% elif reading.state == "failed" or stopped %}
-<p class="note problem">{{ "The reading stopped: LineageBox was restarted while the AI was at it." if stopped else reading.error }}
-  Correct the text below if need be, then read it again.</p>
+<p class="note problem">{% trans value=_("The reading stopped: LineageBox was restarted while the AI was at it.") if stopped else reading.error %}{{ value }}
+  Correct the text below if need be, then read it again.{% endtrans %}</p>
 {% endif %}
 
 {% if applied %}
 {#- Once the ticked changes are made, only what they changed: the rest is gone (reading it again lists it again). #}
 {%- set n = report.done|length %}
 <section class="read-summary" id="made">
-  <h2>What changed</h2>
-  <p class="meta">{{ n }} change{{ "" if n == 1 else "s" }} made {{ reading.applied_at|date }}
-    {%- if added %}, {{ added|length }} {{ "person" if added|length == 1 else "people" }} added{% endif %}
-    {%- if reading.source %}, from {% if reading.source.startswith(("http://", "https://")) %}<a href="{{ reading.source }}" rel="noreferrer">{{ reading.source }}</a>{% else %}{{ reading.source }}{% endif %}{% endif %}.
-    Nothing else was changed. To look over what wasn't ticked, read it again (under What was read).</p>
+  <h2>{% trans %}What changed{% endtrans %}</h2>
+  <p class="meta">{% trans count=n, applied_at=reading.applied_at|date %}{{ count }} change made {{ applied_at }}{% pluralize %}{{ count }} changes made {{ applied_at }}{% endtrans %}
+    {%- if added %}{% trans count=added|length %}, {{ count }} person added{% pluralize %}, {{ count }} people added{% endtrans %}{% endif %}
+    {%- if reading.source %}{% trans %}, from{% endtrans %} {% if reading.source.startswith(("http://", "https://")) %}<a href="{{ reading.source }}" rel="noreferrer">{{ reading.source }}</a>{% else %}{{ reading.source }}{% endif %}{% endif %}{% trans %}.
+    Nothing else was changed. To look over what wasn't ticked, read it again (under What was read).{% endtrans %}</p>
   {%- if added %}
-  <h3>Added to the family tree <small>{{ added|length }}</small></h3>
+  <h3>{% trans %}Added to the family tree{% endtrans %} <small>{{ added|length }}</small></h3>
   <ul class="read-added">
     {%- for pid in added %}
     <li>{% if pid in names %}<a href="/person/{{ pid }}">{{ names[pid] }}</a>
       {%- if pid in removable %} <button type="button" class="quiet" data-api="/api/people/{{ pid }}/remove" data-reload
-        data-confirm="Remove {{ names[pid] }} from the family tree? Their family links, life events and other names go with them. This can't be undone.">Remove from the tree</button>{% endif %}
-      {%- else %}{{ gone.get(pid, "Someone") }} <span class="hint inline">removed from the tree since</span>{% endif %}</li>
+        data-confirm="{{ _("Remove %(pid)s from the family tree? Their family links, life events and other names go with them. This can't be undone.", pid=names[pid]) }}">{% trans %}Remove from the tree{% endtrans %}</button>{% endif %}
+      {%- else %}{% trans name=gone.get(pid, _("Someone")) %}{{ name }} <span class="hint inline">removed from the tree since</span>{% endtrans %}{% endif %}</li>
     {%- endfor %}
   </ul>
   {%- endif %}
-  <h3>Changes made</h3>
+  <h3>{% trans %}Changes made{% endtrans %}</h3>
   {%- for group in made %}
   {%- if group.person %}
-  <h4 class="read-made-who">{% if group.person in names %}<a href="/person/{{ group.person }}">{{ names[group.person] }}</a>{% else %}{{ gone.get(group.person, "Someone") }} <span class="hint inline">removed from the tree since</span>{% endif %}</h4>
+  <h4 class="read-made-who">{% if group.person in names %}<a href="/person/{{ group.person }}">{{ names[group.person] }}</a>{% else %}{% trans name=gone.get(group.person, _("Someone")) %}{{ name }} <span class="hint inline">removed from the tree since</span>{% endtrans %}{% endif %}</h4>
   {%- endif %}
   <ul class="read-made">{% for text in group.changes %}<li>{{ text }}</li>{% endfor %}</ul>
   {%- endfor %}
   {%- if report.skipped %}
-  <h3>Ticked, but not made <small>{{ report.skipped|length }}</small></h3>
+  <h3>{% trans %}Ticked, but not made{% endtrans %} <small>{{ report.skipped|length }}</small></h3>
   <ul class="read-made">{% for s in report.skipped %}<li>{{ s }}</li>{% endfor %}</ul>
   {%- endif %}
-  <p class="hint">The family checks (Cleanup → Family tree) look the result over.</p>
+  <p class="hint">{% trans %}The family checks (Cleanup → Family tree) look the result over.{% endtrans %}</p>
 </section>
 {% elif proposal %}
 {% set placed = proposal.people|rejectattr("skip")|rejectattr("unplaced")|list %}
 {% set here = placed|selectattr("match.choice")|list %}
-<p class="meta">{{ found.people|length }} {{ "person" if found.people|length == 1 else "people" }} named:
-  {{ here|length }} in the tree, {{ placed|length - here|length }} to add{% if proposal.unplaced %},
-  {{ proposal.unplaced|length }} not placed{% endif %}.
-  {{ proposal.changes|selectattr("on")|list|length }} of {{ proposal.changes|length }} changes ticked.
-  {%- if reading.source %} From {% if reading.source.startswith(("http://", "https://")) %}<a href="{{ reading.source }}" rel="noreferrer">{{ reading.source }}</a>{% else %}{{ reading.source }}{% endif %}.{% endif %}
-  {%- if reading.seconds %} Read in {{ reading.seconds|round|int }} s.{% endif %}</p>
+<p class="meta">{% trans count=found.people|length, here=here|length, placed=placed|length - here|length %}{{ count }} person named:
+  {{ here }} in the tree, {{ placed }} to add{% pluralize %}{{ count }} people named:
+  {{ here }} in the tree, {{ placed }} to add{% endtrans %}{% if proposal.unplaced %}{% trans unplaced=proposal.unplaced|length %},
+  {{ unplaced }} not placed{% endtrans %}{% endif %}{% trans changes=proposal.changes|selectattr("on")|list|length, changes2=proposal.changes|length %}.
+  {{ changes }} of {{ changes2 }} changes ticked.{% endtrans %}
+  {%- if reading.source %} {% trans %}From{% endtrans %} {% if reading.source.startswith(("http://", "https://")) %}<a href="{{ reading.source }}" rel="noreferrer">{{ reading.source }}</a>{% else %}{{ reading.source }}{% endif %}.{% endif %}
+  {%- if reading.seconds %} {% trans seconds=reading.seconds|round|int %}Read in {{ seconds }} s.{% endtrans %}{% endif %}</p>
 {% if report %}
-<div class="note">{% if report.done %}{{ report.done|length }} change{{ "" if report.done|length == 1 else "s" }} were
-  made from an earlier reading of it, {{ reading.applied_at|date }}: the tree has them now, so they aren't listed.
-  {%- else %}None of the changes ticked {{ reading.applied_at|date }} could be made:{% endif %}
-  {%- if report.skipped %}{% if report.done %} Not made then:{% endif %}
+<div class="note">{% if report.done %}{% trans count=report.done|length, applied_at=reading.applied_at|date %}{{ count }} change were
+  made from an earlier reading of it, {{ applied_at }}: the tree has them now, so they aren't listed.{% pluralize %}{{ count }} changes were
+  made from an earlier reading of it, {{ applied_at }}: the tree has them now, so they aren't listed.{% endtrans %}
+  {%- else %}{% trans applied_at=reading.applied_at|date %}None of the changes ticked {{ applied_at }} could be made:{% endtrans %}{% endif %}
+  {%- if report.skipped %}{% if report.done %} {% trans %}Not made then:{% endtrans %}{% endif %}
   <ul>{% for s in report.skipped %}<li>{{ s }}</li>{% endfor %}</ul>
   {%- endif %}</div>
 {% endif %}
-<p class="meta">Check who each person is in the tree first: changing it lists their changes again. Then tick what is
+<p class="meta">{% trans %}Check who each person is in the tree first: changing it lists their changes again. Then tick what is
 right, and untick what isn't. Ticked changes add what the tree lacks; where the text and the tree differ, the change
-is unticked, with what the tree has. A change for someone new is made only with them. Your ticks are kept as you go.</p>
+is unticked, with what the tree has. A change for someone new is made only with them. Your ticks are kept as you go.{% endtrans %}</p>
 <form id="who" data-api="/api/family/read/{{ reading.id }}/choices" data-settings data-reload hidden>
-  <button type="submit">Save who is who</button></form>
+  <button type="submit">{% trans %}Save who is who{% endtrans %}</button></form>
 <form class="read-review" data-api="/api/family/read/{{ reading.id }}/apply" data-settings data-reload
   data-ticks="/api/family/read/{{ reading.id }}/ticks" autocomplete="off">
   {%- for row in placed %}
@@ -89,21 +91,21 @@ is unticked, with what the tree has. A change for someone new is made only with 
     <h3>{{ row.shown }}{% if row.said %} <span class="hint inline">{{ row.said|join(", ") }}</span>{% endif %}</h3>
     <p class="inline-facts">
       {%- if m.how == "added" %}
-      <a href="/person/{{ m.choice }}">{{ names.get(m.choice, row.name) }}</a> <span class="how">added from this</span>
+      <a href="/person/{{ m.choice }}">{{ names.get(m.choice, row.name) }}</a> <span class="how">{% trans %}added from this{% endtrans %}</span>
       {%- else %}
-      <select name="{{ row.id }}" form="who" data-submit aria-label="Who {{ row.shown }} is in the tree">
-        <option value="new"{% if not m.choice %} selected{% endif %}>someone new: {{ row.name }}</option>
+      <select name="{{ row.id }}" form="who" data-submit aria-label="{{ _('Who %(shown)s is in the tree', shown=row.shown) }}">
+        <option value="new"{% if not m.choice %} selected{% endif %}>{% trans name=row.name %}someone new: {{ name }}{% endtrans %}</option>
         {%- if m.choice and m.choice not in m.candidates|map("first") %}
         <option value="{{ m.choice }}" selected>{{ names.get(m.choice, "?") }}</option>
         {%- endif %}
         {%- for pid, score, why in m.candidates if pid in names %}
         <option value="{{ pid }}"{% if pid == m.choice %} selected{% endif %}>{{ names[pid] }} ({{ ([score, 1]|min * 100)|round|int }}%)</option>
         {%- endfor %}
-        <option value="skip">leave them out</option>
+        <option value="skip">{% trans %}leave them out{% endtrans %}</option>
       </select>
-      <input name="name:{{ row.id }}" form="who" data-names autocomplete="off" placeholder="or someone else"
-        aria-label="Someone else in the tree">
-      {%- if m.choice %} <a href="/person/{{ m.choice }}">their page</a>{% endif %}
+      <input name="name:{{ row.id }}" form="who" data-names autocomplete="off" placeholder="{{ _('or someone else') }}"
+        aria-label="{{ _('Someone else in the tree') }}">
+      {%- if m.choice %} <a href="/person/{{ m.choice }}">{% trans %}their page{% endtrans %}</a>{% endif %}
       <span class="hint inline"><span class="how">{{ how_words.get(m.how, m.how) }}</span> {{ m.why }}</span>
       {%- endif %}
     </p>
@@ -118,50 +120,50 @@ is unticked, with what the tree has. A change for someone new is made only with 
       {%- endfor %}
     </ul>
     {%- else %}
-    <p class="hint">Nothing to change: the tree has what the text says of them.</p>
+    <p class="hint">{% trans %}Nothing to change: the tree has what the text says of them.{% endtrans %}</p>
     {%- endif %}
   </section>
   {%- endfor %}
   {%- if proposal.unplaced %}
-  <h3>Named, but not added <small>{{ proposal.unplaced|length }}</small></h3>
-  <p class="meta">The text doesn't say enough to put them in the tree. Add them on a relative's page when you know
-    more.</p>
+  <h3>{% trans %}Named, but not added{% endtrans %} <small>{{ proposal.unplaced|length }}</small></h3>
+  <p class="meta">{% trans %}The text doesn't say enough to put them in the tree. Add them on a relative's page when you know
+    more.{% endtrans %}</p>
   <ul class="read-unplaced">{% for u in proposal.unplaced %}<li>{{ u.name }} <span class="hint inline">{{ u.why }}</span></li>{% endfor %}</ul>
   {%- endif %}
   {%- set left_out = proposal.people|selectattr("skip")|list %}
   {%- if left_out %}
-  <h3>Left out <small>{{ left_out|length }}</small></h3>
+  <h3>{% trans %}Left out{% endtrans %} <small>{{ left_out|length }}</small></h3>
   <ul class="read-unplaced">
     {%- for row in left_out %}
-    <li>{{ row.shown }} <select name="{{ row.id }}" form="who" data-submit aria-label="Bring back {{ row.shown }}">
-      <option value="keep" selected>left out</option><option value="new">bring back</option></select></li>
+    <li>{{ row.shown }} <select name="{{ row.id }}" form="who" data-submit aria-label="{{ _('Bring back %(shown)s', shown=row.shown) }}">
+      <option value="keep" selected>{% trans %}left out{% endtrans %}</option><option value="new">{% trans %}bring back{% endtrans %}</option></select></li>
     {%- endfor %}
   </ul>
   {%- endif %}
-  <p class="read-apply"><button type="submit" class="primary" data-busy="Making the changes…"
-    {%- if not proposal.changes %} disabled{% endif %}>Make the ticked changes</button>
+  <p class="read-apply"><button type="submit" class="primary" data-busy="{{ _('Making the changes…') }}"
+    {%- if not proposal.changes %} disabled{% endif %}>{% trans %}Make the ticked changes{% endtrans %}</button>
     {%- if proposal.changes|length > 1 %}
-    <button type="button" class="quiet" data-tick="all">Tick all</button><button type="button" class="quiet"
-      data-tick="none">Untick all</button>
+    <button type="button" class="quiet" data-tick="all">{% trans %}Tick all{% endtrans %}</button><button type="button" class="quiet"
+      data-tick="none">{% trans %}Untick all{% endtrans %}</button>
     {%- endif %}
-    <span class="hint inline">People first, then their names, family links and life events. Afterwards this page
-    shows only what changed.</span></p>
+    <span class="hint inline">{% trans %}People first, then their names, family links and life events. Afterwards this page
+    shows only what changed.{% endtrans %}</span></p>
 </form>
 {% endif %}
 
 <details class="panel info-panel read-text"{% if reading.state == "failed" or stopped %} open{% endif %}>
-  <summary><h2>What was read</h2></summary>
+  <summary><h2>{% trans %}What was read{% endtrans %}</h2></summary>
   {%- if img %}
-  <p><a href="/image/{{ img.id }}"><img src="/t/{{ img.sha256 }}" alt="The photo it was read from"></a></p>
+  <p><a href="/image/{{ img.id }}"><img src="/t/{{ img.sha256 }}" alt="{{ _('The photo it was read from') }}"></a></p>
   {%- endif %}
   <form data-api="/api/family/read/{{ reading.id }}/again" data-settings>
-    <label for="read-again" class="hint">The text{% if img or not reading.text %}, as the AI copied it from the photos{% endif %}.
-      Correct it if need be, then read it again: who is who is matched again, and what you ticked starts over.
-      {%- if applied %} What was changed stays changed, so it isn't listed again.{% endif %}</label>
+    <label for="read-again" class="hint">{% trans %}The text{% endtrans %}{% if img or not reading.text %}{% trans %}, as the AI copied it from the photos{% endtrans %}{% endif %}{% trans %}.
+      Correct it if need be, then read it again: who is who is matched again, and what you ticked starts over.{% endtrans %}
+      {%- if applied %} {% trans %}What was changed stays changed, so it isn't listed again.{% endtrans %}{% endif %}</label>
     <textarea id="read-again" name="text" rows="12" maxlength="20000">{{ reading.text }}</textarea>
-    <p><button type="submit" data-busy="Sending it to the AI…"{% if reading.state == "reading" and not stopped %} disabled{% endif %}>Read it again</button></p>
+    <p><button type="submit" data-busy="{{ _('Sending it to the AI…') }}"{% if reading.state == "reading" and not stopped %} disabled{% endif %}>{% trans %}Read it again{% endtrans %}</button></p>
   </form>
   <p><button type="button" class="quiet" data-api="/api/family/read/{{ reading.id }}/delete"
-    data-confirm="Delete this reading? What it changed in the family tree stays.">Delete this reading</button></p>
+    data-confirm="{{ _('Delete this reading? What it changed in the family tree stays.') }}">{% trans %}Delete this reading{% endtrans %}</button></p>
 </details>
 {% endblock %}

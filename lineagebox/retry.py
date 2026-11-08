@@ -11,9 +11,12 @@ import time
 from datetime import datetime
 
 WAITS = (3600, 6 * 3600, 24 * 3600, 7 * 24 * 3600)  # after the first, second, third and every later failure
-STAGES = {"describe": "photos and videos to describe", "transcribe": "videos to transcribe",
+STAGES = {"describe": "photos and videos to describe", "transcribe": "videos and recordings to transcribe",
           "copies": "videos to make 720p copies of", "folders": "folders to read the names of",
-          "check": "files to check for damage"}
+          "check": "files to check for damage", "stories": "recorded stories to transcribe",
+          "chapters": "long videos to find chapters in"}
+STAGES["meaning"] = "descriptions to read for search by meaning"  # embeddings.py
+STAGES.update(sidecars="photos to write XMP sidecars beside", metadata="photos to read other apps' names from")
 
 
 def waiting(stage: str, item: str = "i.id") -> str:

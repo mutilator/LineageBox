@@ -3,12 +3,12 @@
 {% import "_macros.html" as m %}
 {% block title %}{{ title }}{% endblock %}
 {% block main %}
-<nav class="crumbs"><a href="/status">Status</a><span class="sep">/</span><h1>{{ title }}</h1></nav>
+<nav class="crumbs"><a href="/status">{% trans %}Status{% endtrans %}</a><span class="sep">/</span><h1>{{ title }}</h1></nav>
 {% if broken is not none %}
-<p class="meta">{{ "{:,}".format(paging.total) }} file{{ "" if paging.total == 1 else "s" }} in the photo folders that could not be read as a photo or video. They are left out of every other page.</p>
+<p class="meta">{% trans count=paging.total, total=paging.total|number %}{{ total }} file in the photo folders that could not be read as a photo or video. They are left out of every other page.{% pluralize %}{{ total }} files in the photo folders that could not be read as a photo or video. They are left out of every other page.{% endtrans %}</p>
 {% include "_pager.html" %}
 <table class="broken">
-  <thead><tr><th>File</th><th>Format</th><th>What went wrong</th></tr></thead>
+  <thead><tr><th>{% trans %}File{% endtrans %}</th><th>{% trans %}Format{% endtrans %}</th><th>{% trans %}What went wrong{% endtrans %}</th></tr></thead>
   <tbody>
   {%- for b in broken %}
   <tr><td><code>{{ network_path(b.path) }}</code></td><td>{{ b.format|upper }}</td><td>{{ b.error }}</td></tr>
@@ -17,13 +17,13 @@
 </table>
 {% include "_pager.html" %}
 {% else %}
-<p class="meta">{{ "{:,}".format(paging.total) }} photo{{ "" if paging.total == 1 else "s" }}, oldest first
-{%- if paging.total %} · {% if select %}<a href="{{ here }}" data-key="s">Done selecting</a>{% else %}<a href="{{ here }}?select=1" data-key="s" title="Tick photos to tag them, add someone to them or move them to Removed">Select photos</a>{% endif %}{% endif %}</p>
+<p class="meta">{% trans count=paging.total, total=paging.total|number %}{{ total }} photo, oldest first{% pluralize %}{{ total }} photos, oldest first{% endtrans %}
+{%- if paging.total %} · {% if select %}<a href="{{ here }}" data-key="s">{% trans %}Done selecting{% endtrans %}</a>{% else %}<a href="{{ here }}?select=1" data-key="s" title="{{ _('Tick photos to tag them, add someone to them or move them to Removed') }}">{% trans %}Select photos{% endtrans %}</a>{% endif %}{% endif %}</p>
 {% include "_pager.html" %}
 {% if select %}
 <form class="select-form" data-select-api="/api/images/remove" data-reason="{{ title }}" data-show=".select-bar .done">
   {{ m.select_grid(images, ctx) }}
-  {{ m.bulk_bar() }}
+  {{ m.bulk_bar(models=viewer.admin) }}
 </form>
 {% else %}
 {{ m.grid(images, ctx) }}

@@ -1,56 +1,58 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m %}
-{% block title %}Folders{% endblock %}
+{% block title %}{% trans %}Folders{% endtrans %}{% endblock %}
 {% block main %}
-<h1>Folders</h1>
+<h1>{% trans %}Folders{% endtrans %}</h1>
 {% if viewer.limited %}
-<p class="meta">Your uploads, what others in the family share with you, and what you share. Open a folder of yours to
-share it or move it to Removed.</p>
+<p class="meta">{% trans %}Your uploads, what others in the family share with you, and what you share. Open a folder of yours to
+share it or move it to Removed.{% endtrans %}</p>
 
-<h2>Your uploads</h2>
+<h2>{% trans %}Your uploads{% endtrans %}</h2>
 {% if uploads %}
-<p class="meta">{{ "{:,}".format(uploads.total) }} photo{{ "" if uploads.total == 1 else "s" }} ·
-  <a href="/folder/{{ uploads.id }}">Open your uploads folder</a>{% if uploads.own %} ({{ "{:,}".format(uploads.own) }} not in a folder of their own){% endif %}
-  · <a href="/upload">Upload more</a></p>
+<p class="meta">{% trans count=uploads.total, total=uploads.total|number, uploads_id=uploads.id %}{{ total }} photo ·
+  <a href="/folder/{{ uploads_id }}">Open your uploads folder</a>{% pluralize %}{{ total }} photos ·
+  <a href="/folder/{{ uploads_id }}">Open your uploads folder</a>{% endtrans %}{% if uploads.own %} {% trans own=uploads.own|number %}({{ own }} not in a folder of their own){% endtrans %}{% endif %}
+  · <a href="/upload">{% trans %}Upload more{% endtrans %}</a></p>
 {% if subfolders %}
 <div class="folders">
 {%- for f in subfolders %}
   <a class="folder-card" href="/folder/{{ f.id }}">
     {% if f.cover %}<img src="/t/{{ f.cover }}" loading="lazy" alt="">{% else %}<span class="ph"></span>{% endif %}
-    <span class="label"><span class="name">{{ f.name }}</span><span class="count">{{ "{:,}".format(f.total) }}</span></span>
+    <span class="label"><span class="name">{{ f.name }}</span><span class="count">{{ f.total|number }}</span></span>
   </a>
 {%- endfor %}
 </div>
 {% endif %}
 {% else %}
-<p class="note">Nothing uploaded yet. <a href="/upload">Upload photos and videos</a>; they go into a folder of your
-own, which you can then share.</p>
+<p class="note">{% trans %}Nothing uploaded yet. <a href="/upload">Upload photos and videos</a>; they go into a folder of your
+own, which you can then share.{% endtrans %}</p>
 {% endif %}
 
-<h2 id="shared">Shared with you</h2>
-{% if shared.folders or shared.tours or shared.photos %}
+<h2 id="shared">{% trans %}Shared with you{% endtrans %}</h2>
+{% if shared.folders or shared.tours or shared.photos or shared.albums %}
 {{ m.shared_with_you(shared) }}
 {% else %}
-<p class="note">Nothing yet. When someone in the family shares a folder, a photo or a tour with you, it is here.</p>
+<p class="note">{% trans %}Nothing yet. When someone in the family shares a folder, a photo, a tour or an album with you, it is here.{% endtrans %}</p>
 {% endif %}
 {% endif %}
 
-<h2 id="yours">{% if viewer.limited %}What you share{% else %}What is shared{% endif %}</h2>
-{% if viewer.admin %}<p class="meta">Everything family members and admins share, newest first. Members see the photos
-of what is shared with them as they see their own family's. <a href="/">All folders</a></p>{% endif %}
+<h2 id="yours">{% if viewer.limited %}{% trans %}What you share{% endtrans %}{% else %}{% trans %}What is shared{% endtrans %}{% endif %}</h2>
+{% if viewer.admin %}<p class="meta">{% trans %}Everything family members and admins share, newest first. Members see the photos
+of what is shared with them as they see their own family's. <a href="/">All folders</a>{% endtrans %}</p>{% endif %}
 {% if shares %}
 <ul class="share-list wide">
 {%- for x in shares %}
   <li>
-    {%- if x.kind == "folder" %}<a href="/folder/{{ x.folder_id }}">{{ x.folder_name }}</a> <span class="hint inline">folder</span>
-    {%- elif x.kind == "tour" %}<a href="/tour/{{ x.tour_id }}">{{ x.tour_name }}</a> <span class="hint inline">tour</span>
-    {%- else %}<a class="share-photo" href="/image/{{ x.image_id }}"><img src="/t/{{ x.sha256 }}" alt="A photo" width="48" height="48" loading="lazy"></a> <span class="hint inline">photo</span>{% endif %}
-    with <b>{{ x.with }}</b>
-    {%- if x.by %} <span class="hint inline">by {{ x.by }}{% if x.by_disabled %} (switched off: not shared while it is){% endif %}</span>{% endif %}
-    <button type="button" class="quiet" data-api="/api/shares/{{ x.id }}/delete" data-reload>Stop sharing</button></li>
+    {%- if x.kind == "folder" %}<a href="/folder/{{ x.folder_id }}">{{ x.folder_name }}</a> <span class="hint inline">{% trans %}folder{% endtrans %}</span>
+    {%- elif x.kind == "tour" %}<a href="/tour/{{ x.tour_id }}">{{ x.tour_name }}</a> <span class="hint inline">{% trans %}tour{% endtrans %}</span>
+    {%- elif x.kind == "album" %}<a href="/album/{{ x.album_id }}">{{ x.album_name }}</a> <span class="hint inline">{% trans %}album{% endtrans %}</span>
+    {%- else %}<a class="share-photo" href="/image/{{ x.image_id }}"><img src="/t/{{ x.sha256 }}" alt="{{ _('A photo') }}" width="48" height="48" loading="lazy"></a> <span class="hint inline">{% trans %}photo{% endtrans %}</span>{% endif %}
+    {% trans %}with{% endtrans %} <b>{{ x.with }}</b>
+    {%- if x.by %} <span class="hint inline">{% trans by=x.by %}by {{ by }}{% endtrans %}{% if x.by_disabled %} {% trans %}(switched off: not shared while it is){% endtrans %}{% endif %}</span>{% endif %}
+    <button type="button" class="quiet" data-api="/api/shares/{{ x.id }}/delete" data-reload>{% trans %}Stop sharing{% endtrans %}</button></li>
 {%- endfor %}
 </ul>
 {% else %}
-<p class="note">{% if viewer.limited %}Nothing yet. Open one of your folders, photos or tours to share it.{% else %}Nothing is shared.{% endif %}</p>
+<p class="note">{% if viewer.limited %}{% trans %}Nothing yet. Open one of your folders, photos or tours to share it.{% endtrans %}{% else %}{% trans %}Nothing is shared.{% endtrans %}{% endif %}</p>
 {% endif %}
 {% endblock %}

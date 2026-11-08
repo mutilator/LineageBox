@@ -9,10 +9,12 @@ RUN /venv/bin/pip uninstall -y opencv-python \
 
 FROM python:3.12-slim
 # ffmpeg for videos: probing, frames, sound for transcripts and 720p copies (Debian's build, with x264);
-# tzdata so TZ can name a zone (TZ=Europe/Berlin); ExifTool to write rotations into photo files (writeback.py).
+# tzdata so TZ can name a zone (TZ=Europe/Berlin); ExifTool to write rotations into photo files (writeback.py);
+# DejaVu Sans (which ffmpeg brings in anyway) for the words on tours saved as a video, accents and all (slideshow.py).
 # packages.txt lists every Debian package in the image with its version (THIRD_PARTY_NOTICES.md says why)
 RUN apt-get update \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ffmpeg tzdata libimage-exiftool-perl \
+    fonts-dejavu-core \
  && rm -rf /var/lib/apt/lists/* \
  && mkdir -p /app \
  && dpkg-query -W > /app/packages.txt

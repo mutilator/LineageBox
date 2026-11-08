@@ -1,13 +1,21 @@
-"""The Settings page: what it saves, network paths, addresses and HTTPS, watched folders, Ollama and Whisper."""
+"""The Settings page: what it saves, network paths, addresses and HTTPS, watched folders, Ollama and Whisper, and
+copies of the catalog (Back up now, the export)."""
+import os
+import tempfile
 import threading
+import time
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
+from starlette.background import BackgroundTask
 
-from lineagebox import db, https, llm, passkeys, serving, settings, speech, tours
+from lineagebox import backup, db, export, https, llm, passkeys, serving, settings, speech, tours
+from lineagebox import imports, sidecars, writeback
 from lineagebox.llm import Ollama
-from lineagebox.web.common import (ADMIN, FolderBody, _cert_name, _from_app, _host_allowed, _net_folders,
-                                   _photos_per_watched)
+from lineagebox.storage import fmt_size
+from lineagebox.web.common import (ADMIN, PRIVATE, FolderBody, _attachment, _cert_name, _from_app, _host_allowed,
+                                   _net_folders, _photos_per_watched)
 from lineagebox.web.deps import con, page, site
 from lineagebox.web.site import Site
 
@@ -25,6 +33,8 @@ ACCESS = {
     "/api/ollama/check": ADMIN,
     "/api/ollama/pull": ADMIN,
     "/api/whisper/check": ADMIN,
+    "/api/backup": ADMIN,
+    "/download/export": ADMIN,
 }
 
 
@@ -46,7 +56,10 @@ def settings_page(request: Request, browse: str = "", c=Depends(con), s: Site = 
                 cert_name=_cert_name(cert, now.allowed_hosts, host), proxied="x-forwarded-for" in request.headers,
                 passkey_problem=passkeys.why_not(now), passkey_domain=passkeys.domain(now),
                 passkey_count=c.execute("SELECT count(*) FROM passkey WHERE rp_id = ?",
-                                        (passkeys.domain(now),)).fetchone()[0])
+                                        (passkeys.domain(now),)).fetchone()[0],
+                backups=backup.summary(c, now), default_backups=s.cfg.data_dir.joinpath(*backup.DEFAULT_FOLDER),
+                sidecar_counts=sidecars.summary(c), other_apps=imports.summary(c),
+                exiftool=writeback.exiftool() is not None)
 
 
 @router.post("/api/settings", dependencies=[Depends(_from_app)])
@@ -144,22 +157,65 @@ def check_ollama(c=Depends(con), s: Site = Depends(site)):
 
 
 @router.post("/api/ollama/pull", dependencies=[Depends(_from_app)])
-def pull_model(c=Depends(con), s: Site = Depends(site)):
-    """Have Ollama download the chosen model; the Status page shows how far it is."""
+def pull_model(model: str = "", c=Depends(con), s: Site = Depends(site)):
+    """Have Ollama download the chosen model (model=meaning: the one for search by meaning); the Status page shows
+    how far it is."""
     now = s.live(c)
+    meaning = model == "meaning" and now.ollama_embed_model
     if not s.pulling.acquire(blocking=False):
         return {"message": "Ollama is already downloading a model for LineageBox: see the Status page."}
 
     def run():
         try:
-            llm.pull(now, db.connect(s.cfg, migrate_schema=False, check_same_thread=False))
+            con = db.connect(s.cfg, migrate_schema=False, check_same_thread=False)
+            llm.pull(now, con, now.ollama_embed_model) if meaning else llm.pull(now, con)
         finally:
             s.pulling.release()
 
     threading.Thread(target=run, daemon=True, name="ollama pull").start()
-    return {"message": f"Ollama is downloading {now.ollama_model}. The Status page shows how far it is."}
+    return {"message": f"Ollama is downloading {now.ollama_embed_model if meaning else now.ollama_model}. The Status "
+                       f"page shows how far it is."}
 
 
 @router.post("/api/whisper/check", dependencies=[Depends(_from_app)])
 def check_whisper(c=Depends(con), s: Site = Depends(site)):
     return {"message": speech.Whisper(s.live(c)).check()}
+
+
+@router.post("/api/backup", dependencies=[Depends(_from_app)])
+def back_up_now(c=Depends(con), s: Site = Depends(site)):
+    """Back up now: a copy made beside the web app, so it doesn't wait for the worker to finish what it is doing (a
+    backlog of faces can take hours). The answer waits for it a while; a big catalog on a slow disk carries on."""
+    done = backup.soon(s.live(c))
+    if done is None:
+        return {"message": "Still copying: the result shows here in a minute or two."}
+    if "problem" in done:
+        raise backup.Failed(done["problem"])
+    last = done["last"]
+    return {"message": f"Backed up and checked: {last['file']}, {fmt_size(last['bytes'])}.", "reload": True}
+
+
+EXPORTS_LEFT = 3600  # seconds after which an export left in the data folder (the web app stopped while sending) goes
+
+
+@router.get("/download/export")
+def download_export(s: Site = Depends(site)):
+    """Everything the family gave the catalog, as one zip that outlives LineageBox (export.py). It is made in a file
+    of its own in the data folder, which is on a disk with room, sent, then deleted."""
+    for old in s.cfg.data_dir.glob(".export-*.zip"):
+        try:
+            if time.time() - old.stat().st_mtime > EXPORTS_LEFT:
+                old.unlink()
+        except OSError:
+            continue
+    handle, name = tempfile.mkstemp(prefix=".export-", suffix=".zip", dir=s.cfg.data_dir)
+    os.close(handle)
+    path = Path(name)
+    try:
+        with s.own_con() as c:
+            export.write(c, s.cfg, path)
+    except BaseException:
+        path.unlink(missing_ok=True)
+        raise
+    return FileResponse(path, media_type="application/zip", background=BackgroundTask(path.unlink, missing_ok=True),
+                        headers={"Content-Disposition": _attachment(export.file_name()), **PRIVATE})

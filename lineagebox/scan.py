@@ -1,4 +1,5 @@
-"""Stage 1: walk the watched folders and record folders, photos and videos. No file contents are read.
+"""Stage 1: walk the watched folders and record folders, photos, videos and sound recordings. No file contents are
+read.
 
 Paths are relative to the share, so every watched folder's files sit in one folder tree: the share is the root folder
 (''), with the watched folders, and any folders on the way to them, below it.
@@ -86,7 +87,7 @@ def scan(con: sqlite3.Connection, cfg: Config) -> ScanStats:
     own = _own_folders(cfg)  # the catalog's and the face models' folders, if they are in the photo folders
     own_ids = _own_ids(cfg)
     found_files = []                         # (path, folder path, size, mtime)
-    wanted = {*cfg.image_extensions, *cfg.video_extensions}
+    wanted = {*cfg.image_extensions, *cfg.video_extensions, *cfg.audio_extensions}
     for watched in cfg.folders:
         parent, parts = "", watched.split("/")
         for depth in range(1, len(parts)):  # folders between the share and the watched folder

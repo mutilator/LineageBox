@@ -1,30 +1,35 @@
 {% extends "base.html" %}
-{% block title %}Recent changes{% endblock %}
+{% block title %}{% trans %}Recent changes{% endtrans %}{% endblock %}
 {% block main %}
-<nav class="crumbs"><a href="/cleanup">Cleanup</a><span class="sep">/</span><h1>Recent changes</h1></nav>
-<p class="meta">What family members changed, newest first. Undo puts one back, as long as nobody has changed the same
-thing again since. {% if widened %}<b>{{ widened }}</b> of them let someone see more of the family than before
-(marked below): look at those first.{% endif %}</p>
+<nav class="crumbs"><a href="/cleanup">{% trans %}Cleanup{% endtrans %}</a><span class="sep">/</span><h1>{% trans %}Recent changes{% endtrans %}</h1></nav>
+<p class="meta">{% trans %}What was changed on the site, newest first: names, tags, dates, the family tree, people merged or
+removed. Undo puts one back, as long as nobody has changed the same thing again since.{% endtrans %} {% if widened %}<b>{{ widened }}</b>
+{% trans %}of them let a family member see more of the family than before (marked below): look at those first.{% endtrans %}{% endif %}</p>
+{% if has_members %}
+<p class="chips">{% if members %}{% trans %}<a href="/cleanup/changes">Everyone's changes</a> <b>Family members' only</b>{% endtrans %}
+{%- else %}{% trans %}<b>Everyone's changes</b> <a href="/cleanup/changes?members=1">Family members' only</a>{% endtrans %}{% endif %}</p>
+{% endif %}
 {% if rows %}
 <ul class="changes">
   {%- for r in rows %}
   <li id="c{{ r.id }}"{% if r.undone_at %} class="undone"{% endif %}>
     <span class="when">{{ r.at|date }}</span>
-    <b>{{ r.who or r.email or "someone" }}</b> {{ r.summary[:1]|lower }}{{ r.summary[1:] }}
+    {% if r.account_id %}<b>{{ r.who or r.email }}</b>{% if r.role == "admin" %} <span class="hint inline">{% trans %}(admin){% endtrans %}</span>{% endif %}
+    {{ r.summary[:1]|lower }}{{ r.summary[1:] }}{% else %}{{ r.summary }}{% endif %}
     {%- if r.widened %}
-    <span class="widened">— now
-      {%- for account_id, names in r.widened.items() %} {{ emails.get(account_id, "an account") }} also sees {{ names|join(", ") }}{{ ";" if not loop.last }}{% endfor %}</span>
+    <span class="widened">— {% trans %}now{% endtrans %}
+      {%- for account_id, names in r.widened.items() %} {% trans who=emails.get(account_id, _("an account")), names=names|join(", "), value=";" if not loop.last %}{{ who }} also sees {{ names }}{{ value }}{% endtrans %}{% endfor %}</span>
     {%- endif %}
-    {%- if r.undone_at %} <span class="hint inline">undone {{ r.undone_at|date }}</span>
+    {%- if r.undone_at %} <span class="hint inline">{% trans undone_at=r.undone_at|date %}undone {{ undone_at }}{% endtrans %}</span>
     {%- else %}
-    <button type="button" class="quiet" data-api="/api/changes/{{ r.id }}/undo">Undo</button>
+    <button type="button" class="quiet" data-api="/api/changes/{{ r.id }}/undo">{% trans %}Undo{% endtrans %}</button>
     {%- if r.account_id %}<button type="button" class="quiet" data-api="/api/changes/undo-since" data-body='{{ {"account_id": r.account_id, "since": r.id}|tojson }}'
-      data-confirm="Undo this and everything {{ r.who or r.email }} changed after it?">Undo this and their later changes</button>{% endif %}
+      data-confirm="{{ _('Undo this and everything %(email)s changed after it?', email=r.who or r.email) }}">{% trans %}Undo this and their later changes{% endtrans %}</button>{% endif %}
     {%- endif %}
   </li>
   {%- endfor %}
 </ul>
 {% else %}
-<p class="note">No changes by family members yet.</p>
+<p class="note">{% trans %}No changes yet.{% endtrans %}</p>
 {% endif %}
 {% endblock %}

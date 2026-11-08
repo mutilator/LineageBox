@@ -1,34 +1,35 @@
 {% extends "base.html" %}
-{% block title %}{{ "The whole line down from " ~ top_names[root] if tree else "The whole line down from one ancestor" }}{% endblock %}
+{% block title %}{{ _("The whole line down from %(name)s", name=top_names[root]) if tree else _("The whole line down from one ancestor") }}{% endblock %}
 {% block main %}
 {% from "_family_macros.html" import node with context %}
-<nav class="crumbs"><a href="/family">Family</a><span class="sep">/</span><h1>The whole line down from one ancestor</h1></nav>
+<nav class="crumbs"><a href="/family">{% trans %}Family{% endtrans %}</a><span class="sep">/</span><h1>{% trans %}The whole line down from one ancestor{% endtrans %}</h1></nav>
 {% if tree %}
 <form class="tree-pick" action="/family/tree" data-autosubmit>
-  <label>Starting from
+  <label>{% trans %}Starting from{% endtrans %}
     <select name="root">
       {%- if root not in tops|map(attribute=0) %}<option value="{{ root }}" selected>{{ top_names[root] }}</option>{% endif %}
-      {%- for p, n in tops %}<option value="{{ p }}"{% if p == root %} selected{% endif %}>{{ top_names[p] }} · {{ n }} below</option>{% endfor %}
+      {%- for p, n in tops %}<option value="{{ p }}"{% if p == root %} selected{% endif %}>{% trans p=top_names[p] %}{{ p }} · {{ n }} below{% endtrans %}</option>{% endfor %}
     </select></label>
-  <noscript><button type="submit">Show</button></noscript>
+  <noscript><button type="submit">{% trans %}Show{% endtrans %}</button></noscript>
 </form>
-<div class="tree-tools" role="toolbar" aria-label="Moving around the tree">
-  <button type="button" data-zoom="out" data-key="-" data-key-label="Zoom out" aria-label="Zoom out">−</button>
-  <button type="button" data-zoom="in" data-key="+" data-key-label="Zoom in" aria-label="Zoom in">+</button>
-  <button type="button" data-zoom="fit" data-key="0" data-key-label="Show the whole tree">Show it all</button>
-  <button type="button" data-tree-picture data-key="p" data-key-label="Save the tree as a picture"
-    data-file="Family tree - {{ top_names[root] }}.png">Save as a picture (PNG)</button>
-  <span class="hint inline" data-tree-note>Drag to move around; scroll, pinch or + and − to zoom.</span>
+<div class="tree-tools" role="toolbar" aria-label="{{ _('Moving around the tree') }}">
+  <button type="button" data-zoom="out" data-key="-" data-key-label="{{ _('Zoom out') }}" aria-label="{{ _('Zoom out') }}">−</button>
+  <button type="button" data-zoom="in" data-key="+" data-key-label="{{ _('Zoom in') }}" aria-label="{{ _('Zoom in') }}">+</button>
+  <button type="button" data-zoom="fit" data-key="0" data-key-label="{{ _('Show the whole tree') }}">{% trans %}Show it all{% endtrans %}</button>
+  <button type="button" data-tree-picture data-key="p" data-key-label="{{ _('Save the tree as a picture') }}"
+    data-file="{{ _('Family tree - %(root)s.png', root=top_names[root]) }}">{% trans %}Save as a picture (PNG){% endtrans %}</button>
+  <span class="hint inline" data-tree-note>{% trans %}Drag to move around; scroll, pinch or + and − to zoom.{% endtrans %}</span>
 </div>
 <div class="tree-frame" tabindex="0" data-pan-zoom{% if person %} data-person="{{ person }}"{% endif %}
-  aria-label="The family tree. Drag or use the arrow keys to move around it; scroll or use + and − to zoom.">
+  aria-label="{{ _('The family tree. Drag or use the arrow keys to move around it; scroll or use + and − to zoom.') }}">
   <div class="tree-sheet"><ul class="tree">{{ node(tree) }}</ul></div>
 </div>
-<p class="hint">Bold frame: the family line, down from the top; plain: married in. Someone with several partners has a
+<p class="hint">{% trans %}Bold frame: the family line, down from the top; plain: married in. Someone with several partners has a
 branch for each, with that couple's children under the partner. Dashed: a former partner. A current partner's
-children from other relationships are marked step, and † marks someone who has died.</p>
+children from other relationships are marked step, adopted and foster children are marked so, and † marks someone
+who has died.{% endtrans %}</p>
 {% else %}
-<p class="note">No family is entered yet. Start on your own page (under <a href="/people">People</a>): press
-<b>This is me</b>, then add your parents, partner and children there.</p>
+<p class="note">{% trans %}No family is entered yet. Start on your own page (under <a href="/people">People</a>): press
+<b>This is me</b>, then add your parents, partner and children there.{% endtrans %}</p>
 {% endif %}
 {% endblock %}

@@ -1653,20 +1653,28 @@ def _link_changes(con, tree: Tree, found: dict, who: dict, names: dict, placed: 
             continue
         pa, pb = who[a], who[b]
         if kind == "parent":  # a is b's parent
+            how = _pedi(found, a, b)  # "her adopted son": kept as adopted, not as born to her
+            word = f"{how} {_child_word(people[b])}" if how else _child_word(people[b])
             if pa and pb and pa in g.parents.get(pb, ()):
+                if how and g.how(pb, pa) != how:  # the tree has them by birth (or the other way)
+                    out.append(Change(_key("link", b, {"p": a, "c": b, "how": how}), b, "link",
+                                      f"{names[b]} is {names[a]}'s {word}", on=False,
+                                      now=f"the tree has {names[b]} as {names[a]}'s child {_HOW_NOW[g.how(pb, pa)]}",
+                                      data={"what": "parent", "child": b, "parent": a, "pedi": how,
+                                            "_people": [a, b]}))
                 continue
             k = tree.kin(pb).get(pa) if pa and pb else None
             if k is not None and k.distance <= 3 and "parent" not in k.words:
                 now = f"the tree has {names[a]} as {names[b]}'s {k.label}"
-            elif len(parents_of(b) - {a}) >= 2:
+            elif not how and len(parents_of(b) - {a}) >= 2:
                 now = f"the tree already has two parents for {names[b]}"
             else:
                 now = ""
             if not now:
                 planned.setdefault(b, set()).add(a)
             out.append(Change(_key("link", b, {"p": a, "c": b}), b, "link",
-                              f"{names[b]} is {names[a]}'s {_child_word(people[b])}", on=not now, now=now,
-                              data={"what": "parent", "child": b, "parent": a, "_people": [a, b]}))
+                              f"{names[b]} is {names[a]}'s {word}", on=not now, now=now,
+                              data={"what": "parent", "child": b, "parent": a, "pedi": how, "_people": [a, b]}))
         elif kind in ("partner", "former", "inlaw"):
             current = kind != "former"
             married = kind == "inlaw" or any({m["a"], m["b"]} == {a, b} for m in found["marriages"]) or any(
@@ -1745,6 +1753,20 @@ def _link_changes(con, tree: Tree, found: dict, who: dict, names: dict, placed: 
                               now=f"the tree has {events.show_date(here['date']) or 'no date'}",
                               data={**data, "event": here["id"], "fill": fill}))
     return out
+
+
+_HOW_NOW = {"birth": "by birth", "adopted": "by adoption", "foster": "fostered"}
+
+
+def _pedi(found: dict, parent: str, child: str) -> str | None:
+    """How the text says a child belongs to a parent: 'adopted' ("her adopted son"), 'foster' ("their foster
+    child"), or None: by birth, as children are unless it says otherwise."""
+    for a, word, b in found["relatives"]:
+        if (a, b) == (child, parent) and word.startswith("adopted"):
+            return "adopted"
+        if (a, b) == (child, parent) and word.startswith("foster"):
+            return "foster"
+    return None
 
 
 def _child_word(p: dict) -> str:
@@ -1850,7 +1872,7 @@ def _apply_one(con, c: Change, who: dict, report: dict) -> None:
                         kind=d["type"] or "", note=d["note"] or "")
     elif c.kind == "link":
         if d["what"] == "parent":
-            _parent(con, pid(d["child"]), pid(d["parent"]))
+            _parent(con, pid(d["child"]), pid(d["parent"]), d.get("pedi"))
         elif d["what"] == "parents":
             for q in d["parents"]:
                 _parent(con, pid(d["child"]), int(q[3:]) if q.startswith("id:") else pid(q))
@@ -1887,9 +1909,10 @@ def _apply_one(con, c: Change, who: dict, report: dict) -> None:
             con.execute("UPDATE partner SET married = 1 WHERE a = ? AND b = ?", (min(a, b), max(a, b)))
 
 
-def _parent(con, child: int, parent: int) -> None:
-    if not con.execute("SELECT 1 FROM parent WHERE child_id = ? AND parent_id = ?", (child, parent)).fetchone():
-        family._add_parent(con, child, parent)
+def _parent(con, child: int, parent: int, pedi: str | None = None) -> None:
+    """A parent link, by birth unless the text said adopted or foster (pedi), which also changes one entered."""
+    if pedi or not con.execute("SELECT 1 FROM parent WHERE child_id = ? AND parent_id = ?", (child, parent)).fetchone():
+        family._add_parent(con, child, parent, pedi=pedi)
 
 
 def _note_sources(con, found: dict, who: dict, touched: set, source: str) -> None:

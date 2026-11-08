@@ -12,8 +12,8 @@
     <div class="day-tiles">
       {%- for im in d.photos %}
       <a class="tile" href="/image/{{ im.id }}?ctx={{ ('year:' ~ im.taken_at[:4])|urlencode }}" style="--r: {{ im.ratio }}" title="{{ im.taken_at|date }}">
-        <img src="/t/{{ im.sha256 }}" loading="lazy" alt="{{ 'Video' if im.media == 'video' else 'Photo' }} from {{ im.taken_at|date(false) }}">
-        {%- if im.media == "video" %}<span class="badge video" title="Video">▶ {{ im.duration|duration }}</span>{% endif %}
+        <img src="/t/{{ im.sha256 }}" loading="lazy" alt="{{ _('%(what)s from %(taken_at)s', what={'video': _('Video'), 'audio': _('Sound recording')}.get(im.media, _('Photo')), taken_at=im.taken_at|date(false)) }}">
+        {%- if im.media == "video" %}<span class="badge video" title="{{ _('Video') }}">▶ {{ im.duration|duration }}</span>{% elif im.media == "audio" %}<span class="badge video sound" title="{{ _('Sound recording') }}">🎙 {{ im.duration|duration }}</span>{% endif %}
         {%- if date_source_label[im.taken_at_source] %}<span class="badge" title="{{ date_source_label[im.taken_at_source] }}">≈</span>{% endif %}
       </a>
       {%- endfor %}
@@ -25,13 +25,13 @@
 
 {#- the button for a member's family's older photos, or one person's (person: their id, label: the button's words):
     what it loads takes its place #}
-{% macro older_button(days, person=none, label="Show older photos of your family") %}
+{% macro older_button(days, person=none, label=_("Show older photos of your family")) %}
 {%- set last = days[-1].day %}
 <p class="more-part"><button type="button" data-append="/home/family?before={{ last.isoformat() }}&amp;month={{ last.strftime('%Y-%m') }}
-  {%- if person %}&amp;person={{ person }}{% endif %}" data-busy="Looking…">{{ label }}</button></p>
+  {%- if person %}&amp;person={{ person }}{% endif %}" data-busy="{{ _('Looking…') }}">{{ label }}</button></p>
 {% endmacro %}
 
 {%- if part %}
 {{ by_day(days, 3) }}
-{%- if older %}{{ older_button(days, person, "Show older photos" if person else "Show older photos of your family") }}{% else %}<p class="hint more-part">That's all of them.</p>{% endif %}
+{%- if older %}{{ older_button(days, person, _("Show older photos") if person else _("Show older photos of your family")) }}{% else %}<p class="hint more-part">{% trans %}That's all of them.{% endtrans %}</p>{% endif %}
 {%- endif %}

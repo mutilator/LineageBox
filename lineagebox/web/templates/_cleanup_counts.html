@@ -4,53 +4,74 @@
 {%- macro card(href, title, num) -%}
 <a class="card" href="{{ href }}">
   <b>{{ title }}</b>
-  {% if num is none %}<span class="num loading">Loading…</span>{% else %}<span class="num">{{ "{:,}".format(num) }}</span>{% endif %}
+  {% if num is none %}<span class="num loading">{% trans %}Loading…{% endtrans %}</span>{% else %}<span class="num">{{ num|number }}</span>{% endif %}
   <span>{{ caller() }}</span>
 </a>
 {%- endmacro %}
 {%- if part == "copies" %}
-{% call card("/cleanup/copies", "Duplicate copies", n and n.redundant_copies) %}files are identical copies of photos that
-are also in another folder. Remove the copies from one folder; the photo stays in the other.{% endcall %}
+{% call card("/cleanup/copies", _("Duplicate copies"), n and n.redundant_copies) %}{% trans %}files are identical copies of photos that
+are also in another folder. Remove the copies from one folder; the photo stays in the other.{% endtrans %}{% endcall %}
+{%- elif part == "similar" and viewer.limited %}
+{% call card("/cleanup/similar", _("Similar shots"), n and n.similar_groups) %}{% trans %}groups of burst shots and copies among the
+photos you uploaded. Keep the best of each.{% endtrans %}{% endcall %}
 {%- elif part == "similar" %}
-{% call card("/cleanup/similar", "Similar shots", n and n.similar_groups) %}groups of burst shots and edited versions.
-Keep the best of each.{% endcall %}
+{% call card("/cleanup/similar", _("Similar shots"), n and n.similar_groups) %}{% trans %}groups of burst shots and edited versions.
+Keep the best of each.{% endtrans %}{% endcall %}
+{%- elif part == "blurry" and viewer.limited %}
+{% call card("/cleanup/blurry", _("Blank and blurry"), n and n.blurry) %}{% trans %}photos you uploaded with almost no sharp detail:
+black frames, lens caps, shaky shots.{% endtrans %}{% endcall %}
 {%- elif part == "blurry" %}
-{% call card("/cleanup/blurry", "Blank and blurry", n and n.blurry) %}photos with almost no sharp detail, worst first:
-black frames, lens caps, shaky shots.
-{%- if n and n.unmeasured %} {{ "{:,}".format(n.unmeasured) }} photos are still being measured.{% endif %}{% endcall %}
+{% call card("/cleanup/blurry", _("Blank and blurry"), n and n.blurry) %}{% trans %}photos with almost no sharp detail, worst first:
+black frames, lens caps, shaky shots.{% endtrans %}
+{%- if n and n.unmeasured %} {% trans unmeasured=n.unmeasured|number %}{{ unmeasured }} photos are still being measured.{% endtrans %}{% endif %}{% endcall %}
 {%- elif part == "reference" %}
 {%- for kind, label in labels.items() %}
-{% call card("/cleanup/reference/" ~ kind, label, n and n.reference[kind]) %}photos without people whose AI description
-suggests a picture taken to remember something.{% endcall %}
+{% call card("/cleanup/reference/" ~ kind, label, n and n.reference[kind]) %}{% trans %}photos without people whose AI description
+suggests a picture taken to remember something.{% endtrans %}{% endcall %}
 {%- endfor %}
 {%- elif part == "faces" %}
-{% call card("/cleanup/faces", "Confirm faces", n and n.groups) %}groups of faces nobody has named yet
-{%- if n and n.beside %}, and {{ "{:,}".format(n.beside) }} unnamed faces in photos with people you've named, with a
-guess at who each is{% endif %}.{% endcall %}
+{#- the number is every tab of the page added up; the words say how many each has #}
+{% call card("/cleanup/faces", _("Confirm faces"), n and n.beside + n.finish + n.groups + n.ages + n.missed) %}{% trans %}faces to
+name or confirm{% endtrans %}{% if n %}: {% trans count=n.beside, num=n.beside|number %}{{ num }} unnamed face beside people you've named{% pluralize %}{{ num }} unnamed faces beside people you've named{% endtrans %},
+{% trans count=n.finish, num=n.finish|number %}{{ num }} photo to finish{% pluralize %}{{ num }} photos to finish{% endtrans %},
+{% trans count=n.groups, num=n.groups|number %}{{ num }} unnamed group{% pluralize %}{{ num }} unnamed groups{% endtrans %},
+{% trans count=n.ages, num=n.ages|number %}{{ num }} age to check{% pluralize %}{{ num }} ages to check{% endtrans %} and
+{% trans count=n.missed, num=n.missed|number %}{{ num }} photo with faces missed{% pluralize %}{{ num }} photos with faces missed{% endtrans %}{% endif %}.{% endcall %}
 {%- elif part == "family" %}
-{% call card("/cleanup/family", "Family tree", n and n.issues) %}things that look wrong or unfinished in the family
-tree: one parent entered, dates that can't be right, someone perhaps entered twice.{% endcall %}
+{% call card("/cleanup/family", _("Family tree"), n and n.issues) %}{% trans %}things that look wrong or unfinished in the family
+tree: one parent entered, dates that can't be right, someone perhaps entered twice.{% endtrans %}{% endcall %}
 {%- elif part == "turned" %}
-{% call card("/cleanup/turned", "Turned photos", n and n.turned) %}photos on their side or upside down, going by the
-faces in them. Turning one fixes its file too, so every program shows it the right way up.{% endcall %}
+{% call card("/cleanup/turned", _("Turned photos"), n and n.turned) %}{% trans %}photos on their side or upside down, going by the
+faces in them. Turning one fixes its file too, so every program shows it the right way up.{% endtrans %}{% endcall %}
 {%- elif part == "damaged" %}
-{% call card("/cleanup/damaged", "Damaged files", n and n.damaged) %}files a disk spoilt: cut short, partly blank, or
-changed by themselves{% if n and n.checked < n.files %} ({{ "{:,}".format(n.checked) }} of
-{{ "{:,}".format(n.files) }} checked so far){% endif %}.{% endcall %}
+{% call card("/cleanup/damaged", _("Damaged files"), n and n.damaged) %}{% trans %}files a disk spoilt: cut short, partly blank, or
+changed by themselves{% endtrans %}{% if n and n.checked < n.files %} {% trans checked=n.checked|number, files=n.files|number %}({{ checked }} of
+{{ files }} checked so far){% endtrans %}{% endif %}.{% endcall %}
 {%- elif part == "changes" %}
-{% call card("/cleanup/changes", "Recent changes", n and n.recent) %}changes family members made, to undo any of them
-{%- if n and n.widened %}; {{ n.widened }} let someone see more of the family{% endif %}.{% endcall %}
+{% call card("/cleanup/changes", _("Recent changes"), n and n.recent) %}{% trans %}what was changed in the last 30 days, by family
+members and admins, to undo any of it{% endtrans %}
+{%- if n and n.widened %}{% trans widened=n.widened %}; {{ widened }} let someone see more of the family{% endtrans %}{% endif %}.{% endcall %}
 {%- elif part == "same" %}
-{% call card("/cleanup/same", "Same person?", n and n.same) %}people family members added who may already be here under
-the same name.{% endcall %}
+{% call card("/cleanup/same", _("Same person?"), n and n.same) %}{% trans %}people who may be here twice: added by family members
+under a name already here, or with faces that look like one person's.{% endtrans %}{% endcall %}
+{%- elif part == "clocks" %}
+{% call card("/cleanup/camera-clock", _("Camera clocks"), n and n.cameras) %}{% trans %}cameras whose photos show people before they
+were born: their clock was probably wrong for a while. Put all their dates right at once.{% endtrans %}{% endcall %}
+{%- elif part == "dates" %}
+{#- the number is both tabs together; the words say how many of each #}
+{% call card("/cleanup/dates", _("Suggested dates"), n and n.documents + n.photos) %}{% trans %}scanned documents and photos dated by
+the day they were scanned, or with no date of their own, with what can tell their real date: a date written on them, the
+family tree, who is in them.{% endtrans %}{% if n %} {% trans count=n.documents, num=n.documents|number %}{{ num }} document{% pluralize %}{{ num }} documents{% endtrans %},
+{% trans count=n.photos, num=n.photos|number %}{{ num }} photo.{% pluralize %}{{ num }} photos.{% endtrans %}{% endif %}{% endcall %}
 {%- elif part == "kept" %}
-{% call card("/cleanup/kept", "Kept", n and n.kept) %}photos and folder pairs you marked to keep, so cleanup stops
-suggesting them. Undo any of them here.{% endcall %}
+{% call card("/cleanup/kept", _("Kept"), n and n.kept + n.pairs) %}{% trans %}photos and folder pairs you marked to keep, so cleanup
+stops suggesting them. Undo any of them here.{% endtrans %}{% if n %} {% trans count=n.kept, num=n.kept|number %}{{ num }} photo{% pluralize %}{{ num }} photos{% endtrans %},
+{% trans count=n.pairs, num=n.pairs|number %}{{ num }} folder pair.{% pluralize %}{{ num }} folder pairs.{% endtrans %}{% endif %}{% endcall %}
 {%- elif part == "removed" %}
-{% call card("/cleanup/removed", "Removed", n and n.removed) %}files in the Removed folder. Restore them, or empty the
-folder for good.{% endcall %}
+{% call card("/cleanup/removed", _("Removed"), n and n.removed) %}{% trans %}files in the Removed folder. Restore them, or empty the
+folder for good.{% endtrans %}{% endcall %}
 {%- elif part == "described" and n and n.described < n.to_describe %}
-<p class="meta">The lists based on AI descriptions cover the {{ "{:,}".format(n.described) }} of
-{{ "{:,}".format(n.to_describe) }} photos described so far and grow as the descriptions finish. Any search can be used
-for cleanup too: search, then “Select photos to remove”.</p>
+<p class="meta">{% trans described=n.described|number, to_describe=n.to_describe|number %}The lists based on AI descriptions cover the {{ described }} of
+{{ to_describe }} photos described so far and grow as the descriptions finish. Any search can be used
+for cleanup too: search, then “Select photos to remove”.{% endtrans %}</p>
 {%- endif %}

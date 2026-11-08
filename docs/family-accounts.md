@@ -30,10 +30,22 @@ A photo with nobody in it is seen only by whoever uploaded it, and by the admins
 belongs to the admins. Admins can also hide a photo, or a whole folder, from every member.
 
 On a photo, faces of people outside the member's tree show a name with no link. Paths on the share and network paths
-are never shown to members. They get a **Download** button instead.
+are never shown to members. They get a **Download** button instead. What thumbnails say to a screen reader (who is in
+each photo) names only the people the member sees.
 
-Tags, places on the map, life events, documents, tours, search results and counts all follow from those people and
-photos. Settings, Status and the Cleanup pages that move files are for admins only.
+Tags, places on the map, life events, documents, written sources, tours, albums, family books, search results (by words and by meaning) and counts all
+follow from those people and photos, and so does a photo's **More like this**. Each account's favourites (♡) are its
+own: nobody else sees them. Settings, Status and the Cleanup pages
+that move files are for admins only, except Blank and blurry and Similar shots of a member's own uploads (below).
+
+A member's menu has Home, People, Family, Upload and Folders (their uploads and what is shared with them) up front,
+and the rest under More (Timeline, Map, Tours, Albums, Favourites, Name faces, Tags, Cleanup). Their pages say things
+plainly: no file formats, programs or background work, which admins still see on the same pages (a video's codecs,
+the AI model, why a file can't be read). The first steps of a new LineageBox, on Home, are for admins only.
+
+Once a translation is installed ([translating](translating.md)), each relative sees the site in their browser's
+language, or the one they pick under More → Language, kept in that browser; a photo frame follows its own browser's.
+Sign-in pages follow the browser. What the family wrote (names, captions, comments, stories) is shown as written.
 
 ## Before you start
 
@@ -140,19 +152,31 @@ tries per 15 minutes. Making a new code, or taking the code away (a lost phone),
 
 ## Uploads
 
-Members upload photos, videos and whole folders from the **Upload** page. They go into
+Members upload photos, videos, sound recordings and whole folders from the **Upload** page. They go into
 `<first watched folder>/Family uploads/<person id>/`, and the worker reads them within a minute or so. The folder's
 name, which watched folder holds it, and the largest file allowed (4 GB by default) are settings on the Family accounts
 page.
 
 Members manage their uploads from **Folders**. They open one of their folders to move it, with everything in it, to the
 Removed folder, or tick photos in it to move only those. They can remove only their own uploads, and an admin can put
-anything back from **Cleanup → Removed**.
+anything back from **Cleanup → Removed**. Their Cleanup page also lists **Blank and blurry** and **Similar shots**
+among the photos they uploaded and nobody else has (no copy outside their uploads folder), to tick and move to Removed
+the same way; Keep, and clearing every group at once, stay with the admins.
+
+## Stories
+
+On any photo or person they can see, a member can record a story (**Record a story**: the microphone, or a phone's
+recorder), or one about one of that person's life events. Recording with the microphone in the page needs the site's
+secure (https) address; the phone's recorder works either way. Members hear the stories on the photos and people they
+see, and only those: one about a life event only while they see that event too. Who recorded it is named only if
+they see that person. Whoever recorded a story, or an admin, can correct its words or take it away; like every
+member's change it is listed under **Cleanup → Recent changes**, and Undo brings a story taken away back for a month.
+Anyone who sees a video or a recording can also correct a line of what Whisper wrote down.
 
 ## Sharing
 
-A member shares what is theirs: a folder of their uploads, one photo they uploaded, or a tour they made. An admin can
-share any folder, photo or tour. Each is shared with one member's account (a member picks among the people in their
+A member shares what is theirs: a folder of their uploads, one photo they uploaded, or a tour or album they made. An
+admin can share any folder, photo, tour or album. Each is shared with one member's account (a member picks among the people in their
 part of the family) or with everyone who has an account.
 
 - **A folder:** they see every photo in it and in the folders below it, including those added later. They can open the
@@ -161,25 +185,88 @@ part of the family) or with everyone who has an account.
 - **A tour:** they see the tour and the photos it picks, as it shows them to whoever made it, even photos of the maker's
   family that are outside their own branch. The tour keeps picking new photos for them. Photos someone else shared
   with the maker are not passed on.
+- **An album:** they see the album, its photos in its order with its captions, as for a tour: even photos of the
+  maker's family outside their own branch, but not photos someone else shared with the maker. They may look at it,
+  play it, download it and save it as a video; only its maker, or an admin, changes it.
 
 Whoever it is shared with sees those photos as they see their own family's: on Home, in search, on the timeline and
 the map. People in them from outside their branch are named without a link. A photo an admin hid is never shared, and
 nothing an account shared is shown while that account is switched off.
 
-The **Sharing** panel of a folder (at the top of its page), photo or tour (at the bottom) shows whom it is shared
+The **Sharing** panel of a folder (at the top of its page), photo, tour or album (at the bottom) shows whom it is shared
 with, with **Stop sharing**.
 **Folders** lists everything a member shares; for an admin it lists everything anyone shares. Members' shares are on
 **Cleanup → Recent changes** too, with undo.
 
 ## Keeping an eye on changes
 
-- **Cleanup → Recent changes** lists what members changed, by member and day, with **Undo**. A family link can widen
-  what someone sees (marking someone as your mother makes her parents your grandparents). Changes like that are
-  marked, with who now sees whom.
-- **Cleanup → Same person?** lists people members added who may already be in the catalog under another name. Merge
-  them, mark them as related, or say they are different people.
+- **Cleanup → Recent changes** lists what was changed, by whom and when, with **Undo**: members' changes, and
+  admins' own too (two people merged, someone removed, a group of faces named, many photos dated at once, a folder's
+  meaning corrected). **Family members' only** shows just theirs. A family link can widen what someone sees (marking
+  someone as your mother makes her parents your grandparents). Changes like that are marked, with who now sees whom.
+- Right after a change, a note at the foot of the page has its own **Undo**: a member can take back their own change
+  for half an hour; after that it is an admin's to undo.
+- **Cleanup → Same person?** lists people members added who may already be in the catalog under another name, and
+  any two people whose faces look like one person's. Merge them, mark them as related, or say they are different
+  people.
+- Members see **Cleanup → Confirm faces** for their part of the family, with **Ages to check** (faces named as someone
+  who can't be them by their age) and **Faces missed** (group photos with faces to look for again). They can take a
+  wrong name off or look again; **Right as it is**, **All found** and **Camera clocks** are for admins.
+- On the page of anyone they see, members can write the **life story** and notes, choose the **portrait** (from the
+  faces named as them in photos the member sees), add **sources** for them or their life events, and say a child was
+  adopted or fostered. Each is on Recent changes, with Undo. **Cleanup → Family tree** shows them the checks for their
+  part of the family, photos that don't fit the dates included; **Fine as it is** is for admins.
 - On any photo, anyone can ask **Who is this?** about a face. Those faces lead the Home page for everyone who can see
   the photo.
+- Anyone who sees a photo may ask for it to be **described again**, alone or ticked with others: the worker does it
+  with the usual model (only admins pick another). Renaming, merging or removing a tag across the library is for
+  admins, kept on Recent changes with Undo.
+- Anyone who sees a photo may **put it on the map** (Details → Put it on the map), or move it; it is on Recent changes,
+  with Undo. Putting a whole folder on the map, and writing names and places into a photo file, are for admins.
+- A member's downloads (a zip of photos, or a photo's **names and caption** file beside the original) carry the
+  photos' XMP sidecars with the names, caption, tags, date and place the family gave them, naming only the people the
+  member can see.
+
+## New for you
+
+The bell at the top of the page counts, for each account, what is new since they last opened **New for you**: a share
+with them (or with everyone), a **Who is this?** about a face in a photo they can see, new photos of their family once
+the worker has looked for faces in them, and words written under a photo they uploaded, are in or wrote on before.
+Nobody is told of what they did themselves.
+
+Each event is written once, when it happens, but who may see it is worked out each time it is shown, from what they
+may see then: a share that was stopped, a photo an admin hid since, a face named in the meantime or a comment taken
+away drops off the list, and a member is never told of a photo, face or share outside what they see. Admins' alerts
+(damaged files, a disk nearly full, a service with a problem, a newer version) are for admins only. Each account has
+its own mark of what it has seen; an admin seeing the site as a member marks nothing for them.
+
+Nothing is sent outside the house: there is no email and no push to phones. The events are kept in the catalog for 90
+days, in a form that email or push could read later if they are ever added.
+
+## Photo frames: device links
+
+A photo frame, a TV or a Home Assistant dashboard shows memories, a tour or an album without anyone signing in on it,
+through a
+**device link** an admin makes under **Settings → Photo frames** ([user guide](user-guide.md#photo-frames-and-tvs)):
+
+- **One view.** Memories as one account sees them (a member's only of their part of the family, as on their Home), the
+  whole library's memories, a tour as whoever made it sees it, or an album (in its order, with its captions) with
+  the photos whoever made it may pass on. The link sees the photos and videos on that view's
+  list and nothing else: no names (the frame shows each photo's date and the family's caption), no other page, no
+  API, no other photo. Every other address answers it as if it weren't there. A photo an admin hid from family
+  members is on no frame, even the whole library's or an admin's album: whoever walks past a frame sees it.
+- **Read-only.** It changes nothing; it can't even reach the sign-in page.
+- **Revocable.** **Turn off** stops it at once. A link also stops while the account it shows memories as is switched
+  off, and goes with that account or that tour when they are removed. A link to an album that was deleted shows
+  nothing, also once a newer album has been given the deleted one's number. The list says when each link was last
+  used and from which address.
+- **Home network only, unless unticked.** A link for a frame in another house works from anywhere, at the address
+  from outside (`public_url`). Whoever has such a link sees what it shows, so treat it like a key to that one view.
+
+The link is `/d/<token>`, a random 128-bit token shown once; the catalog keeps only its SHA-256, as for sessions. It
+needs no cookie, so it works in a Home Assistant dashboard's frame and on browsers too old for the rest of the site;
+those frame pages may be shown inside another site's page (they have nothing to click). Without family accounts the
+frame page is open on the home network like everything else (`/photo-frame`), and device links work at home only.
 
 ## Managing accounts from the command line
 
@@ -204,4 +291,4 @@ access is enforced is in [access control](access-control.md).
 
 The catalog database holds the Google client secret and the secrets behind the admins' sign-in codes, so keep backups
 of the catalog folder as private as the photos. Passkeys add nothing secret to it: only their public keys, and each
-passkey link's SHA-256.
+passkey link's SHA-256. Photo frames' device links likewise keep only their tokens' SHA-256.

@@ -9,7 +9,8 @@ PC, and the setup for working on the code. For a long-running install, Docker is
 - **Python 3.12** or newer.
 - **ffmpeg and ffprobe** on the `PATH`, for videos. Without them, photos still work. `LINEAGEBOX_FFMPEG` can name the
   folder they are in instead.
-- **ExifTool** on the `PATH` (optional). LineageBox uses it to write confirmed rotations and locations into photo files.
+- **ExifTool** on the `PATH` (optional). LineageBox uses it to write confirmed rotations, and on an admin's word the
+  family's names, captions and places, into photo files. XMP sidecars beside the photos don't need it.
 - **Ollama** (optional), for AI descriptions: [ollama.com/download](https://ollama.com/download), then
   `ollama pull ministral-3`. See [docs/ollama.md](../ollama.md).
 
@@ -63,7 +64,8 @@ Start the web UI:
 .\.venv\Scripts\python.exe -m lineagebox serve
 ```
 
-Open **http://127.0.0.1:8000**. On **Settings → Watched folders**, pick a folder and press **Watch**.
+Open **http://127.0.0.1:8000**: **Getting started** lists the first steps. On **Settings → Watched folders**, pick a
+folder and press **Watch**.
 
 Then start the worker in a second terminal. It takes new photos through every stage, then looks again every hour:
 

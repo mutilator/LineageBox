@@ -4,8 +4,12 @@ import sqlite3
 from collections import defaultdict
 from dataclasses import dataclass, field
 
-# An image is browsable once decoded and while at least one of its files is still on the share.
-VISIBLE = "i.error IS NULL AND EXISTS (SELECT 1 FROM file v WHERE v.image_id = i.id AND NOT v.missing)"
+# An image is browsable once decoded and while at least one of its files is still on the share, unless it is the clip
+# of a Live Photo (live.py): that is shown, played and worked on with its still. ON_SHARE counts clips too, for what
+# is done to every video (720p copies) and file.
+_PRESENT = "EXISTS (SELECT 1 FROM file v WHERE v.image_id = i.id AND NOT v.missing)"
+ON_SHARE = f"i.error IS NULL AND {_PRESENT}"
+VISIBLE = f"i.error IS NULL AND i.live_of IS NULL AND {_PRESENT}"
 
 
 def tag_name(value) -> str:
@@ -43,7 +47,7 @@ def folder_tree(con: sqlite3.Connection) -> dict[int, Folder]:
     cover: dict[int, str] = {}
     for folder_id, image_id, sha in con.execute("""
             SELECT f.folder_id, i.id, i.sha256 FROM file f JOIN image i ON i.id = f.image_id
-            WHERE NOT f.missing AND i.error IS NULL ORDER BY i.taken_at"""):
+            WHERE NOT f.missing AND i.error IS NULL AND i.live_of IS NULL ORDER BY i.taken_at"""):
         images[folder_id].add(image_id)
         cover.setdefault(folder_id, sha)
     for f in folders.values():
@@ -76,7 +80,7 @@ def folder_images(con: sqlite3.Connection, folder_id: int) -> list[sqlite3.Row]:
     return con.execute("""
         SELECT i.id, i.sha256, i.taken_at, i.taken_at_source, i.media, i.duration, min(f.path) AS path
         FROM file f JOIN image i ON i.id = f.image_id
-        WHERE f.folder_id = ? AND NOT f.missing AND i.error IS NULL
+        WHERE f.folder_id = ? AND NOT f.missing AND i.error IS NULL AND i.live_of IS NULL
         GROUP BY i.id ORDER BY i.taken_at, path""", (folder_id,)).fetchall()
 
 
@@ -104,6 +108,20 @@ def image(con: sqlite3.Connection, image_id: int) -> sqlite3.Row | None:
 def image_files(con: sqlite3.Connection, image_id: int) -> list[sqlite3.Row]:
     return con.execute("""SELECT f.id, f.path, f.folder_id, f.size, f.missing, f.removed_at, f.removed_reason FROM file f
                           WHERE f.image_id = ? ORDER BY f.missing, f.path""", (image_id,)).fetchall()
+
+
+def live_clip(con: sqlite3.Connection, image_id: int) -> dict | None:
+    """The clip of a Live Photo (live.py), for its still's page: its image row's id, sha256, duration, width, height
+    and playable, and url, where a <video> plays it (the /play route, as for every video). url is None while browsers
+    need a 720p copy of it that isn't made yet (a phone's HEVC clip). None when the photo has no clip, or its clip's
+    file isn't on the share. On a member's connection, the clip of a photo they see is there with it (access.py)."""
+    row = con.execute("""SELECT c.id, c.sha256, c.duration, c.width, c.height, c.playable FROM image c
+                         WHERE c.live_of = ? AND c.error IS NULL
+                         AND EXISTS (SELECT 1 FROM file v WHERE v.image_id = c.id AND NOT v.missing)
+                         ORDER BY c.id LIMIT 1""", (image_id,)).fetchone()
+    if row is None:
+        return None
+    return {**dict(row), "url": f"/play/{row['id']}" if row["playable"] in ("original", "copy") else None}
 
 
 def video_frames(con: sqlite3.Connection, image_id: int) -> list[sqlite3.Row]:
@@ -134,8 +152,10 @@ def group_members(con: sqlite3.Connection, image_id: int) -> list[sqlite3.Row]:
 
 
 def people(con: sqlite3.Connection) -> list[sqlite3.Row]:
-    """Named people with photo counts (photos still in the library: by face, or added by hand) and their clearest
-    hand-named face as a cover."""
+    """Named people with photo counts (photos still in the library: by face, or added by hand) and, as a cover, the
+    portrait chosen for them (person.cover_face_id) while that face is still theirs, else their clearest hand-named
+    face. Someone only added to photos by hand, with no face named, has the newest of those
+    photos instead (cover_photo, its sha256), and cover_face None."""
     return con.execute(f"""
         WITH shown AS (
             SELECT f.person_id, f.image_id, f.assigned_by FROM face f JOIN image i ON i.id = f.image_id
@@ -145,7 +165,12 @@ def people(con: sqlite3.Connection) -> list[sqlite3.Row]:
         SELECT p.id, p.name, count(DISTINCT s.image_id) AS photos,
                sum(s.assigned_by = 'user') AS confirmed, sum(s.assigned_by = 'auto') AS recognised,
                (SELECT c.id FROM face c JOIN image i ON i.id = c.image_id WHERE c.person_id = p.id AND {VISIBLE}
-                ORDER BY c.assigned_by = 'user' DESC, c.quality DESC LIMIT 1) AS cover_face
+                ORDER BY c.id IS (SELECT o.cover_face_id FROM person o WHERE o.id = c.person_id) DESC,
+                         c.assigned_by = 'user' DESC, c.quality DESC LIMIT 1) AS cover_face,
+               CASE WHEN max(s.assigned_by IS NOT 'hand') = 0 THEN  -- no face: only photos they were added to
+                   (SELECT i.sha256 FROM image_person l JOIN image i ON i.id = l.image_id
+                    WHERE l.person_id = p.id AND {VISIBLE} ORDER BY i.taken_at DESC, i.id DESC LIMIT 1)
+               END AS cover_photo
         FROM person p JOIN shown s ON s.person_id = p.id
         GROUP BY p.id ORDER BY photos DESC""").fetchall()
 
@@ -188,7 +213,8 @@ def clusters(con: sqlite3.Connection, offset: int = 0, limit: int = 30) -> tuple
 
 def image_faces(con: sqlite3.Connection, image_id: int) -> list[sqlite3.Row]:
     return con.execute("""SELECT f.id, f.person_id, f.assigned_by, f.assign_score, f.cluster_id, f.det_score,
-                                 f.quality, f.frame, p.name FROM face f LEFT JOIN person p ON p.id = f.person_id
+                                 f.quality, f.frame, f.x1, f.y1, f.x2, f.y2, p.name
+                          FROM face f LEFT JOIN person p ON p.id = f.person_id
                           WHERE f.image_id = ? AND (f.assigned_by IS NULL OR f.assigned_by != 'not_a_face'
                                                     OR f.person_id IS NOT NULL)
                           ORDER BY f.x1""", (image_id,)).fetchall()
@@ -238,12 +264,14 @@ def related_tags(con: sqlite3.Connection, name: str, limit: int = 30) -> list[sq
 CATEGORIES = {
     "gps": ("Photos with GPS", "i.gps_lat IS NOT NULL"),
     "videos": ("Videos", "i.media = 'video'"),
+    "recordings": ("Sound recordings", "i.media = 'audio'"),
     "format": ("{} files", "i.format = ?"),
     "dates": ("Dated by {}", "i.taken_at_source = ?"),
 }
 DATE_SOURCES = {"exif": "Camera (EXIF)", "camera": "Video's own date", "filename": "File name", "folder": "Folder name",
-                "mtime": "File time", "user": "Set by you"}
+                "mtime": "File time", "user": "Set by you", "copy": "A copy's camera date"}
 DATE_HELP = {
+    "copy": "The camera's date of a near-identical copy, for an edited, resized or scanned copy that lost its own",
     "exif": "The date and time the camera wrote into the photo: the most reliable",
     "camera": "The date the camera or phone wrote into the video",
     "filename": "A date in the file name, like IMG_20140705_101233.jpg",
@@ -251,6 +279,10 @@ DATE_HELP = {
     "mtime": "The file's own time, often when it was copied rather than taken: these dates may well be wrong",
     "user": "Dates you set on a photo's page, or for ticked photos",
 }
+# a date another app gave a photo with none of its own (imports.py): digiKam, Picasa, Google Takeout
+DATE_SOURCES["import"] = "Another app"
+DATE_HELP["import"] = ("A date another photo app gave it (in its XMP or IPTC, or Google Takeout's file beside it), for "
+                       "a photo whose own date was missing or a file time")
 
 
 def category(value: str) -> tuple[str, str, tuple] | None:
@@ -274,10 +306,11 @@ def category_images(con: sqlite3.Connection, value: str) -> list[sqlite3.Row]:
 
 
 def undecodable(con: sqlite3.Connection) -> list[sqlite3.Row]:
-    """Images on the share that could not be read, with a file of each and why."""
+    """Images on the share that could not be read, with a file of each and why. Songs, left out on purpose
+    (ingest.SONG), are not among them."""
     return con.execute("""
         SELECT i.id, i.format, i.error, min(f.path) AS path FROM image i JOIN file f ON f.image_id = i.id AND NOT f.missing
-        WHERE i.error IS NOT NULL GROUP BY i.id ORDER BY path""").fetchall()
+        WHERE i.error IS NOT NULL AND i.error NOT LIKE 'song:%' GROUP BY i.id ORDER BY path""").fetchall()
 
 
 def stats(con: sqlite3.Connection, watched: tuple[str, ...] = ()) -> dict:
@@ -308,7 +341,9 @@ def stats(con: sqlite3.Connection, watched: tuple[str, ...] = ()) -> dict:
         "images": total(lambda r: True),
         "videos": total(lambda r: r[1] == "video"),
         "video_hours": sum(r[5] for r in shown if r[1] == "video") / 3600,
-        "images_undecodable": one("""SELECT count(*) FROM image i WHERE i.error IS NOT NULL
+        "recordings": total(lambda r: r[1] == "audio"),
+        "recording_hours": sum(r[5] for r in shown if r[1] == "audio") / 3600,
+        "images_undecodable": one("""SELECT count(*) FROM image i WHERE i.error IS NOT NULL AND i.error NOT LIKE 'song:%'
                                      AND EXISTS (SELECT 1 FROM file v WHERE v.image_id = i.id AND NOT v.missing)"""),
         "images_with_gps": total(lambda r: r[3]),
         "folders_parsed": one("SELECT count(*) FROM folder WHERE kind IS NOT NULL"),

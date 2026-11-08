@@ -1,40 +1,108 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m %}
-{% block title %}{{ q or "Search" }}{% endblock %}
+{% block title %}{{ q or (heading if asked else _("Search")) }}{% endblock %}
 {% block main %}
-<h1>{% if q %}“{{ q }}”{% else %}Search{% endif %}</h1>
-{% if q %}
-{% if people_found %}
-<h2>People <small>{{ people_found|length }}</small></h2>
+<h1>{{ heading }}</h1>
+{#- the search's filters, for app.js: words typed in the box at the top keep them, and a suggestion picked adds to them #}
+<form class="search-keep" action="/search" data-search-keep hidden>
+  {%- for name, value in kept.items() %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+</form>
+{% if chips %}
+<div class="search-chips" role="group" aria-label="{{ _('Filters on this search') }}">
+  {%- for chip in chips %}
+  <a class="search-chip on" href="{{ chip.off }}" title="{{ _('Take this filter off') }}">{% trans label=chip.label %}{{ label }} <span aria-hidden="true">×</span><span class="vh"> (take off)</span>{% endtrans %}</a>
+  {%- endfor %}
+  {%- if chips|length > 1 %}
+  <a class="search-chip quiet" href="{{ ('/search?' ~ {'q': q}|urlencode) if q else '/search' }}">{% trans %}Take all off{% endtrans %}</a>
+  {%- endif %}
+</div>
+{% endif %}
+<div class="search-bar">
+  <span class="search-group" role="group" aria-label="{{ _('Photos or videos') }}">
+    {%- for label, href, on in media %}
+    <a class="search-chip" href="{{ href }}"{% if on %} aria-current="true"{% endif %}>{{ label }}</a>
+    {%- endfor %}
+  </span>
+  <span class="search-group" role="group" aria-label="{{ _('Only these photos') }}">
+    {%- for label, href, on, title in toggles %}
+    <a class="search-chip" href="{{ href }}" title="{{ title }}"{% if on %} aria-current="true"{% endif %}>{{ label }}</a>
+    {%- endfor %}
+  </span>
+  {%- if asked %}
+  <span class="search-group" role="group" aria-label="{{ _('Order') }}">
+    {%- for label, href, on in sorts %}
+    <a class="search-chip" href="{{ href }}"{% if on %} aria-current="true"{% endif %}>{{ label }}</a>
+    {%- endfor %}
+  </span>
+  {%- endif %}
+</div>
+<form class="search-range" action="/search">
+  {%- for name, value in page_query.items() if name not in ("from", "to", "place", "select") %}
+  <input type="hidden" name="{{ name }}" value="{{ value }}">
+  {%- endfor %}
+  <label>{% trans %}Years{% endtrans %} <select name="from">
+    <option value="">{% trans %}any{% endtrans %}</option>
+    {%- for y in years %}<option{% if y == f.year_from %} selected{% endif %}>{{ y }}</option>{% endfor %}
+  </select></label>
+  <label>{% trans %}to{% endtrans %} <select name="to">
+    <option value="">{% trans %}any{% endtrans %}</option>
+    {%- for y in years %}<option{% if y == f.year_to %} selected{% endif %}>{{ y }}</option>{% endfor %}
+  </select></label>
+  <label>{% trans %}Place{% endtrans %} <input name="place" list="search-places" value="{{ f.place }}" placeholder="{{ _('any place') }}" maxlength="200"></label>
+  <datalist id="search-places">
+    {%- for name in place_names %}<option value="{{ name }}">{% endfor %}
+  </datalist>
+  <button type="submit">{% trans %}Show{% endtrans %}</button>
+  <span class="hint">{% trans %}Or type a name, place or year in the search box at the top, and pick it from the list.{% endtrans %}</span>
+</form>
+{% if q and people_found %}
+<h2>{% trans %}People{% endtrans %} <small>{{ people_found|length }}</small></h2>
 <div class="people">
   {%- for p in people_found %}
   <a class="person-card" href="/person/{{ p.id }}">
     {%- if p.cover_face %}<img src="/face/{{ p.cover_face }}" alt="" loading="lazy">{% else %}<span class="ph">{{ p.name[:1] }}</span>{% endif %}
     <span class="name">{{ p.name }}</span>
     {%- if kin.get(p.id) %}<span class="kin">{{ kin[p.id] }}</span>{% endif %}
-    <span class="count">{{ "{:,}".format(p.photos) }} photo{{ "" if p.photos == 1 else "s" }}</span>
+    <span class="count">{% trans count=p.photos, photos=p.photos|number %}{{ photos }} photo{% pluralize %}{{ photos }} photos{% endtrans %}</span>
   </a>
   {%- endfor %}
 </div>
-<h2>Photos <small>{{ "{:,}".format(total) }}{% if total >= limit %}+{% endif %}</small></h2>
+{% if results %}<h2>{% trans %}Photos{% endtrans %} <small>{{ total|number }}{% if total >= limit %}+{% endif %}</small></h2>{% endif %}
 {% endif %}
+{% if asked and results %}
 <p class="meta">
-  {%- if not people_found %}{{ "{:,}".format(total) }}{% if total >= limit %}+{% endif %} photo{{ "" if total == 1 else "s" }} · {% endif -%}
-  every word must match a description, tag, place, event, folder name, person or date
-  {%- if described < to_describe %} · {{ "{:,}".format(described) }} of {{ "{:,}".format(to_describe) }} photos have AI descriptions so far{% endif %}
-  {%- if results %} · {% if select %}<a href="/search?{{ {'q': q}|urlencode }}" data-key="s">Done selecting</a>{% else %}<a href="/search?{{ {'q': q, 'select': 1}|urlencode }}" data-key="s" title="Tick photos to tag them, add someone to them or move them to Removed">Select photos</a>{% endif %}{% endif %}
+  {%- if not (q and people_found) %}{{ total|number }}{% if total >= limit %}+{% endif %} {% trans count=total %}photo{% pluralize %}photos{% endtrans %}{% endif %}
+  {%- if q %}{% if not people_found %} · {% endif %}{% trans %}every word must match something about the photo (the last may be the start of a word){% endtrans %}{% endif %}
+  {%- if q and described < to_describe %} · {% trans described=described|number, to_describe=to_describe|number %}{{ described }} of {{ to_describe }} photos have AI descriptions so far{% endtrans %}{% endif %}
+  {%- if total >= limit %} · {% trans limit=limit|number %}only the first {{ limit }} are shown: add words or filters to find the rest{% endtrans %}{% endif %}
+  {%- if select %} · <a href="/search?{{ here_query|urlencode }}" data-key="s">{% trans %}Done selecting{% endtrans %}</a>
+  {%- else %} · <a href="/search?{{ dict(here_query, select=1)|urlencode }}" data-key="s" title="{{ _('Tick photos to tag them, add someone to them or move them to Removed') }}">{% trans %}Select photos{% endtrans %}</a>{% endif %}
 </p>
 {% include "_pager.html" %}
 {% if select %}
-<form class="select-form" data-select-api="/api/images/remove" data-reason="search: {{ q }}" data-show=".select-bar .done">
+<form class="select-form" data-select-api="/api/images/remove" data-reason="search: {{ q or heading }}" data-show=".select-bar .done">
   {{ m.select_grid(results, ctx) }}
-  {{ m.bulk_bar() }}
+  {{ m.bulk_bar(models=viewer.admin) }}
 </form>
 {% else %}
 {{ m.grid(results, ctx) }}
 {% endif %}
 {% include "_pager.html" %}
+{% elif asked %}
+<div class="search-none">
+  <p><strong>{% trans %}Nothing found{% endtrans %}</strong>{% if q %} {% trans %}for “{{ q }}”{% endtrans %}{% endif %}{% if chips %} {% trans count=chips|length %}with this filter{% pluralize %}with these filters{% endtrans %}{% endif %}.</p>
+  {%- if ideas %}
+  <p>{% trans %}Perhaps:{% endtrans %}</p>
+  <ul class="search-ideas">
+    {%- for i in ideas %}
+    <li><a href="{{ i.href }}">{{ i.label }}</a> <span class="meta">{{ i.count|number }}{% if i.count >= limit %}+{% endif %} {% trans count=i.count %}photo{% pluralize %}photos{% endtrans %}</span></li>
+    {%- endfor %}
+  </ul>
+  {%- endif %}
+  <p class="meta">{% trans %}Fewer words find more, and so do other words for the same thing.{% endtrans %}
+    {%- if q and described < to_describe %} {% trans described=described|number, to_describe=to_describe|number %}Not every photo has an AI description yet: {{ described }} of {{ to_describe }} so far.{% endtrans %}{% endif %}</p>
+</div>
 {% else %}
-<p class="meta">Type words into the box above, e.g. <a href="/search?q=goat">goat</a>, <a href="/search?q=christmas+tree">christmas tree</a>, <a href="/search?q=beach">beach</a>, or a name.</p>
+<p class="meta">{% trans %}Type words into the box above, e.g. <a href="/search?q=goat">goat</a>, <a href="/search?q=christmas+tree">christmas tree</a>, <a href="/search?q=beach">beach</a>, or a name. Names, places and years can be picked from the list that opens as you type; the buttons above find photos without any words.{% endtrans %}</p>
 {% endif %}
 {% endblock %}

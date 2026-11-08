@@ -1,28 +1,44 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m %}
+{% import "_pieces.html" as pc %}
 {% block title %}{{ tour.name }}{% endblock %}
 {% block main %}
-<nav class="crumbs"><a href="/tours">Tours</a><span class="sep">/</span><h1>{{ tour.name }}</h1></nav>
-<p class="meta">{{ about|join(" · ") }} · {{ "{:,}".format(images|length) }} photo{{ "" if images|length == 1 else "s" }}</p>
-{% if keep %}<p class="hint">Not saved yet: Keep as a tour puts it on the Tours page, where it can be changed and shared.</p>{% endif %}
-{% if from_whom %}<p class="note">{{ from_whom }} shared this tour with you: you see its photos as it shows them to {{ from_whom }}.</p>{% endif %}
+<nav class="crumbs"><a href="/tours">{% trans %}Tours{% endtrans %}</a><span class="sep">/</span><h1>{{ tour.name }}</h1></nav>
+<p class="meta">{% trans count=images|length, about=about|join(" · "), images=images|length|number %}{{ about }} · {{ images }} photo{% pluralize %}{{ about }} · {{ images }} photos{% endtrans %}</p>
+{% if keep %}<p class="hint">{% trans %}Not saved yet: Keep as a tour puts it on the Tours page, where it can be changed and shared.{% endtrans %}</p>{% endif %}
+{% if from_whom %}<p class="note">{% trans %}{{ from_whom }} shared this tour with you: you see its photos as it shows them to {{ from_whom }}.{% endtrans %}</p>{% endif %}
 <p class="tour-actions">
-  {%- if slides %}<button type="button" class="primary" data-play="#slides" data-seconds="{{ tour.spec.seconds }}" data-key="p" data-key-label="Play the slideshow">▶ Play</button>{% endif %}
-  {%- if keep %}<button type="button" data-api="/api/tours" data-body='{{ keep|tojson }}' data-busy="Keeping…">Keep as a tour</button>{% endif %}
-  {%- if images and tour.id %}<a class="button quiet" href="/download/tour/{{ tour.id }}" download>Download all</a>{% endif %}
+  {%- if slides %}<button type="button" class="primary" data-play="#slides" data-seconds="{{ tour.spec.seconds }}" data-key="p" data-key-label="{{ _('Play the slideshow') }}">{% trans %}▶ Play{% endtrans %}</button>{% endif %}
+  {%- if keep %}<button type="button" data-api="/api/tours" data-body='{{ keep|tojson }}' data-busy="{{ _('Keeping…') }}">{% trans %}Keep as a tour{% endtrans %}</button>{% endif %}
+  {%- if images and tour.id %}<a class="button quiet" href="/download/tour/{{ tour.id }}" download>{% trans %}Download all{% endtrans %}</a>{% endif %}
+  {%- if images and tour.id %}<a class="button quiet" href="/photo-frame?tour={{ tour.id }}" title="{{ _('Full screen, a photo at a time, for a tablet or TV') }}">{% trans %}As a photo frame{% endtrans %}</a>{% endif %}
   {%- if theirs %}
-  <a class="button" href="/tour/{{ tour.id }}/edit">Change</a>
+  <a class="button" href="/tour/{{ tour.id }}/edit">{% trans %}Change{% endtrans %}</a>
   <button type="button" class="quiet" data-api="/api/tours/{{ tour.id }}/delete"
-          data-confirm="Delete the tour {{ tour.name }}? Only the tour goes; the photos stay where they are.">Delete</button>
+          data-confirm="{{ _('Delete the tour %(name)s? Only the tour goes; the photos stay where they are.', name=tour.name) }}">{% trans %}Delete{% endtrans %}</button>
   {%- endif %}
-  {%- if slides %}<span class="hint inline">In the slideshow: space pauses, ← → step, Esc leaves.</span>{% endif %}
+  {%- if slides %}<span class="hint inline kbd-hint">{% trans %}In the slideshow: space pauses, ← → step, Esc leaves.{% endtrans %}</span>{% endif %}
 </p>
-{% if images %}{{ m.grid(images, ctx) }}{% else %}<p class="note">No photos match this tour yet.</p>{% endif %}
+{% if video and slides %}
+<div class="video-part"{% if video.made and video.made.state in ("waiting", "making") %} data-live="/tour/{{ tour.id }}/video" data-every="5"{% endif %}>
+{% include "_slideshow_video.html" %}
+</div>
+{% endif %}
+{#- Its photos, a piece at a time (_pieces.html); a saved tour's can be ticked to work on together #}
+{% if images and tour.id %}
+<p class="meta">{% if select %}<a href="/tour/{{ tour.id }}" data-key="s">{% trans %}Done selecting{% endtrans %}</a>{% else %}<a href="/tour/{{ tour.id }}?select=1" data-key="s" title="{{ _('Tick photos to date them, tag them, add someone to them or put them in an album') }}">{% trans %}Select photos{% endtrans %}</a>{% endif %}</p>
+{% endif %}
+{% if images and select %}
+<form class="select-form" data-select-api="/api/images/remove" data-reason="tour: {{ tour.name }}" data-show=".select-bar .done">
+  {{ pc.pieced(photos) }}
+  {{ m.bulk_bar(models=viewer.admin, everything=everything) }}
+</form>
+{% elif images %}{{ pc.pieced(photos) }}{% else %}<p class="note">{% trans %}No photos match this tour yet.{% endtrans %}</p>{% endif %}
 {% if sharing %}
 <details class="info-panel"{% if sharing.shares %} open{% endif %}>
-  <summary><h2>Sharing</h2> <span class="hint inline">
-    {%- if sharing.shares %}shared with {{ sharing.shares|map(attribute="with")|join(", ") }}{% else %}not shared{% endif %}</span></summary>
-  {{ m.share_panel(sharing, "this tour") }}
+  <summary><h2>{% trans %}Sharing{% endtrans %}</h2> <span class="hint inline">
+    {%- if sharing.shares %}{% trans shares=sharing.shares|map(attribute="with")|join(", ") %}shared with {{ shares }}{% endtrans %}{% else %}{% trans %}not shared{% endtrans %}{% endif %}</span></summary>
+  {{ m.share_panel(sharing, _("this tour")) }}
 </details>
 {% endif %}
 <script type="application/json" id="slides">{{ slides|tojson }}</script>

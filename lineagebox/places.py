@@ -9,6 +9,18 @@ until switched on. Its usage policy (https://operations.osmfoundation.org/polici
 - every answer is kept, misses too, so each name is looked up once; a wrong one can be looked up again as something
   else, or taken off the map, on the map page;
 - the server is a setting (places_url), so an install can move to another Nominatim without an update.
+
+Photos with GPS are named after the nearest town without going online (towns.py, a list that comes with LineageBox).
+
+A photo or a folder can also be put on the map by hand, on the map page: a photo by anyone who can see it (tracked, so
+it can be undone), a folder by an admin. Where a photo is, the first of:
+1. its own place by hand (image_place): a phone's GPS can be wrong, and a person's word wins;
+2. its GPS;
+3. the nearest folder above it (or its own) that is placed by hand (folder_place) or whose name gives a place on the
+   map; at one folder, by hand wins.
+A place by hand is "confirmed GPS": it goes into the photo's XMP sidecar (sidecars.py) when those are on, and into the
+file only when an admin asks (writeback.py). A place from a folder's name is a town's or landmark's centre, so it stays
+in the catalog.
 """
 import sqlite3
 import threading
@@ -18,7 +30,7 @@ from datetime import datetime
 
 import httpx
 
-from lineagebox import __version__, activity, errors, events, settings
+from lineagebox import __version__, activity, errors, events, settings, towns
 from lineagebox.catalog import VISIBLE
 from lineagebox.config import Config
 
@@ -150,7 +162,8 @@ def map_data(con: sqlite3.Connection, year: int | None = None) -> dict:
 
     places: dict[tuple, dict] = {}
 
-    # key[0] is how the place is known: "gps", or from a folder's name, "confirmed" by someone or "folder" (not yet)
+    # key[0] is how the place is known: "placed" by hand (a photo's or a folder's), "gps", or from a folder's name,
+    # "confirmed" by someone or "folder" (not yet)
     def add(key, name, lat, lon, image, folder=None):
         p = places.setdefault(key, {"name": name, "lat": lat, "lon": lon, "count": 0, "photos": [], "folder": folder,
                                     "kind": key[0]})
@@ -158,36 +171,37 @@ def map_data(con: sqlite3.Connection, year: int | None = None) -> dict:
         if len(p["photos"]) < SAMPLES:
             p["photos"].append({"id": image["id"], "sha": image["sha256"]})
 
-    for r in con.execute(f"""SELECT i.id, i.sha256, i.gps_lat, i.gps_lon FROM image i
-                             WHERE {VISIBLE} AND {one_each} AND i.gps_lat IS NOT NULL {in_year}
-                             ORDER BY i.taken_at DESC""", args):
-        lat, lon = round(r["gps_lat"], 2), round(r["gps_lon"], 2)  # about a kilometre
-        add(("gps", lat, lon), "Taken here (GPS)", lat, lon, r)
+    names: dict[tuple, str] = {}
 
+    def town(lat, lon, otherwise):
+        if (lat, lon) not in names:
+            names[(lat, lon)] = towns.label(lat, lon) or otherwise
+        return names[(lat, lon)]
+
+    hand = HandPlaces(con)
     coords = {r["name"]: (r["lat"], r["lon"]) for r in con.execute("SELECT * FROM place WHERE lat IS NOT NULL")}
     confirmed = {r[0] for r in con.execute("SELECT name FROM place WHERE lat IS NOT NULL AND confirmed_at IS NOT NULL")}
-    folders = {r["id"]: r for r in con.execute("SELECT id, parent_id, place, name FROM folder")}
-    where = {}  # folder -> the nearest folder above it (or itself) with a place on the map
-
-    def placed(fid):
-        if fid not in where:
-            f = folders.get(fid)
-            name = (f["place"] or "").strip() if f else ""
-            where[fid] = (fid, name) if name in coords else placed(f["parent_id"]) if f and f["parent_id"] else None
-        return where[fid]
-
     unplaced = 0
-    for r in con.execute(f"""SELECT i.id, i.sha256, i.gps_lat, min(f.folder_id) AS folder_id FROM image i
+    for r in con.execute(f"""SELECT i.id, i.sha256, i.gps_lat, i.gps_lon, min(f.folder_id) AS folder_id FROM image i
                              JOIN file f ON f.image_id = i.id AND NOT f.missing
                              WHERE {VISIBLE} AND {one_each} {in_year} GROUP BY i.id ORDER BY i.taken_at DESC""", args):
-        if r["gps_lat"] is not None:
+        if (own := hand.photos.get(r["id"])) is not None:
+            lat, lon = round(own[0], 4), round(own[1], 4)  # each spot someone picked: about 10 m
+            add(("placed", lat, lon), town(round(own[0], 2), round(own[1], 2), "Placed by hand"), lat, lon, r)
             continue
-        hit = placed(r["folder_id"])
+        if r["gps_lat"] is not None:
+            lat, lon = round(r["gps_lat"], 2), round(r["gps_lon"], 2)  # about a kilometre
+            add(("gps", lat, lon), town(lat, lon, "Taken here (GPS)"), lat, lon, r)
+            continue
+        hit = hand.folder(r["folder_id"], coords)
         if hit is None:
             unplaced += 1
             continue
-        fid, name = hit
-        add(("confirmed" if name in confirmed else "folder", name), name, *coords[name], r, folder=fid)
+        fid, name, spot = hit
+        if spot is not None:  # a folder placed by hand
+            add(("placed", "folder", fid), hand.folder_name(fid), *spot, r, folder=fid)
+        else:
+            add(("confirmed" if name in confirmed else "folder", name), name, *coords[name], r, folder=fid)
 
     family_events = []
     for e in con.execute(f"""SELECT e.*, coalesce(p.name, a.name || ' and ' || b.name) AS who FROM event e
@@ -205,3 +219,134 @@ def map_data(con: sqlite3.Connection, year: int | None = None) -> dict:
             "events": family_events, "unplaced": unplaced,
             "to_find": len(names_to_find(con)), "not_found": con.execute(
                 "SELECT count(*) FROM place WHERE lat IS NULL AND source = 'osm'").fetchone()[0]}
+
+
+# ---- placed by hand -----------------------------------------------------------------------------------------------
+
+class HandPlaces:
+    """Photos and folders placed on the map by hand, read once for many photos (the map, the sidecars, the export).
+    On a member's connection, only theirs to see."""
+
+    def __init__(self, con: sqlite3.Connection):
+        self.con = con
+        self.photos = {r[0]: (r[1], r[2]) for r in con.execute("SELECT image_id, lat, lon FROM image_place")}
+        self.folders = {r[0]: (r[1], r[2]) for r in con.execute("SELECT folder_id, lat, lon FROM folder_place")}
+        self._tree = None
+        self._named = None
+        self._near: dict[tuple[int, bool], tuple | None] = {}
+
+    @property
+    def tree(self) -> dict:
+        if self._tree is None:
+            self._tree = {r[0]: (r[1], (r[2] or "").strip(), r[3]) for r in
+                          self.con.execute("SELECT id, parent_id, place, name FROM folder")}
+        return self._tree
+
+    @property
+    def named(self) -> dict:
+        """Place names found on the map, as a folder's name gives one: (lat, lon) by name."""
+        if self._named is None:
+            self._named = {r[0]: (r[1], r[2]) for r in
+                           self.con.execute("SELECT name, lat, lon FROM place WHERE lat IS NOT NULL")}
+        return self._named
+
+    def folder_name(self, folder_id: int) -> str:
+        return (self.tree.get(folder_id) or (None, "", ""))[2] or "Placed by hand"
+
+    def folder(self, folder_id: int | None, coords: dict | None = None):
+        """The nearest folder, up from this one, placed by hand or (given the coordinates of place names) named for a
+        place on the map: (folder id, the place's name, (lat, lon) when by hand), or None."""
+        key = (folder_id, coords is not None)
+        if key in self._near:
+            return self._near[key]
+        path, fid, found = [], folder_id, None
+        while fid is not None and fid not in path:  # up the tree; a cycle would be a damaged catalog
+            path.append(fid)
+            if (fid, coords is not None) in self._near:
+                found = self._near[(fid, coords is not None)]
+                break
+            if fid in self.folders:
+                found = (fid, None, self.folders[fid])
+                break
+            parent, name, _ = self.tree.get(fid, (None, "", ""))
+            if coords is not None and name and name in coords:
+                found = (fid, name, None)
+                break
+            fid = parent
+        for f in path:
+            self._near[(f, coords is not None)] = found
+        return found
+
+    def of(self, image_id: int, folder_id: int | None = None) -> tuple[float, float, str] | None:
+        """Where a photo was taken by someone's word: (lat, lon, "photo" or "folder"), or None. folder_id: its first
+        file's folder, if known."""
+        if image_id in self.photos:
+            return (*self.photos[image_id], "photo")
+        if not self.folders:
+            return None
+        if folder_id is None:
+            row = self.con.execute("SELECT min(folder_id) FROM file WHERE image_id = ? AND NOT missing",
+                                   (image_id,)).fetchone()
+            folder_id = row[0] if row else None
+        # the nearest folder with a place, as on the map: one named for a place, below one placed by hand, wins, and
+        # its place (a town's centre) stays in the catalog
+        hit = self.folder(folder_id, self.named)
+        return (*hit[2], "folder") if hit and hit[2] else None
+
+
+def _check_spot(lat, lon) -> tuple[float, float]:
+    try:
+        lat, lon = float(lat), float(lon)
+    except (TypeError, ValueError):
+        raise Problem("A place is a latitude and a longitude.") from None
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        raise Problem("That isn't a place on the map.")
+    return round(lat, 6), round(lon, 6)  # about 10 cm: more than any map click means
+
+
+def place_photo(con: sqlite3.Connection, image_id: int, lat, lon, account_id: int | None = None) -> None:
+    """Put a photo on the map by hand (or move it there). Doesn't commit."""
+    lat, lon = _check_spot(lat, lon)
+    con.execute("""INSERT INTO image_place(image_id, lat, lon, account_id, at) VALUES (?, ?, ?, ?, ?)
+                   ON CONFLICT(image_id) DO UPDATE SET lat = excluded.lat, lon = excluded.lon,
+                   account_id = excluded.account_id, at = excluded.at""",
+                (image_id, lat, lon, account_id, datetime.now().isoformat(timespec="seconds")))
+
+
+def place_folder(con: sqlite3.Connection, folder_id: int, lat, lon, account_id: int | None = None) -> None:
+    """Put a folder on the map by hand: its photos, and those of the folders in it, without a place of their own."""
+    lat, lon = _check_spot(lat, lon)
+    con.execute("""INSERT INTO folder_place(folder_id, lat, lon, account_id, at) VALUES (?, ?, ?, ?, ?)
+                   ON CONFLICT(folder_id) DO UPDATE SET lat = excluded.lat, lon = excluded.lon,
+                   account_id = excluded.account_id, at = excluded.at""",
+                (folder_id, lat, lon, account_id, datetime.now().isoformat(timespec="seconds")))
+
+
+def unplace_photo(con: sqlite3.Connection, image_id: int) -> None:
+    con.execute("DELETE FROM image_place WHERE image_id = ?", (image_id,))
+
+
+def unplace_folder(con: sqlite3.Connection, folder_id: int) -> None:
+    con.execute("DELETE FROM folder_place WHERE folder_id = ?", (folder_id,))
+
+
+def photo_place(con: sqlite3.Connection, image_id: int, image) -> dict | None:
+    """Where the photo page says a photo was taken: {lat, lon, how, label, folder}. how: "photo" (placed by hand),
+    "gps", "folder" (its folder placed by hand) or "name" (a place its folder's name gives, found on the map)."""
+    hand = HandPlaces(con)
+    folder_id = con.execute("SELECT min(folder_id) FROM file WHERE image_id = ? AND NOT missing",
+                            (image_id,)).fetchone()[0]
+    spot, how, folder, name = None, None, None, None
+    if image_id in hand.photos:
+        spot, how = hand.photos[image_id], "photo"
+    elif image["gps_lat"] is not None and image["gps_lon"] is not None:
+        spot, how = (image["gps_lat"], image["gps_lon"]), "gps"
+    else:
+        coords = {r[0]: (r[1], r[2]) for r in con.execute("SELECT name, lat, lon FROM place WHERE lat IS NOT NULL")}
+        hit = hand.folder(folder_id, coords)
+        if hit is None:
+            return None
+        folder, name, by_hand = hit
+        spot, how = (by_hand, "folder") if by_hand else (coords[name], "name")
+    label = name if how == "name" else towns.label(*spot)
+    return {"lat": spot[0], "lon": spot[1], "how": how, "label": label, "folder": folder}

@@ -25,6 +25,7 @@ threads = 8                      # photos read at a time; fewer for a slow disk 
 url = "http://localhost:11434"   # Ollama, for descriptions and folder names (docs/ollama.md)
 model = "ministral-3"
 workers = 2                      # photos sent at a time
+embed_model = "nomic-embed-text" # search by meaning (docs/ollama.md); "" finds words only
 
 [whisper]
 url = ""                         # the speech-to-text service for videos, e.g. "http://localhost:9300" (docs/whisper.md)

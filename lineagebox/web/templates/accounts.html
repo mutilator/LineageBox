@@ -1,73 +1,73 @@
 {% extends "base.html" %}
-{% block title %}Family accounts{% endblock %}
+{% block title %}{% trans %}Family accounts{% endtrans %}{% endblock %}
 {% block main %}
-<h1>Settings</h1>
+<h1>{% trans %}Settings{% endtrans %}</h1>
 <div class="settings-page">
 {% include "_settings_nav.html" %}
 <div class="settings-body">
-<p class="meta">Family members sign in with Google, or with a passkey: the lock of their own phone or computer, for
+<p class="meta">{% trans %}Family members sign in with Google, or with a passkey: the lock of their own phone or computer, for
 those without a Google account. A member sees their own part of the family: their ancestors, every
 blood relative, the partners of those and their children, and their own partner's side; the photos those people are
 in; what they upload; and what others share with them. An admin sees and changes everything.
-<a href="/folders">What is shared</a> lists everything shared, by whom and with whom.</p>
+<a href="/folders">What is shared</a> lists everything shared, by whom and with whom.{% endtrans %}</p>
 
 <div class="settings">
 <section class="panel" id="sign-in">
-  <h2>Sign-in</h2>
+  <h2>{% trans %}Sign-in{% endtrans %}</h2>
   <form data-api="/api/settings/accounts" data-settings data-show="#accounts-saved">
     <p><label><input type="checkbox" name="accounts_enabled"{% if cfg.accounts_enabled %} checked{% endif %}>
-      Family accounts on</label>
-      <span class="hint">On: everyone signs in, at home too, and the site can be opened from outside. Off: only the
-      home network, with no sign-in, as before.</span></p>
-    <p><label>Google client ID <input name="google_client_id" value="{{ cfg.google_client_id }}" size="60"
-      placeholder="….apps.googleusercontent.com"></label></p>
-    <p><label>Client secret <input name="google_client_secret" type="password" autocomplete="new-password"
-      placeholder="{{ 'kept; type a new one to change it' if cfg.google_client_secret else 'from Google Cloud' }}"></label></p>
-    <p><label>Address from outside <input name="public_url" value="{{ cfg.public_url }}" placeholder="https://photos.example.com"></label>
-      <span class="hint">In Google Cloud → APIs &amp; Services → Credentials, the client's authorised redirect URI is
+      {% trans %}Family accounts on{% endtrans %}</label>
+      <span class="hint">{% trans %}On: everyone signs in, at home too, and the site can be opened from outside. Off: only the
+      home network, with no sign-in, as before.{% endtrans %}</span></p>
+    <p><label>{% trans %}Google client ID{% endtrans %} <input name="google_client_id" value="{{ cfg.google_client_id }}" size="60"
+      placeholder="{{ _('….apps.googleusercontent.com') }}"></label></p>
+    <p><label>{% trans %}Client secret{% endtrans %} <input name="google_client_secret" type="password" autocomplete="new-password"
+      placeholder="{{ _('kept; type a new one to change it') if cfg.google_client_secret else _('from Google Cloud') }}"></label></p>
+    <p><label>{% trans %}Address from outside{% endtrans %} <input name="public_url" value="{{ cfg.public_url }}" placeholder="{{ _('https://photos.example.com') }}"></label>
+      <span class="hint">{% trans %}In Google Cloud → APIs &amp; Services → Credentials, the client's authorised redirect URI is
       <code>{{ redirect_uri }}</code>. Passkeys are made for this name too: change it later, and everyone's passkeys
-      stop working until they make new ones.</span></p>
-    <p><label>Stay signed in for <input name="session_days" type="number" min="1" max="365" value="{{ cfg.session_days }}"> days</label></p>
-    <h3 id="passkeys">Passkeys</h3>
+      stop working until they make new ones.{% endtrans %}</span></p>
+    <p><label>{% trans %}Stay signed in for{% endtrans %} <input name="session_days" type="number" min="1" max="365" value="{{ cfg.session_days }}"> {% trans %}days{% endtrans %}</label></p>
+    <h3 id="passkeys">{% trans %}Passkeys{% endtrans %}</h3>
     {%- if passkey_problem %}
-    <p class="state off">Passkeys can't be set up yet.</p>
+    <p class="state off">{% trans %}Passkeys can't be set up yet.{% endtrans %}</p>
     <p class="note">{{ passkey_problem }}</p>
     {%- else %}
-    <p class="state on">Ready, for {{ passkey_domain }}.</p>
+    <p class="state on">{% trans %}Ready, for {{ passkey_domain }}.{% endtrans %}</p>
     {%- endif %}
-    <p class="hint">A passkey signs someone in with the lock of their phone or computer (their face, fingerprint or
+    <p class="hint">{% trans %}A passkey signs someone in with the lock of their phone or computer (their face, fingerprint or
       PIN) instead of Google: for those without a Google account, or anyone who would rather. To give someone one,
       open their account below, press <b>Make a passkey link</b> and send them the link: it works once, for
       {{ invite_days }} days ({{ admin_hours }} hours for an admin's account). Once signed in, they can add passkeys
-      on their other devices from the round button at the top → Passkeys.</p>
-    <p class="hint">Passkeys need three things: <b>HTTPS</b> (a certificate, or a reverse proxy that does HTTPS: see
+      on their other devices from the round button at the top → Passkeys.{% endtrans %}</p>
+    <p class="hint">{% trans %}Passkeys need three things: <b>HTTPS</b> (a certificate, or a reverse proxy that does HTTPS: see
       <a href="/settings#address">Address and HTTPS</a>); the <b>Address from outside</b> above, a name such as
       photos.example.com; and that <b>name listed exactly under Host names</b>, with no name with * there. Browsers
-      only use a passkey on the one name it was made for, over HTTPS with a certificate they trust.</p>
-    <h3>Uploads</h3>
-    <p><label>Folder <input name="uploads_folder" value="{{ cfg.uploads_folder }}"></label>
-      <label>in <select name="uploads_into">
-        <option value="">{{ cfg.folders[0] if cfg.folders else "the first watched folder" }}</option>
+      only use a passkey on the one name it was made for, over HTTPS with a certificate they trust.{% endtrans %}</p>
+    <h3>{% trans %}Uploads{% endtrans %}</h3>
+    <p><label>{% trans %}Folder{% endtrans %} <input name="uploads_folder" value="{{ cfg.uploads_folder }}"></label>
+      <label>{% trans %}in{% endtrans %} <select name="uploads_into">
+        <option value="">{{ cfg.folders[0] if cfg.folders else _("the first watched folder") }}</option>
         {%- for f in cfg.folders[1:] %}<option{% if cfg.uploads_into == f %} selected{% endif %}>{{ f }}</option>{% endfor %}
       </select></label>
-      <label>at most <input name="upload_max_gb" type="number" min="1" max="100" value="{{ cfg.upload_max_gb }}"> GB a file</label>
-      <span class="hint">Each member's uploads go to <code>{{ uploads_root }}/&lt;their person's number&gt;</code>.</span></p>
-    <p><button type="submit" class="primary">Save</button> <span class="hint inline" id="accounts-saved"></span></p>
+      <label>{% trans %}at most{% endtrans %} <input name="upload_max_gb" type="number" min="1" max="100" value="{{ cfg.upload_max_gb }}"> {% trans %}GB a file{% endtrans %}</label>
+      <span class="hint">{% trans %}Each member's uploads go to <code>{{ uploads_root }}/&lt;their person's number&gt;</code>.{% endtrans %}</span></p>
+    <p><button type="submit" class="primary">{% trans %}Save{% endtrans %}</button> <span class="hint inline" id="accounts-saved"></span></p>
   </form>
 </section>
 
 <section class="panel" id="accounts">
-  <h2>Accounts <small>{{ rows|length }}</small></h2>
-  <h3 id="add-account">Add an account</h3>
+  <h2>{% trans %}Accounts{% endtrans %} <small>{{ rows|length }}</small></h2>
+  <h3 id="add-account">{% trans %}Add an account{% endtrans %}</h3>
   <form class="inline-facts" data-api="/api/accounts">
-    <input name="email" type="email" required placeholder="email address" aria-label="Email address">
-    <input name="name" data-names autocomplete="off" maxlength="80" placeholder="who they are in the family tree" aria-label="Who they are">
-    <select name="role" aria-label="Role">{% for r in roles %}<option{% if r == "member" %} selected{% endif %}>{{ r }}</option>{% endfor %}</select>
-    <button type="submit">Add</button>
+    <input name="email" type="email" required placeholder="{{ _('email address') }}" aria-label="{{ _('Email address') }}">
+    <input name="name" data-names autocomplete="off" maxlength="80" placeholder="{{ _('who they are in the family tree') }}" aria-label="{{ _('Who they are') }}">
+    <select name="role" aria-label="{{ _('Role') }}">{% for r in roles %}<option{% if r == "member" %} selected{% endif %}>{{ r }}</option>{% endfor %}</select>
+    <button type="submit">{% trans %}Add{% endtrans %}</button>
   </form>
   {%- if rows|length > 1 %}
   <p class="account-find"><input type="search" id="account-filter" data-filter=".account-row" data-count="#account-count"
-    placeholder="Find an account: a name, an email, admin, member" aria-label="Find an account"> <span class="hint inline" id="account-count"></span></p>
+    placeholder="{{ _('Find an account: a name, an email, admin, member') }}" aria-label="{{ _('Find an account') }}"> <span class="hint inline" id="account-count"></span></p>
   {%- endif %}
   {#- each account folded: its person's name (or email) to click; its settings and exceptions inside. The one open
       stays open when a change loads the page again (data-keep-open: its id goes in the address). #}
@@ -76,69 +76,69 @@ in; what they upload; and what others share with them. An admin sees and changes
     data-text="{{ a.person_name or '' }} {{ a.email }} {{ a.role }}{% if a.disabled_at %} switched off{% endif %}">
     <summary><b>{{ a.person_name or a.email }}</b>
       <span class="hint inline">{% if a.person_name %}{{ a.email }} · {% endif %}{{ a.role }}
-      {%- if a.disabled_at %} · switched off{% endif %}{% if a.last_seen_at %} · last here {{ a.last_seen_at|date(false) }}{% endif %}
-      {%- if keys.get(a.id) %} · {{ keys[a.id]|length }} passkey{{ "" if keys[a.id]|length == 1 else "s" }}{% endif %}</span></summary>
+      {%- if a.disabled_at %} · {% trans %}switched off{% endtrans %}{% endif %}{% if a.last_seen_at %} · {% trans last_seen_at=a.last_seen_at|date(false) %}last here {{ last_seen_at }}{% endtrans %}{% endif %}
+      {%- if keys.get(a.id) %} · {% trans count=keys[a.id]|length %}{{ count }} passkey{% pluralize %}{{ count }} passkeys{% endtrans %}{% endif %}</span></summary>
     <div class="account-body">
-    {%- if a.sessions %}<p class="hint">Signed in on {{ a.sessions }} browser{{ "" if a.sessions == 1 else "s" }}.</p>{% endif %}
+    {%- if a.sessions %}<p class="hint">{% trans count=a.sessions %}Signed in on {{ count }} browser.{% pluralize %}Signed in on {{ count }} browsers.{% endtrans %}</p>{% endif %}
     <div class="passkeys">
       {%- for k in keys.get(a.id, []) %}
       <p class="passkey-line">{% include "_passkey_icon.html" %} {{ k.name }}
-        <span class="hint inline">made {{ k.created_at|date(false) }}{% if k.last_used_at %} · last used {{ k.last_used_at|date(false) }}{% endif %}
-        {%- if k.rp_id != passkey_domain %} · made for {{ k.rp_id }}, so it doesn't work here any more{% endif %}</span>
+        <span class="hint inline">{% trans created_at=k.created_at|date(false) %}made {{ created_at }}{% endtrans %}{% if k.last_used_at %} · {% trans last_used_at=k.last_used_at|date(false) %}last used {{ last_used_at }}{% endtrans %}{% endif %}
+        {%- if k.rp_id != passkey_domain %} · {% trans rp_id=k.rp_id %}made for {{ rp_id }}, so it doesn't work here any more{% endtrans %}{% endif %}</span>
         <button type="button" class="quiet" data-api="/api/passkeys/{{ k.id }}/remove" data-reload
-          data-confirm="Take away the passkey {{ k.name }} of {{ a.email }}? It stops signing them in, and wherever it signed them in is signed out.">Take it away</button></p>
+          data-confirm="{{ _('Take away the passkey %(name)s of %(email)s? It stops signing them in, and wherever it signed them in is signed out.', name=k.name, email=a.email) }}">{% trans %}Take it away{% endtrans %}</button></p>
       {%- endfor %}
       <p class="actions">
         {%- if passkey_problem %}
-        <button type="button" disabled>Make a passkey link</button>
-        <span class="hint inline">Passkeys can't be set up yet: see <a href="#passkeys">Passkeys</a> above.</span>
+        <button type="button" disabled>{% trans %}Make a passkey link{% endtrans %}</button>
+        <span class="hint inline">{% trans %}Passkeys can't be set up yet: see <a href="#passkeys">Passkeys</a> above.{% endtrans %}</span>
         {%- elif a.disabled_at %}
-        <span class="hint inline">Switched off: no passkey link until it is switched back on.</span>
+        <span class="hint inline">{% trans %}Switched off: no passkey link until it is switched back on.{% endtrans %}</span>
         {%- else %}
         <button type="button" data-api="/api/accounts/{{ a.id }}/invite" data-html="#link{{ a.id }}"
-          {%- if links.get(a.id) %} data-confirm="Make a new link for {{ a.email }}? The one made before stops working."{% endif %}>
-          {{- "Make a new passkey link" if links.get(a.id) else "Make a passkey link" }}</button>
+          {%- if links.get(a.id) %} data-confirm="{{ _('Make a new link for %(email)s? The one made before stops working.', email=a.email) }}"{% endif %}>
+          {{- _("Make a new passkey link") if links.get(a.id) else _("Make a passkey link") }}</button>
         {%- if links.get(a.id) %}
-        <span class="hint inline">A link is out, until {{ links[a.id]|date }}.</span>
-        <button type="button" class="quiet" data-api="/api/accounts/{{ a.id }}/invite/cancel" data-reload>Stop the link</button>
+        <span class="hint inline">{% trans a_id=links[a.id]|date %}A link is out, until {{ a_id }}.{% endtrans %}</span>
+        <button type="button" class="quiet" data-api="/api/accounts/{{ a.id }}/invite/cancel" data-reload>{% trans %}Stop the link{% endtrans %}</button>
         {%- endif %}
         {%- endif %}
       </p>
       <div id="link{{ a.id }}"></div>
     </div>
     <form class="inline-facts" data-api="/api/accounts/{{ a.id }}">
-      <input name="name" data-names autocomplete="off" maxlength="80" value="{{ a.person_name or '' }}" aria-label="Who they are in the family tree" placeholder="who they are">
-      <select name="role" aria-label="Role">{% for r in roles %}<option{% if r == a.role %} selected{% endif %}>{{ r }}</option>{% endfor %}</select>
-      <button type="submit">Save</button>
+      <input name="name" data-names autocomplete="off" maxlength="80" value="{{ a.person_name or '' }}" aria-label="{{ _('Who they are in the family tree') }}" placeholder="{{ _('who they are') }}">
+      <select name="role" aria-label="{{ _('Role') }}">{% for r in roles %}<option{% if r == a.role %} selected{% endif %}>{{ r }}</option>{% endfor %}</select>
+      <button type="submit">{% trans %}Save{% endtrans %}</button>
     </form>
     <p class="actions">
-      {%- if a.role == "member" and not a.disabled_at %}<button type="button" data-api="/api/see-as" data-body='{{ {"account_id": a.id}|tojson }}'>See as</button>{% endif %}
-      <button type="button" class="quiet" data-api="/api/accounts/{{ a.id }}" data-body='{{ {"disabled": not a.disabled_at}|tojson }}' data-reload>{{ "Switch back on" if a.disabled_at else "Switch off" }}</button>
-      <button type="button" class="quiet" data-api="/api/accounts/{{ a.id }}/signout" data-show="#out{{ a.id }}">Sign out everywhere</button>
+      {%- if a.role == "member" and not a.disabled_at %}<button type="button" data-api="/api/see-as" data-body='{{ {"account_id": a.id}|tojson }}'>{% trans %}See as{% endtrans %}</button>{% endif %}
+      <button type="button" class="quiet" data-api="/api/accounts/{{ a.id }}" data-body='{{ {"disabled": not a.disabled_at}|tojson }}' data-reload>{{ _("Switch back on") if a.disabled_at else _("Switch off") }}</button>
+      <button type="button" class="quiet" data-api="/api/accounts/{{ a.id }}/signout" data-show="#out{{ a.id }}">{% trans %}Sign out everywhere{% endtrans %}</button>
       {%- if a.role == "admin" %}
-      <a class="button quiet" href="/settings/codes#a{{ a.id }}">{{ "Code for signing in at home" if a.local_secret else "Make a code for signing in at home" }}</a>
+      <a class="button quiet" href="/settings/codes#a{{ a.id }}">{{ _("Code for signing in at home") if a.local_secret else _("Make a code for signing in at home") }}</a>
       {%- endif %}
-      <button type="button" class="quiet" data-api="/api/accounts/{{ a.id }}/delete" data-confirm="Remove the account of {{ a.email }}? Their uploads stay." data-reload>Remove</button>
+      <button type="button" class="quiet" data-api="/api/accounts/{{ a.id }}/delete" data-confirm="{{ _('Remove the account of %(email)s? Their uploads stay.', email=a.email) }}" data-reload>{% trans %}Remove{% endtrans %}</button>
       <span class="hint inline" id="out{{ a.id }}"></span>
     </p>
     {%- if a.role == "member" %}
     <div class="rules">
       {%- for r in rules.get(a.id, []) %}
-      <span class="tag-chip">{{ "Also" if r.show else "Not" }} {{ r.name }}{% if r.branch %} and their family{% endif %}
-        <button type="button" class="x" data-api="/api/accounts/{{ a.id }}/rules/remove" data-body='{{ {"person_id": r.person_id}|tojson }}' data-reload aria-label="Take this exception off">×</button></span>
+      <span class="tag-chip">{{ _("Also") if r.show else _("Not") }} {{ r.name }}{% if r.branch %} {% trans %}and their family{% endtrans %}{% endif %}
+        <button type="button" class="x" data-api="/api/accounts/{{ a.id }}/rules/remove" data-body='{{ {"person_id": r.person_id}|tojson }}' data-reload aria-label="{{ _('Take this exception off') }}">×</button></span>
       {%- endfor %}
       <form class="inline-facts" data-api="/api/accounts/{{ a.id }}/rules" data-reload>
-        <select name="show" aria-label="Show or not"><option value="true">Also show</option><option value="false">Don't show</option></select>
-        <input name="name" data-names autocomplete="off" required maxlength="80" placeholder="someone" aria-label="Who">
-        <label><input type="checkbox" name="branch"> with their family</label>
-        <button type="submit">Add</button>
+        <select name="show" aria-label="{{ _('Show or not') }}"><option value="true">{% trans %}Also show{% endtrans %}</option><option value="false">{% trans %}Don't show{% endtrans %}</option></select>
+        <input name="name" data-names autocomplete="off" required maxlength="80" placeholder="{{ _('someone') }}" aria-label="{{ _('Who') }}">
+        <label><input type="checkbox" name="branch"> {% trans %}with their family{% endtrans %}</label>
+        <button type="submit">{% trans %}Add{% endtrans %}</button>
       </form>
     </div>
     {%- endif %}
     </div>
   </details>
   {%- else %}
-  <p class="note">No accounts yet. Add your own first, as an admin.</p>
+  <p class="note">{% trans %}No accounts yet. Add your own first, as an admin.{% endtrans %}</p>
   {%- endfor %}
 </section>
 </div>

@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from lineagebox import mounts, search, video
+from lineagebox import live, media, mounts, search, sidecars, video
 from lineagebox.catalog import VISIBLE
 from lineagebox.config import Config
 from lineagebox.faces import usable_faces_sql
@@ -43,20 +43,29 @@ class Moved:
 
 def remove_files(con: sqlite3.Connection, cfg: Config, file_ids: list[int], reason: str,
                  keep_last_copy: bool = True) -> Moved:
-    """Move these files to the Removed folder. With keep_last_copy, a photo's only remaining copy is never moved."""
+    """Move these files to the Removed folder. With keep_last_copy, a photo's only remaining copy is never moved. A Live
+    Photo's clip beside a file (live.py) goes with it, but for its only copy with keep_last_copy."""
     batch, now, result = time.time_ns() // 1_000_000, datetime.now().isoformat(timespec="seconds"), Moved()
     images, removed_to = set(), {}
     con.commit()
     for start in range(0, len(file_ids), CHUNK):
         con.execute("BEGIN IMMEDIATE")  # the last-copy check and the move happen while no one else can write
         try:
-            for fid in file_ids[start:start + CHUNK]:
-                f = con.execute("SELECT id, path, image_id FROM file WHERE id = ? AND NOT missing", (fid,)).fetchone()
+            todo, clips = list(file_ids[start:start + CHUNK]), set()
+            while todo:
+                fid = todo.pop(0)
+                f = con.execute("""SELECT f.id, f.path, f.image_id, i.live_of FROM file f
+                                   LEFT JOIN image i ON i.id = f.image_id WHERE f.id = ? AND NOT f.missing""",
+                                (fid,)).fetchone()
                 if f is None:
                     continue
-                if keep_last_copy and con.execute("SELECT 1 FROM file WHERE image_id = ? AND id != ? AND NOT missing",
-                                                  (f["image_id"], fid)).fetchone() is None:
-                    result.errors.append(f"{f['path']}: kept, it is the only copy")
+                if keep_last_copy and con.execute(
+                        "SELECT 1 FROM file WHERE image_id = ? AND id != ? AND NOT missing",
+                        (f["image_id"], fid)).fetchone() is None:
+                    # a clip's only copy stays too: its still has a copy elsewhere, so the photo is kept, and
+                    # emptying the Removed folders would delete the clip for good
+                    if fid not in clips:
+                        result.errors.append(f"{f['path']}: kept, it is the only copy")
                     continue
                 watched = watched_folder(cfg, f["path"])
                 if watched not in removed_to:
@@ -70,10 +79,14 @@ def remove_files(con: sqlite3.Connection, cfg: Config, file_ids: list[int], reas
                 staying = con.execute("""SELECT path FROM file WHERE image_id = ? AND id != ? AND NOT missing
                                          ORDER BY length(path), path LIMIT 1""", (f["image_id"], fid)).fetchone()
                 _move_copy(cfg, f["path"], staying[0] if staying else target, result)
+                _move_sidecar(cfg, f["path"], target, result)
                 con.execute("""UPDATE file SET missing = 1, removed_at = ?, removed_path = ?, removed_reason = ?,
                                                removed_batch = ? WHERE id = ?""", (now, target, reason, batch, fid))
                 images.add(f["image_id"])
-                result.moved += 1
+                result.moved += f["live_of"] is None  # a Live Photo's clip is part of its photo
+                beside = live.clips_beside(con, fid)
+                clips.update(beside)
+                todo[:0] = beside
         finally:
             con.commit()  # whatever was moved is recorded, even if something unexpected stopped the loop
     _after_change(con, images)
@@ -107,7 +120,7 @@ def remove_copies(con: sqlite3.Connection, cfg: Config, remove_from: int, keep_i
 
 
 def restore(con: sqlite3.Connection, cfg: Config, file_ids: list[int] | None = None, batch: int | None = None) -> Moved:
-    """Move removed files back to where they were in the library."""
+    """Move removed files back to where they were in the library, each with the Live Photo clip removed with it."""
     if batch is not None:
         file_ids = [r[0] for r in con.execute("SELECT id FROM file WHERE removed_batch = ? AND removed_at IS NOT NULL",
                                               (batch,))]
@@ -116,11 +129,15 @@ def restore(con: sqlite3.Connection, cfg: Config, file_ids: list[int] | None = N
     for start in range(0, len(file_ids or []), CHUNK):
         con.execute("BEGIN IMMEDIATE")
         try:
-            for fid in file_ids[start:start + CHUNK]:
-                f = con.execute("SELECT id, path, image_id, removed_path FROM file WHERE id = ? AND removed_at IS NOT NULL",
-                                (fid,)).fetchone()
+            todo = list(file_ids[start:start + CHUNK])
+            while todo:
+                fid = todo.pop(0)
+                f = con.execute("""SELECT f.id, f.path, f.image_id, f.removed_path, i.live_of FROM file f
+                                   LEFT JOIN image i ON i.id = f.image_id
+                                   WHERE f.id = ? AND f.removed_at IS NOT NULL""", (fid,)).fetchone()
                 if f is None:
                     continue
+                beside = live.clips_beside(con, fid, removed=True)
                 try:
                     _move(cfg.share_root / f["removed_path"], cfg.share_root / f["path"],
                           like=cfg.share_root / watched_folder(cfg, f["path"]))
@@ -128,10 +145,12 @@ def restore(con: sqlite3.Connection, cfg: Config, file_ids: list[int] | None = N
                     result.errors.append(f"{f['path']}: {e.strerror or e}")
                     continue
                 _move_copy(cfg, f["removed_path"], f["path"], result)
+                _move_sidecar(cfg, f["removed_path"], f["path"], result)
                 con.execute("""UPDATE file SET missing = 0, removed_at = NULL, removed_path = NULL, removed_reason = NULL,
                                                removed_batch = NULL WHERE id = ?""", (fid,))
                 images.add(f["image_id"])
-                result.moved += 1
+                result.moved += f["live_of"] is None
+                todo[:0] = beside
         finally:
             con.commit()
     _after_change(con, images)
@@ -145,6 +164,7 @@ def empty_removed(con: sqlite3.Connection, cfg: Config) -> Moved:
         try:
             (cfg.share_root / r["removed_path"]).unlink(missing_ok=True)
             video.copy_path(cfg.share_root / r["removed_path"]).unlink(missing_ok=True)
+            sidecars.path_for(cfg.share_root / r["removed_path"]).unlink(missing_ok=True)  # it was the photo's
             deleted.append(r["id"])
             emptied.add((cfg.share_root / r["removed_path"]).parent)
         except OSError as e:
@@ -177,12 +197,12 @@ def drop_derivatives(con: sqlite3.Connection, cfg: Config) -> int:
         paths = [cfg.share_root / p for (p,) in con.execute("SELECT path FROM file WHERE image_id = ?", (r["id"],))]
         if any(p.exists() for p in paths):
             continue
-        made = [cfg.preview_path(r["sha256"]), cfg.thumb_path(r["sha256"])]
+        made = [cfg.preview_path(r["sha256"]), cfg.thumb_path(r["sha256"]), cfg.sharp_thumb_path(r["sha256"])]
         made += [cfg.frame_path(r["sha256"], idx) for (idx,) in con.execute(
             "SELECT idx FROM video_frame WHERE image_id = ?", (r["id"],))]
         for (face_id,) in con.execute("SELECT id FROM face WHERE image_id = ?", (r["id"],)):
             made += cfg.face_crops(face_id)
-        if r["media"] == "video":
+        if r["media"] != "photo":  # a video's 720p copy, or a recording's copy that browsers play
             made += [video.copy_path(p) for p in paths]
         for path in made:
             path.unlink(missing_ok=True)
@@ -221,6 +241,13 @@ def _move(src: Path, dst: Path, like: Path) -> None:
         except OSError:  # an SMB share without Unix permissions, or not running as root: the folder works as it is
             pass
     os.rename(src, dst)  # same file system: instant, and the file keeps its dates and owner
+
+
+def _move_sidecar(cfg: Config, from_rel: str, to_rel: str, result: Moved) -> None:
+    """Move the photo's XMP sidecar (IMG_1234.JPG.xmp, LineageBox's or another program's) with it."""
+    if problem := sidecars.move_along(cfg, from_rel, to_rel,
+                                      lambda src, dst: _move(src, dst, like=cfg.share_root / watched_folder(cfg, to_rel))):
+        result.errors.append(problem)
 
 
 def _move_copy(cfg: Config, from_rel: str, to_rel: str, result: Moved) -> None:
@@ -413,7 +440,8 @@ SIMILAR_HINTS = {
                "in a camera or date folder.",
     "same": "The same picture saved twice at the same size: re-saved, renamed or copied without its camera date. "
             "One is kept (the one with the camera date, then the sharpest); the others are ticked.",
-    "raw": "A Nikon RAW file (.NEF) and a JPEG of the same shot. Choose which to keep; the other is ticked.",
+    "raw": "A camera's RAW file (such as .NEF, .CR2 or .ARW) and a JPEG of the same shot. Choose which to keep; the "
+           "other is ticked.",
     "undated": "Copies that lost the camera's date (they are dated by folder, file name or file time) next to one "
                "that has it. The undated copies are ticked, unless they are larger.",
     "burst": "Shots taken seconds apart. The sharpest of the largest is suggested; look before you move.",
@@ -423,15 +451,16 @@ _COPY_KINDS = ("smaller", "same", "raw", "undated")  # copies of one picture: sa
 
 
 def similar_groups(con: sqlite3.Connection, kind: str = "all", keep_raw: bool = True, offset: int = 0,
-                   limit: int = 20) -> tuple[list[dict], int]:
+                   limit: int = 20, only: set[int] | None = None) -> tuple[list[dict], int]:
     """Near-duplicate groups of this kind, each member marked "keep" (the suggested photo to keep) and "tick" (what
-    this kind suggests removing), with "why" saying what each ticked photo is."""
-    groups = [g for g in _similar_members(con) if _mark(kind, g["members"], keep_raw)]
+    this kind suggests removing), with "why" saying what each ticked photo is. only: of these photos alone (a
+    member's own uploads), groups of two or more of them."""
+    groups = [g for g in _similar_members(con, only) if _mark(kind, g["members"], keep_raw)]
     return groups[offset:offset + limit], len(groups)
 
 
-def similar_counts(con: sqlite3.Connection) -> dict[str, int]:
-    groups = _similar_members(con)
+def similar_counts(con: sqlite3.Connection, only: set[int] | None = None) -> dict[str, int]:
+    groups = _similar_members(con, only)
     return {kind: sum(1 for g in groups if _mark(kind, g["members"], True)) for kind in SIMILAR_KINDS}
 
 
@@ -441,7 +470,7 @@ def similar_ticked(con: sqlite3.Connection, kind: str, keep_raw: bool = True) ->
             for m in g["members"] if m["tick"]]
 
 
-def _similar_members(con: sqlite3.Connection) -> list[dict]:
+def _similar_members(con: sqlite3.Connection, only: set[int] | None = None) -> list[dict]:
     rows = con.execute(f"""
         SELECT i.id, i.dup_group_id, i.sha256, i.width, i.height, i.format, i.phash, i.sharpness, i.taken_at,
                i.taken_at_source, i.kept_at,
@@ -451,9 +480,12 @@ def _similar_members(con: sqlite3.Connection) -> list[dict]:
         FROM image i WHERE i.dup_group_id IS NOT NULL AND {VISIBLE} ORDER BY i.taken_at, i.id""").fetchall()
     by_group: dict[int, dict[int, dict]] = {}
     for r in rows:
+        if only is not None and r["id"] not in only:
+            continue
         m = dict(r)
         m["pixels"] = (m["width"] or 0) * (m["height"] or 0)
         m["dated"] = m["taken_at_source"] == "exif"
+        m["raw"] = m["format"] in media.RAW_FORMATS  # for the page
         # keyed by id: a damaged index (lost writes on the share's disk) returned photos twice
         by_group.setdefault(r["dup_group_id"], {})[m["id"]] = m
     by_group = {g: list(ms.values()) for g, ms in by_group.items()}
@@ -507,9 +539,10 @@ def _mark(kind: str, members: list[dict], keep_raw: bool) -> bool:
             else:
                 kept.append(m)
     elif kind == "raw":
-        keeps = [m for m in members if (m["format"] == "nef") == keep_raw]
+        raw = {m["id"]: m["format"] in media.RAW_FORMATS for m in members}
+        keeps = [m for m in members if raw[m["id"]] == keep_raw]
         ticks = {m["id"]: "the JPEG" if keep_raw else "the RAW file" for m in members
-                 if (m["format"] == "nef") != keep_raw and any(_copy_of(m, k) for k in keeps)}
+                 if raw[m["id"]] != keep_raw and any(_copy_of(m, k) for k in keeps)}
     elif kind == "undated":
         dated = [m for m in members if m["dated"]]
         ticks = {m["id"]: "no camera date" for m in members
@@ -526,11 +559,18 @@ def _mark(kind: str, members: list[dict], keep_raw: bool) -> bool:
     return True
 
 
-def blurry(con: sqlite3.Connection, below: float, offset: int = 0, limit: int = 120) -> tuple[list[sqlite3.Row], int]:
+def blurry(con: sqlite3.Connection, below: float, offset: int = 0, limit: int = 120,
+           only: set[int] | None = None) -> tuple[list[sqlite3.Row], int]:
+    """Photos below the sharpness cut-off, worst first; only: of these alone (a member's own uploads)."""
     where = f"i.sharpness >= 0 AND i.sharpness < ? AND i.kept_at IS NULL AND i.media = 'photo' AND {VISIBLE}"
-    total = con.execute(f"SELECT count(*) FROM image i WHERE {where}", (below,)).fetchone()[0]
+    args = [below]
+    if only is not None:
+        where += " AND i.id IN (SELECT value FROM json_each(?))"
+        args.append(json.dumps(sorted(only)))
+    total = con.execute(f"SELECT count(*) FROM image i WHERE {where}", args).fetchone()[0]
     rows = con.execute(f"""SELECT i.id, i.sha256, i.taken_at, i.taken_at_source, i.sharpness FROM image i
-                           WHERE {where} ORDER BY i.sharpness, i.id LIMIT ? OFFSET ?""", (below, limit, offset)).fetchall()
+                           WHERE {where} ORDER BY i.sharpness, i.id LIMIT ? OFFSET ?""",
+                       (*args, limit, offset)).fetchall()
     return rows, total
 
 

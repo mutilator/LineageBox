@@ -1,0 +1,26 @@
+{#- The faces a person's portrait can be chosen from (life.portrait_choices), on their page: one click makes a face the
+    one People, the Family page, the tree and exports show for them. The clearest first, or one year's (the links load
+    in place: app.js data-swap). #}
+{%- if years|length > 1 %}
+<p class="portrait-years">{% trans %}Faces from{% endtrans %}
+  <a href="/person/{{ person.id }}/portraits" data-swap="[data-on-open]"{% if not year %} aria-current="true"{% endif %}>{% trans %}every year, the clearest{% endtrans %}</a>
+  {%- for y, n in years %} <a href="/person/{{ person.id }}/portraits?year={{ y }}" data-swap="[data-on-open]" title="{% trans count=n, n2=n|number %}{{ n2 }} face{% pluralize %}{{ n2 }} faces{% endtrans %}"{% if y == year %} aria-current="true"{% endif %}>{{ y }}</a>{% endfor %}</p>
+{%- endif %}
+{%- if faces %}
+<div class="faces portraits">
+  {%- for f in faces %}
+  <button type="button" class="portrait-choice{% if f.id == portrait %} on{% endif %}" data-api="/api/people/{{ person.id }}/portrait"
+    data-body='{{ {"face_id": f.id}|tojson }}' data-reload{% if f.id == portrait %} aria-pressed="true"{% endif %} title="{{ _('Show this one for %(name)s (recognised)', name=person.name) if f.assigned_by == 'auto' else _('Show this one for %(name)s', name=person.name) }}">
+    <img src="/face/{{ f.id }}" alt="{{ _('A face of %(name)s from %(year)s', name=person.name, year=f.taken_at[:4]) if f.taken_at else _('A face of %(name)s', name=person.name) }}" loading="lazy" width="80" height="80"></button>
+  {%- endfor %}
+</div>
+{%- if person.cover_face_id %}
+<p><button type="button" class="quiet" data-api="/api/people/{{ person.id }}/portrait" data-body='{"face_id": null}' data-reload>{% trans %}Let it be picked again{% endtrans %}</button>
+  <span class="hint inline">{% trans name=person.name %}the clearest face named {{ name }}, as photos are named{% endtrans %}</span></p>
+{%- endif %}
+<p class="hint">{% trans name=person.name %}Or open any photo of {{ name }} and press ☆ portrait beside their name.{% endtrans %}</p>
+{%- elif year %}
+<p class="hint">{% trans name=person.name, year=year %}No faces named {{ name }} in photos from {{ year }}.{% endtrans %}</p>
+{%- else %}
+<p class="hint">{% trans name=person.name %}No faces are named {{ name }} yet.{% endtrans %}</p>
+{%- endif %}

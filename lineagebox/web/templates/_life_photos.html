@@ -1,0 +1,15 @@
+{#- One group of a person's life by age (life.photos): its photos, loaded when the group is opened on their page, and
+    a Show more that loads the next ones the same way. #}
+{%- import "_macros.html" as m %}
+{%- if images %}
+{%- if select %}{{ m.select_grid(images, ctx) }}{% else %}{{ m.grid(images, ctx) }}{% endif %}
+{%- set rest = total - skip - images|length %}
+{%- if rest > 0 %}
+<details class="period-photos more">
+  <summary>{% trans per=([rest, per]|min)|number, rest=rest|number %}Show {{ per }} more of {{ rest }}{% endtrans %}</summary>
+  <div data-on-open="/person/{{ person_id }}/life/{{ key }}?skip={{ skip + images|length }}{% if select %}&amp;select=1{% endif %}"><p class="hint loading">{% trans %}Finding the photos…{% endtrans %}</p></div>
+</details>
+{%- endif %}
+{%- else %}
+<p class="hint">{% trans %}No photos here now.{% endtrans %}</p>
+{%- endif %}

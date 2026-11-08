@@ -1,0 +1,31 @@
+<!doctype html>
+{#- The photo frame (routes/frame.py): a page of its own, without the site's menu or script, so that an old tablet's or
+    a TV's browser shows it. static/frame.js asks for the photos and cycles through them; frame.css lays it out. -#}
+<html lang="{{ language()|replace('_', '-') }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#000000">
+<title>{{ title }} · LineageBox</title>
+<link rel="icon" href="/static/icons/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/frame.css?v={{ static_version }}">
+<script src="/static/frame.js?v={{ static_version }}" defer></script>
+{%- if script_text() %}
+<script type="application/json" id="lineagebox-text">{{ script_text()|tojson }}</script>
+{%- endif %}
+</head>
+<body class="photo-frame" data-photos="{{ photos_url }}" data-base="{{ base }}" data-seconds="{{ seconds }}" data-refresh="{{ refresh }}">
+<div class="stage" aria-live="off">
+  <img class="picture" alt="">
+  <img class="picture" alt="">
+  <video class="picture" muted playsinline preload="none"></video>
+</div>
+<p class="words"><span class="when"></span><span class="caption"></span></p>
+<p class="note" role="status">{% trans %}Getting the photos…{% endtrans %}</p>
+<button type="button" class="full" title="{{ _('Fill the whole screen') }}">{% trans %}Full screen{% endtrans %}</button>
+<noscript><p class="note">{% trans %}This photo frame needs JavaScript to be on in this browser.{% endtrans %}</p></noscript>
+</body>
+</html>

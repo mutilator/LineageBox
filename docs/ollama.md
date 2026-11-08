@@ -26,7 +26,34 @@ The model must be able to look at pictures (a "vision" model). LineageBox checks
 
 Each model comes with its own licence, which applies to how you use it. The model's page on [ollama.com](https://ollama.com/library) names it.
 
-You set the model on the Settings page (**AI (Ollama)**, **Model**). Changing it describes every photo again with the new one. Descriptions are kept per model, so going back to the old model doesn't redo them.
+You set the model on the Settings page (**AI (Ollama)**, **Model**). Changing it describes every photo again with the new one. Descriptions are kept per model, so going back to the old model doesn't redo them. A photo someone had described again with another model (below) keeps that description.
+
+## Describing again
+
+**Describe again**, on a photo's page under the AI's description, or for the ticked photos in the bar at the foot of a folder, a tag, a search or a list from Status, puts photos on the worker's list. The worker describes them before the rest, on its next pass (it starts one at once), as soon as describing is allowed (**When the AI may describe**) and Ollama answers. Status lists how many are waiting.
+
+- Admins can name another model in the box beside the button, picked from the models Ollama has that can look at pictures: try a bigger model on the photos the usual one got wrong. A model Ollama doesn't have, or one that can't see, has its photos dropped from the list, with a line in Status's activity saying why; an error Ollama answers about it (busy, restarting) only makes them wait.
+- The worker spends up to 20 minutes of each pass on them (and as long on search by meaning), then starts the next pass at once while some are left, so that a thousand photos asked for don't hold up its other work for hours.
+- Sound recordings are never described, even ticked with photos.
+- Family members may ask too, for the photos they see, with the usual model.
+- What people did stays: the family's caption, and the tags people gave or took off (one taken off is never given back). Only the AI's own description and tags change.
+
+## Search by meaning
+
+A second, small model reads every description (and the family's captions), so that a search finds what its words mean, not only the words themselves: "kids sledding" finds "children on a snowy hill", and each photo's page shows **More like this**. It is set on the Settings page as **Model for search by meaning**, and downloaded with its own button there (or `ollama pull nomic-embed-text`).
+
+| Model | Download | Licence | Notes |
+|---|---|---|---|
+| `nomic-embed-text` (the default) | 274 MB | Apache-2.0 | The most accurate of those tried. About 0.06 s a description on a desktop processor alone, so a 20,000-photo library takes about 20 minutes even without a graphics card. |
+| `all-minilm` | 46 MB | Apache-2.0 | Three times as fast and a sixth of the size; finds a little less. |
+| `mxbai-embed-large` | 670 MB | Apache-2.0 | About as accurate as nomic-embed-text, and slower. |
+
+How it works:
+
+- The worker reads new and changed descriptions on each pass, in the describing hours, while Ollama answers. Status shows how many are waiting. Changing the model reads them all again.
+- A search asks Ollama what its words mean, and waits at most 2.5 seconds. When Ollama is off or slow, the search finds words only, as before, and asks again a minute later. Names, family words and years in a search are never read for their meaning: they must be in the photo, as they must for words alone.
+- LineageBox keeps every photo's meaning in memory, to compare a search with all of them at once: about 3 KB a photo (60 MB for 20,000, with nomic-embed-text). A model changed lets the last one's go; one replaced under the same name by a version whose numbers don't match has every photo read again.
+- Leave the model empty to switch search by meaning off. Search then finds words only.
 
 ## On another machine
 
@@ -86,7 +113,7 @@ This Ollama is not published on your network; only LineageBox's containers can r
 
 Untick **Describe photos and videos, and read folder names, with AI** on the Settings page. Then:
 
-- nothing is sent to Ollama;
+- nothing is sent to Ollama, and search finds words only;
 - descriptions already made stay, and search keeps using them;
 - search still finds dates, places and events in folder names, people, and what is said in videos.
 
@@ -99,6 +126,7 @@ The Status page shows a red note starting with **Ollama:**. The same note is on 
 | The note says | What to do |
 |---|---|
 | Ollama has no model named … | Press **Download … to Ollama** on the Settings page, or pick a model it has. **Check the connection** lists them. |
+| Search by meaning: Ollama has no model named … | Press **Download nomic-embed-text to Ollama** (or the model set) on the Settings page. Until then search finds words only. |
 | … can't look at pictures | Pick a vision model (see [Which model](#which-model)). Folder names are still read with it. |
 | Describing failed: Ollama answered 500: … | Ollama's own error. Most often the model doesn't fit in memory: pick a smaller one, or fewer **Photos at a time**. Ollama's log has more: `docker compose logs ollama`, or *server.log* in Ollama's folder on Windows. |
 | (Status shows Ollama *not answering*) | The machine is asleep or off, the address is wrong, `OLLAMA_HOST` isn't set, or a firewall is in the way. |

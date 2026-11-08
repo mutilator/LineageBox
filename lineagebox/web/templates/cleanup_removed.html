@@ -1,29 +1,29 @@
 {% extends "base.html" %}
 {% set nav = "cleanup" %}
-{% block title %}Removed{% endblock %}
+{% block title %}{% trans %}Removed{% endtrans %}{% endblock %}
 {% block main %}
-<nav class="crumbs"><a href="/cleanup">Cleanup</a><span class="sep">/</span><h1>Removed</h1></nav>
-<p class="meta">{{ "{:,}".format(total) }} file{{ "" if total == 1 else "s" }} in
-{% for w in watched %}<code>{{ media_path(removed_folder(w)) }}</code>{% if on_network(removed_folder(w)) %} (on the network: <code>{{ on_network(removed_folder(w)) }}</code>){% endif %}{{ ", " if not loop.last }}{% endfor %}{% if total %}, {{ total_bytes|size }} in all{% endif %}, each under its
-original folder path. Restore a whole cleanup step here, or a single photo from its page (click a thumbnail).</p>
+<nav class="crumbs"><a href="/cleanup">{% trans %}Cleanup{% endtrans %}</a><span class="sep">/</span><h1>{% trans %}Removed{% endtrans %}</h1></nav>
+<p class="meta">{% trans count=total, total=total|number %}{{ total }} file in{% pluralize %}{{ total }} files in{% endtrans %}
+{% for w in watched %}<code>{{ media_path(removed_folder(w)) }}</code>{% if on_network(removed_folder(w)) %} {% trans on_network=on_network(removed_folder(w)) %}(on the network: <code>{{ on_network }}</code>){% endtrans %}{% endif %}{{ ", " if not loop.last }}{% endfor %}{% if total %}{% trans total_bytes=total_bytes|size %}, {{ total_bytes }} in all{% endtrans %}{% endif %}{% trans %}, each under its
+original folder path. Restore a whole cleanup step here, or a single photo from its page (click a thumbnail).{% endtrans %}</p>
 
 {% for b in batches %}
 <section class="pair">
   <div class="samples">{% for s in b.samples %}<a href="/image/{{ s.id }}"><img src="/t/{{ s.sha256 }}" alt="" loading="lazy"></a>{% endfor %}</div>
-  <p><b>{{ b.reason }}</b> · {{ "{:,}".format(b.files) }} file{{ "" if b.files == 1 else "s" }} · {{ b.bytes|size }} · {{ b.at|date }}</p>
-  <button type="button" data-api="/api/removed/restore?batch={{ b.batch }}" data-reload data-busy="Restoring…">
-    Restore {{ "all " ~ "{:,}".format(b.files) if b.files > 1 else "it" }}</button>
+  <p><b>{{ b.reason }}</b> · {% trans count=b.files, files=b.files|number, bytes=b.bytes|size, at=b.at|date %}{{ files }} file · {{ bytes }} · {{ at }}{% pluralize %}{{ files }} files · {{ bytes }} · {{ at }}{% endtrans %}</p>
+  <button type="button" data-api="/api/removed/restore?batch={{ b.batch }}" data-reload data-busy="{{ _('Restoring…') }}">
+    {% if b.files > 1 %}{% trans files=b.files|number %}Restore all {{ files }}{% endtrans %}{% else %}{% trans %}Restore it{% endtrans %}{% endif %}</button>
 </section>
 {% endfor %}
 
 {% if total %}
 <p class="danger-zone">
-  <button type="button" class="danger" data-api="/api/removed/empty" data-reload data-busy="Deleting…"
-          data-confirm="Permanently delete all {{ '{:,}'.format(total) }} removed files ({{ total_bytes|size }})? This cannot be undone.">
-    Empty the Removed folder…</button>
-  <span class="hint inline">Deletes these {{ "{:,}".format(total) }} files for good, which gives back {{ total_bytes|size }}.</span>
+  <button type="button" class="danger" data-api="/api/removed/empty" data-reload data-busy="{{ _('Deleting…') }}"
+          data-confirm="{{ _('Permanently delete all %(total)s removed files (%(total_bytes)s)? This cannot be undone.', total=total|number, total_bytes=total_bytes|size) }}">
+    {% trans %}Empty the Removed folder…{% endtrans %}</button>
+  <span class="hint inline">{% trans total=total|number, total_bytes=total_bytes|size %}Deletes these {{ total }} files for good, which gives back {{ total_bytes }}.{% endtrans %}</span>
 </p>
 {% else %}
-<p class="note">Nothing has been removed.</p>
+<p class="note">{% trans %}Nothing has been removed.{% endtrans %}</p>
 {% endif %}
 {% endblock %}

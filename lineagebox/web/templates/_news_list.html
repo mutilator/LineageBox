@@ -1,0 +1,19 @@
+{#- Events of New for you (outbox.for_viewer): each says what happened, leads to it, and shows its photos or the face
+    asked about. Those not seen before stand out. -#}
+{% macro news_list(events) %}
+<ol class="news-list">
+  {%- for e in events %}
+  <li class="news-item{% if e.new %} new{% endif %}{% if e.alert %} alert{% endif %}">
+    <a class="news-text" href="{{ e.href }}">{{ e.text }}</a>
+    <time datetime="{{ e.at }}">{{ e.at|date }}</time>{% if e.new %} <span class="news-new">{% trans %}New{% endtrans %}</span>{% endif %}
+    {%- if e.faces or e.photos %}
+    <span class="news-pictures">
+      {%- for f in e.faces %}<a href="{{ e.href }}"><img class="face" src="/face/{{ f }}" alt="{{ _('The face asked about') }}" loading="lazy"></a>{% endfor %}
+      {%- for p in e.photos %}<a href="/image/{{ p.id }}"><img src="/t/{{ p.sha256 }}" alt="{{ _('Video') if p.media == 'video' else _('Photo') }}" loading="lazy"></a>{% endfor %}
+      {%- if e.more %}<a class="news-more" href="{{ e.href }}">+{{ e.more|number }}</a>{% endif %}
+    </span>
+    {%- endif %}
+  </li>
+  {%- endfor %}
+</ol>
+{% endmacro %}

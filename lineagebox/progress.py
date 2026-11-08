@@ -3,18 +3,25 @@ is waiting for each stage, downloads, problems with Ollama or Whisper, and the w
 import sqlite3
 from datetime import datetime, timedelta
 
-from lineagebox import copies, downloads, retry, settings, speech
+from lineagebox import chapters, copies, downloads, retry, settings, speech
+from lineagebox import describe, embeddings
 from lineagebox.catalog import VISIBLE
 from lineagebox.config import Config
 from lineagebox.describe import count_pending
 from lineagebox.faces import STAGE_FACES
 
-STAGES = {"scan": "Looking for new and changed files", "ingest": "Reading new photos",
+STAGES = {"scan": "Looking for new and changed files", "back up the catalog": "Backing up the catalog",
+          "ingest": "Reading new photos",
           "dedup": "Grouping similar shots", "folders": "Reading folder names (AI)",
           "folder dates": "Dating photos from folder names", "faces": "Finding faces",
           "recognise": "Recognising named people", "group faces": "Grouping faces",
           "sharpness": "Measuring sharpness", "places": "Finding places on the map", "search index": "Updating the search",
-          "transcribe": "Transcribing videos (Whisper)", "describe": "Describing photos and videos (AI)"}
+          "transcribe": "Transcribing videos (Whisper)", "describe": "Describing photos and videos (AI)",
+          "slideshow videos": "Saving tours and albums as videos"}
+STAGES.update({"transcribe": "Transcribing videos, recordings and stories (Whisper)",
+               "chapters": "Finding chapters in long videos", "tidy stories": "Tidying recorded stories"})
+STAGES.update({"describe again": "Describing photos again, as asked (AI)",
+               "meaning": "Reading descriptions for search by meaning (AI)"})
 SILENT_AFTER = timedelta(minutes=3)  # an idle worker checks in every 15 s
 
 
@@ -39,7 +46,10 @@ def counts(con: sqlite3.Connection, cfg: Config) -> dict:
             ("Photos to add to the search", one(f"""SELECT count(*) FROM image i WHERE {VISIBLE}
                                                    AND i.id NOT IN (SELECT rowid FROM search_fts)""")),
             ("Photos and videos to describe (AI)", left),
-            ("Videos to transcribe (Whisper)", speech.count_pending(con)),
+            ("Photos asked to be described again (AI)", describe.count_requests(con)),
+            ("Descriptions to read for search by meaning (AI)", embeddings.count_pending(con, cfg.ollama_embed_model)),
+            ("Videos, recordings and stories to transcribe (Whisper)", speech.count_pending(con)),
+            ("Long videos to find chapters in", chapters.count_pending(con)),
             ("Videos to make a 720p copy of", copies.count_pending(con)),
         ],
     }

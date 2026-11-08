@@ -4,6 +4,7 @@ import contextlib
 import os
 import sqlite3
 import sys
+from pathlib import Path
 
 from lineagebox import __version__, catalog, config, db, settings
 from lineagebox.power import keep_awake
@@ -98,9 +99,10 @@ def cmd_transcribe(con, cfg, args):
         return
     s = speech.transcribe(con, cfg, limit=args.limit)
     if not s.pending:
-        print("no videos waiting for a transcript")
+        print("no videos, recordings or stories waiting for a transcript")
         return
-    print(f"transcribed {s.done}/{s.pending} videos ({s.audio_seconds / 60:.0f} min of sound) in "
+    print(f"transcribed {s.done}/{s.pending} ({s.stories} of them recorded stories; {s.audio_seconds / 60:.0f} min "
+          f"of sound) in "
           f"{s.seconds / 60:.1f} min, {s.failed} failed" + ("  [Whisper stopped answering]" if s.gave_up else ""))
 
 
@@ -212,6 +214,60 @@ def cmd_check_files(con, cfg, args):
           f"{p['damaged']} damaged (Cleanup → Damaged files)")
 
 
+def cmd_backup(con, cfg, args):
+    """A copy of the catalog now, as the worker makes once a day (backup.py)."""
+    from lineagebox import backup
+    from lineagebox.storage import fmt_size
+
+    try:
+        state = backup.make(con, cfg, why="command")
+    except backup.Failed as e:
+        sys.exit(f"LineageBox: {e}")
+    last = state["last"]
+    print(f"made {Path(last['folder']) / last['file']} ({fmt_size(last['bytes'])}) and checked it; {state['kept']} "
+          f"copies kept there ({fmt_size(state['kept_bytes'])})")
+
+
+def check_backup(path: str) -> None:
+    """Read a copy of the catalog whole and say what it holds, before it is put back: needs no config and no catalog,
+    which may be what was lost."""
+    from lineagebox import backup
+    from lineagebox.storage import fmt_size
+
+    try:
+        found = backup.check(Path(path))
+    except backup.Failed as e:
+        sys.exit(f"LineageBox: {e}")
+    newest = backup.newest_version()
+    print(f"{path} is whole (SQLite's integrity check found nothing wrong).")
+    if found["version"] > newest:
+        print(f"Catalog version {found['version']}: newer than this LineageBox ({__version__}) knows ({newest}). "
+              "Put it back with the version that made it, or a newer one.")
+    elif found["version"] < newest:
+        print(f"Catalog version {found['version']}: this LineageBox ({__version__}) upgrades it to {newest} when it "
+              "starts with it, keeping a copy as it was first.")
+    else:
+        print(f"Catalog version {found['version']}, as this LineageBox ({__version__}) makes them.")
+    print(f"{found['photos']:,} photos and videos, {found['people']:,} people, {found['named_faces']:,} named faces; "
+          f"{fmt_size(found['bytes'])}.")
+
+
+def cmd_export(con, cfg, args):
+    from lineagebox import export
+
+    path = Path(args.file)
+    if path.is_dir():
+        path = path / export.file_name()
+    try:
+        counts = export.write(con, cfg, path)
+    except BaseException:
+        path.unlink(missing_ok=True)  # not half a file that looks like an export
+        raise
+    print(f"wrote {path}: the family tree ({counts['people']:,} people) and {counts['photos']:,} photos and videos, "
+          f"with {counts['named_faces']:,} named faces, {counts['tags']:,} tags given by hand, {counts['captions']:,} "
+          f"captions, {counts['comments']:,} comments and {counts['documents']:,} documents (docs/export.md)")
+
+
 def cmd_accounts(con, cfg, args):
     """Family accounts from the command line: the first admin, and getting in when the web page can't be used."""
     from lineagebox import accounts, passkeys
@@ -305,8 +361,9 @@ def main(argv=None):
     p = sub.add_parser("people", help="group unnamed faces for naming")
     p.add_argument("--identify", action="store_true", help="first label faces that clearly match named people")
     sub.add_parser("sharpness", help="measure sharpness, for the Blank and blurry cleanup list")
-    p = sub.add_parser("transcribe", help="transcribe what is said in videos (the Whisper service)")
-    p.add_argument("--limit", type=int, help="transcribe at most this many videos")
+    p = sub.add_parser("transcribe", help="transcribe what is said in videos, sound recordings and recorded "
+                                          "stories (the Whisper service)")
+    p.add_argument("--limit", type=int, help="transcribe at most this many")
     p = sub.add_parser("copies", help="make 720p copies of videos browsers cannot play (the Docker copies service)")
     p.add_argument("--once", action="store_true", help="make the copies that are needed now, then exit")
     p.add_argument("--limit", type=int, help="with --once: make at most this many")
@@ -334,12 +391,21 @@ def main(argv=None):
     p.add_argument("email", nargs="?", help="the account's email address")
     p.add_argument("--admin", action="store_true", help="with add: an admin, who sees and changes everything")
     p.add_argument("--person", help="with add: who they are in the family tree, by name")
+    p = sub.add_parser("backup", help="copy the catalog now, checked, into the backup folder (the worker does it once "
+                                      "a day); --check reads a copy whole and says what it holds")
+    p.add_argument("--check", metavar="FILE", help="check this copy of the catalog instead (needs no config or "
+                                                   "catalog)")
+    p = sub.add_parser("export", help="the family tree (GEDCOM) and every photo's dates, tags, names on faces, "
+                                      "captions and comments, as one zip (docs/export.md)")
+    p.add_argument("file", help="the zip to write, or a folder to write lineagebox-export-<date>.zip in")
     args = parser.parse_args(argv)
     if args.command in ("worker", "copies", "updater") and not getattr(args, "once", False):
         _stop_on_sigterm()
     if args.command == "updater":  # reads no config and no catalog: see updater.py
         from lineagebox import updater
         return updater.main()
+    if args.command == "backup" and args.check:  # nor this: the catalog may be what was lost
+        return check_backup(args.check)
 
     try:
         base = config.load(args.config)
@@ -356,7 +422,8 @@ def main(argv=None):
                 "describe": cmd_describe, "faces": cmd_faces, "people": cmd_people, "sharpness": cmd_sharpness,
                 "transcribe": cmd_transcribe, "copies": cmd_copies, "index": cmd_index,
                 "status": cmd_status, "worker": cmd_worker, "serve": cmd_serve,
-                "https": cmd_https, "accounts": cmd_accounts, "check-files": cmd_check_files}
+                "https": cmd_https, "accounts": cmd_accounts, "check-files": cmd_check_files, "backup": cmd_backup,
+                "export": cmd_export}
     try:
         with awake:
             commands[args.command](con, cfg, args)

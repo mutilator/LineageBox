@@ -5,9 +5,12 @@ import dataclasses
 from fastapi import Depends, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 
-from lineagebox import access, accounts, db
+from lineagebox import access, accounts, db, outbox
+from lineagebox.web import frames, tiles
 from lineagebox.web.common import PAGE_SIZES, SEE_AS, Paging
 from lineagebox.web.site import Site
+
+NEWS_KEPT = 30  # seconds the count of what is new for someone is kept (at once anew after a change on the site)
 
 
 def site(request: Request) -> Site:
@@ -16,10 +19,13 @@ def site(request: Request) -> Site:
 
 def viewer(request: Request) -> access.Viewer:
     """Who is looking. Everyone sees everything while accounts are off. With them on: nobody before signing in, an
-    admin everything (or, seeing as a member, what that member sees), a member their own part of the family."""
+    admin everything (or, seeing as a member, what that member sees), a member their own part of the family. A photo
+    frame's device link (the gate found one in the address) sees only the photos on its frame, whatever else is on."""
     s = site(request)
     account = getattr(request.state, "account", None)
-    if account is None:
+    if (link := getattr(request.state, "device", None)) is not None:
+        v = frames.viewer_for(s, link)
+    elif account is None:
         v = access.NOBODY if s.shared_cfg().accounts_enabled else access.EVERYONE
     elif account["role"] == "admin":
         v = access.admin(account)
@@ -39,7 +45,8 @@ def viewer(request: Request) -> access.Viewer:
 def con(request: Request, v: access.Viewer = Depends(viewer)):
     """The catalog as the viewer may see it: a member's holds only their part of the family (access.scope)."""
     with site(request).own_con() as c:
-        yield access.scope(c, v)
+        request.state.catalog = scoped = access.scope(c, v)  # also what the grids' alt text is read on (tiles.py)
+        yield scoped
 
 
 def writer(request: Request, c=Depends(con), v: access.Viewer = Depends(viewer)):
@@ -68,11 +75,33 @@ def page(request: Request, name: str, **context) -> HTMLResponse:
     context.setdefault("hover_preview_ms", s.shared_cfg().hover_preview_ms)  # for app.js, on <body>
     if context["viewer"].admin:
         context.setdefault("update_ready", s.update_ready())
-    response = s.templates.TemplateResponse(request, name, context)
+    if not context["signed_out"] and context["viewer"].device is None:  # the count by New for you, at the top
+        context.setdefault("news_count", lambda: news_count(s, context["viewer"]))
+    with tiles.reading(getattr(request.state, "catalog", None)):  # who is in the grids' photos, as the viewer sees
+        response = s.templates.TemplateResponse(request, name, context)
     if (paging := context.get("paging")) and paging.chosen:  # remembered for this list
         response.set_cookie(f"per_{paging.key}", paging.per, max_age=365 * 86400, samesite="lax",
                             secure=request.url.scheme == "https")
     return response
+
+
+def _news_key(v: access.Viewer) -> tuple:
+    return ("news count", v.account_id or 0, v.admin, v.seeing_as)
+
+
+def news_count(s: Site, v: access.Viewer) -> int:
+    """How many events are new to the viewer (outbox.unseen), for the count at the top of every page: kept NEWS_KEPT
+    seconds, and only worked out by pages that show it (a part of a page doesn't)."""
+    def work():
+        with s.own_con() as c:
+            return outbox.unseen(c, v)
+    return s.kept.get(_news_key(v), NEWS_KEPT, work)
+
+
+def forget_news_count(s: Site, v: access.Viewer) -> None:
+    """They have just seen what is new: the count is worked out again on their next page."""
+    with s.kept.lock:
+        s.kept.kept.pop(_news_key(v), None)
 
 
 def paging(request: Request, key: str, pg: int, per: str | None, default: str) -> Paging:

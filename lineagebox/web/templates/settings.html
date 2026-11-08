@@ -1,36 +1,36 @@
 {% extends "base.html" %}
-{% block title %}Settings{% endblock %}
+{% block title %}{% trans %}Settings{% endtrans %}{% endblock %}
 {% block main %}
-<h1>Settings</h1>
+<h1>{% trans %}Settings{% endtrans %}</h1>
 <div class="settings-page">
 {% include "_settings_nav.html" %}
 <div class="settings-body">
-<p class="meta">Changes apply on the worker's next pass. Saving starts one right away, so a newly watched folder is
-scanned within a minute. Progress is on the <a href="/status">Status</a> page.</p>
+<p class="meta">{% trans %}Changes apply on the worker's next pass. Saving starts one right away, so a newly watched folder is
+scanned within a minute. Progress is on the <a href="/status">Status</a> page.{% endtrans %}</p>
 
 {#- Each part (data-part) is one link of the menu at the side, which names its first panel; app.js shows one at a
     time. Other pages link to the panels and headings by their ids, so keep those. #}
 <div class="settings" data-part>
 <section class="panel" id="folders">
-  <h2>Watched folders</h2>
-  <p class="hint">The worker looks through these folders and everything inside them for new, changed and deleted
-  photos every {{ cfg.worker_interval_minutes }} minutes.</p>
+  <h2>{% trans %}Watched folders{% endtrans %}</h2>
+  <p class="hint">{% trans worker_interval_minutes=cfg.worker_interval_minutes %}The worker looks through these folders and everything inside them for new, changed and deleted
+  photos every {{ worker_interval_minutes }} minutes.{% endtrans %}</p>
   <ul class="watched">
     {%- for w in cfg.folders %}
     <li>
-      <span><b>{{ media_path(w) }}</b><span class="hint">{{ "{:,}".format(counts[w]) }} photos
-        {%- if on_network(w) %} · on the network: {{ on_network(w) }}{% endif %}</span></span>
+      <span><b>{{ media_path(w) }}</b><span class="hint">{% trans w=counts[w]|number %}{{ w }} photos{% endtrans %}
+        {%- if on_network(w) %} · {% trans on_network=on_network(w) %}on the network: {{ on_network }}{% endtrans %}{% endif %}</span></span>
       {%- if cfg.folders|length > 1 %}
       <button type="button" class="quiet" data-api="/api/folders/unwatch" data-body='{{ {"path": w}|tojson }}' data-reload
-              data-confirm="Stop watching {{ w }}? Its photos leave the catalog's pages, search and People. Nothing in the folder is touched, and their descriptions and names are kept, so watching it again brings them back.">Stop watching</button>
+              data-confirm="{{ _("Stop watching %(w)s? Its photos leave the catalog's pages, search and People. Nothing in the folder is touched, and their descriptions and names are kept, so watching it again brings them back.", w=w) }}">{% trans %}Stop watching{% endtrans %}</button>
       {%- endif %}
     </li>
     {%- else %}
-    <li><span class="hint">None yet: pick a folder below.</span></li>
+    <li><span class="hint">{% trans %}None yet: pick a folder below.{% endtrans %}</span></li>
     {%- endfor %}
   </ul>
 
-  <h3 id="add">Watch another folder</h3>
+  <h3 id="add">{% trans %}Watch another folder{% endtrans %}</h3>
   <nav class="crumbs">
     <a href="/settings#add">{{ media_path() }}</a>
     {%- for part in crumbs %}<span class="sep">/</span><a href="/settings?browse={{ crumbs[:loop.index]|join('/')|urlencode }}#add">{{ part }}</a>{% endfor %}
@@ -42,11 +42,11 @@ scanned within a minute. Progress is on the <a href="/status">Status</a> page.</
       {%- elif f.startswith(w ~ "/") %}{% set ns.state = "inside " ~ w %}
       {%- elif w.startswith(f ~ "/") and not ns.state %}{% set ns.state = "holds" %}{% endif %}
     {%- endfor %}
-    {%- if ns.state == "watched" %}<span class="hint inline">watched</span>
-    {%- elif ns.state.startswith("inside") %}<span class="hint inline">already watched, as part of {{ ns.state[7:] }}</span>
-    {%- elif f.lower().endswith("-removed") %}<span class="hint inline">cleanup's Removed folder</span>
+    {%- if ns.state == "watched" %}<span class="hint inline">{% trans %}watched{% endtrans %}</span>
+    {%- elif ns.state.startswith("inside") %}<span class="hint inline">{% trans state=ns.state[7:] %}already watched, as part of {{ state }}{% endtrans %}</span>
+    {%- elif f.lower().endswith("-removed") %}<span class="hint inline">{% trans %}cleanup's Removed folder{% endtrans %}</span>
     {%- else %}<button type="button" data-api="/api/folders/watch" data-body='{{ {"path": f}|tojson }}' data-reload
-      {%- if ns.state == "holds" %} data-confirm="Watch {{ f }}? It holds folders that are already watched; it replaces them."{% endif %}>Watch</button>
+      {%- if ns.state == "holds" %} data-confirm="{{ _('Watch %(f)s? It holds folders that are already watched; it replaces them.', f=f) }}"{% endif %}>{% trans %}Watch{% endtrans %}</button>
     {%- endif %}
   {% endmacro %}
   {% if browse %}<p>{{ browse }} {{ watch_state(browse) }}</p>{% endif %}
@@ -57,317 +57,451 @@ scanned within a minute. Progress is on the <a href="/status">Status</a> page.</
     {%- endfor %}
   </ul>
   {% else %}
-  <p class="hint">No folders in here.</p>
+  <p class="hint">{% trans %}No folders in here.{% endtrans %}</p>
   {% endif %}
   <form class="inline-form" data-api="/api/folders/watch" data-reload>
-    <input name="path" required placeholder="or type or paste a path, e.g. {{ media_path((cfg.folders[0].split('/')[0] ~ '/') if cfg.folders and '/' in cfg.folders[0] else '') }}/Scans" aria-label="Folder to watch">
-    <button type="submit">Watch</button>
+    <input name="path" required placeholder="{{ _('or type or paste a path, e.g. %(value)s/Scans', value=media_path((cfg.folders[0].split('/')[0] ~ '/') if cfg.folders and '/' in cfg.folders[0] else '')) }}" aria-label="{{ _('Folder to watch') }}">
+    <button type="submit">{% trans %}Watch{% endtrans %}</button>
   </form>
-  <p class="hint">Only folders on this share can be watched. Folders elsewhere need another Docker mount.</p>
+  <p class="hint">{% trans %}Only folders on this share can be watched. Folders elsewhere need another Docker mount.{% endtrans %}</p>
 </section>
 
 <section class="panel" id="scanning">
-  <h2>Scanning</h2>
+  <h2>{% trans %}Scanning{% endtrans %}</h2>
   <form data-api="/api/settings" data-settings data-show="#scan-saved">
-    <p><label>Photos read at a time
+    <p><label>{% trans %}Photos read at a time{% endtrans %}
       <input type="number" name="ingest_threads" min="1" max="16" value="{{ cfg.ingest_threads }}" class="num"></label>
-      <span class="hint">How many new photos are read, and sharpness-measured, at once. On a single hard
+      <span class="hint">{% trans %}How many new photos are read, and sharpness-measured, at once. On a single hard
       drive, 1 or 2 leaves room for copying files and browsing it; more reads a big batch of new photos faster when
-      nothing else is using the disk. Saving applies it within 15 seconds, even in the middle of a pass.</span></p>
-    <p><label for="ignore">Folder names to skip</label>
+      nothing else is using the disk. Saving applies it within 15 seconds, even in the middle of a pass.{% endtrans %}</span></p>
+    <p><label for="ignore">{% trans %}Folder names to skip{% endtrans %}</label>
       <textarea id="ignore" name="ignore_dirs" rows="4">{{ cfg.ignore_dirs|join("\n") }}</textarea>
-      <span class="hint">One per line; * matches anything. Photos in these folders, and in everything inside them, are
-      listed but not read. Used for folders of thumbnails and previews.</span></p>
-    <p><button type="submit" class="primary">Save</button> <span class="hint inline" id="scan-saved"></span></p>
+      <span class="hint">{% trans %}One per line; * matches anything. Photos in these folders, and in everything inside them, are
+      listed but not read. Used for folders of thumbnails and previews.{% endtrans %}</span></p>
+    <p><button type="submit" class="primary">{% trans %}Save{% endtrans %}</button> <span class="hint inline" id="scan-saved"></span></p>
   </form>
 </section>
 
 <section class="panel" id="network">
-  <h2>On the network</h2>
-  <p class="hint">Where people's PCs find these folders, for "Copy network path" on a photo's page, and for pasting a
+  <h2>{% trans %}On the network{% endtrans %}</h2>
+  <p class="hint">{% trans %}Where people's PCs find these folders, for "Copy network path" on a photo's page, and for pasting a
   folder to watch: a Windows share such as <code>\\nas\photos</code>, or <code>smb://nas/photos</code>. Leave a folder
-  empty if it isn't shared. A folder inside one gets the rest of its path added.</p>
+  empty if it isn't shared. A folder inside one gets the rest of its path added.{% endtrans %}</p>
   <form data-api="/api/settings/network-paths" data-settings data-show="#network-saved">
     <dl class="net-paths">
       {%- for folder in net_folders %}
       <dt><code>{{ media_path(folder) }}</code></dt>
       <dd><input name="net:{{ folder }}" value="{{ net_paths.get(folder, '') }}" class="wide"
-           placeholder="{{ '\\\\server\\share' }}" aria-label="Network path of {{ media_path(folder) }}"></dd>
+           placeholder="{{ '\\\\server\\share' }}" aria-label="{{ _('Network path of %(media_path)s', media_path=media_path(folder)) }}"></dd>
       {%- endfor %}
     </dl>
-    <p><button type="submit" class="primary">Save</button> <span class="hint inline" id="network-saved"></span></p>
+    <p><button type="submit" class="primary">{% trans %}Save{% endtrans %}</button> <span class="hint inline" id="network-saved"></span></p>
   </form>
 </section>
 
 <section class="panel" id="config">
-  <h2>Set in the config file</h2>
+  <h2>{% trans %}Set in the config file{% endtrans %}</h2>
   <dl>
-    <dt>Photos</dt><dd><code>{{ media_path() }}</code>{% if on_network("") %} <span class="hint inline">on the network: {{ on_network("") }}</span>{% endif %}</dd>
+    <dt>{% trans %}Photos{% endtrans %}</dt><dd><code>{{ media_path() }}</code>{% if on_network("") %} <span class="hint inline">{% trans on_network=on_network("") %}on the network: {{ on_network }}{% endtrans %}</span>{% endif %}</dd>
     {%- for name, problem in sources %}
     <dt>{{ name }}</dt><dd><code>{{ media_path(name) }}</code>
-      {%- if on_network(name) %} <span class="hint inline">on the network: {{ on_network(name) }}</span>{% endif %}
+      {%- if on_network(name) %} <span class="hint inline">{% trans on_network=on_network(name) %}on the network: {{ on_network }}{% endtrans %}</span>{% endif %}
       {%- if problem %} <span class="hint inline">{{ problem }}</span>{% endif %}</dd>
     {%- endfor %}
-    <dt>Catalog data</dt><dd><code>{{ data_dir }}</code></dd>
-    <dt>Who can use this site</dt><dd>{{ cfg.allowed_networks|join(", ") }}</dd>
+    <dt>{% trans %}Catalog data{% endtrans %}</dt><dd><code>{{ data_dir }}</code></dd>
+    <dt>{% trans %}Who can use this site{% endtrans %}</dt><dd>{{ cfg.allowed_networks|join(", ") }}</dd>
   </dl>
-  <p class="hint">These come from the config file or the container's <code>LINEAGEBOX_…</code> environment variables,
-  so a mistake cannot lock you out of this page.</p>
+  <p class="hint">{% trans %}These come from the config file or the container's <code>LINEAGEBOX_…</code> environment variables,
+  so a mistake cannot lock you out of this page.{% endtrans %}</p>
 </section>
 </div>
 
 <div class="settings" data-part>
 <section class="panel" id="schedule">
-  <h2>Schedule</h2>
+  <h2>{% trans %}Schedule{% endtrans %}</h2>
   <form data-api="/api/settings" data-settings data-show="#schedule-saved">
-    <p><label>Look for new photos every
-      <input type="number" name="worker_interval_minutes" min="5" max="1440" value="{{ cfg.worker_interval_minutes }}" class="num"> minutes</label></p>
+    <p><label>{% trans %}Look for new photos every{% endtrans %}
+      <input type="number" name="worker_interval_minutes" min="5" max="1440" value="{{ cfg.worker_interval_minutes }}" class="num"> {% trans %}minutes{% endtrans %}</label></p>
     <fieldset>
-      <legend>Describe photos with AI</legend>
-      <label class="choice"><input type="radio" name="describe_schedule" value="always"{% if cfg.describe_schedule == "always" %} checked{% endif %}> Any time</label>
-      <label class="choice"><input type="radio" name="describe_schedule" value="hours"{% if cfg.describe_schedule == "hours" %} checked{% endif %}> Only from
-        <input type="time" name="describe_from" value="{{ cfg.describe_from }}"> to
+      <legend>{% trans %}Describe photos with AI{% endtrans %}</legend>
+      <label class="choice"><input type="radio" name="describe_schedule" value="always"{% if cfg.describe_schedule == "always" %} checked{% endif %}> {% trans %}Any time{% endtrans %}</label>
+      <label class="choice"><input type="radio" name="describe_schedule" value="hours"{% if cfg.describe_schedule == "hours" %} checked{% endif %}> {% trans %}Only from{% endtrans %}
+        <input type="time" name="describe_from" value="{{ cfg.describe_from }}"> {% trans %}to{% endtrans %}
         <input type="time" name="describe_until" value="{{ cfg.describe_until }}"></label>
-      <div class="days">on
+      <div class="days">{% trans %}on{% endtrans %}
         {%- for name in day_names %}
-        <label><input type="checkbox" name="describe_days[]" value="{{ loop.index0 }}"{% if loop.index0 in cfg.describe_days %} checked{% endif %}> {{ name }}</label>
+        <label><input type="checkbox" name="describe_days[]" value="{{ loop.index0 }}"{% if loop.index0 in cfg.describe_days %} checked{% endif %}> {{ weekday_names[loop.index0] }}</label>
         {%- endfor %}
       </div>
-      <label class="choice"><input type="radio" name="describe_schedule" value="paused"{% if cfg.describe_schedule == "paused" %} checked{% endif %}> Paused</label>
+      <label class="choice"><input type="radio" name="describe_schedule" value="paused"{% if cfg.describe_schedule == "paused" %} checked{% endif %}> {% trans %}Paused{% endtrans %}</label>
     </fieldset>
-    <p class="hint">Applies to everything that uses Ollama (descriptions and folder names); scanning, faces and
+    <p class="hint">{% trans %}Applies to everything that uses Ollama (descriptions and folder names); scanning, faces and
     search keep running. A window may run past midnight (22:00 to 07:00); the days are the days it starts on.
-    When the window closes, the photos being described are finished and the rest wait.</p>
-    <p><button type="submit" class="primary">Save</button> <span class="hint inline" id="schedule-saved"></span></p>
+    When the window closes, the photos being described are finished and the rest wait.{% endtrans %}</p>
+    <p><button type="submit" class="primary">{% trans %}Save{% endtrans %}</button> <span class="hint inline" id="schedule-saved"></span></p>
   </form>
 </section>
 </div>
 
 <div class="settings" data-part>
 <section class="panel" id="ollama">
-  <h2>AI (Ollama)</h2>
+  <h2>{% trans %}AI (Ollama){% endtrans %}</h2>
   {% if problems.ollama %}<p class="note problem">{{ problems.ollama.message }}</p>{% endif %}
   <form data-api="/api/settings" data-settings data-show="#ollama-saved">
     <p><label class="choice"><input type="checkbox" name="describe_enabled"{% if cfg.describe_enabled %} checked{% endif %}>
-      Describe photos and videos, and read folder names, with AI</label>
-      <span class="hint">Off: nothing is sent to Ollama. Search still finds dates, places in folder names, people and
-      what is said in videos.</span></p>
-    <p><label>Address <input name="ollama_url" value="{{ cfg.ollama_url }}" required class="wide"></label></p>
-    <p><label>Model <input name="ollama_model" value="{{ cfg.ollama_model }}" required></label>
-      <span class="hint">Changing the model describes every photo again.</span></p>
-    <p><label>Photos at a time <input type="number" name="llm_workers" min="1" max="8" value="{{ cfg.llm_workers }}" class="num"></label>
-      <span class="hint">One more than Ollama's parallel slots (OLLAMA_NUM_PARALLEL) keeps it busy. If something
-      else uses the same Ollama, this still leaves it a turn.</span></p>
-    <p><label>Whose photos <input name="library_about" value="{{ cfg.library_about }}" class="wide" maxlength="200"
-      placeholder="a family in Oregon, USA"></label>
-      <span class="hint">Helps the AI read the places in folder names. Folders already read keep what they got.</span></p>
+      {% trans %}Describe photos and videos, and read folder names, with AI{% endtrans %}</label>
+      <span class="hint">{% trans %}Off: nothing is sent to Ollama. Search still finds dates, places in folder names, people and
+      what is said in videos.{% endtrans %}</span></p>
+    <p><label>{% trans %}Address{% endtrans %} <input name="ollama_url" value="{{ cfg.ollama_url }}" required class="wide"></label></p>
+    <p><label>{% trans %}Model{% endtrans %} <input name="ollama_model" value="{{ cfg.ollama_model }}" required></label>
+      <span class="hint">{% trans %}Changing the model describes every photo again.{% endtrans %}</span></p>
+    <p><label>{% trans %}Model for search by meaning{% endtrans %} <input name="ollama_embed_model" value="{{ cfg.ollama_embed_model }}" placeholder="{{ _('nomic-embed-text') }}"></label>
+      <span class="hint">{% trans %}A small model that reads the descriptions, so that a search finds what its words mean, not only
+      the words themselves: “kids sledding” finds children on a snowy hill. Empty: search finds words only. Whenever
+      Ollama is away, search finds words only too.{% endtrans %}</span></p>
+    <p><label>{% trans %}Photos at a time{% endtrans %} <input type="number" name="llm_workers" min="1" max="8" value="{{ cfg.llm_workers }}" class="num"></label>
+      <span class="hint">{% trans %}One more than Ollama's parallel slots (OLLAMA_NUM_PARALLEL) keeps it busy. If something
+      else uses the same Ollama, this still leaves it a turn.{% endtrans %}</span></p>
+    <p><label>{% trans %}Whose photos{% endtrans %} <input name="library_about" value="{{ cfg.library_about }}" class="wide" maxlength="200"
+      placeholder="{{ _('a family in Oregon, USA') }}"></label>
+      <span class="hint">{% trans %}Helps the AI read the places in folder names. Folders already read keep what they got.{% endtrans %}</span></p>
     <p><label><input type="checkbox" name="southern_hemisphere"{% if cfg.southern_hemisphere %} checked{% endif %}>
-      South of the equator</label>
-      <span class="hint">Seasons six months on: summer is December to February. Searching for a season, dates like
-      "summer 1987" and season tours go by it. Changing it makes the search again, on the worker's next pass.</span></p>
+      {% trans %}South of the equator{% endtrans %}</label>
+      <span class="hint">{% trans %}Seasons six months on: summer is December to February. Searching for a season, dates like
+      "summer 1987" and season tours go by it. Changing it makes the search again, on the worker's next pass.{% endtrans %}</span></p>
     <p><label><input type="checkbox" name="day_first"{% if cfg.day_first %} checked{% endif %}>
-      Dates in numbers are day first</label>
-      <span class="hint">5/6/1990 is 5 June, and a folder named "Party 5.6.98" is from 5 June 1998. Unticked, they are
-      month first, as in the US: May 6. Dates already given keep what they were read as.</span></p>
-    <p><button type="submit" class="primary">Save</button> <span class="hint inline" id="ollama-saved"></span></p>
+      {% trans %}Dates in numbers are day first{% endtrans %}</label>
+      <span class="hint">{% trans %}5/6/1990 is 5 June, and a folder named "Party 5.6.98" is from 5 June 1998. Unticked, they are
+      month first, as in the US: May 6. Dates already given keep what they were read as.{% endtrans %}</span></p>
+    <p><button type="submit" class="primary">{% trans %}Save{% endtrans %}</button> <span class="hint inline" id="ollama-saved"></span></p>
   </form>
-  <p><button type="button" data-api="/api/ollama/check" data-show="#ollama-check" data-busy="Checking…">Check the connection</button>
-     <span class="hint inline" id="ollama-check">Uses the saved settings: does Ollama answer, does it have the model, can
-     the model look at pictures.</span></p>
-  <p><button type="button" data-api="/api/ollama/pull" data-show="#ollama-pull" data-busy="Starting…">Download {{ cfg.ollama_model }} to Ollama</button>
-     <span class="hint inline" id="ollama-pull">For a new Ollama, or a model it doesn't have yet. The
-     <a href="/status#downloads">Status</a> page shows how far it is.</span></p>
+  <p><button type="button" data-api="/api/ollama/check" data-show="#ollama-check" data-busy="{{ _('Checking…') }}">{% trans %}Check the connection{% endtrans %}</button>
+     <span class="hint inline" id="ollama-check">{% trans %}Uses the saved settings: does Ollama answer, does it have the model, can
+     the model look at pictures.{% endtrans %}</span></p>
+  <p><button type="button" data-api="/api/ollama/pull" data-show="#ollama-pull" data-busy="{{ _('Starting…') }}">{% trans ollama_model=cfg.ollama_model %}Download {{ ollama_model }} to Ollama{% endtrans %}</button>
+     <span class="hint inline" id="ollama-pull">{% trans %}For a new Ollama, or a model it doesn't have yet. The
+     <a href="/status#downloads">Status</a> page shows how far it is.{% endtrans %}</span></p>
+  {%- if cfg.ollama_embed_model %}
+  <p><button type="button" data-api="/api/ollama/pull?model=meaning" data-show="#ollama-pull-meaning" data-busy="{{ _('Starting…') }}">{% trans ollama_embed_model=cfg.ollama_embed_model %}Download {{ ollama_embed_model }} to Ollama{% endtrans %}</button>
+     <span class="hint inline" id="ollama-pull-meaning">{% trans %}The model for search by meaning: a few hundred MB.{% endtrans %}</span></p>
+  {%- endif %}
 </section>
 
 <section class="panel" id="whisper">
-  <h2>Speech in videos (Whisper)</h2>
+  <h2>{% trans %}Speech in videos, recordings and stories (Whisper){% endtrans %}</h2>
   {% if problems.whisper %}<p class="note problem">{{ problems.whisper.message }}</p>{% endif %}
   <form data-api="/api/settings" data-settings data-show="#whisper-saved">
     <p><label class="choice"><input type="checkbox" name="transcribe_enabled"{% if cfg.transcribe_enabled %} checked{% endif %}>
-      Transcribe what is said in videos</label></p>
-    <p><label>Address <input name="whisper_url" value="{{ cfg.whisper_url }}" class="wide" placeholder="http://192.168.1.10:9300"></label>
-      <span class="hint">The speech-to-text service (whisper_service in LineageBox's source): on a machine with a GPU,
-      or next to LineageBox in Docker. Videos are transcribed during the describing hours, while it answers.</span></p>
-    <p><button type="submit" class="primary">Save</button> <span class="hint inline" id="whisper-saved"></span></p>
+      {% trans %}Transcribe what is said in videos, sound recordings and recorded stories{% endtrans %}</label></p>
+    <p><label>{% trans %}Address{% endtrans %} <input name="whisper_url" value="{{ cfg.whisper_url }}" class="wide" placeholder="{{ _('http://192.168.1.10:9300') }}"></label>
+      <span class="hint">{% trans %}The speech-to-text service (whisper_service in LineageBox's source): on a machine with a GPU,
+      or next to LineageBox in Docker. Videos are transcribed during the describing hours, while it answers.{% endtrans %}</span></p>
+    <p><label>{% trans %}Language spoken{% endtrans %} <input name="whisper_language" value="{{ cfg.whisper_language }}" maxlength="4" size="5" placeholder="{{ _('auto') }}"></label>
+      <span class="hint">{% trans %}auto: Whisper tells from the speech itself, video by video (a family that speaks two languages
+      gets both). Or a language's two-letter code (en, de, es…) when Whisper guesses wrong.{% endtrans %}</span></p>
+    <p><button type="submit" class="primary">{% trans %}Save{% endtrans %}</button> <span class="hint inline" id="whisper-saved"></span></p>
   </form>
-  <p><button type="button" data-api="/api/whisper/check" data-show="#whisper-check" data-busy="Checking…">Check the connection</button>
-     <span class="hint inline" id="whisper-check">Uses the saved settings.</span></p>
+  <p><button type="button" data-api="/api/whisper/check" data-show="#whisper-check" data-busy="{{ _('Checking…') }}">{% trans %}Check the connection{% endtrans %}</button>
+     <span class="hint inline" id="whisper-check">{% trans %}Uses the saved settings.{% endtrans %}</span></p>
 </section>
 
 <section class="panel" id="faces">
-  <h2>Faces</h2>
+  <h2>{% trans %}Faces{% endtrans %}</h2>
   <form data-api="/api/settings" data-settings data-show="#faces-saved">
     <p><label class="choice"><input type="checkbox" name="faces_enabled"{% if cfg.faces_enabled %} checked{% endif %}>
-      Find faces and recognize the people you name</label>
-      <span class="hint">On this machine's processor, about a second a photo on a small one. The first time, it
-      downloads its models (about 280 MB). Off: the People page keeps what was found so far.</span></p>
-    <p><button type="submit" class="primary">Save</button> <span class="hint inline" id="faces-saved"></span></p>
+      {% trans %}Find faces and recognize the people you name{% endtrans %}</label>
+      <span class="hint">{% trans %}On this machine's processor, about a second a photo on a small one. The first time, it
+      downloads its models (about 280 MB). Off: the People page keeps what was found so far.{% endtrans %}</span></p>
+    <p><button type="submit" class="primary">{% trans %}Save{% endtrans %}</button> <span class="hint inline" id="faces-saved"></span></p>
   </form>
 </section>
 </div>
 
 <div class="settings" data-part>
 <section class="panel" id="map">
-  <h2>World map</h2>
+  <h2>{% trans %}World map{% endtrans %}</h2>
   <form data-api="/api/settings" data-settings data-show="#map-saved">
     <p><label class="choice"><input type="checkbox" name="places_lookup"{% if cfg.places_lookup %} checked{% endif %}>
-      Find the places in folder names and life events on the map, with OpenStreetMap</label>
-      <span class="hint">This sends the place names (like "Grand Canyon, Arizona"), and nothing else, to
-      {{ cfg.places_url.split("/")[2] if "//" in cfg.places_url else cfg.places_url }}, a few a minute, as its
+      {% trans %}Find the places in folder names and life events on the map, with OpenStreetMap{% endtrans %}</label>
+      <span class="hint">{% trans value=cfg.places_url.split("/")[2] if "//" in cfg.places_url else cfg.places_url %}This sends the place names (like "Grand Canyon, Arizona"), and nothing else, to
+      {{ value }}, a few a minute, as its
       <a href="https://operations.osmfoundation.org/policies/nominatim/" target="_blank" rel="noopener">usage
       policy</a> asks. Each name is looked up once. Photos with GPS are on the <a href="/map">map</a> either way, and the
-      map's background comes from OpenStreetMap's tile servers.</span></p>
-    <p><button type="submit" class="primary">Save</button> <span class="hint inline" id="map-saved"></span></p>
+      map's background comes from OpenStreetMap's tile servers.{% endtrans %}</span></p>
+    <p><button type="submit" class="primary">{% trans %}Save{% endtrans %}</button> <span class="hint inline" id="map-saved"></span></p>
   </form>
 </section>
 </div>
 
 <div class="settings" data-part>
+{#- Other photo programs: XMP sidecars LineageBox writes (sidecars.py), and what it brings in from other apps
+    (imports.py). The counts are of the catalog now. #}
+<section class="panel" id="sidecars">
+  <h2>{% trans %}Names in files beside the photos{% endtrans %}</h2>
+  {% if problems.sidecars and cfg.sidecars_enabled %}<p class="note problem">{{ problems.sidecars.message }}</p>{% endif %}
+  <form data-api="/api/settings" data-settings data-show="#sidecars-saved">
+    <p><label class="choice"><input type="checkbox" name="sidecars_enabled"{% if cfg.sidecars_enabled %} checked{% endif %}>
+      {% trans %}Write what the family gives each photo into a small file beside it, for other photo programs{% endtrans %}</label>
+      <span class="hint">{% trans %}The names on faces, who is in it, the caption, tags given by hand, a date set by hand and a
+      place put on the map by hand, as XMP in a file named after the photo (IMG_1234.JPG.xmp beside IMG_1234.JPG),
+      which digiKam, darktable, Lightroom (for raw files) and ExifTool read. The photos themselves are not changed.
+      The worker keeps these files up to date as things change, a few minutes on each pass. A file of that name that
+      another program made is left as it is. Turning this off leaves the files already written where they are.{% endtrans %}</span></p>
+    <p><button type="submit" class="primary">{% trans %}Save{% endtrans %}</button> <span class="hint inline" id="sidecars-saved"></span></p>
+  </form>
+  {%- if sidecar_counts.written or sidecar_counts.others or sidecar_counts.waiting %}
+  <p class="state{% if cfg.sidecars_enabled %} on{% endif %}">{% trans written=sidecar_counts.written|number %}{{ written }} written{% endtrans %}
+    {%- if sidecar_counts.others %} · {% trans others=sidecar_counts.others|number %}{{ others }} left as another program made them{% endtrans %}{% endif %}
+    {%- if cfg.sidecars_enabled and sidecar_counts.waiting %} · {% trans waiting=sidecar_counts.waiting|number %}{{ waiting }} photos to look at on the next passes{% endtrans %}{% endif %}</p>
+  {%- endif %}
+  <p class="hint">{% trans %}Photos downloaded from here (as a zip) and Download everything carry the same files, whether this is
+    on or not. An admin can also write them into a photo's own file, from its page (Tools), for programs that only
+    read the photo itself, like phone galleries{% endtrans %}{% if not exiftool %}{% trans %}: that needs ExifTool, which isn't installed
+    here{% endtrans %}{% endif %}.</p>
+</section>
+
+<section class="panel" id="imports">
+  <h2>{% trans %}Names from other apps{% endtrans %}</h2>
+  <form data-api="/api/settings" data-settings data-show="#imports-saved">
+    <p><label class="choice"><input type="checkbox" name="import_enabled"{% if cfg.import_enabled %} checked{% endif %}>
+      {% trans %}Bring in the names, tags, captions, dates and places other apps left with the photos{% endtrans %}</label>
+      <span class="hint">{% trans %}Faces named in digiKam, Lightroom, Picasa or Windows Photo Gallery, keywords and captions in the
+      photos or in files beside them, and Google Takeout's files (when a photo was taken, where, its description and
+      the people in it). Each photo is read once. A name on a face names the face found here that it covers, once
+      faces are found, or else adds the person to the photo; a name nobody has here adds them to the people. Nothing
+      set here is changed by it: names, tags taken off, captions and dates stay as they are.{% endtrans %}</span></p>
+    <p><button type="submit" class="primary">{% trans %}Save{% endtrans %}</button> <span class="hint inline" id="imports-saved"></span></p>
+  </form>
+  {%- if other_apps.read %}
+  <dl class="other-apps">
+    <dt>{% trans %}Photos read{% endtrans %}</dt><dd>{{ other_apps.read|number }}{% if other_apps.found %}{% trans found=other_apps.found|number %}: {{ found }} had something{% endtrans %}{% endif %}
+      {%- if other_apps.sources %} <span class="hint">({% for s, n in other_apps.sources.items() %}{{ s }} {{ n|number }}{{ ", " if not loop.last }}{% endfor %})</span>{% endif %}</dd>
+    <dt>{% trans %}Faces named{% endtrans %}</dt><dd>{{ other_apps.faces|number }}</dd>
+    <dt>{% trans %}People added to photos{% endtrans %}</dt><dd>{% trans photos=other_apps.photos|number %}{{ photos }} <span class="hint">no face of theirs was found there</span>{% endtrans %}</dd>
+    {%- if other_apps.waiting %}<dt>{% trans %}Waiting for faces{% endtrans %}</dt><dd>{% trans waiting=other_apps.waiting|number %}{{ waiting }} <span class="hint">named once their photos' faces are found</span>{% endtrans %}</dd>{% endif %}
+    {%- if other_apps.kept %}<dt>{% trans %}Left as named here{% endtrans %}</dt><dd>{{ other_apps.kept|number }}</dd>{% endif %}
+    {%- if other_apps.unsure %}<dt>{% trans %}Names two people have{% endtrans %}</dt><dd>{% trans unsure=other_apps.unsure|number %}{{ unsure }} <span class="hint">left for you to name on those photos</span>{% endtrans %}</dd>{% endif %}
+    <dt>{% trans %}Tags{% endtrans %}</dt><dd>{{ other_apps.tags|number }}</dd>
+    <dt>{% trans %}Captions{% endtrans %}</dt><dd>{{ other_apps.captions|number }}</dd>
+    <dt>{% trans %}Dates{% endtrans %}</dt><dd>{% trans dates=other_apps.dates|number %}{{ dates }} <span class="hint">only for photos dated by their file's time, folder or file name</span>{% endtrans %}</dd>
+    <dt>{% trans %}Places{% endtrans %}</dt><dd>{% trans places=other_apps.places|number %}{{ places }} <span class="hint">only for photos without GPS</span>{% endtrans %}</dd>
+  </dl>
+  {%- if other_apps.people %}
+  <details>
+    <summary>{% trans count=other_apps.people, people=other_apps.people|number %}{{ people }} person added for names nobody here had{% pluralize %}{{ people }} people added for names nobody here had{% endtrans %}</summary>
+    <ul class="people-added">
+      {%- for p in other_apps.added %}<li><a href="/person/{{ p.id }}">{{ p.name }}</a></li>{% endfor %}
+      {%- if other_apps.people > other_apps.added|length %}<li class="hint">{% trans added=other_apps.people - other_apps.added|length %}and {{ added }} more, on the People page{% endtrans %}</li>{% endif %}
+    </ul>
+    <p class="hint">{% trans %}Two people who are one (a nickname in one app, the full name in another) can be merged on either one's page.{% endtrans %}</p>
+  </details>
+  {%- endif %}
+  {%- endif %}
+</section>
+</div>
+
+<div class="settings" data-part>
 <section class="panel" id="tours">
-  <h2>Photo tours</h2>
-  <p class="hint">Kinds of tour to pick from on the <a href="/tours">Tours</a> page. Whatever a kind leaves open (the
-  person, the year, the season, the relationship) is asked when a tour is made.</p>
+  <h2>{% trans %}Photo tours{% endtrans %}</h2>
+  <p class="hint">{% trans %}Kinds of tour to pick from on the <a href="/tours">Tours</a> page. Whatever a kind leaves open (the
+  person, the year, the season, the relationship) is asked when a tour is made.{% endtrans %}</p>
   <ul class="watched">
     {%- for t in tour_types %}
-    <li><span><b>{{ t.name }}</b><span class="hint">names tours “{{ t.spec.title }}”</span></span>
-      <a href="/settings/tour-types/{{ t.id }}">Change</a></li>
+    <li>{% trans name=t.name, title=t.spec.title, t_id=t.id %}<span><b>{{ name }}</b><span class="hint">names tours “{{ title }}”</span></span>
+      <a href="/settings/tour-types/{{ t_id }}">Change</a>{% endtrans %}</li>
     {%- else %}
-    <li><span class="hint">No kinds of tour.</span></li>
+    <li><span class="hint">{% trans %}No kinds of tour.{% endtrans %}</span></li>
     {%- endfor %}
   </ul>
-  <p><a class="button" href="/settings/tour-types/new">New kind of tour</a></p>
+  <p><a class="button" href="/settings/tour-types/new">{% trans %}New kind of tour{% endtrans %}</a></p>
 </section>
 </div>
 
 <div class="settings" data-part>
 <section class="panel" id="cleanup">
-  <h2>Cleanup</h2>
+  <h2>{% trans %}Cleanup{% endtrans %}</h2>
   <form data-api="/api/settings" data-settings data-show="#cleanup-saved">
-    <p><label>Blank and blurry lists photos below sharpness
+    <p><label>{% trans %}Blank and blurry lists photos below sharpness{% endtrans %}
       <input type="number" name="blurry_below" min="1" max="500" step="any" value="{{ cfg.blurry_below|round(1) }}" class="num"></label></p>
-    <p class="hint">Below 10 is almost all black frames and lens-cap shots; up to 30 adds shaky and out-of-focus shots,
-    with some soft keepers. Higher lists more ordinary photos.</p>
+    <p class="hint">{% trans %}Below 10 is almost all black frames and lens-cap shots; up to 30 adds shaky and out-of-focus shots,
+    with some soft keepers. Higher lists more ordinary photos.{% endtrans %}</p>
     <fieldset>
-      <legend>Turned photos</legend>
+      <legend>{% trans %}Turned photos{% endtrans %}</legend>
       <label class="choice"><input type="radio" name="turn_suggest" value="sure"{% if cfg.turn_suggest == "sure" %} checked{% endif %}>
-        Only when sure: two or more faces agree, and the AI doesn't think otherwise</label>
+        {% trans %}Only when sure: two or more faces agree, and the AI doesn't think otherwise{% endtrans %}</label>
       <label class="choice"><input type="radio" name="turn_suggest" value="more"{% if cfg.turn_suggest == "more" %} checked{% endif %}>
-        Also less sure ones, to look at: one face, or the AI disagreeing</label>
+        {% trans %}Also less sure ones, to look at: one face, or the AI disagreeing{% endtrans %}</label>
       <label class="choice"><input type="radio" name="turn_suggest" value="off"{% if cfg.turn_suggest == "off" %} checked{% endif %}>
-        Off</label>
+        {% trans %}Off{% endtrans %}</label>
     </fieldset>
-    <p class="hint">Faces of people lying down or bent over can look like a turned photo. When the AI is on, it looks at
-    each photo both ways as a second opinion, during the describing hours.</p>
-    <p><button type="submit" class="primary">Save</button> <span class="hint inline" id="cleanup-saved"></span></p>
+    <p class="hint">{% trans %}Faces of people lying down or bent over can look like a turned photo. When the AI is on, it looks at
+    each photo both ways as a second opinion, during the describing hours.{% endtrans %}</p>
+    <p><button type="submit" class="primary">{% trans %}Save{% endtrans %}</button> <span class="hint inline" id="cleanup-saved"></span></p>
   </form>
 </section>
 </div>
 
 <div class="settings" data-part>
 <section class="panel" id="browsing">
-  <h2>Pointing at photos</h2>
+  <h2>{% trans %}Pointing at photos{% endtrans %}</h2>
   <form data-api="/api/settings" data-settings data-show="#browsing-saved">
-    <p><label>Show the whole photo larger after pointing at it for
-      <input type="number" name="hover_preview_ms" min="0" max="5000" step="50" value="{{ cfg.hover_preview_ms }}" class="num"> milliseconds</label></p>
-    <p class="hint">Pointing at a photo or a face on any page shows the whole photo beside it, with the face outlined.
+    <p><label>{% trans %}Show the whole photo larger after pointing at it for{% endtrans %}
+      <input type="number" name="hover_preview_ms" min="0" max="5000" step="50" value="{{ cfg.hover_preview_ms }}" class="num"> {% trans %}milliseconds{% endtrans %}</label></p>
+    <p class="hint">{% trans %}Pointing at a photo or a face on any page shows the whole photo beside it, with the face outlined.
     500 is half a second: long enough that moving across photos doesn't set it off, short enough not to wait for it.
-    0 turns it off. Everyone in the family gets the same; the pages take it the next time they are opened.</p>
-    <p><button type="submit" class="primary">Save</button> <span class="hint inline" id="browsing-saved"></span></p>
+    0 turns it off. Everyone in the family gets the same; the pages take it the next time they are opened.{% endtrans %}</p>
+    <p><button type="submit" class="primary">{% trans %}Save{% endtrans %}</button> <span class="hint inline" id="browsing-saved"></span></p>
   </form>
 </section>
 </div>
 
 <div class="settings" data-part>
 <section class="panel" id="address">
-  <h2>Address and HTTPS</h2>
-  <p class="hint">This page came over <b>{{ "HTTPS" if request.url.scheme == "https" else "plain HTTP" }}</b> as
-  <code>{{ host }}</code>{% if proxied %}, through a reverse proxy{% endif %}.</p>
+  <h2>{% trans %}Address and HTTPS{% endtrans %}</h2>
+  <p class="hint">{% trans value=_("HTTPS") if request.url.scheme == "https" else _("plain HTTP") %}This page came over <b>{{ value }}</b> as{% endtrans %}
+  <code>{{ host }}</code>{% if proxied %}{% trans %}, through a reverse proxy{% endtrans %}{% endif %}.</p>
   <form data-api="/api/settings/address" data-settings data-show="#address-saved">
-    <p><label for="hosts">Host names</label>
-      <textarea id="hosts" name="allowed_hosts" rows="3" placeholder="photos.example.com">{{ cfg.allowed_hosts|join("\n") }}</textarea>
-      <span class="hint">Names besides its address that LineageBox answers to, one per line; <code>*.example.com</code>
+    <p><label for="hosts">{% trans %}Host names{% endtrans %}</label>
+      <textarea id="hosts" name="allowed_hosts" rows="3" placeholder="{{ _('photos.example.com') }}">{{ cfg.allowed_hosts|join("\n") }}</textarea>
+      <span class="hint">{% trans %}Names besides its address that LineageBox answers to, one per line; <code>*.example.com</code>
       covers every name under it. Its addresses and home-network names (nas, photos.lan) always work. Other names are refused unless listed here, so that no other
       website can reach your photos through your browser. Point the name at this machine in your router's or domain's DNS.
-      A name with * keeps passkeys from being set up: they belong to one exact name, so list each name itself.</span></p>
-    <p><label>Reverse proxy <input name="trusted_proxies" value="{{ cfg.trusted_proxies|join(', ') }}" placeholder="172.18.0.0/16"></label>
-      <span class="hint">Only if Caddy, Nginx Proxy Manager, Traefik or your NAS does HTTPS in front of LineageBox: its address or
+      A name with * keeps passkeys from being set up: they belong to one exact name, so list each name itself.{% endtrans %}</span></p>
+    <p><label>{% trans %}Reverse proxy{% endtrans %} <input name="trusted_proxies" value="{{ cfg.trusted_proxies|join(', ') }}" placeholder="172.18.0.0/16"></label>
+      <span class="hint">{% trans %}Only if Caddy, Nginx Proxy Manager, Traefik or your NAS does HTTPS in front of LineageBox: its address or
       Docker network. LineageBox then checks the person behind the proxy, not the proxy itself. The proxy must send
-      X-Forwarded-For and X-Forwarded-Proto.</span></p>
-    <p><button type="submit" class="primary">Save</button> <span class="hint inline" id="address-saved"></span></p>
+      X-Forwarded-For and X-Forwarded-Proto.{% endtrans %}</span></p>
+    <p><button type="submit" class="primary">{% trans %}Save{% endtrans %}</button> <span class="hint inline" id="address-saved"></span></p>
   </form>
 
-  <h3 id="passkeys">Passkeys</h3>
+  <h3 id="passkeys">{% trans %}Passkeys{% endtrans %}</h3>
   {%- if passkey_problem %}
-  <p class="state off">Passkeys can't be set up yet.</p>
+  <p class="state off">{% trans %}Passkeys can't be set up yet.{% endtrans %}</p>
   <p class="note">{{ passkey_problem }}</p>
   {%- else %}
-  <p class="state on">Ready, for {{ passkey_domain }}{% if passkey_count %}: {{ passkey_count }} made{% endif %}.</p>
+  <p class="state on">{% trans %}Ready, for {{ passkey_domain }}{% endtrans %}{% if passkey_count %}{% trans %}: {{ passkey_count }} made{% endtrans %}{% endif %}.</p>
   {%- endif %}
-  <p class="hint">Family members without a Google account sign in with a passkey: the lock of their own phone or
+  <p class="hint">{% trans %}Family members without a Google account sign in with a passkey: the lock of their own phone or
     computer. Browsers make and use passkeys only over <b>HTTPS</b>, with a certificate they trust (one from Let's
     Encrypt or your NAS; not a self-signed one), and only on the <b>one name</b> each was made for: the Address from
     outside on <a href="/accounts#passkeys">Family accounts</a>. So that name must be listed exactly under Host names
     above, with no name with *, and HTTPS must be on: a certificate below, or a reverse proxy that does HTTPS (listed
-    under Reverse proxy). Admins make each person's first passkey link on Family accounts.</p>
+    under Reverse proxy). Admins make each person's first passkey link on Family accounts.{% endtrans %}</p>
 
-  <h3 id="https">HTTPS certificate</h3>
+  <h3 id="https">{% trans %}HTTPS certificate{% endtrans %}</h3>
   {% if problems.https %}<p class="note problem">{{ problems.https.message }}</p>{% endif %}
   {% if cfg.tls_cert and cert %}
-  <p class="state on">On: a certificate for <b>{{ cert.names|join(", ") or "(no names)" }}</b>
-    {%- if cert.issuer %} from {{ cert.issuer }}{% endif %}{% if cert.self_signed %} (self-signed){% endif %}
-    {%- if cert.expires %}, good until {{ cert.expires.isoformat()|date(false) }}{% endif %}.</p>
-  {% if cert.expired %}<p class="note problem">It expired: browsers warn about it. Put a renewed certificate in its place.</p>
-  {% elif cert.days_left is not none and cert.days_left < 21 %}<p class="note">It runs out in {{ cert.days_left }} days. A
-    renewed one put in place of the files is picked up within a minute.</p>{% endif %}
-  {% if cert.needs_chain %}<p class="note">The file holds only this site's certificate. Some browsers also need the ones
-    that vouch for it: use the full chain (fullchain.pem), not cert.pem.</p>{% endif %}
-  {% if not cert_covers and cert.names %}<p class="note">It is not for <code>{{ host }}</code>, so browsers warn on this
-    address. Open LineageBox by a name it is for{% if cert_name %}, such as <code>https://{{ cert_name }}</code>
-    {%- else %}{% for name in cert.names if name.startswith("*.") %}{% if loop.first %}, one under <code>{{ name }}</code>{% endif %}{% endfor %}{% endif %}:
-    list the name under Host names, and point it at this machine in your DNS.</p>{% endif %}
+  <p class="state on">{% trans %}On: a certificate for{% endtrans %} <b>{{ cert.names|join(", ") or _("(no names)") }}</b>
+    {%- if cert.issuer %} {% trans issuer=cert.issuer %}from {{ issuer }}{% endtrans %}{% endif %}{% if cert.self_signed %} {% trans %}(self-signed){% endtrans %}{% endif %}
+    {%- if cert.expires %}{% trans expires=cert.expires.isoformat()|date(false) %}, good until {{ expires }}{% endtrans %}{% endif %}.</p>
+  {% if cert.expired %}<p class="note problem">{% trans %}It expired: browsers warn about it. Put a renewed certificate in its place.{% endtrans %}</p>
+  {% elif cert.days_left is not none and cert.days_left < 21 %}<p class="note">{% trans days_left=cert.days_left %}It runs out in {{ days_left }} days. A
+    renewed one put in place of the files is picked up within a minute.{% endtrans %}</p>{% endif %}
+  {% if cert.needs_chain %}<p class="note">{% trans %}The file holds only this site's certificate. Some browsers also need the ones
+    that vouch for it: use the full chain (fullchain.pem), not cert.pem.{% endtrans %}</p>{% endif %}
+  {% if not cert_covers and cert.names %}<p class="note">{% trans %}It is not for <code>{{ host }}</code>, so browsers warn on this
+    address. Open LineageBox by a name it is for{% endtrans %}{% if cert_name %}{% trans %}, such as <code>https://{{ cert_name }}</code>{% endtrans %}
+    {%- else %}{% for name in cert.names if name.startswith("*.") %}{% if loop.first %}{% trans %}, one under{% endtrans %} <code>{{ name }}</code>{% endif %}{% endfor %}{% endif %}{% trans %}:
+    list the name under Host names, and point it at this machine in your DNS.{% endtrans %}</p>{% endif %}
   {% elif cfg.tls_cert %}
-  <p class="state off">Set, but the certificate file cannot be read.</p>
+  <p class="state off">{% trans %}Set, but the certificate file cannot be read.{% endtrans %}</p>
   {% else %}
-  <p class="state off">Off: LineageBox is served over plain HTTP{% if proxied and request.url.scheme == "https" %} (your reverse
-    proxy does HTTPS for it){% endif %}.</p>
+  <p class="state off">{% trans %}Off: LineageBox is served over plain HTTP{% endtrans %}{% if proxied and request.url.scheme == "https" %} {% trans %}(your reverse
+    proxy does HTTPS for it){% endtrans %}{% endif %}.</p>
   {% endif %}
   <form data-api="/api/https" data-settings data-show="#https-saved">
-    <p><label>Certificate <input name="tls_cert" value="{{ cfg.tls_cert }}" class="wide" placeholder="{{ data_dir.as_posix() }}/certs/fullchain.pem"></label></p>
-    <p><label>Private key <input name="tls_key" value="{{ cfg.tls_key }}" class="wide" placeholder="{{ data_dir.as_posix() }}/certs/privkey.pem"></label></p>
-    <p class="hint">PEM files, as this machine sees them: the catalog's data folder is <code>{{ data_dir.as_posix() }}</code> here,
-    so files you put in its <code>certs</code> folder are at <code>{{ data_dir.as_posix() }}/certs/…</code>. A certificate renewed in
-    the same place (Let's Encrypt, acme.sh, a NAS's) is picked up within a minute.</p>
-    <p><button type="submit" class="primary">Use these files</button>
+    <p><label>{% trans %}Certificate{% endtrans %} <input name="tls_cert" value="{{ cfg.tls_cert }}" class="wide" placeholder="{{ data_dir.as_posix() }}/certs/fullchain.pem"></label></p>
+    <p><label>{% trans %}Private key{% endtrans %} <input name="tls_key" value="{{ cfg.tls_key }}" class="wide" placeholder="{{ data_dir.as_posix() }}/certs/privkey.pem"></label></p>
+    <p class="hint">{% trans folder=data_dir.as_posix() %}PEM files, as this machine sees them: the catalog's data folder is <code>{{ folder }}</code> here,
+    so files you put in its <code>certs</code> folder are at <code>{{ folder }}/certs/…</code>. A certificate renewed in
+    the same place (Let's Encrypt, acme.sh, a NAS's) is picked up within a minute.{% endtrans %}</p>
+    <p><button type="submit" class="primary">{% trans %}Use these files{% endtrans %}</button>
       {%- if cfg.tls_cert %} <button type="button" data-api="/api/https/off" data-show="#https-saved"
-        data-confirm="Serve LineageBox over plain HTTP again? The page moves to its http:// address.">Turn HTTPS off</button>{% endif %}
+        data-confirm="{{ _('Serve LineageBox over plain HTTP again? The page moves to its http:// address.') }}">{% trans %}Turn HTTPS off{% endtrans %}</button>{% endif %}
       <span class="hint inline" id="https-saved"></span></p>
   </form>
   <form data-api="/api/https/upload" data-files data-show="#https-uploaded">
-    <p>Or upload them:
-      <label>certificate <input type="file" name="cert" accept=".pem,.crt,.cer,.txt" required></label>
-      <label>private key <input type="file" name="key" accept=".pem,.key,.txt" required></label>
-      <button type="submit">Upload and use</button> <span class="hint inline" id="https-uploaded"></span></p>
-    <p class="hint">They are kept in the data folder's <code>certs</code> folder. Upload a renewed certificate the same way.</p>
+    <p>{% trans %}Or upload them:{% endtrans %}
+      <label>{% trans %}certificate{% endtrans %} <input type="file" name="cert" accept=".pem,.crt,.cer,.txt" required></label>
+      <label>{% trans %}private key{% endtrans %} <input type="file" name="key" accept=".pem,.key,.txt" required></label>
+      <button type="submit">{% trans %}Upload and use{% endtrans %}</button> <span class="hint inline" id="https-uploaded"></span></p>
+    <p class="hint">{% trans %}They are kept in the data folder's <code>certs</code> folder. Upload a renewed certificate the same way.{% endtrans %}</p>
   </form>
-  <p class="hint">Switching restarts the web server, and this page moves to the new address after a few seconds: the
+  <p class="hint">{% trans %}Switching restarts the web server, and this page moves to the new address after a few seconds: the
   same address and port, with https://. While HTTPS is on, http:// links and bookmarks don't open. A certificate that
   stops loading puts the site back on plain HTTP, with the reason here. To turn HTTPS off without this page:
-  <code>docker compose exec web python -m lineagebox https off</code>.</p>
+  <code>docker compose exec web python -m lineagebox https off</code>.{% endtrans %}</p>
 </section>
 </div>
 
 <div class="settings" data-part>
 <section class="panel" id="updates">
-  <h2>Updates</h2>
+  <h2>{% trans %}Updates{% endtrans %}</h2>
   <form data-api="/api/settings" data-settings data-show="#updates-saved">
     <p><label class="choice"><input type="checkbox" name="update_check"{% if cfg.update_check %} checked{% endif %}>
-      Look for a newer version of LineageBox once a day</label>
-      <span class="hint">LineageBox asks GitHub for the newest release's version number{% if cfg.update_repository %}
-      ({{ cfg.update_repository }}){% endif %}, and nothing is sent but the question. Admins then see
-      <em>Update available</em> at the top of the page, and update on the <a href="/status#updates">Status</a>
-      page.</span></p>
-    <p><button type="submit" class="primary">Save</button> <span class="hint inline" id="updates-saved"></span></p>
+      {% trans %}Look for a newer version of LineageBox once a day{% endtrans %}</label>
+      <span class="hint">{% trans %}LineageBox asks GitHub for the newest release's version number{% endtrans %}{% if cfg.update_repository %}
+      ({{ cfg.update_repository }}){% endif %}{% trans %}, and nothing is sent but the question. Admins then see{% endtrans %}
+      <em>{% trans %}Update available{% endtrans %}</em> {% trans %}at the top of the page, and update on the{% endtrans %} <a href="/status#updates">{% trans %}Status{% endtrans %}</a>
+      {% trans %}page.{% endtrans %}</span></p>
+    <p><button type="submit" class="primary">{% trans %}Save{% endtrans %}</button> <span class="hint inline" id="updates-saved"></span></p>
   </form>
+</section>
+</div>
+
+<div class="settings" data-part>
+<section class="panel" id="backup">
+  <h2>{% trans %}Backup{% endtrans %}</h2>
+  {% if problems.backup %}<p class="note problem">{{ problems.backup.message }}</p>{% endif %}
+  {%- if backups.last %}
+  <p class="state on">{% trans count=backups.kept, at=backups.last.at|date, bytes=backups.last.bytes|size %}Last good copy: {{ at }}, {{ bytes }}. {{ count }}
+    copy kept in{% pluralize %}Last good copy: {{ at }}, {{ bytes }}. {{ count }}
+    copies kept in{% endtrans %} <code>{{ backups.folder }}</code>{% if backups.kept %}{% trans kept_bytes=backups.kept_bytes|size %}, {{ kept_bytes }} in all{% endtrans %}{% endif %}.</p>
+  {%- elif cfg.backup_enabled %}
+  <p class="state">{% trans %}No copy yet: the worker makes the first one on its next pass.{% endtrans %}</p>
+  {%- endif %}
+  <form data-api="/api/settings" data-settings data-show="#backup-saved">
+    <p><label class="choice"><input type="checkbox" name="backup_enabled"{% if cfg.backup_enabled %} checked{% endif %}>
+      {% trans %}Make a copy of the catalog once a day{% endtrans %}</label>
+      <span class="hint">{% trans %}The catalog holds what only your family knows: the names on faces, the family tree, dates and
+      tags given by hand, captions and comments. On its first pass of each day the worker copies it, reads the copy
+      whole to check it, and only then deletes the copies no longer kept, so a copy that failed never costs the last
+      good one. It usually takes under a minute, and the site stays usable meanwhile.{% endtrans %}</span></p>
+    <p><label>{% trans %}Folder{% endtrans %} <input name="backup_folder" value="{{ cfg.backup_folder }}" class="wide" placeholder="{{ default_backups.as_posix() }}"></label>
+      <span class="hint">{% trans folder=default_backups.as_posix() %}Empty: <code>{{ folder }}</code>, in the data folder, where a backup program
+      that copies the data folder picks the copies up. A folder on another disk, a NAS share or a folder that the
+      Dropbox or Google Drive app syncs also keeps them when this disk fails. In Docker, mount it into the web and
+      worker containers first (docs/install.md, Updating and backups), and give its path as they see it.{% endtrans %}</span></p>
+    <p><label>{% trans %}Keep one a day for{% endtrans %} <input type="number" name="backup_keep_daily" min="1" max="90" value="{{ cfg.backup_keep_daily }}" class="num"> {% trans %}days{% endtrans %}</label>
+      <label>{% trans %}and one a week for{% endtrans %} <input type="number" name="backup_keep_weekly" min="0" max="104" value="{{ cfg.backup_keep_weekly }}" class="num"> {% trans %}weeks before that{% endtrans %}</label></p>
+    <p class="hint">{% trans %}Each copy is as big as the catalog{% endtrans %}{% if backups.last %} {% trans bytes=backups.last.bytes|size %}({{ bytes }} now){% endtrans %}{% endif %}{% trans %},
+      about 8 KB a photo. Each holds everything the catalog does, accounts and their sign-in codes too: keep the folder
+      as private as the data folder.{% endtrans %}</p>
+    <p><button type="submit" class="primary">{% trans %}Save{% endtrans %}</button> <span class="hint inline" id="backup-saved"></span></p>
+  </form>
+  <p><button type="button" data-api="/api/backup" data-busy="{{ _('Copying…') }}">{% trans %}Back up now{% endtrans %}</button>
+     <span class="hint inline">{% trans %}A copy now, into the folder saved above: before a big change, or to try a new
+     folder.{% endtrans %}</span></p>
+  <p class="hint">{% trans %}To put a copy back: stop LineageBox, put the copy in the data folder as <code>lineagebox.db</code>,
+    and start it again (docs/install.md, Updating and backups, has the steps). The Status page shows the last copy.{% endtrans %}</p>
+
+  <h3 id="export">{% trans %}Download everything{% endtrans %}</h3>
+  <p class="hint">{% trans %}One file to keep somewhere else, which other programs read without LineageBox: a zip of the family
+    tree as GEDCOM, which genealogy programs import, and a list of every photo and video (photos.json) with its paths,
+    date, the tags given by hand, the names on its faces, the people in it, captions, comments and what a document
+    records. It holds no pictures: the photos stay where they are, and the list finds them by their paths.
+    docs/export.md in LineageBox's source describes it.{% endtrans %}</p>
+  <p><a class="button" href="/download/export">{% trans %}Download everything{% endtrans %}</a></p>
+</section>
+</div>
+
+<div class="settings" data-part>
+<section class="panel" id="devices">
+  <h2>{% trans %}Photo frames and TVs{% endtrans %}</h2>
+  <p class="hint">{% trans %}A link for an old tablet, a smart TV or a Home Assistant dashboard that shows memories, a tour or an
+    album full screen, a photo at a time, without anyone signing in on it. Each link shows only that, and nothing else of the
+    site opens with it; turn it off here whenever you like.{% endtrans %}</p>
+  <div id="devices-panel" data-later="/settings/devices"><p class="loading">{% trans %}Loading…{% endtrans %}</p></div>
 </section>
 </div>
 </div>

@@ -63,7 +63,8 @@ services:
     <<: *lineagebox
     command: ["copies"]
     volumes:
-      - *photos    # each 720p copy goes next to its video (00005.MTS.720p.mp4); nothing else is written
+      - *photos    # each 720p copy goes next to its video (00005.MTS.720p.mp4), and, when they are on in Settings,
+                   # each photo's XMP sidecar next to it (IMG_1234.JPG.xmp); nothing else is written
       - *catalog
   updater:
     # Installs a newer LineageBox when an admin presses Update now on the Status page. It is the one container with

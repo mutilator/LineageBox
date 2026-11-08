@@ -97,3 +97,20 @@ Without family accounts LineageBox has no sign-in, so **don't open it to the int
 
 With family accounts on, LineageBox adds the protections a public site needs: sign-in rate limits, security headers,
 HSTS over HTTPS, and private caching for photos. [Access control](access-control.md) has the details.
+
+## The app on a phone needs HTTPS
+
+Phones install a website as an app (an icon on the home screen, the share sheet's way to Upload) only over HTTPS with
+a certificate they trust, or on the machine itself. So LineageBox can be installed on a phone once it is reached over
+HTTPS by a name (above); over plain `http://<address>:8000` at home the site works as always, and simply isn't offered
+for installing. A self-signed certificate isn't enough: phones refuse to install a site with one. The same goes for a
+photo frame keeping its screen on by itself (the Wake Lock API).
+
+## Photo frames away from home
+
+A photo frame's device link (Settings → Photo frames, [family accounts](family-accounts.md#photo-frames-device-links))
+works only on the home network unless **Only on the home network** is unticked when it is made. Such a link, for a
+frame in another house, uses the address from outside (`public_url`, on the Family accounts page), so that address must
+reach LineageBox (a reverse proxy, above). Without family accounts, LineageBox answers only the home network, links
+included. A Home Assistant dashboard shows a frame in a Webpage card; a dashboard served over HTTPS can only show a
+frame that is HTTPS too (browsers block a plain-http page inside an HTTPS one).

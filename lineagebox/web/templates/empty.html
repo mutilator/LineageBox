@@ -1,7 +1,11 @@
 {% extends "base.html" %}
-{% block title %}No photos yet{% endblock %}
+{% block title %}{% trans %}No photos yet{% endtrans %}{% endblock %}
 {% block main %}
-<h1>No photos yet</h1>
-<p>Pick a folder to watch on the <a href="/settings#add">Settings</a> page. The worker starts looking through it within
-a minute; the <a href="/status">Status</a> page shows how far it is.</p>
+<h1>{% trans %}No photos yet{% endtrans %}</h1>
+{% if first_run %}
+{% include "_first_run.html" %}
+{% else %}
+<p>{% trans %}Pick a folder to watch on the <a href="/settings#folders">Settings</a> page. LineageBox starts looking through it
+within a minute; the <a href="/status">Status</a> page shows how far it is.{% endtrans %}</p>
+{% endif %}
 {% endblock %}

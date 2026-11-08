@@ -1,16 +1,20 @@
 """What looks wrong or unfinished in the family tree, for Cleanup → Family tree: someone who is their own ancestor,
-someone with one parent entered, brothers and sisters with none, dates that can't be right, one person perhaps entered
-twice, parents with no sex set (family tree programs file children under a father and a mother), and a child's parents
-not entered as partners.
+someone with one parent entered, brothers and sisters with none, dates that can't be right, photos that don't fit
+the dates (someone named in a photo taken before they were born, or years after they died), one person perhaps
+entered twice, parents with no sex set (family tree programs file children under a father and a mother), and a
+child's parents not entered as partners.
 
 Each problem has a key that stays the same while it lasts, so one that is right after all (a parent nobody knows)
-can be marked fine and is not listed again."""
+can be marked fine and is not listed again. A photo problem's key holds how many photos it is about: marked fine, it
+comes back if more such photos are named."""
 import re
 import sqlite3
 from collections import defaultdict
 from dataclasses import dataclass, field
+from urllib.parse import urlencode
 
 from lineagebox import family, settings
+from lineagebox.catalog import VISIBLE
 
 OK_KEY = "family_checks_ok"  # settings: the keys of problems marked fine as they are
 
@@ -25,14 +29,22 @@ KINDS = {
                    "parent added to one of them is everyone's."),
     "dates": ("Dates that can't be right", "Born before a parent, to a parent too young or too old, after a parent "
               "died, or an event after their own death. One of the dates is probably wrong."),
+    "photos": ("Photos that don't fit the dates", "Named in photos taken before they were born, or years after they "
+               "died, or in a photo from before a parent was born. The name on the photo may be wrong, or the photo's "
+               "date: a scan of an old photo often has the day it was scanned. Open the photos to put them right, or "
+               "change the birth or death date."),
     "twice": ("Maybe one person entered twice", "Names that could be the same person's. If they are, open the one to "
               "go and use Merge into on its page."),
     "no_sex": ("Parents with no sex set", "Family tree programs file each child under a father and a mother."),
     "not_partners": ("Parents not entered as partners", "A child's two parents, never entered as partners (married, "
                      "together or former). Add them as such on either parent's page."),
 }
-YOUNGEST_PARENT, OLDEST_PARENT = 12, 70
+YOUNGEST_PARENT, OLDEST_PARENT = 12, 70  # by birth; an adoptive or foster parent can be any age
 _AFTER_DEATH_OK = {"BURI", "CREM", "PROB", "WILL"}
+# Years after the year of someone's death from which photos of them are listed: a funeral, a memorial or the photos
+# looked at the next year are expected; the year after that, they are most likely scans dated the day they were made.
+LONG_AFTER = 1
+GUESSED = ("folder", "filename")  # dates read from names: only their year is compared, as they may be only a year
 
 
 @dataclass
@@ -42,13 +54,14 @@ class Issue:
     people: list[int]        # whom it is about, the one to fix first
     text: str
     choices: list[int] = field(default_factory=list)  # one-click fixes: the other parent it may be
+    href: str = ""           # where to see what it is about: the photos
 
 
 def check(con: sqlite3.Connection) -> list[Issue]:
     """Every problem not marked fine, by kind in the order of KINDS."""
     g = family.load(con)
     ok = set(settings.get(con, OK_KEY, []))
-    found = [*_loops(g), *_parents(g), *_dates(con, g), *_twice(con, g), *_no_sex(g)]
+    found = [*_loops(g), *_parents(g), *_dates(con, g), *_photos(con, g), *_twice(con, g), *_no_sex(g)]
     order = list(KINDS)
     return sorted((i for i in found if i.key not in ok), key=lambda i: (order.index(i.kind), g.name(i.people[0])))
 
@@ -71,18 +84,22 @@ def _loops(g: family.Graph) -> list[Issue]:
 
 def _parents(g: family.Graph) -> list[Issue]:
     out, seen, unpartnered = [], set(), defaultdict(list)
-    for child, entered in g.parents.items():
-        if len(entered) == 1:
-            (parent,) = entered
-            others = sorted((q for q in g.partners.get(parent, {})
-                             if q != child and child not in g.ancestors.get(q, {})),
-                            key=lambda q: (not g.partners[parent][q][0], g.name(q)))  # current partners first
-            out.append(Issue("one_parent", f"one_parent:{child}", [child, parent],
-                             f"{g.name(child)}: only {g.name(parent)} is entered", others))
-        elif len(entered) == 2:
-            a, b = sorted(entered)
-            if b not in g.partners.get(a, {}):
-                unpartnered[a, b].append(child)
+    for child, all_entered in g.parents.items():
+        for kind in ("birth", "adopted"):  # two of each; foster parents come and go
+            entered = {p for p in all_entered if g.how(child, p) == kind}
+            if len(entered) == 1:
+                (parent,) = entered
+                others = sorted((q for q in g.partners.get(parent, {})
+                                 if q != child and child not in g.ancestors.get(q, {}) and q not in all_entered),
+                                key=lambda q: (not g.partners[parent][q][0], g.name(q)))  # current partners first
+                key, text = ((f"one_parent:{child}", "") if kind == "birth" else
+                             (f"one_parent:{child}:adopted", " as an adoptive parent"))
+                out.append(Issue("one_parent", key, [child, parent],
+                                 f"{g.name(child)}: only {g.name(parent)} is entered{text}", others))
+            elif len(entered) == 2:
+                a, b = sorted(entered)
+                if b not in g.partners.get(a, {}):
+                    unpartnered[a, b].append(child)
     for (a, b), children in unpartnered.items():
         out.append(Issue("not_partners", f"not_partners:{a}:{b}", [a, b], f"{g.name(a)} and {g.name(b)}, parents of "
                          + _and(sorted(map(g.name, children)))))
@@ -115,10 +132,11 @@ def _dates(con: sqlite3.Connection, g: family.Graph) -> list[Issue]:
             said.append(f"died in {died}, before being born in {born}")
         for parent in sorted(g.parents.get(pid, ())):
             p_born, p_died = years[parent].get("BIRT"), years[parent].get("DEAT")
-            if born and p_born and born - p_born < YOUNGEST_PARENT:
+            by_birth = g.how(pid, parent) == "birth"
+            if born and p_born and (born - p_born < YOUNGEST_PARENT if by_birth else born < p_born):
                 said.append(f"born in {born}, when {g.name(parent)} (born {p_born}) was "
                             + (f"{born - p_born}" if born >= p_born else "not yet born"))
-            elif born and p_born and born - p_born > OLDEST_PARENT:
+            elif born and p_born and by_birth and born - p_born > OLDEST_PARENT:
                 said.append(f"born in {born}, when {g.name(parent)} was {born - p_born}")
             if born and p_died and born > p_died + 1:
                 said.append(f"born in {born}, after {g.name(parent)} died in {p_died}")
@@ -130,6 +148,75 @@ def _dates(con: sqlite3.Connection, g: family.Graph) -> list[Issue]:
         for text in dict.fromkeys(said):
             out.append(Issue("dates", f"dates:{pid}:{_slug(text)}", [pid], f"{g.name(pid)}: {text}"))
     return out
+
+
+def _photos(con: sqlite3.Connection, g: family.Graph) -> list[Issue]:
+    """Photos that don't fit someone's dates: named in them (by hand, recognised, or added to them by hand) when
+    they were taken before the person was born, or more than LONG_AFTER years after the year they died; and, for
+    someone with no birth date, a photo of them from before a parent by birth was born. Only photos with a date of
+    their own count (not a file's time); a date read from a folder's or file's name is compared by its year. One
+    query over everyone, summed up per person: it reads only the dates."""
+    guessed = ", ".join(f"'{s}'" for s in GUESSED)
+    rows = con.execute(f"""
+        WITH shown(person_id, image_id) AS (
+            SELECT person_id, image_id FROM face WHERE person_id IS NOT NULL AND assigned_by IN ('user', 'auto')
+            UNION SELECT person_id, image_id FROM image_person),
+        dated AS (
+            SELECT s.person_id, i.taken_at_source IN ({guessed}) AS guessed,
+                   substr(CASE WHEN i.taken_at_source = 'user' THEN coalesce(i.date_to, i.taken_at)
+                               ELSE i.taken_at END, 1, 10) AS latest,
+                   substr(CASE WHEN i.taken_at_source = 'user' THEN coalesce(i.date_from, i.taken_at)
+                               ELSE i.taken_at END, 1, 10) AS earliest
+            FROM shown s JOIN image i ON i.id = s.image_id
+            WHERE {VISIBLE} AND i.taken_at IS NOT NULL AND i.taken_at_source != 'mtime'),
+        born AS (SELECT person_id, min(sort_date) AS d FROM event
+                 WHERE tag = 'BIRT' AND person_id IS NOT NULL AND sort_date IS NOT NULL GROUP BY person_id),
+        died AS (SELECT person_id, min(sort_date) AS d FROM event
+                 WHERE tag = 'DEAT' AND person_id IS NOT NULL AND sort_date IS NOT NULL GROUP BY person_id),
+        marked AS (
+            SELECT d.*, b.d AS born, x.d AS died,
+                   CASE WHEN b.d IS NULL THEN 0 WHEN d.guessed THEN substr(d.latest, 1, 4) < substr(b.d, 1, 4)
+                        ELSE substr(d.latest, 1, length(b.d)) < b.d END AS early,
+                   coalesce(CAST(substr(d.earliest, 1, 4) AS INTEGER) > CAST(substr(x.d, 1, 4) AS INTEGER) + ?, 0)
+                       AS late
+            FROM dated d LEFT JOIN born b ON b.person_id = d.person_id LEFT JOIN died x ON x.person_id = d.person_id)
+        SELECT person_id, max(born) AS born, max(died) AS died, min(substr(latest, 1, 4)) AS first,
+               sum(early) AS early, min(CASE WHEN early THEN substr(latest, 1, 4) END) AS early_from,
+               max(CASE WHEN early THEN substr(latest, 1, 4) END) AS early_to,
+               sum(late) AS late, min(CASE WHEN late THEN substr(earliest, 1, 4) END) AS late_from,
+               max(CASE WHEN late THEN substr(earliest, 1, 4) END) AS late_to
+        FROM marked GROUP BY person_id""", (LONG_AFTER,)).fetchall()
+    births = dict(con.execute("""SELECT person_id, min(sort_date) FROM event WHERE tag = 'BIRT'
+                                 AND person_id IS NOT NULL AND sort_date IS NOT NULL GROUP BY person_id"""))
+    out = []
+    for r in rows:
+        pid = r["person_id"]
+        if pid not in g.people:
+            continue
+        name, see = g.name(pid), lambda **f: "/search?" + urlencode({"people": pid, **f, "sort": "oldest"})
+        if r["early"]:
+            out.append(Issue("photos", f"photos:{pid}:before:{r['early']}", [pid],
+                             f"{name}: in {_count(r['early'])} from {_span(r['early_from'], r['early_to'])}, before "
+                             f"being born in {r['born'][:4]}", href=see(to=r["born"][:4])))
+        if r["late"]:
+            out.append(Issue("photos", f"photos:{pid}:after:{r['late']}", [pid],
+                             f"{name}: in {_count(r['late'])} from {_span(r['late_from'], r['late_to'])}, years after "
+                             f"dying in {r['died'][:4]}", href=see(**{"from": r["late_from"]})))
+        if not r["born"] and r["first"]:
+            for parent in sorted(g.birth_parents(pid)):
+                if (p_born := births.get(parent)) and int(r["first"]) < int(p_born[:4]):
+                    out.append(Issue("photos", f"photos:{pid}:parent:{parent}", [pid, parent],
+                                     f"{name}: in a photo from {r['first']}, before {g.name(parent)} (a parent) was "
+                                     f"born in {p_born[:4]}", href=see(to=p_born[:4])))
+    return out
+
+
+def _count(n: int) -> str:
+    return "a photo" if n == 1 else f"{n:,} photos"
+
+
+def _span(a: str, b: str) -> str:
+    return a if a == b else f"{a}–{b}"
 
 
 def _twice(con: sqlite3.Connection, g: family.Graph) -> list[Issue]:

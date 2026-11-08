@@ -4,7 +4,7 @@ line."""
 import sqlite3
 from datetime import datetime
 
-from lineagebox import settings
+from lineagebox import outbox, settings
 
 KEEP_ACTIVITY = 500  # lines
 
@@ -31,3 +31,5 @@ def note_problem(con: sqlite3.Connection, service: str, message: str | None) -> 
     if changed:
         log(con, f"{settings.PROBLEM_SERVICES[service]}: {message}" if message
             else f"{settings.PROBLEM_SERVICES[service]} works again")
+        if message:  # and an alert for admins on New for you and the Status page
+            outbox.service_problem(con, settings.PROBLEM_SERVICES[service], message)

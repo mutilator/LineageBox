@@ -1,0 +1,30 @@
+{#- The first steps on a new LineageBox (first_run.py), on an admin's Home (and the empty start page) until they are
+    done: each ticked off from the catalog as it is done, the next one to do a link to where it is done. first_run:
+    first_run.checklist(), or none. -#}
+{%- if first_run %}
+<section class="first-run" id="first-run" aria-labelledby="first-run-title">
+  <h2 id="first-run-title">{% trans done=first_run.done, needed=first_run.needed %}Getting started <small>{{ done }} of {{ needed }} done</small>{% endtrans %}</h2>
+  <p class="meta">{% trans %}What makes a new LineageBox worth opening. Each step ticks itself off once it is done, however it was
+    done; this list goes when they all are.{% endtrans %}</p>
+  <ol class="first-steps">
+    {%- for st in first_run.steps %}
+    <li class="{{ 'done' if st.done else 'todo' }}" id="step-{{ st.key }}">
+      <span class="mark" aria-hidden="true">{{ "✓" if st.done else loop.index }}</span>
+      <div>
+        {%- if st.done %}
+        <span class="step-title">{% trans title=st.title %}<span class="vh">Done: </span>{{ title }}{% endtrans %}</span>
+        {%- else %}
+        <a class="step-title" href="{{ st.href }}">{{ st.title }}</a>{% if st.optional %} <span class="hint inline">{% trans %}when you like{% endtrans %}</span>{% endif %}
+        <p class="hint">{{ st.about }}</p>
+        {%- endif %}
+        {%- if st.note %}<p class="hint{% if not st.done and st.key == 'ai' %} step-note{% endif %}">{{ st.note }}</p>{% endif %}
+      </div>
+    </li>
+    {%- endfor %}
+  </ol>
+  <p class="first-run-foot">
+    <button type="button" class="quiet" data-api="/api/first-run/hide" data-remove="#first-run"
+            data-confirm="{{ _('Put this list away for good? Everything it points to is also on Settings, People and Family.') }}">{% trans %}Put this list away{% endtrans %}</button>
+  </p>
+</section>
+{%- endif %}

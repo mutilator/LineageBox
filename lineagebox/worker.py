@@ -20,10 +20,15 @@ import sqlite3
 import time
 import traceback
 from dataclasses import dataclass
+from pathlib import Path
 from datetime import datetime, timedelta
 
-from lineagebox import (accounts, check, cleanup, dedup, faces, orientation, people, places, quality, search,
-                        settings, speech, storage, updates, video)
+from lineagebox import (accounts, backup, check, cleanup, dedup, faces, orientation, people, places, quality, search,
+                        settings, slideshow, speech, storage, updates, video)
+from lineagebox import imports, sidecars
+from lineagebox import chapters, stories
+from lineagebox import outbox
+from lineagebox import scan_dates  # the dates written on scanned documents, read by the AI
 from lineagebox.activity import log, note_problem
 from lineagebox.config import Config
 from lineagebox.describe import describe
@@ -33,6 +38,7 @@ from lineagebox.ingest import ingest
 from lineagebox.llm import Ollama
 from lineagebox.scan import scan
 
+IN_DOCKER = Path("/.dockerenv").exists()  # the worker only reads the photo folders there (compose.yaml)
 TICK = 15            # seconds between looks at the clock, "Check now" and the settings
 OLLAMA_RETRY = 300   # seconds between checks whether an unreachable Ollama is back
 
@@ -73,6 +79,8 @@ class Stopper:
             set_state(self.con)  # heartbeat
             if (settings.get(self.con, "run_requested") or "") > self.started_at:
                 self.reason = "Check now was pressed"
+            elif (settings.get(self.con, slideshow.WAKE) or "") > self.started_at:
+                self.reason = "someone asked for a slideshow video"
             elif (settings.get(self.con, "saved_at") or "") > self.started_at:
                 self.reason = "the settings changed"
             elif describing and not settings.may_describe(settings.current(self.con, self.base), datetime.now()):
@@ -88,12 +96,18 @@ class Stopper:
 
 
 CHECK_MINUTES = 20  # files checked for damage per pass, at most: the first passes work through the whole library
+VIDEO_MINUTES = 30  # slideshow videos made in a pass: no new one is started after this long
+CHAPTER_MINUTES = 20  # long videos looked at for chapters per pass (chapters.py): none started after this long
+# Photos described again as asked, and descriptions read for search by meaning, each per pass at most: a thousand
+# asked for take hours, and would otherwise use up the whole pass, leaving the stages after them none of it
+ASKED_MINUTES = 20
 
 
-def _for_minutes(minutes: float, stop: Stopper | None):
-    """A stop() for a stage that gets this long, or less when the pass is told to stop."""
+def _for_minutes(minutes: float, stop: Stopper | None, describing: bool = False):
+    """A stop() for a stage that gets this long, or less when the pass is told to stop (describing: or when the
+    describing hours are over)."""
     until = time.monotonic() + minutes * 60
-    return lambda: time.monotonic() > until or (stop is not None and stop.reading())
+    return lambda: time.monotonic() > until or (stop is not None and (stop() if describing else stop.reading()))
 
 
 def run_once(con: sqlite3.Connection, cfg: Config, stop: Stopper | None = None) -> PassResult:
@@ -122,6 +136,11 @@ def run_once(con: sqlite3.Connection, cfg: Config, stop: Stopper | None = None) 
         # previews and the like of photos deleted on the share; only after a scan that could list every folder
         if not s.errors and (n := stage("tidy previews", lambda: cleanup.drop_derivatives(con, cfg))):
             log(con, f"previews: deleted those of {n} photos whose files are gone")
+    # once a day, on the first pass of the day: a copy of the catalog, checked, kept for weeks (backup.py); after the
+    # scan, which only notes what is on the share, and before the long stages, so that a backlog doesn't hold it up
+    if backup.due(con, cfg):
+        stage("back up the catalog", lambda: backup.nightly(con, cfg))
+    note_problem(con, "backup", backup.problem(con, cfg))  # taken off the Status page once switched off
     # once a day: previews, thumbnails and video frames that are gone are made again by the ingest stage below
     if settings.get(con, "previews_checked") != (today := datetime.now().date().isoformat()):
         if n := stage("check previews", lambda: check.rebuild_derivatives(con, cfg)):
@@ -130,8 +149,17 @@ def run_once(con: sqlite3.Connection, cfg: Config, stop: Stopper | None = None) 
     # once a day too: how much room LineageBox's own files take, for the storage on Home and the Status page
     if not (settings.get(con, storage.KEY) or {}).get("measured_at", "").startswith(today):
         stage("measure storage", lambda: storage.measure_data(con, cfg))
+        # and recorded stories taken away a month ago, and sound files no story refers to, deleted (stories.py)
+        if n := stage("tidy stories", lambda: stories.purge(con, cfg)):
+            log(con, f"stories: deleted {n} recordings taken away or no longer used")
     if cfg.update_check:  # GitHub's newest release, once a day, for the Status page (updates.py)
         stage("check for updates", lambda: updates.check(con, cfg))
+    # tours and albums someone asked to have as a video (slideshow.py): before the long stages, so that whoever asked
+    # waits minutes, not hours; asking starts a pass, as Check now does. Videos are finished once started, and between
+    # them the stage gives way after VIDEO_MINUTES.
+    if n := stage("slideshow videos", lambda: slideshow.make_waiting(
+            con, cfg, stop=_for_minutes(VIDEO_MINUTES, None), threads=max(1, cfg.ingest_threads))):
+        log(con, f"slideshow videos: made {n}")
     # Before reading new files, which can take hours (a folder of videos): when the index was made again (a schema
     # change), searching would otherwise find nothing all that time. Nothing to do on most passes.
     if n := stage("search index", lambda: search.index_new(con)):
@@ -151,6 +179,13 @@ def run_once(con: sqlite3.Connection, cfg: Config, stop: Stopper | None = None) 
         if i.stopped:  # start again straight away, with the new settings
             set_state(con, stage=None, stage_since=None)
             return PassResult(run_again=True)
+    # long videos' chapters, and the frames they lack (chapters.py): before the faces stage, so that a tape read just
+    # now has its faces found on those frames too
+    if video.available() and chapters.count_pending(con):
+        if (ch := stage("chapters", lambda: chapters.find(con, cfg, stop=_for_minutes(CHAPTER_MINUTES, stop))))                 and ch.done:
+            log(con, f"chapters: {ch.chapters} chapters and {ch.frames} more frames in {ch.done} long videos "
+                     f"in {ch.seconds / 60:.0f} min" + (f", {ch.failed} failed" if ch.failed else "")
+                + (f", {ch.pending - ch.done - ch.failed} left" if ch.stopped else ""))
 
     # Ollama: descriptions and folder names, if they are on, Ollama answers and its model can do them
     online, problem, ai_now = None, None, False
@@ -169,6 +204,8 @@ def run_once(con: sqlite3.Connection, cfg: Config, stop: Stopper | None = None) 
             if (parsed := stage("folders", lambda: parse_folders(con, ollama, about=cfg.library_about))) and parsed[0]:
                 log(con, f"folders: read {parsed[0]} new folder names")
             stage("folder dates", lambda: date_from_folders(con))
+        if ai_now:  # what people asked for and their search: before the backlog, which can take the whole interval
+            result.run_again = _asked_and_meaning(con, cfg, stage, stop)
 
     if cfg.faces_enabled:
         def find_faces():
@@ -191,6 +228,21 @@ def run_once(con: sqlite3.Connection, cfg: Config, stop: Stopper | None = None) 
         # a video's faces that plainly are someone named on its other frames (people.IN_VIDEO_SIMILARITY)
         if n := stage("faces in videos", lambda: people.name_in_videos(con)):
             log(con, f"people: named {n} faces in videos after the same person on other frames")
+    # names, tags and dates other apps left in the photos (imports.py), once their faces are found; then the XMP
+    # sidecars of what changed (sidecars.py), each a few minutes a pass at most
+    if (m := stage("other apps' names", lambda: imports.run(con, cfg, stop=stop.reading if stop else None))) \
+            and (m.found or m.named):
+        log(con, f"other apps: read {m.read} photos, {m.found} had names, tags or dates; named {m.named} faces "
+                 f"and people in photos" + (f"; {m.left} left to read" if m.left else ""))
+    if (x := stage("XMP sidecars", lambda: sidecars.run(con, cfg, stop=stop.reading if stop else None))) \
+            and (x.written or x.removed or x.failed):
+        log(con, f"sidecars: wrote {x.written}, took away {x.removed}"
+            + (f", {x.failed} couldn't be written (tried again later)" if x.failed else "")
+            + (f"; {x.left} photos left" if x.left else ""))
+    if x and x.read_only and not IN_DOCKER:  # in Docker the copies service writes them (the worker only reads photos)
+        note_problem(con, "sidecars", sidecars.READ_ONLY)
+    elif x and x.written:
+        note_problem(con, "sidecars", None)
     if cfg.places_lookup and (n := stage("places", lambda: places.find_new(con, cfg,
                                                                            stop=stop.reading if stop else None))):
         log(con, f"places: found {n} more place names on the map")
@@ -203,15 +255,19 @@ def run_once(con: sqlite3.Connection, cfg: Config, stop: Stopper | None = None) 
                                                             else ", none damaged"))
     if n := stage("search index", lambda: search.index_new(con)):
         log(con, f"search: indexed {n} new photos")
+    # New for you (outbox.py): the new photos whose faces were just looked for, and admins' alerts
+    if n := stage("news", lambda: outbox.after_pass(con, cfg)):
+        log(con, f"news: {n} new on New for you")
 
     if (cfg.transcribe_enabled and settings.may_describe(cfg, datetime.now()) and video.available()
             and speech.Whisper(cfg).reachable() and speech.count_pending(con)):
         if (t := stage("transcribe", lambda: speech.transcribe(con, cfg, stop=stop))) and t.pending:
-            log(con, f"transcribe: {t.done} videos ({t.audio_seconds / 60:.0f} min of sound) in "
+            log(con, f"transcribe: {t.done - t.stories} videos and recordings, {t.stories} stories "
+                     f"({t.audio_seconds / 60:.0f} min of sound) in "
                      f"{t.seconds / 60:.0f} min, {t.failed} failed, {t.pending - t.done - t.failed} left"
                 + (" (Whisper stopped answering)" if t.gave_up else "")
                 + (f" (stopped: {stop.reason})" if t.stopped and stop and stop.reason else ""))
-            result.run_again = t.stopped and t.done + t.failed < t.pending
+            result.run_again = result.run_again or t.stopped and t.done + t.failed < t.pending
             if t.done or t.last_error:  # it works again, or every video failed
                 note_problem(con, "whisper", None if t.done else f"Transcribing failed: {t.last_error}")
         if stop is not None and stop.reason:  # its time is used up: describing waits for the next pass
@@ -222,6 +278,11 @@ def run_once(con: sqlite3.Connection, cfg: Config, stop: Stopper | None = None) 
     if ai_now and problem is None and cfg.faces_enabled and cfg.turn_suggest != "off":
         if n := stage("turned photos", lambda: orientation.check_with_ai(con, cfg, ollama, cfg.turn_suggest, stop)):
             log(con, f"turned photos: the AI looked at {n} that their faces say are turned")
+    # the dates written on scanned documents (Cleanup → Suggested dates): each read once, for ASKED_MINUTES at most
+    if ai_now and problem is None and cfg.describe_enabled:
+        if n := stage("document dates", lambda: scan_dates.read_waiting(
+                con, cfg, ollama, stop=_for_minutes(ASKED_MINUTES, stop, describing=True))):
+            log(con, f"document dates: the AI read the dates on {n} scanned document{'' if n == 1 else 's'}")
 
     if not cfg.describe_enabled:
         pass
@@ -248,6 +309,38 @@ def run_once(con: sqlite3.Connection, cfg: Config, stop: Stopper | None = None) 
     return result
 
 
+def _asked_and_meaning(con: sqlite3.Connection, cfg: Config, stage, stop: Stopper | None) -> bool:
+    """Photos someone asked to have described again (describe.describe_requests), then the descriptions and
+    captions search by meaning hasn't read yet (embeddings.embed_new): both while Ollama answers, in the describing
+    hours, each for ASKED_MINUTES at most. True when either stopped with some left (the next pass starts at once)."""
+    from lineagebox import describe as describing, embeddings  # noqa: I001 (describe() is imported above)
+
+    left = False
+    if describing.count_requests(con):
+        if (r := stage("describe again", lambda: describing.describe_requests(
+                con, cfg, stop=_for_minutes(ASKED_MINUTES, stop, describing=True)))) and r.pending:
+            log(con, f"describe again: {r.done} photos as asked, {r.failed} failed"
+                + (f"; {r.dropped} asked of a model that can't ({r.last_error})" if r.dropped else "")
+                + (f", {r.pending - r.done - r.failed - r.dropped} left" if r.done + r.failed + r.dropped < r.pending
+                   else ""))
+            left = r.stopped and r.done + r.failed + r.dropped < r.pending
+    if not cfg.ollama_embed_model:
+        return left
+    e = stage("meaning", lambda: embeddings.embed_new(con, cfg, stop=_for_minutes(ASKED_MINUTES, stop,
+                                                                                  describing=True)))
+    if e is None:
+        return left
+    left = left or e.stopped
+    if e.done:
+        log(con, f"search by meaning: read {e.done} descriptions" + (f", {e.failed} failed" if e.failed else ""))
+    if e.missing:
+        note_problem(con, "meaning", f"Ollama has no model named {cfg.ollama_embed_model}: download it with the "
+                                     f"button in Settings → AI. Until then search finds words only.")
+    elif e.done:
+        note_problem(con, "meaning", None)
+    return left
+
+
 def run_forever(con: sqlite3.Connection, base: Config) -> None:
     cfg = settings.current(con, base)
     log(con, f"worker started: watching {', '.join(cfg.folders) or 'no folders yet (pick one on the Settings page)'}; "
@@ -262,6 +355,8 @@ def run_forever(con: sqlite3.Connection, base: Config) -> None:
                 reason = "scheduled"
             elif (settings.get(con, "run_requested") or "") > last_start:
                 reason = "Check now"
+            elif (settings.get(con, slideshow.WAKE) or "") > last_start:
+                reason = "a slideshow video was asked for"
             elif (settings.get(con, "saved_at") or "") > last_start:
                 reason = "settings changed"
             elif waiting_for == "schedule" and settings.may_describe(cfg, datetime.now()):

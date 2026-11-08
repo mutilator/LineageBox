@@ -2,14 +2,18 @@
 from outside their part of the family from any page, API or picture, nor changes anything there."""
 import json
 import re
+from urllib.parse import urlencode
 
 import pytest
 from fastapi.testclient import TestClient
 
-from lineagebox import access, accounts, catalog, memories, settings, sharing, tours
+from lineagebox import access, accounts, catalog, devices, memories, outbox, settings, sharing, tours
+from lineagebox import albums, cleanup, comments, documents, face_ages, favourites, life, places, stories
 from lineagebox.web import app as webapp
 from lineagebox.web import site as site_module
+from lineagebox.web.common import _from_app
 from lineagebox.web.routes import cleanup as cleanup_routes
+from lineagebox.web.routes import naming as naming_routes
 from tests import family_fixture as fx
 from tests.conftest import LAN
 
@@ -31,6 +35,20 @@ def site(con, cfg, library):
                     "Cora": tours.save_tour(con, None, None, spec, "Cora's", who["Cora"]["id"]),
                     "Tina": tours.save_tour(con, None, None, spec, "Tina's", who["Tina"]["id"])}
     sharing.share(con, who["Sam"]["id"], "tour", fam["tours"]["shared"], None)
+    # albums (albums.py): the admins' own and each member's, of every photo (Zed's captioned with the marker), and one
+    # of Rex the admins share with everyone (an admin's album passes on all its photos, as an admin's tour does)
+    ph_all = list(fam["photos"].values())
+    fam["albums"] = {}
+    for key, name, owner in (("admins", "Admins' album", None), ("Cora", "Cora's album", who["Cora"]["id"]),
+                             ("Tina", "Tina's album", who["Tina"]["id"])):
+        fam["albums"][key] = albums.create(con, name, owner)
+        albums.add(con, fam["albums"][key], ph_all)
+        albums.set_caption(con, fam["albums"][key], fam["photos"]["zed.jpg"], f"{fx.SECRET} album caption")
+    fam["albums"]["shared"] = albums.create(con, "Album for the family", None)
+    albums.add(con, fam["albums"]["shared"], [fam["photos"]["rex.jpg"]])
+    sharing.share(con, who["Sam"]["id"], "album", fam["albums"]["shared"], None)
+    sharing.remember_album(con, fam["albums"]["shared"], [fam["photos"]["rex.jpg"]])
+    favourites.put(con, access.Viewer(account=who["Tina"], admin=False), fam["photos"]["zed.jpg"], True)
     # an unnamed face beside Cora and Bart, and one in Zed's photo, grouped together by the clustering
     fam["open_face"] = con.execute("""INSERT INTO face(image_id, x1, y1, x2, y2, det_score, quality, embedding, cluster_id)
                                       VALUES (?, 0.7, 0.1, 0.9, 0.5, 0.9, 25, ?, 77)""",
@@ -39,10 +57,43 @@ def site(con, cfg, library):
                                                            cluster_id) VALUES (?, 0.6, 0.1, 0.9, 0.5, 0.9, 25, ?, 77)""",
                                        (fam["photos"]["zed.jpg"], fx.unit(902).tobytes())).lastrowid
     con.execute("INSERT INTO citation(image_id, person_id) VALUES (?, ?)", (fam["photos"]["zed.jpg"], p["Zed"]))
+    # New for you (outbox.py): events about photos each member may or may not see, and an admin's alert, for the sweeps
+    zed = fam["photos"]["zed.jpg"]
+    con.execute("INSERT INTO face_question(face_id, account_id, asked_at) VALUES (?, ?, '2026-01-01')",
+                (fam["zed_open_face"], who["Sam"]["id"]))
+    outbox.asked(con, fam["zed_open_face"], who["Sam"]["id"])
+    outbox.add(con, "new_photos", data={"ids": sorted(fam["photos"].values())})
+    words = con.execute("""INSERT INTO comment(image_id, kind, text, account_id, at)
+                           VALUES (?, 'comment', ?, ?, '2026-01-01')""",
+                        (zed, f"{fx.SECRET} words", who["Sam"]["id"])).lastrowid
+    for name in ("Cora", "Tina"):  # as if they had a reason to be told: they can't see the photo, so they aren't
+        outbox.add(con, "comment", to=who[name]["id"], by=who["Sam"]["id"], image_id=zed, comment_id=words)
+    outbox.add(con, "damaged", admins=True, data={"files": 3})
     con.commit()
     settings.save(con, cfg, {"accounts_enabled": True})
     fam["who"] = who
     return fam
+
+
+@pytest.fixture
+def swept(site, cfg, con):
+    """The site with what the newer features keep about Zed, whom no member sees: a recorded story about him and
+    one on his photo, a written source cited only for him, his photo put on the map by hand, a photo frame's link;
+    and, on the picnic photo both members see, a story and a comment of Sam's (not theirs to change)."""
+    p, ph = site["people"], site["photos"]
+    zed, sam = ph["zed.jpg"], site["who"]["Sam"]["id"]
+    sound = b"OggS" + bytes(200)
+    site["stories"] = {
+        "zed": stories.save(con, cfg, sound, sam, person_id=p["Zed"], title=f"{fx.SECRET} story"),
+        "zed_photo": stories.save(con, cfg, sound, sam, image_id=zed, title=f"{fx.SECRET} photo story"),
+        "picnic": stories.save(con, cfg, sound, sam, image_id=ph["cora_bart.jpg"], title="At the picnic")}
+    site["source"] = documents.save_source(con, None, f"{fx.SECRET} diary")
+    site["source_citation"] = documents.cite_source(con, site["source"], f"p:{p['Zed']}")
+    places.place_photo(con, zed, 51.5, -0.1, sam)
+    site["sams_comment"] = comments.add_comment(con, ph["cora_bart.jpg"], "Sam remembers", sam)
+    site["device"] = devices.make(con, "Hall", "memories", home_only=False)[0]
+    con.commit()
+    return site
 
 
 def signed_in(cfg, con, account, client=LAN, **app_options):
@@ -57,6 +108,24 @@ def test_every_route_has_a_rule(cfg):
     assert len(paths) > 150
     assert paths - set(webapp.ROUTES) == set(), "routes with no rule in ROUTES"
     assert set(webapp.ROUTES) - paths == set(), "rules for routes that don't exist"
+
+
+# POSTs that come without the app's header, as plain posts that change nothing: the phone's share sheet (which can't
+# add one; it only leads to Upload), and the ticked photos' zip (a form, so the browser saves the file)
+PLAIN_POSTS = {"/upload/shared", "/download"}
+
+
+def test_every_change_comes_from_the_apps_own_scripts(cfg):
+    """Every POST needs X-Requested-With (common._from_app), which a page on another site can't send: so no other
+    site can make a signed-in browser change anything."""
+    def needs(dependant):
+        return any(d.call is _from_app or needs(d) for d in dependant.dependencies)
+    app = webapp.create_app(cfg)
+    posts = {r.path: r for r in webapp.all_routes(app) if "POST" in getattr(r, "methods", ())}
+    assert len(posts) > 100
+    assert {path for path, r in posts.items() if not needs(r.dependant)} == PLAIN_POSTS
+    c = TestClient(app, client=LAN)
+    assert c.post("/api/images/1/caption", json={"text": "x"}).status_code == 403  # without it
 
 
 def test_the_accounts_page_folds_each_account_away(site, cfg, con):
@@ -133,11 +202,14 @@ def _urls(app, con, site):
         "file_id": [r[0] for r in con.execute("SELECT id FROM file")],
         "folder_id": [r[0] for r in con.execute("SELECT id FROM folder")],
         "tour_id": list(site["tours"].values()),
+        "album_id": list(site["albums"].values()),
         "year": [r[0] for r in con.execute("SELECT DISTINCT CAST(substr(taken_at, 1, 4) AS INT) FROM image")],
         "name": [r[0] for r in con.execute("SELECT name FROM tag")] + ["nothing"],
         "sha": [r[0] for r in con.execute("SELECT sha256 FROM image")],
         "value": ["gps", "videos", "format/jpeg"], "import_id": [1], "reading_id": [1], "kind": ["papers"], "type_id": ["new", "1"],
         "part": list(cleanup_routes.COUNTS),
+        "event_id": [r[0] for r in con.execute("SELECT id FROM outbox")] + [99999],
+        "story_id": [r[0] for r in con.execute("SELECT id FROM story")] + [99999],
     }
     out = []
     for route in webapp.all_routes(app):
@@ -162,19 +234,49 @@ def _urls(app, con, site):
                 for i in site["people"].values()]
     queries += ["/api/map?year=2014", "/tours/new?type=1", "/family/export", "/family/export?photos=true",
                 "/cleanup/faces?show=finish", "/cleanup/faces?show=groups", "/cleanup/faces?show=together",
+                "/cleanup/faces?show=ages", "/cleanup/faces?show=missed", "/cleanup/camera-clock?camera=x",
+                "/cleanup/camera-clock?camera=x&from=1&to=end&photo=1", "/cleanup/dates?show=photos",
                 "/tags?q=zebra", "/settings?browse=lib"]
+    # what is typed into search, letter by letter, and its filters; a photo's ←/→ through each kind of list
+    queries += [f"/api/search/suggest?q={n[:k]}" for n in fx.PEOPLE + [fx.SECRET, "party"] for k in (2, 3, 99)]
+    queries += [f"/search?people={i}" for i in site["people"].values()]
+    queries += [f"/search?q=party&people={i}&sort=newest" for i in site["people"].values()]
+    queries += ["/search?unnamed=1", "/search?undated=1", "/search?media=videos", f"/search?place={fx.SECRET}"]
+    first = ids["image_id"][:3]
+    queries += [f"/image/{i}?" + urlencode({"ctx": f"search:?people={p}"}) for i in first
+                for p in site["people"].values()]
+    queries += [f"/image/{i}?ctx={kind}:{x}" for i in first for kind, xs in (("album", ids["album_id"]),
+                                                                          ("tour", ids["tour_id"])) for x in xs]
+    queries += [f"/image/{i}?ctx=tag:{n}" for i in first for n in ids["name"]]
+    # a frame of a tour, the queue of faces to name a step at a time, cleanup's lists of their own uploads
+    queries += [f"{where}?tour={t}" for where in ("/photo-frame", "/api/photo-frame") for t in ids["tour_id"]]
+    queries += [f"/people/name?only={step}" for step in naming_routes.STEPS]
+    queries += [f"/cleanup/similar?kind={k}" for k in cleanup.SIMILAR_KINDS]
+    # each group of everyone's life by age, as an admin's page links to them
+    queries += [f"/person/{pid}/life/{x.key}" for pid in site["people"].values()
+                for x in life.life(con, pid).periods] + [f"/person/{pid}/life/undated" for pid in site["people"].values()]
+    # long lists a piece at a time, and with their photos to tick (pieces.py): the pieces app.js loads, of every list
+    queries += [f"/folder/{i}?{q}" for i in ids["folder_id"] for q in ("select=1", "skip=0&upto=9&piece=1")]
+    queries += [f"/tour/{i}?{q}" for i in ids["tour_id"] for q in ("select=1", "select=1&piece=1")]
+    queries += [f"/timeline/{y}?select=1&piece=1" for y in ids["year"]] + [f"/tag/{n}?piece=1" for n in ids["name"]]
+    queries += [f"/person/{pid}?select=1" for pid in site["people"].values()]
+    queries += [f"/person/{pid}/life/{x.key}?select=1" for pid in site["people"].values()
+                for x in life.life(con, pid).periods]
     return out + queries
 
 
 @pytest.mark.parametrize("who", ["Cora", "Tina"])
-def test_the_leak_sweep(site, cfg, con, who):
-    """Every page, API and picture, with every id there is: what isn't theirs is not found, nothing breaks, and no
-    answer holds anything from outside their part of the family."""
+def test_the_leak_sweep(swept, cfg, con, who):
+    """Every page, API and picture, with every id there is: what isn't theirs is not found, nothing breaks, no
+    answer holds anything from outside their part of the family, and none of them changes anything."""
+    site = swept
     hidden = _hidden(site, con, who)
     c = signed_in(cfg, con, site["who"][who])
     app = c.app
     hank_sam = site["photos"]["hank_sam.jpg"]
     checked = 0
+    c.get("/home")  # her session's first use is written now (accounts.TOUCH_EVERY), not during the sweep
+    before = _snapshot(con)
     for url in _urls(app, con, site):
         r = c.get(url)
         assert r.status_code < 500, (url, r.status_code, r.text[:300])
@@ -196,12 +298,18 @@ def test_the_leak_sweep(site, cfg, con, who):
                 continue
             assert not re.search(rf"\b{name}\b", text), (url, name)
     assert checked > 100
+    after = _snapshot(con)
+    assert {t for t in before if before[t] != after[t]} == set(), "a GET changed the catalog"
     # and what is not theirs is "not found", like something that isn't there
+    for story in (site["stories"]["zed"], site["stories"]["zed_photo"]):
+        assert c.get(f"/story/{story}").status_code == 404
+    assert c.get(f"/story/{site['stories']['picnic']}").status_code == 200
     for i in hidden["images"]:
         assert c.get(f"/image/{i}").status_code == 404
         assert c.get(f"/play/{i}").status_code == 404
     for sha in hidden["shas"]:
         assert c.get(f"/t/{sha}").status_code == 404 and c.get(f"/p/{sha}").status_code == 404
+        assert c.get(f"/t2/{sha}").status_code == 404  # nor the sharp tile (tiles.py), made or not
     for pid in hidden["people"]:
         assert c.get(f"/person/{pid}").status_code == 404 and c.get(f"/person/{pid}/faces").status_code == 404
     for fid in hidden["faces"]:
@@ -214,6 +322,13 @@ def test_the_leak_sweep(site, cfg, con, who):
         assert c.get(path).status_code == 404, path
     assert c.get(f"/tour/{site['tours']['shared']}").status_code == 200
     assert c.get(f"/tour/{site['tours'][who]}").status_code == 200
+    other = "Tina" if who == "Cora" else "Cora"
+    for album in (site["albums"]["admins"], site["albums"][other]):  # nor others' albums, their videos or zips
+        for path in (f"/album/{album}", f"/album/{album}/video", f"/download/album/{album}",
+                     f"/download/album/{album}/video"):
+            assert c.get(path).status_code == 404, path
+    assert c.get(f"/album/{site['albums']['shared']}").status_code == 200
+    assert c.get(f"/album/{site['albums'][who]}").status_code == 200
     for pid in hidden["people"]:  # nor a tour of them, saved or not
         spec = {"title": "{person}", "who": {"mode": "person", "person_ids": [pid]}}
         assert c.get(memories.try_href({"spec": spec})).status_code == 404
@@ -250,15 +365,21 @@ def test_what_a_member_sees_of_a_photo(site, cfg, con):
 def _snapshot(con):
     tables = ("person", "face", "parent", "partner", "sibling", "relation", "image_tag", "tag", "image_person",
               "event", "person_name", "person_group", "document", "citation", "tour", "account", "access_rule",
-              "face_question", "face_not_person", "file", "share")
+              "face_question", "face_not_person", "file", "share", "album", "album_photo", "favourite",
+              "slideshow_video", "comment", "story", "source", "source_citation", "image_place", "folder_place",
+              "describe_request", "device_link", "outbox", "tag_alias", "camera_clock", "scan_reading")
     out = {t: con.execute(f"SELECT * FROM {t} ORDER BY 1, 2").fetchall() for t in tables}
-    out["image"] = con.execute("SELECT id, taken_at, taken_at_source, hidden FROM image ORDER BY id").fetchall()
+    out["image"] = con.execute("SELECT id, taken_at, taken_at_source, hidden, faces_again FROM image "
+                               "ORDER BY id").fetchall()
+    out["ages_ok"] = con.execute("SELECT key, value FROM settings WHERE key IN (?, 'scan_dates_ok')",
+                                 (face_ages.OK_KEY,)).fetchall()
     return {t: [tuple(r) for r in rows] for t, rows in out.items()}
 
 
-def test_the_write_sweep(site, cfg, con):
+def test_the_write_sweep(swept, cfg, con):
     """Every change a member can ask for, about things outside their part of the family: refused, and nothing in
     the catalog changes."""
+    site = swept
     c = signed_in(cfg, con, site["who"]["Cora"])
     p, ph, f = site["people"], site["photos"], site["faces"]
     zed, zp, bart, cora = ph["zed.jpg"], p["Zed"], p["Bart"], p["Cora"]
@@ -272,7 +393,10 @@ def test_the_write_sweep(site, cfg, con):
     picnic = con.execute("SELECT folder_id FROM file WHERE image_id = ?", (ph["cora_bart.jpg"],)).fetchone()[0]
     zed_folder = con.execute("SELECT folder_id FROM file WHERE image_id = ?", (zed,)).fetchone()[0]
     admins_share = con.execute("SELECT id FROM share").fetchone()[0]
-    t = site["tours"]
+    t, st = site["tours"], site["stories"]
+    zed_words = con.execute("SELECT id FROM comment WHERE image_id = ?", (zed,)).fetchone()[0]
+    sam = signed_in(cfg, con, site["who"]["Sam"])  # an admin's change Cora's Undo mustn't take back
+    sams_change = sam.post(f"/api/images/{ph['rex.jpg']}/caption", json={"text": "Grandpa"}, headers=APP).json()["undo"]
     attempts = [
         # sharing what isn't hers: a library folder, a photo she sees but didn't upload, a hidden one, others' tours,
         # her own tour with an account that isn't there; stopping an admin's share; removing library folders
@@ -323,6 +447,23 @@ def test_the_write_sweep(site, cfg, con):
         (f"/api/tours/{site['tours']['admins']}", {"name": "x"}),
         (f"/api/tours/{site['tours']['shared']}", {"name": "x"}),
         (f"/api/tours/{site['tours']['Tina']}/delete", None),
+        # albums: others' (an admin's shared with her too), and photos she can't see in her own; a heart on one
+        (f"/api/albums/{site['albums']['Tina']}", {"name": "x"}),
+        (f"/api/albums/{site['albums']['shared']}/delete", None),
+        (f"/api/albums/{site['albums']['admins']}/order", {"image_ids": [zed]}),
+        (f"/api/albums/{site['albums']['shared']}/caption", {"image_id": ph["rex.jpg"], "text": "x"}),
+        (f"/api/albums/{site['albums']['Tina']}/remove", {"image_ids": [ph["rex.jpg"]]}),
+        (f"/api/albums/{site['albums']['Cora']}/cover", {"image_id": zed}),
+        (f"/api/albums/{site['albums']['Cora']}/caption", {"image_id": zed, "text": "x"}),
+        (f"/api/albums/{site['albums']['Cora']}/remove", {"image_ids": [zed]}),
+        ("/api/albums/add", {"album_id": site["albums"]["Cora"], "image_ids": [zed]}),
+        ("/api/albums/add", {"album_id": site["albums"]["shared"], "image_ids": [ph["rex.jpg"]]}),
+        ("/api/albums/add", {"album": "New", "image_ids": [ph["rex.jpg"], zed]}),
+        ("/api/albums", {"name": "New", "image_ids": [zed]}),
+        ("/api/shares", {"album_id": site["albums"]["Tina"], "to": "everyone"}),
+        ("/api/shares", {"album_id": site["albums"]["shared"], "to": "everyone"}),
+        (f"/api/albums/{site['albums']['Tina']}/video", None),
+        (f"/api/images/{zed}/favourite", {"on": True}),
         # a tour of people she can't see: its name would have been made from theirs
         ("/api/tours", {"spec": {"title": "{people}", "who": {"mode": "people", "person_ids": [zp, p["Hank"]]}},
                         "name": ""}),
@@ -334,6 +475,46 @@ def test_the_write_sweep(site, cfg, con):
         ("/api/settings/accounts", {"accounts_enabled": False}),
         ("/api/images/keep", {"image_ids": [ph["cora_bart.jpg"]]}), ("/api/removed/empty", None),
         ("/api/places/fix", {"name": "x"}),
+        # captions and comments on a photo she can't see; Sam's comment on one she sees, which isn't hers to change
+        (f"/api/images/{zed}/caption", {"text": "x"}), (f"/api/images/{zed}/comments", {"text": "x"}),
+        (f"/api/comments/{zed_words}/edit", {"text": "x"}), (f"/api/comments/{zed_words}/delete", None),
+        (f"/api/comments/{site['sams_comment']}/edit", {"text": "x"}),
+        (f"/api/comments/{site['sams_comment']}/delete", None),
+        # stories about Zed, his photo, his life event; Sam's story on the picnic photo
+        (f"/api/stories?image={zed}", None), (f"/api/stories?person={zp}", None),
+        (f"/api/stories?person={cora}&event={event}", None),
+        (f"/api/stories/{st['zed']}/words", {"title": "x"}), (f"/api/stories/{st['zed']}/remove", None),
+        (f"/api/stories/{st['zed_photo']}/remove", None), (f"/api/stories/{st['picnic']}/words", {"title": "x"}),
+        (f"/api/stories/{st['picnic']}/remove", None), (f"/api/images/{zed}/transcript", {"start": 0, "text": "x"}),
+        # his life story, portrait and sources; a portrait of her from a face that isn't hers; his source cited for her
+        (f"/api/people/{zp}/story", {"biography": "x"}), (f"/api/people/{zp}/portrait", {"face_id": zface}),
+        (f"/api/people/{cora}/portrait", {"face_id": hank_face}),
+        (f"/api/people/{zp}/sources", {"target": f"p:{zp}", "title": "x"}),
+        (f"/api/people/{cora}/sources", {"target": f"e:{event}", "title": "x"}),
+        (f"/api/people/{cora}/sources", {"target": f"p:{cora}", "source_id": site["source"]}),
+        (f"/api/sources/{site['source']}", {"title": "x"}),
+        (f"/api/source-citations/{site['source_citation']}/delete", None),
+        # the naming queue's answers about his face, or naming hers as him
+        (f"/api/faces/{zface}/yes", {"person_id": cora}), (f"/api/faces/{zface}/no", {"person_id": zp}),
+        (f"/api/faces/{f['cora_bart.jpg'][0]}/yes", {"person_id": zp}), (f"/api/people/{zp}/yes", {"yes": [zface]}),
+        (f"/api/people/{cora}/yes", {"yes": [zface]}),
+        # the AI asked again, places by hand, and what is the admins' alone
+        (f"/api/images/{zed}/describe-again", {}), ("/api/selection/describe-again", sel),
+        (f"/api/images/{zed}/place", {"lat": 1, "lon": 1}), (f"/api/images/{zed}/place", {"clear": True}),
+        (f"/api/folders/{picnic}/place", {"lat": 1, "lon": 1}), (f"/api/images/{zed}/write-file", None),
+        (f"/api/folders/{picnic}/meaning", {"place": "x"}), (f"/api/folders/{picnic}/meaning/again", None),
+        ("/api/tags/rename", {"tag": f"{fx.SECRET}tag", "to": "x"}),
+        ("/api/tags/remove-everywhere", {"tag": f"{fx.SECRET}tag"}),
+        ("/api/camera-clock", {"camera": "x", "first_id": zed, "image_id": zed, "day": "2010-01-01"}),
+        ("/api/camera-clock/1/pin", {"image_id": zed, "day": "2010-01-01"}),
+        ("/api/camera-clock/1/unpin", {"image_id": zed}), ("/api/camera-clock/1/bounds", {"to_end": True}),
+        ("/api/camera-clock/1/remove", None),
+        (f"/api/images/{zed}/read-date", None), (f"/api/images/{zed}/date-ok", None),
+        (f"/api/faces/{hank_face}/age-ok", None), (f"/api/images/{ph['cora_bart.jpg']}/faces-found", None),
+        (f"/api/devices/{site['device']}/revoke", None), (f"/api/devices/{site['device']}/delete", None),
+        ("/api/devices", {"name": "Mine", "view": "memories"}),
+        # undoing an admin's change, just made
+        (f"/api/changes/{sams_change}/undo-own", None), (f"/api/changes/{sams_change}/undo", None),
     ]
     c.get("/home")  # her session's first use is written now (accounts.TOUCH_EVERY), not during the attempts
     before = _snapshot(con)
@@ -484,3 +665,104 @@ def test_the_crawler(site, cfg, con):
     assert len(seen) > 40
     assert not {u for u in seen if c.get(u).status_code == 404 and not u.startswith(("/t/", "/p/", "/face/"))} - {
         "/settings", "/status"}
+
+
+def _device_client(cfg, client=OUTSIDE):
+    return TestClient(webapp.create_app(cfg), client=client, follow_redirects=False)
+
+
+def test_a_device_link_opens_its_frame_and_nothing_else(site, cfg, con):
+    """A photo frame's link (devices.py): its frame, its list and the pictures on that list, from anywhere when made
+    so, without signing in; every other page, API and picture is not there for it, whatever cookie comes along."""
+    cora = site["who"]["Cora"]
+    _, token = devices.make(con, "Kitchen", "memories", account_id=cora["id"], home_only=False)
+    c = _device_client(cfg)
+    c.cookies.set(accounts.COOKIE, accounts.new_session(con, site["who"]["Sam"]["id"], 30))  # an admin's, even
+    d = f"/d/{token}"
+    page = c.get(d)
+    assert page.status_code == 200 and f'data-photos="{d}/api/photo-frame"' in page.text
+    assert "frame-ancestors *" in page.headers["content-security-policy"] and "x-frame-options" not in page.headers
+    photos = c.get(f"{d}/api/photo-frame").json()["photos"]
+    shown = {p["poster"].rsplit("/", 1)[1] for p in photos}
+    seen_by_cora = access.compute(con, cora)
+    allowed = {catalog.image(con, i)["sha256"] for i in seen_by_cora.images}
+    assert shown and shown <= allowed  # memories as Cora sees them, nothing of anyone else's
+    for p in photos:
+        assert c.get(d + p["src"]).status_code == 200
+    for sha in [r[0] for r in con.execute("SELECT sha256 FROM image")]:
+        if sha not in shown:
+            assert c.get(f"{d}/p/{sha}").status_code == 404 and c.get(f"{d}/t/{sha}").status_code == 404
+    for image_id in [r[0] for r in con.execute("SELECT id FROM image")]:
+        assert c.get(f"{d}/play/{image_id}").status_code == 404  # no video on it
+    # every other GET, with every id there is: not there
+    refused = 0
+    for url in _urls(c.app, con, site):
+        r = c.get(d + url)
+        path = url.split("?")[0]
+        if path in ("/", "/photo-frame", "/api/photo-frame") or re.fullmatch(r"/p/[0-9a-f]{64}", path):  # /: the frame
+            continue
+        assert r.status_code == 404, (url, r.status_code)
+        assert fx.SECRET not in r.text, url
+        refused += 1
+    assert refused > 200
+    # and every change, of every kind
+    for route in webapp.all_routes(c.app):
+        if "POST" not in getattr(route, "methods", ()):
+            continue
+        url = re.sub(r"{\w+(?::\w+)?}", "1", route.path)
+        r = c.post(d + url, json={}, headers=APP)
+        assert r.status_code == 404, (url, r.status_code, r.text[:200])
+    # an admin's session in the same browser still works without the link
+    assert c.get("/settings").status_code == 200
+
+
+def test_device_links_turned_off_or_away_from_home(site, cfg, con):
+    """A revoked link, a made-up one and one for the home network asked for from outside: the frame and its pictures
+    are all refused, at once after revoking (the lookup isn't kept through a change on the site)."""
+    sam = site["who"]["Sam"]
+    link_id, token = devices.make(con, "Hall", "tour", tour_id=site["tours"]["admins"], home_only=True)
+    at_home = _device_client(cfg, LAN)
+    outside = TestClient(at_home.app, client=OUTSIDE, follow_redirects=False)  # one app: one web server's memory
+    d = f"/d/{token}"
+    assert at_home.get(d).status_code == 200
+    photos = at_home.get(f"{d}/api/photo-frame").json()["photos"]
+    assert photos and at_home.get(d + photos[0]["src"]).status_code == 200
+    r = outside.get(d)
+    assert r.status_code == 404 and "home network" in r.text
+    assert outside.get(d + photos[0]["src"]).status_code == 404
+    assert at_home.get("/d/made-up-token").status_code == 404
+    assert at_home.get("/d/").status_code == 404
+    # turned off by an admin on Settings → Photo frames
+    admin = TestClient(at_home.app, client=LAN, follow_redirects=False)
+    admin.cookies.set(accounts.COOKIE, accounts.new_session(con, sam["id"], 30))
+    assert admin.post(f"/api/devices/{link_id}/revoke", headers=APP).status_code == 200
+    for url in (d, f"{d}/api/photo-frame", d + photos[0]["src"]):
+        r = at_home.get(url)
+        assert r.status_code == 404 and "turned off" in r.text, url
+    assert con.execute("SELECT token_hash FROM device_link WHERE id = ?", (link_id,)).fetchone()[0] != token
+
+
+def test_members_cant_make_device_links(site, cfg, con):
+    cora = signed_in(cfg, con, site["who"]["Cora"])
+    before = con.execute("SELECT count(*) FROM device_link").fetchone()[0]
+    r = cora.post("/api/devices", json={"name": "Mine", "view": "memories", "account_id": "all"}, headers=APP)
+    assert r.status_code == 404 and con.execute("SELECT count(*) FROM device_link").fetchone()[0] == before
+    assert cora.get("/settings/devices").status_code == 404
+
+
+def test_new_for_you_shows_a_member_only_what_she_sees(site, cfg, con):
+    """Events about photos she can't see (a question about Zed's face, words on his photo) are not hers to see, nor
+    the admins' alerts; the new photos she sees are counted, the others not even named."""
+    cora = signed_in(cfg, con, site["who"]["Cora"])
+    page = cora.get("/news").text
+    hidden = _hidden(site, con, "Cora")
+    assert fx.SECRET not in page and "files found damaged on the photo disk" not in page and "asked who this is" not in page
+    for sha in hidden["shas"]:
+        assert sha not in page
+    seen = access.compute(con, site["who"]["Cora"])
+    visible = [i for i in site["photos"].values() if i in seen.images
+               and con.execute(f"SELECT 1 FROM image i WHERE id = ? AND {catalog.VISIBLE}", (i,)).fetchone()]
+    assert f"{len(visible)} new photos of your family" in page
+    admin = signed_in(cfg, con, site["who"]["Sam"]).get("/news").text
+    assert "3 files found damaged" in admin and f"{len(site['photos'])} new photos" in admin
+    assert "Sam asked who this is" not in admin  # his own question is no news to him

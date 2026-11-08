@@ -1,0 +1,64 @@
+/* A family book (book.html): on screen, sheets of paper on the page; printed (or saved as a PDF), a cover, the
+   contents, and a page for each person, black on white whatever the screen's colours. */
+
+.book { max-width: 21cm; margin: 0 auto 2rem; }
+.book > section {
+  background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 6px;
+  padding: 1.5rem 1.75rem; margin: 1rem 0;
+}
+.book h2 { margin: 0; font-size: 1.6rem; }
+.book h3 { font-size: 1.1rem; margin: 1.25rem 0 .4rem; border-bottom: 1px solid var(--line); padding-bottom: .2rem; }
+.book h4 { font-size: 1rem; margin: .8rem 0 .3rem; color: var(--muted); }
+.book .years, .book .also, .book .made { color: var(--muted); margin: .2rem 0; }
+
+.book-cover { text-align: center; padding: 3rem 1.5rem !important; }
+.book-cover h1 { font-size: 2.2rem; margin: 1rem 0 .3rem; }
+.book-cover .made { margin-top: 2rem; font-size: .9rem; }
+.book-contents ol { list-style: none; padding: 0; }
+.book-contents li { margin: .2rem 0; }
+
+.book-person header { display: flex; gap: 1.25rem; align-items: center; }
+/* a square cut from the photo around the face (book.portrait gives the photo's size and place in percent) */
+.portrait {
+  position: relative; display: inline-block; flex: none; overflow: hidden; border-radius: 4px; background: var(--tile);
+  width: 4.5cm; aspect-ratio: 1;
+}
+.portrait img { position: absolute; max-width: none; height: auto; }
+.portrait.large { width: 8cm; }
+.book-story { white-space: pre-line; margin: 1rem 0; line-height: 1.5; }
+.book-life { padding-left: 1.2rem; margin: .3rem 0; }
+.book-life li { margin: .2rem 0; }
+.book-note { display: block; color: var(--muted); font-size: .95rem; }
+.book-family { display: grid; grid-template-columns: max-content 1fr; gap: .25rem 1rem; margin: .3rem 0; }
+.book-family dt { color: var(--muted); }
+.book-family dd { margin: 0; }
+.book-docs, .book-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(5cm, 1fr)); gap: .8rem; }
+.book figure { margin: 0; break-inside: avoid; }
+.book figure img { display: block; width: 100%; height: auto; max-height: 7cm; object-fit: contain; background: var(--tile); }
+.book figcaption { font-size: .9rem; margin-top: .25rem; }
+.book-year { break-inside: avoid-page; }
+.book-tools .actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+
+@media (max-width: 600px) {
+  .book > section { padding: 1rem; }
+  .book-person header { flex-direction: column; align-items: flex-start; }
+  .portrait.large { width: 70vw; }
+}
+
+@media print {
+  @page { margin: 16mm 14mm; }
+  :root { --surface: #fff; --text: #000; --muted: #444; --line: #bbb; --tile: #eee; }
+  html, body { background: #fff !important; color: #000 !important; }
+  header.top, .book-tools, .skip, #help, #notice, .see-as { display: none !important; }
+  main { padding: 0 !important; margin: 0 !important; max-width: none !important; }
+  .book { max-width: none; margin: 0; }
+  .book > section { border: 0; border-radius: 0; padding: 0 !important; margin: 0; background: #fff; }
+  .book-cover { break-after: page; padding-top: 4cm !important; }
+  .book-contents { break-after: page; }
+  .book-person { break-before: page; }
+  .book-cover + .book-person, .book-contents + .book-person { break-before: auto; }
+  .book a { color: inherit; text-decoration: none; }
+  .book h3, .book h4 { break-after: avoid; }
+  .book-photos { grid-template-columns: repeat(3, 1fr); }
+  .book-docs { grid-template-columns: repeat(2, 1fr); }
+}

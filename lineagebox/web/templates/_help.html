@@ -2,35 +2,42 @@
    app.js when it opens. #}
 {% set h = help_for(help_page|default("")) %}
 <dialog id="help" class="help" aria-labelledby="help-title">
-  <form method="dialog" class="help-close"><button aria-label="Close help" title="Close (Esc)">×</button></form>
-  <h2 id="help-title">Help: {{ h.title }}</h2>
+  <form method="dialog" class="help-close"><button aria-label="{{ _('Close help') }}" title="{{ _('Close (Esc)') }}">×</button></form>
+  <h2 id="help-title">{% trans title=h.title %}Help: {{ title }}{% endtrans %}</h2>
   {%- for p in h.about %}
   <p>{{ p }}</p>
   {%- endfor %}
-  <h3>Keys on this page</h3>
-  <dl class="keys-list" data-page-keys>
+  {#- keys-part: not on a phone or tablet, which has no keyboard to press them on (app.css) #}
+  <h3 class="keys-part">{% trans %}Keys on this page{% endtrans %}</h3>
+  <dl class="keys-list keys-part" data-page-keys>
     {%- for key, what in h.keys %}<dt>{% for k in key.split(" ") %}<kbd>{{ k }}</kbd>{% endfor %}</dt><dd>{{ what }}</dd>{% endfor %}
   </dl>
-  <p class="hint" data-no-keys hidden>None of its own; the keys below work here too.</p>
-  <h3>Keys everywhere</h3>
-  <dl class="keys-list">
-    {%- for key, what in help_everywhere %}<dt><kbd>{{ key }}</kbd></dt><dd>{{ what }}</dd>{% endfor %}
-    <dt><kbd>g</kbd> then a letter</dt><dd>go to a page:
-      {%- for letter, href, name in help_go if viewer.admin or href not in admin_pages %} <a href="{{ href }}"><kbd>{{ letter }}</kbd>&nbsp;{{ name }}</a>{{ "," if not loop.last }}{% endfor %}</dd>
+  <p class="hint keys-part" data-no-keys hidden>{% trans %}None of its own; the keys below work here too.{% endtrans %}</p>
+  <h3 class="keys-part">{% trans %}Keys everywhere{% endtrans %}</h3>
+  <dl class="keys-list keys-part">
+    {%- for key, what in help_everywhere() %}<dt><kbd>{{ key }}</kbd></dt><dd>{{ what }}</dd>{% endfor %}
+    <dt>{% trans %}<kbd>g</kbd> then a letter{% endtrans %}</dt><dd>{% trans %}go to a page:{% endtrans %}
+      {%- for letter, href, name in help_go() if viewer.admin or href not in admin_pages %} <a href="{{ href }}"><kbd>{{ letter }}</kbd>&nbsp;{{ name }}</a>{{ "," if not loop.last }}{% endfor %}</dd>
   </dl>
-  <p class="hint">Point at a button or box to see its key. Keys don't work while you're typing in a box: press Esc first.</p>
-  <p class="hint">Point at a photo or a face for a moment to see the whole photo larger beside it, with the face
-    outlined.</p>
-  <h3>Every page</h3>
+  <p class="hint keys-part">{% trans %}Point at a button or box to see its key. Keys don't work while you're typing in a box: press Esc first.{% endtrans %}</p>
+  {#- character key shortcuts can be turned off (app.js lettersOff), kept in this browser #}
+  <p class="keys-switch keys-part"><label><input type="checkbox" data-letter-keys checked> {% trans %}Keys of one letter or sign{% endtrans %}</label>
+    <span class="hint">{% trans %}(<kbd>?</kbd>, <kbd>/</kbd>, <kbd>g</kbd> and the letters above). Turn them off if they get in the
+    way of a screen reader or of speaking to the computer, or get pressed by mistake: the arrow keys, Esc, Tab and Enter
+    still work, and this help opens from the ? at the top. Kept in this browser.{% endtrans %}</span></p>
+  <p class="hint keys-part">{% trans %}Point at a photo or a face for a moment to see the whole photo larger beside it, with the face
+    outlined.{% endtrans %}</p>
+  <h3>{% trans %}Every page{% endtrans %}</h3>
   <dl class="pages-list">
-    {%- for href, name, what in help_menu if href not in (member_pages if viewer.admin else admin_pages) %}<dt><a href="{{ href }}">{{ name }}</a></dt><dd>{{ what }}</dd>{% endfor %}
+    {%- for href, name, what in help_menu() if href not in (member_pages if viewer.admin else admin_pages)
+          and (signed_in or href != "/upload") %}<dt><a href="{{ href }}">{{ name }}</a></dt><dd>{{ what }}</dd>{% endfor %}
   </dl>
   {#- The AGPL's "Appropriate Legal Notices" (its sections 0 and 5d): the copyright, that there is no warranty, that
       LineageBox may be shared under the licence and where to read it. A changed copy has to keep showing them. #}
-  <h3>About LineageBox</h3>
-  <p>LineageBox {{ lineagebox_version }}, © 2026 Scott Gusler. It is free software: you may use, change and share it
+  <h3>{% trans %}About LineageBox{% endtrans %}</h3>
+  <p>{% trans %}LineageBox {{ lineagebox_version }}, © 2026 Scott Gusler. It is free software: you may use, change and share it
     under the
     <a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank" rel="noopener">GNU Affero General Public License, version 3</a>.
-    It comes with no warranty.
-    {%- if source_url %} <a href="{{ source_url }}" target="_blank" rel="noopener">Its source code</a> is on GitHub.{% endif %}</p>
+    It comes with no warranty.{% endtrans %}
+    {%- if source_url %} {% trans %}<a href="{{ source_url }}" target="_blank" rel="noopener">Its source code</a> is on GitHub.{% endtrans %}{% endif %}</p>
 </dialog>

@@ -6,16 +6,18 @@ Each memory is a tour, saved or not. Its card opens it: an unsaved one at /tours
 and can be kept as one. Its photos are picked by tours.photos on the viewer's own connection, so a member's memories
 are only of what they see. Nothing here knows whose photos these are: the years, people and occasions all come from
 what the catalog holds, and the row changes from day to day (this week in other years, a different tour of the
-viewer's own, another cover).
+viewer's own, another cover). Favourites (favourites.py) are preferred: a memory's cover is one with a heart when there
+is one, and a run of days with hearts on its photos counts as bigger when the biggest are picked.
 """
 import json
 import random
+import re
 import statistics
 from collections import Counter, defaultdict
 from datetime import date, timedelta
 from urllib.parse import urlencode
 
-from lineagebox import tours
+from lineagebox import favourites, tours
 from lineagebox.catalog import VISIBLE
 
 LEAST = 4       # photos a memory needs
@@ -29,6 +31,10 @@ DENSE = 30            # days with photos from which most days are everyday ones,
 BUSY = 2              # ...those with this many times the photos of the usual day (the median)
 OCCASION_TAGS = 0.3   # of a day's photos with a tag that says what it was ("wedding"), for it to name the day
 SHOWN = 0.25          # of its photos someone is named in, for their life event (or "their" wedding) to name it
+HEART_PHOTOS = 5      # photos a heart counts as, when the biggest runs of days are picked (favourites.py)
+# what the AI says when a photo is of no occasion, instead of nothing (its descriptions' "event")
+NO_EVENT = {"", "none", "null", "n/a", "na", "unknown", "no event", "nothing", "everyday", "everyday life",
+            "daily life", "casual", "candid", "other", "not specified", "not evident"}
 # what photos of a life event are tagged with (the AI's descriptions, in English): a wedding's, a birth's...
 EVIDENCE = {"MARR": {"wedding", "bride", "groom", "wedding party", "wedding dress", "wedding cake"},
             "ENGA": {"engagement", "engagement ring", "proposal"}, "BIRT": {"baby", "newborn", "infant"},
@@ -123,8 +129,9 @@ def span(found: list[dict]) -> str:
 
 
 def cover(found: list[dict], today: date) -> str:
-    """One of the best few photos, another each day."""
-    best = sorted(found, key=lambda p: (-p["score"], p["id"]))[:6]
+    """One of the best few photos, another each day: of the favourites, when some have a heart."""
+    loved = [p for p in found if p.get("hearts")]
+    best = sorted(loved or found, key=lambda p: (-p["score"], p["id"]))[:6]
     return random.Random(today.toordinal()).choice(best)["sha"]
 
 
@@ -151,7 +158,9 @@ def family_occasions(con, people: list[int], today: date, blurry_below: float | 
                              (json.dumps(people),)))
     for r in found:
         r["title"], r["who"], r["why"] = _occasion(con, r, people, names)
-    biggest = sorted(range(len(found)), key=lambda k: -len(found[k]["ids"]) * (2 if found[k]["title"] else 1))
+    loved = _hearts(con, found)
+    biggest = sorted(range(len(found)), key=lambda k: -(len(found[k]["ids"]) + HEART_PHOTOS * loved[k])
+                     * (2 if found[k]["title"] else 1))
     picked = {len(found) - 1, *biggest[:FAMILY_OCCASIONS - 1]}
     return cards(con, [found[k] for k in sorted(picked, reverse=True)], today, blurry_below, people)
 
@@ -164,8 +173,16 @@ def year_events(con, year: int, today: date, blurry_below: float | None = None, 
     candidates = sorted(found, key=lambda r: -len(r["ids"]))[:most * 2]  # naming takes a few queries: the big ones
     for r in candidates:
         r["title"], r["who"], r["why"] = _occasion(con, r, None, names)
-    picked = sorted(candidates, key=lambda r: -len(r["ids"]) * (2 if r["title"] else 1))[:most]
+    loved = dict(zip(map(id, candidates), _hearts(con, candidates)))
+    picked = sorted(candidates, key=lambda r: -(len(r["ids"]) + HEART_PHOTOS * loved[id(r)])
+                    * (2 if r["title"] else 1))[:most]
     return cards(con, sorted(picked, key=lambda r: r["first"]), today, blurry_below)
+
+
+def _hearts(con, found: list[dict]) -> list[int]:
+    """How many hearts each run of days has on its photos (those the connection holds: favourites.counts)."""
+    hearts = favourites.counts(con, [i for r in found for i in r["ids"]])
+    return [sum(hearts.get(i, 0) for i in r["ids"]) for r in found]
 
 
 def runs(con, today: date, people: list[int] | None = None, year: int | None = None) -> list[dict]:
@@ -242,7 +259,11 @@ def _occasion(con, run: dict, people: list[int] | None, names: dict) -> tuple[st
     A name has to be borne out by the photos, not only by the date: a life event on those days names them when its
     person (or one of the couple) is in a good part of them (SHOWN), or they are tagged as that kind of day
     (EVIDENCE); a death only with a funeral's tags, as the one who died isn't in them. Then the event the folder is
-    named for, on half of them; then a tag on a good part of them (OCCASION_TAGS), "whose" only of someone in them."""
+    named for, on half of them; then a tag on a good part of them (OCCASION_TAGS), "whose" only of someone in them;
+    then the occasion the AI saw in half of them (its descriptions' event: "soccer game"), with the year.
+
+    The AI's event counts as a tag of its words wherever tags do ("a birthday party" as birthday, "Christmas
+    morning" as christmas): one more thing the photos themselves say, never the date alone."""
     n = len(run["ids"])
     ids, kin = json.dumps(run["ids"]), json.dumps(people or [])
     seen = Counter(dict(con.execute("""SELECT person_id, COUNT(DISTINCT image_id) FROM (
@@ -251,17 +272,35 @@ def _occasion(con, run: dict, people: list[int] | None, names: dict) -> tuple[st
                                            UNION SELECT person_id, image_id FROM image_person
                                            WHERE image_id IN (SELECT value FROM json_each(:ids)))
                                        WHERE person_id IS NOT NULL GROUP BY person_id""", {"ids": ids})))
-    tags = Counter(dict(con.execute("""SELECT lower(t.name), COUNT(DISTINCT it.image_id) FROM image_tag it
-                                       JOIN tag t ON t.id = it.tag_id
-                                       WHERE it.image_id IN (SELECT value FROM json_each(?)) AND it.source != 'not'
-                                       GROUP BY lower(t.name)""", (ids,))))
+    on = defaultdict(set)  # tag -> the photos it is on
+    for tag, image_id in con.execute("""SELECT DISTINCT lower(t.name), it.image_id FROM image_tag it
+                                        JOIN tag t ON t.id = it.tag_id
+                                        WHERE it.image_id IN (SELECT value FROM json_each(?)) AND it.source != 'not'""",
+                                     (ids,)):
+        on[tag].add(image_id)
+    described = {}  # photo -> the occasion the AI saw in it (its latest description's)
+    for image_id, event in con.execute("""SELECT image_id, event FROM analysis
+                                          WHERE image_id IN (SELECT value FROM json_each(?)) ORDER BY created_at""",
+                                       (ids,)):
+        described[image_id] = " ".join((event or "").lower().split()).strip(" .")
+    described = {i: e for i, e in described.items() if e not in NO_EVENT}
+
+    def marked(word: str) -> tuple[set, str]:
+        """The photos tagged with word or described by the AI as that, and how to say so."""
+        tagged_as = on.get(word, set())
+        said = {i for i, e in described.items() if re.search(rf"\b{re.escape(word)}\b", e)}
+        how = ("tagged" if not said - tagged_as else "described by the AI as" if not tagged_as
+               else "tagged or described as")
+        return tagged_as | said, f"{how} {word}"
+
     ours = [q for q, _ in seen.most_common() if q in names and (people is None or q in people)]
     who = _and([names[q].split()[0] for q in ours[:3]] + (["others"] if len(ours) > 3 else []))
     enough = max(2, SHOWN * n)
 
     def tagged(words) -> tuple[int, str] | None:
-        """(photos, tag) of the most used of these tags, on a good part of the photos."""
-        return max(((tags[w], w) for w in words if tags.get(w, 0) >= max(2, OCCASION_TAGS * n)), default=None)
+        """(photos, how they say it: 'tagged wedding') of the most said of these words, on a good part of them."""
+        found = [(len(photos), how) for photos, how in map(marked, sorted(words))]
+        return max(((k, how) for k, how in found if k >= max(2, OCCASION_TAGS * n)), default=None)
 
     their_events = ("""AND (person_id IN (SELECT value FROM json_each(:kin))
                             OR couple_a IN (SELECT value FROM json_each(:kin))
@@ -283,12 +322,12 @@ def _occasion(con, run: dict, people: list[int] | None, names: dict) -> tuple[st
         said = f"the family tree has {title} on these days"
         if e["tag"] in ("DEAT", "BURI"):  # who died isn't in the photos: they are of the funeral, or not of it
             if found := tagged(EVIDENCE["DEAT"]):
-                return title, who, f"{a} died on these days, and {found[0]} of the {n} photos are tagged {found[1]}"
+                return title, who, f"{a} died on these days, and {found[0]} of the {n} photos are {found[1]}"
             continue
         if there := [q for q in pids if seen.get(q, 0) >= enough]:
             return title, who, f"{said}, and {names.get(there[0]) or a} is in {seen[there[0]]} of the {n} photos"
         if found := tagged(EVIDENCE.get(e["tag"], ())):
-            return title, who, f"{said}, and {found[0]} of the {n} photos are tagged {found[1]}"
+            return title, who, f"{said}, and {found[0]} of the {n} photos are {found[1]}"
     folders = Counter(r[0] for r in con.execute("""SELECT fo.event FROM file f JOIN folder fo ON fo.id = f.folder_id
                                                    WHERE f.image_id IN (SELECT value FROM json_each(?))
                                                      AND coalesce(fo.event, '') != ''
@@ -296,11 +335,13 @@ def _occasion(con, run: dict, people: list[int] | None, names: dict) -> tuple[st
     if folders and folders.most_common(1)[0][1] * 2 >= n:
         event, k = folders.most_common(1)[0]
         return event[:1].upper() + event[1:], who, f"{k} of the {n} photos are in a folder for {event}"
-    for tag, k in tags.most_common():
-        if tag not in OCCASIONS or k < max(2, OCCASION_TAGS * n):
+    occasions = sorted(((len(photos), how, tag) for tag in OCCASIONS for photos, how in [marked(tag)]),
+                       key=lambda o: (-o[0], o[2]))
+    for k, how, tag in occasions:
+        if k < max(2, OCCASION_TAGS * n):
             continue
         theirs, anyones = OCCASIONS[tag]
-        why = f"{k} of the {n} photos are tagged {tag}"
+        why = f"{k} of the {n} photos are {how}"
         if tag == "birthday":  # whose: someone born on one of these days, and in the photos
             born = _born_on(con, run, [q for q in seen if seen[q] >= enough and q in names])
             return (f"{_whose(names[born])} birthday" if born else anyones.format(year=year)), who, why
@@ -308,6 +349,10 @@ def _occasion(con, run: dict, people: list[int] | None, names: dict) -> tuple[st
             top = names[ours[0]]
             return theirs.format(whose=_whose(top), year=year), who, f"{why}, and {top} is in {seen[ours[0]]} of them"
         return anyones.format(year=year), who, why
+    events = Counter(described.values())
+    if events and events.most_common(1)[0][1] * 2 >= n:  # the AI's own words for what it was, on half of them
+        event, k = events.most_common(1)[0]
+        return f"{event[:1].upper()}{event[1:]}, {year}", who, f"the AI described {k} of the {n} photos as {event}"
     return None, who, ""
 
 

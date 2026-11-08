@@ -1,5 +1,5 @@
 """Minimal Ollama client: one chat call with a JSON-schema answer and optional images; whether the chosen model can
-look at pictures; pulling it."""
+look at pictures; the models it has; embeddings of words (search by meaning, embeddings.py); pulling a model."""
 import base64
 import json
 import sqlite3
@@ -32,14 +32,17 @@ class Usage:
 
 @dataclass
 class ModelProblem:
-    """Why the chosen model can't describe photos. text_ok: it can still read folder names (it only lacks vision)."""
+    """Why the chosen model can't describe photos. text_ok: it can still read folder names (it only lacks vision).
+    missing: Ollama has no model of that name (else it answered an error about it, which may pass)."""
     message: str
     text_ok: bool = False
+    missing: bool = False
 
 
 class Ollama:
     def __init__(self, cfg: Config, timeout: float = 600):
         self.model = cfg.ollama_model
+        self.embed_model = cfg.ollama_embed_model  # search by meaning: "" when it is off
         self.keep_alive = cfg.ollama_keep_alive
         # a sleeping or switched-off Ollama PC should fail fast, not after the long answer timeout
         self.http = httpx.Client(base_url=cfg.ollama_url, timeout=httpx.Timeout(timeout, connect=10))
@@ -72,7 +75,7 @@ class Ollama:
             return None  # not answering: the worker deals with that on its own
         if r.status_code == 404:
             return ModelProblem(f"Ollama has no model named {self.model}. Download it with the button on the Settings "
-                                f"page, or pick another model.")
+                                f"page, or pick another model.", missing=True)
         if not r.is_success:
             return ModelProblem(f"Ollama could not say what {self.model} is: {_error_text(r)}")
         capabilities = r.json().get("capabilities")
@@ -93,7 +96,43 @@ class Ollama:
                     " Download it with the button below, or pick one of those.")
         if problem := self.model_problem():
             return f"Ollama {version} answers and has {self.model}, but: {problem.message}"
-        return f"Ollama {version} answers and has {self.model}, which can look at pictures."
+        meaning = ""
+        if self.embed_model and not any(n == self.embed_model or n.split(":")[0] == self.embed_model for n in names):
+            meaning = (f" It has no {self.embed_model} for search by meaning yet: download it with the button below,"
+                       f" and until then search finds words only.")
+        return f"Ollama {version} answers and has {self.model}, which can look at pictures.{meaning}"
+
+    def models(self) -> list[dict]:
+        """The models this Ollama has, each with what it can do: [{"name", "vision", "embedding"}], by name. Empty
+        when it doesn't answer. One question for the list and one per model (Ollama 0.6 and later say what a model
+        can do; an older one is taken to see, as model_problem does)."""
+        try:
+            names = sorted(m.get("name", "") for m in self.http.get("/api/tags", timeout=10).json().get("models", []))
+        except (httpx.HTTPError, ValueError):
+            return []
+        out = []
+        for name in filter(None, names):
+            try:
+                r = self.http.post("/api/show", json={"model": name, "name": name}, timeout=10)
+                can = r.json().get("capabilities") if r.is_success else None
+            except (httpx.HTTPError, ValueError):
+                can = None
+            out.append({"name": name.removesuffix(":latest"), "vision": can is None or "vision" in can,
+                        "embedding": bool(can) and "embedding" in can})
+        return out
+
+    def embed(self, texts: Sequence[str], timeout: float | httpx.Timeout | None = None) -> list[list[float]]:
+        """What each text means, as the embedding model reads it: one list of numbers a text, in order (Ollama 0.3
+        and later). Raises OllamaError when Ollama answers with an error (no such model), httpx.HTTPError when it
+        doesn't answer in time."""
+        body = {"model": self.embed_model, "input": list(texts), "keep_alive": self.keep_alive}
+        r = self.http.post("/api/embed", json=body, **({"timeout": timeout} if timeout is not None else {}))
+        if not r.is_success:
+            raise OllamaError(f"Ollama answered {r.status_code}: {_error_text(r)}")
+        vectors = r.json().get("embeddings")
+        if not isinstance(vectors, list) or len(vectors) != len(texts):
+            raise OllamaError("Ollama's answer had no embeddings (an Ollama older than 0.3 can't make them)")
+        return vectors
 
     def chat_json(self, system: str, user: str, schema: dict, images: Sequence[bytes] = (),
                   temperature: float = 0.1, max_tokens: int = 1024) -> tuple[dict, Usage]:
@@ -126,16 +165,19 @@ class Ollama:
             raise
 
 
-def pull(cfg: Config, con: sqlite3.Connection) -> None:
-    """Have Ollama download the chosen model, with its progress on the Status page. Runs in a thread of the web app,
-    with a connection of its own, which it closes. When it is done, the worker starts a pass to use it."""
+def pull(cfg: Config, con: sqlite3.Connection, model: str | None = None) -> None:
+    """Have Ollama download the chosen model (or another: the one for search by meaning), with its progress on the
+    Status page. Runs in a thread of the web app, with a connection of its own, which it closes. When it is done, the
+    worker starts a pass to use it."""
     from lineagebox import downloads, settings
 
-    progress = downloads.Progress(con, "ollama", f"{cfg.ollama_model}, for Ollama")
+    model = model or cfg.ollama_model
+    progress = downloads.Progress(con, "ollama" if model == cfg.ollama_model else f"ollama:{model}",
+                                  f"{model}, for Ollama")
     layers: dict[str, tuple[int, int]] = {}  # digest -> (done, total): a model is several files
     try:
         # long waits between lines while Ollama checks what it downloaded
-        with httpx.stream("POST", f"{cfg.ollama_url}/api/pull", json={"model": cfg.ollama_model, "stream": True},
+        with httpx.stream("POST", f"{cfg.ollama_url}/api/pull", json={"model": model, "stream": True},
                           timeout=httpx.Timeout(900, connect=10)) as r:
             if not r.is_success:
                 r.read()

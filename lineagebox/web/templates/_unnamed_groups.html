@@ -1,29 +1,34 @@
 {# Cleanup → Confirm faces: groups of faces nobody has named yet (cleanup_faces.html). #}
 {% import "_macros.html" as m %}
-<p class="meta">Each row is one face group, the clearest faces first. Click × on any face that doesn't belong, such as a stranger;
-it is left out from now on. (To give it a name of its own instead, click the face.) Then type a name and press Enter, or hide
-groups of strangers. Typing a name you already used adds the group to that person. Mistakes can be fixed under "Check faces"
-on the person's page.</p>
+<p class="meta">{% trans %}Each row is one face group, the clearest faces first. Click × (not them) on any face that doesn't belong;
+it is left out from now on. (To give it a name of its own instead, click the face.) Then type a name and press Enter, or
+Don't know them for a group nobody in the family knows. Typing a name you already used adds the group to that person. A name already filled in is who the faces look like,
+or a name from the folders. Mistakes can be fixed under "Check faces"
+on the person's page.{% endtrans %}</p>
 {% include "_pager.html" %}
 {% for g in groups %}
 {%- set shown = "face=" ~ g.faces|map(attribute="id")|join("&face=") %}
 <section class="group" id="g{{ g.id }}">
-  {{ m.review_faces(g.faces, "Not the same person: leave out") }}
+  {{ m.review_faces(g.faces, _("Not them: not the same person as the others")) }}
   {%- if g.more %}
   <details class="more-faces">
-    <summary>Show {{ g.more|length }} more</summary>
-    {{ m.review_faces(g.more, "Not the same person: leave out") }}
+    <summary>{% trans more=g.more|length %}Show {{ more }} more{% endtrans %}</summary>
+    {{ m.review_faces(g.more, _("Not them: not the same person as the others")) }}
   </details>
   {%- endif %}
   <form class="name-form" data-api="/api/clusters/{{ g.id }}/name?{{ shown }}" data-remove="#g{{ g.id }}">
-    <span class="size">{{ g.size }} face{{ "" if g.size == 1 else "s" }} in {{ g.images|length }} photo{{ "" if g.images|length == 1 else "s" }}</span>
-    <input name="name" data-names autocomplete="off" required placeholder="Who is this?" value="{{ g.suggestion or '' }}" aria-label="Name" data-key="n" data-key-label="Name the first group of faces">
-    <button type="submit">Name</button>
-    <button type="button" class="quiet" data-api="/api/clusters/{{ g.id }}/ignore?{{ shown }}" data-remove="#g{{ g.id }}">Hide</button>
-    {% if g.suggestion %}<span class="hint inline">suggested from folder names</span>{% endif %}
+    <span class="size">{% trans count=g.size %}{{ count }} face{% pluralize %}{{ count }} faces{% endtrans %} {% trans count=g.images|length %}in {{ count }} photo{% pluralize %}in {{ count }} photos{% endtrans %}</span>
+    {%- set alike = g.looks_like %}
+    <input name="name" data-names autocomplete="off" required placeholder="{{ _('Who is this?') }}" value="{{ alike.name if alike else g.suggestion or '' }}" aria-label="{{ _('Name') }}" data-key="n" data-key-label="{{ _('Name the first group of faces') }}"
+      {%- if alike %} data-picked-id="{{ alike.id }}" data-picked-name="{{ alike.name }}"{% endif %}>
+    <button type="submit">{% trans %}Name{% endtrans %}</button>
+    <button type="button" class="quiet" data-api="/api/clusters/{{ g.id }}/ignore?{{ shown }}" data-remove="#g{{ g.id }}" title="{{ _('Nobody in the family knows them: set these faces aside, for everyone') }}">{% trans %}Don't know them{% endtrans %}</button>
+    {% if alike %}<span class="hint inline looks-like">{% if alike.face %}<img src="/face/{{ alike.face }}" alt="" width="28" height="28">{% endif %}{% trans %}they look like{% endtrans %}
+      <a href="/person/{{ alike.id }}">{{ alike.name }}</a>{% if alike.born_after %}{% trans name=alike.name %}, but some of these photos are dated before {{ name }} was born: is the camera's date wrong?{% endtrans %}{% endif %}</span>
+    {% elif g.suggestion %}<span class="hint inline">{% trans %}suggested from folder names{% endtrans %}</span>{% endif %}
   </form>
 </section>
 {% else %}
-<p class="note">{% if s.faces %}No unnamed groups left.{% else %}No faces found yet: run <code>python -m lineagebox faces</code>, then <code>python -m lineagebox people</code>.{% endif %}</p>
+<p class="note">{% if s.faces %}{% trans %}No unnamed groups left.{% endtrans %}{% else %}{% trans %}No faces found yet. Faces are looked for as the photos are read, and grouped by likeness once there are a few{% endtrans %}{% if viewer.admin %}{% trans %}: <a href="/status">Status</a> shows how far that is, and Settings → <a href="/settings#faces">AI, speech and faces</a> whether finding faces is on{% endtrans %}{% endif %}.{% endif %}</p>
 {% endfor %}
 {% include "_pager.html" %}

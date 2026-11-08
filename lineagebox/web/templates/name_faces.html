@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% set nav = "people" %}
+{% block title %}{% trans %}Name faces{% endtrans %}{% endblock %}
+{% block main %}
+<nav class="crumbs"><a href="/people">{% trans %}People{% endtrans %}</a><span class="sep">/</span><h1>{% trans %}Name faces{% endtrans %}</h1></nav>
+<p class="meta">{% trans %}One face at a time: say whether it is who it looks like, or type who it is. Every answer helps
+recognise the rest.{% endtrans %}</p>
+<nav class="filters naming-steps" aria-label="{{ _('Which faces') }}">
+  <a href="/people/name"{% if not only %} aria-current="page"{% endif %}>{% trans %}All{% endtrans %} <span>{{ counts.values()|sum|number }}</span></a>
+  {%- for key, label in steps.items() %}
+  <a href="/people/name?only={{ key }}"{% if only == key %} aria-current="page"{% endif %}{% if not counts.get(key) %} class="empty"{% endif %}>{{ label }} <span>{{ counts.get(key, 0)|number }}</span></a>
+  {%- endfor %}
+</nav>
+<div class="naming" data-naming data-only="{{ only }}" data-skip="{{ skip|join(',') }}" data-skip-groups="{{ skip_groups|join(',') }}">
+{% include "_name_card.html" %}
+</div>
+{% endblock %}

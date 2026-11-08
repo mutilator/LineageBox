@@ -11,7 +11,7 @@ data_dir = "/data"
 
 [scan]
 folders = []   # watched folders inside /photos (e.g. "local/Pictures"), picked on the Settings page
-image_extensions = [".jpg", ".jpeg", ".png", ".nef"]
+# image_extensions and video_extensions: LineageBox's own lists, every kind it reads (docs/configuration.md)
 # Folder names whose files are listed but never read: thumbnails and recycle bins, including those NASes make.
 ignore_dirs = ["Thumbs", "Previews", ".thumbnails", "@eaDir", "#recycle", "#snapshot", "@Recycle", ".@__thumb"]
 
@@ -26,10 +26,11 @@ model = "ministral-3"
 workers = 2
 image_size = 1024
 keep_alive = "30m"
+embed_model = "nomic-embed-text"   # search by meaning: downloaded from the Settings page; "" finds words only
 
 [whisper]
 url = ""   # the speech-to-text service for video transcripts (whisper_service/); "" for none
-language = "en"
+language = "auto"   # what is spoken: auto (Whisper tells), or a code like "en"; WHISPER_LANGUAGE in .env
 
 [copies]
 threads = 2   # ffmpeg threads per 720p copy

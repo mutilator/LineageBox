@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% set nav = "cleanup" %}
+{% block title %}{% trans %}Suggested dates{% endtrans %}{% endblock %}
+{#- Cleanup → Suggested dates (routes/suggested_dates.py, scan_dates.py): scans dated by the day they were scanned, each
+    with what can tell its real date. Dating one (a suggestion's button, or typed) posts to the photo's own date API
+    and takes it off the list; so does saying its date is right. -#}
+{% block main %}
+<nav class="crumbs"><a href="/cleanup">{% trans %}Cleanup{% endtrans %}</a><span class="sep">/</span><h1>{% trans %}Suggested dates{% endtrans %}</h1></nav>
+<p class="meta">{% trans %}A scanner dates what it scans by the day it was scanned, so an old letter or photo scanned this year is dated
+this year. Here are the scanned documents and photos, and documents with no date of their own, with what can tell
+their real date: a date written on them (the AI reads it), the family tree (the event a certificate is for), and who is
+in them. Use a suggestion, or type the date as you know it; either can be undone from
+<a href="/cleanup/changes">Recent changes</a>.{% endtrans %}</p>
+<nav class="tabs" aria-label="{{ _('Scans') }}">
+  {%- for key, label in tabs.items() %}
+  <a href="/cleanup/dates?show={{ key }}"{% if show == key %} aria-current="page"{% endif %}>{{ _(label) }} <small>{{ counts[key]|number }}</small></a>
+  {%- endfor %}
+</nav>
+
+{% include "_pager.html" %}
+{%- if items %}
+<ul class="scan-dates">
+  {%- for it in items %}
+  {%- set name = it.path.rsplit("/", 1)[-1] if it.path else "" %}
+  <li class="scan-date" id="sd{{ it.id }}">
+    <a class="scan-thumb" href="/image/{{ it.id }}" target="_blank" title="{{ _('Open it in a new tab') }}"><img src="/t/{{ it.sha256 }}" alt="{{ _('The scan %(name)s', name=name) }}" loading="lazy" width="120" height="120"></a>
+    <div class="scan-about">
+      <p class="scan-name"><b>{{ name }}</b>{% if it.kind %} <span class="source-mark">{{ _(it.kind) }}</span>{% endif %}</p>
+      <p class="hint">
+        {%- if it.taken_at_source == "filename" %}{% trans when=it.taken_at|date(false) %}Dated {{ when }} by its file name{% endtrans %}
+        {%- elif it.taken_at_source == "mtime" %}{% trans when=it.taken_at|date(false) %}Dated {{ when }} by its file's time{% endtrans %}
+        {%- elif it.taken_at_source == "folder" %}{% trans when=it.taken_at|date(false) %}Dated {{ when }} by its folder{% endtrans %}
+        {%- elif it.taken_at_source == "import" %}{% trans when=it.taken_at|date(false) %}Dated {{ when }} by another app{% endtrans %}
+        {%- else %}{% trans when=it.taken_at|date(false) %}Dated {{ when }} by the device that made it{% endtrans %}{% endif %}
+        {%- if it.found == "scanner" %}{% trans camera=it.camera %}, a scanner ({{ camera }}): the day it was scanned.{% endtrans %}
+        {%- elif it.found == "folder" %}{% trans %}, in a scan's folder or name: likely the day it was scanned.{% endtrans %}
+        {%- elif it.found == "no date" %}{% trans %}: it has no date of its own.{% endtrans %}
+        {%- else %}{% trans %}: a photo of a document is dated when the photo was taken, not the document.{% endtrans %}{% endif %}</p>
+      {%- set ns = namespace(first=true) %}
+      {%- for sg in it.suggestions %}
+      {%- if sg.text %}
+      <p class="scan-suggest"><button type="button"{% if ns.first %} class="primary"{% endif %} data-api="/api/images/{{ it.id }}/date" data-body='{{ {"date": sg.text}|tojson }}' data-remove="#sd{{ it.id }}">{% trans when=sg.label %}Date it {{ when }}{% endtrans %}</button>
+        <span class="hint inline">{{ sg.why }}</span></p>
+      {%- set ns.first = false %}
+      {%- else %}
+      <p class="hint"><b>{{ sg.label }}</b>: {{ sg.why }}</p>
+      {%- endif %}
+      {%- endfor %}
+      {%- if it.read_dates is not none and not it.read_dates %}<p class="hint">{% trans %}The AI found no date written on it.{% endtrans %}</p>{% endif %}
+      <form class="name-form compact scan-type" data-api="/api/images/{{ it.id }}/date" data-remove="#sd{{ it.id }}">
+        <input name="date" required maxlength="80" placeholder="{{ _('When? June 1952, about 1950, the 1940s') }}" aria-label="{{ _('When %(name)s is from', name=name) }}">
+        <button type="submit">{% trans %}Date it{% endtrans %}</button>
+      </form>
+      <p class="scan-actions">
+        {%- if ai_on %}
+        <button type="button" class="quiet" data-api="/api/images/{{ it.id }}/read-date" data-busy="{{ _('Reading it… (about 20 seconds)') }}"
+          title="{{ _('The AI looks for dates written on it: a letter’s date, a newspaper’s, a stamp on a print') }}">{{ _("Read it again") if it.read_dates is not none else _("Read the date on it") }}</button>
+        {%- endif %}
+        <button type="button" class="quiet" data-api="/api/images/{{ it.id }}/date-ok" data-remove="#sd{{ it.id }}"
+          title="{{ _('Leave its date as it is, and take it off this list') }}">{% trans %}Its date is right{% endtrans %}</button>
+      </p>
+    </div>
+  </li>
+  {%- endfor %}
+</ul>
+{% include "_pager.html" %}
+{%- else %}
+<p class="note">{% if show == "documents" %}{% trans %}No scanned document is waiting for a date.{% endtrans %}{% else %}{% trans %}No scanned photo is waiting for a date.{% endtrans %}{% endif %}</p>
+{%- endif %}
+{% endblock %}

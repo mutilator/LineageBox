@@ -1,11 +1,12 @@
 """Sharing (sharing.py): Folders, where a member finds their uploads, what others share with them and what they share
-themselves (an admin: what everyone shares), and sharing a folder, a photo or a tour, or no longer."""
+themselves (an admin: what everyone shares), and sharing a folder, a photo, a tour or an album, or no longer."""
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
-from lineagebox import access, catalog, changes, sharing, tours
+from lineagebox import access, albums, catalog, changes, sharing, tours
 from lineagebox.web.common import MEMBER, ShareBody, _from_app, _shared_with_me, _upload_labels
 from lineagebox.web.deps import con, page, site, viewer, writer
+from lineagebox.web.routes.albums import passed_on
 from lineagebox.web.routes.tours import maker_photos
 from lineagebox.web.site import Site
 
@@ -27,7 +28,7 @@ def folders_page(request: Request, v=Depends(viewer), c=Depends(con), w=Depends(
     uploads = by_path.get(mine) if mine else None
     shares = []
     for x in sharing.everything(w, None if v.admin else v.account_id):
-        if v.limited and not (x["kind"] == "folder" and x["item_id"] in v.folders or x["kind"] == "tour"
+        if v.limited and not (x["kind"] == "folder" and x["item_id"] in v.folders or x["kind"] in ("tour", "album")
                               or x["kind"] == "image" and v.sees_image(x["item_id"])):
             continue  # no longer theirs to see (an upload an admin moved away and hid)
         x["with"] = sharing.EVERYONE if x["with_id"] is None else sharing.who(v, x["with_person"], x["with_name"],
@@ -54,6 +55,11 @@ def _shareable(c, v: access.Viewer, kind: str, item_id: int) -> str:
         if row["path"] == "":
             raise HTTPException(400, "The whole library can't be shared at once: share the folders in it.")
         return "your uploads folder" if row["path"] == uploads else f"the folder “{row['name']}”"
+    if kind == "album":  # their own album (albums.py), with the photos it may pass on
+        a = albums.get(c, item_id)
+        if a is None or not albums.theirs(v, a):
+            raise HTTPException(404, "No such album of yours" if v.limited else "No such album")
+        return f"the album “{a['name']}”"
     if kind == "tour":
         t = tours.tour(c, item_id)
         if t is None or v.limited and t["account_id"] != v.account_id:
@@ -68,12 +74,12 @@ def _shareable(c, v: access.Viewer, kind: str, item_id: int) -> str:
 
 @router.post("/api/shares", dependencies=[Depends(_from_app)])
 def share(body: ShareBody, v=Depends(viewer), c=Depends(con), w=Depends(writer), s: Site = Depends(site)):
-    """Share one folder, photo or tour with an account, or with everyone who has one."""
+    """Share one folder, photo, tour or album with an account, or with everyone who has one."""
     if v.account_id is None:
         raise HTTPException(400, "Sharing is for family accounts: turn them on under Settings → Family accounts.")
     picked = [(k, getattr(body, f"{k}_id")) for k in sharing.KINDS if getattr(body, f"{k}_id") is not None]
     if len(picked) != 1:
-        raise HTTPException(400, "Share one folder, photo or tour at a time.")
+        raise HTTPException(400, "Share one folder, photo, tour or album at a time.")
     kind, item_id = picked[0]
     what = _shareable(c, v, kind, item_id)
     if body.to == "everyone":
@@ -86,6 +92,8 @@ def share(body: ShareBody, v=Depends(viewer), c=Depends(con), w=Depends(writer),
     with changes.tracking(w, v, "sharing", f"Shared {what} with {whom}",
                           lambda new: [("share", "id > ? AND account_id = ?", (new["share"], v.account_id))]):
         sharing.share(w, v.account_id, kind, item_id, with_id)
+    if kind == "album":  # what its maker may pass on is what they may see
+        sharing.remember_album(w, item_id, passed_on(s, albums.get(w, item_id)))
     if kind == "tour":  # what it shows its maker is what they may see
         sharing.remember(w, item_id, [p["id"] for p in maker_photos(s, tours.tour(w, item_id))])
     return {"reload": True}
@@ -99,7 +107,7 @@ def unshare(share_id: int, v=Depends(viewer), c=Depends(con), w=Depends(writer))
     if row is None:
         raise HTTPException(404, "No such share")
     kind = next(k for k in sharing.KINDS if row[f"{k}_id"] is not None)
-    name = {"folder": "a folder", "image": "a photo", "tour": "a tour"}[kind]
+    name = {"folder": "a folder", "image": "a photo", "tour": "a tour", "album": "an album"}[kind]
     with changes.tracking(w, v, "sharing", f"Stopped sharing {name}", lambda new: [("share", "id = ?", (share_id,))]):
         w.execute("DELETE FROM main.share WHERE id = ?", (share_id,))
     return {"reload": True}

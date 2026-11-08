@@ -1,40 +1,41 @@
 {# A person's card, and the tree of one person's descendants: on the Family page and the whole line's page. Imported
    with context: they read g, covers, kin and ego from the page. #}
-{% macro card(pid, former=false, note="", step=false, direct=false) %}
+{% macro card(pid, former=false, note="", step=false, direct=false, how="") %}
   {%- if pid < 0 %}
-  <span class="fcard ghost{% if direct %} direct{% endif %}"><span class="ph">?</span><span class="name">Their parents</span><span class="kin">not entered</span></span>
+  <span class="fcard ghost{% if direct %} direct{% endif %}"><span class="ph">?</span><span class="name">{% trans %}Their parents{% endtrans %}</span><span class="kin">{% trans %}not entered{% endtrans %}</span></span>
   {%- else %}
   {#- "stepkid", not "step": .step is the photo viewer's arrows #}
   <a class="fcard{% if direct %} direct{% endif %}{% if former %} former{% endif %}{% if step %} stepkid{% endif %}{% if g.people[pid].deceased %} late{% endif %}" href="/person/{{ pid }}"
-     {%- if step %} title="Stepchild: a child of the current partner from another relationship"{% endif %}>
-    {%- if step %}<span class="step-tag">step</span>{% endif %}
+     {%- if step %} title="{{ _('Stepchild: a child of the current partner from another relationship') }}"{% endif %}>
+    {%- if step %}<span class="step-tag">{% trans %}step{% endtrans %}</span>{% elif how in ("adopted", "foster") %}<span class="step-tag" title="{{ _("Adopted") if how == "adopted" else _("A foster child") }}">{{ how }}</span>{% endif %}
     {%- if covers.get(pid) %}<img src="/face/{{ covers[pid] }}" alt="" loading="lazy">{% else %}<span class="ph">{{ g.name(pid)[:1] }}</span>{% endif %}
     <span class="name">{{ g.name(pid) }}</span>
-    {%- if note %}<span class="kin">{{ note }}</span>{% elif pid == ego %}<span class="kin">you</span>{% elif kin.get(pid) %}<span class="kin">{{ kin[pid].label }}</span>{% endif %}
+    {%- if note %}<span class="kin">{{ note }}</span>{% elif pid == ego %}<span class="kin">{% trans %}you{% endtrans %}</span>{% elif kin.get(pid) %}<span class="kin">{{ kin[pid].label }}</span>{% endif %}
   </a>
   {%- endif %}
 {% endmacro %}
 
 {# One person and their descendants. With one partner, the couple stands side by side over their children; with more,
    each partner is a branch of their own with that couple's children under them, so it is clear who whose mother or
-   father is. A current partner's children from other relationships hang under that partner, marked step. #}
+   father is. A current partner's children from other relationships hang under that partner, marked step; adopted and
+   foster children are marked so. #}
 {% macro node(t, step=false) %}
 {%- set ns = namespace(unions=[]) %}
 {%- for u in t.unions if u.partner or u.children or u.step %}{% set ns.unions = ns.unions + [u] %}{% endfor %}
 <li>
   {%- if ns.unions|length <= 1 %}
   {%- set u = ns.unions[0] if ns.unions else none %}
-  <div class="couple">{{ card(t.id, step=step, direct=true) }}{% if u and u.partner %}{{ card(u.partner, former=u.current == false) }}{% endif %}</div>
+  <div class="couple">{{ card(t.id, step=step, direct=true, how=t.how) }}{% if u and u.partner %}{{ card(u.partner, former=u.current == false) }}{% endif %}</div>
   {%- if u and (u.children or u.step) %}
   <ul>{% for ch in u.children %}{{ node(ch) }}{% endfor %}{% for ch in u.step %}{{ node(ch, true) }}{% endfor %}</ul>
   {%- endif %}
   {%- else %}
-  <div class="couple">{{ card(t.id, step=step, direct=true) }}</div>
+  <div class="couple">{{ card(t.id, step=step, direct=true, how=t.how) }}</div>
   <ul class="unions">
     {%- for u in ns.unions %}
     <li class="union{% if u.current == false %} former{% endif %}">
-      <span class="with">{{ "current partner" if u.current else "former partner" if u.current == false else "other parent" if u.partner else "other parent not entered" }}</span>
-      {%- if u.partner %}{{ card(u.partner, former=u.current == false) }}{% else %}<span class="fcard ghost"><span class="ph">?</span><span class="name">Not entered</span></span>{% endif %}
+      <span class="with">{{ _("current partner") if u.current else _("former partner") if u.current == false else _("other parent") if u.partner else _("other parent not entered") }}</span>
+      {%- if u.partner %}{{ card(u.partner, former=u.current == false) }}{% else %}<span class="fcard ghost"><span class="ph">?</span><span class="name">{% trans %}Not entered{% endtrans %}</span></span>{% endif %}
       {%- if u.children or u.step %}
       <ul>{% for ch in u.children %}{{ node(ch) }}{% endfor %}{% for ch in u.step %}{{ node(ch, true) }}{% endfor %}</ul>
       {%- endif %}

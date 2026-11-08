@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{#- Albums (albums.py): their own (an admin's: every album), those shared with them, and their favourites. #}
+{% block title %}{% trans %}Albums{% endtrans %}{% endblock %}
+{% block main %}
+<nav class="crumbs"><a href="/tours">{% trans %}Tours{% endtrans %}</a><span class="sep">/</span><h1>{% trans %}Albums{% endtrans %}</h1></nav>
+<p class="meta">{% trans %}Photos picked by hand, kept in the order you want them, with a cover and a caption for each: a wedding,
+  a reunion, a trip. Tours pick their photos by rules; an album holds just the ones you put in it.{% endtrans %}</p>
+
+<form class="panel album-new" data-api="/api/albums">
+  <label>{% trans %}A new album{% endtrans %} <input name="name" required maxlength="120" placeholder="{{ _("The reunion, Grandma's 80th…") }}" class="wide"></label>
+  <button type="submit">{% trans %}Make the album{% endtrans %}</button>
+</form>
+<p class="hint">{% trans %}Or tick photos on any page of photos (a folder, a year, a search, a person) and type an album's name
+  under Add to an album at the bottom: a name you have no album of makes a new one.{% endtrans %}</p>
+
+<h2>{{ _("Every album") if viewer.admin else _("Your albums") }} <small>{{ albums|length }}</small></h2>
+{%- if albums %}
+{{ m.album_cards(albums) }}
+{%- else %}
+<p class="note">{% trans %}No albums yet.{% endtrans %}</p>
+{%- endif %}
+
+{%- if others %}
+<h2>{% trans %}Shared with you{% endtrans %} <small>{{ others|length }}</small></h2>
+{{ m.album_cards(others) }}
+{%- endif %}
+
+<h2>{% trans %}Favourites{% endtrans %}</h2>
+<div class="folders">
+  <a class="folder-card" href="/favourites">
+    {% if favourite_cover %}<img src="/t/{{ favourite_cover }}" loading="lazy" alt="">{% else %}<span class="ph"></span>{% endif %}
+    <span class="label"><span class="name">{% trans %}♥ Your favourites{% endtrans %}</span><span class="count">{{ favourites|number }}</span></span>
+  </a>
+</div>
+<p class="hint">{% trans %}♡ on a photo's page makes it one of your favourites: tours and memories show favourites first.{% endtrans %}</p>
+{% endblock %}

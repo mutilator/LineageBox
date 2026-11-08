@@ -4,15 +4,15 @@
 <div class="memories-wrap">
   <div class="memories" id="memory-row">
     {%- for x in memories %}
-    <a class="memory" href="{{ x.href }}" title="{{ x.title }}: {{ x.sub }}{% if x.why %}. Named so because {{ x.why }}.{% endif %}">
+    <a class="memory" href="{{ x.href }}" title="{{ x.title }}: {{ x.sub }}{% if x.why %}{{ _('. Named so because %(why)s.', why=x.why) }}{% endif %}">
       <img src="/t/{{ x.cover }}" alt="" loading="lazy">
       <span class="memory-text"><b>{{ x.title }}</b><span>{{ x.sub }}</span></span>
     </a>
     {%- endfor %}
   </div>
   {%- if memories|length > 3 %}
-  <button type="button" class="scroll back" data-scroll="#memory-row" data-by="-1" aria-label="Earlier in the row">‹</button>
-  <button type="button" class="scroll on" data-scroll="#memory-row" data-by="1" aria-label="Further along the row">›</button>
+  <button type="button" class="scroll back" data-scroll="#memory-row" data-by="-1" aria-label="{{ _('Earlier in the row') }}">‹</button>
+  <button type="button" class="scroll on" data-scroll="#memory-row" data-by="1" aria-label="{{ _('Further along the row') }}">›</button>
   {%- endif %}
 </div>
 {%- endif %}

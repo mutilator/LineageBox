@@ -227,8 +227,9 @@ def test_people_pages_and_api(lib, cfg):
     pid = r.json()["person_id"]
     assert con.execute("SELECT count(*) FROM face WHERE person_id = ?", (pid,)).fetchone()[0] == 4
     assert con.execute("SELECT assigned_by FROM face WHERE id = ?", (stranger,)).fetchone()[0] == "rejected"
-    person = client.get(f"/person/{pid}").text
-    assert person.count('class="tile"') == 4
+    person = client.get(f"/person/{pid}").text  # its photos load by age group, all at once for a few
+    groups = re.findall(r'data-later="(/person/\d+/life/[^"]+)"', person)
+    assert sum(client.get(g).text.count('class="tile"') for g in groups) == 4
 
     # the name boxes suggest everyone, with what tells two people of the same name apart, relatives with no photos too
     assert "data-names" in client.get("/cleanup/faces?show=groups").text and "data-names" in person
@@ -368,8 +369,8 @@ def test_people_page_shows_30_at_a_time(con, cfg):
     page = client.get("/people").text
     assert page.count('class="person-card"') == 35 and page.count('" hidden data-text=') == 5
     assert 'data-more="#people-filter"' in page and "5 more" in page and 'data-limit="30"' in page
-    photo = client.get(f"/image/{image_id}").text  # its details, files and tools folded away
-    assert photo.count('<details class="info-panel"') == 3 and "<h2>Tools</h2>" in photo
+    photo = client.get(f"/image/{image_id}").text  # its details, files, albums and tools folded away
+    assert photo.count('<details class="info-panel"') == 4 and "<h2>Tools</h2>" in photo
 
 
 def test_faces_of_a_video_and_photos_to_finish(lib, cfg):
@@ -419,3 +420,36 @@ def test_faces_of_a_video_and_photos_to_finish(lib, cfg):
     page = client.get("/cleanup/faces?show=finish").text
     assert f'id="ff{third}"' in page and ">Cousin?</button>" in page and "data-reload" in page  # a video reloads
     assert 'aria-current="page">Photos to finish' in page
+
+
+def test_a_rename_or_merge_reindexes_photos_they_were_added_to(cfg, con, library):
+    """Someone added to a photo by hand (no face found) is found by search under their new name after a rename, and
+    under the kept name after a merge."""
+    from lineagebox import scan as scan_mod, ingest as ingest_mod, search as search_mod
+    scan_mod.scan(con, cfg)
+    ingest_mod.ingest(con, cfg)
+    image_id = con.execute("SELECT id FROM image ORDER BY id LIMIT 1").fetchone()[0]
+    pid = people.person_id(con, "Wilbur Miller")
+    con.execute("INSERT INTO image_person(image_id, person_id, added_at) VALUES (?, ?, '2026-11-07')", (image_id, pid))
+    con.commit()
+    search_mod.index_new(con)
+    people.rename(con, pid, "Wilbert Miller", merge_same=False)
+    assert image_id in [r["id"] for r in search_mod.query(con, "wilbert")]
+    other = people.person_id(con, "Grandpa Will")
+    people.merge(con, pid, other)
+    assert image_id in [r["id"] for r in search_mod.query(con, "grandpa will")]
+
+
+def test_a_face_crop_without_its_preview_is_not_found(cfg, con, library):
+    from fastapi.testclient import TestClient
+    from lineagebox import scan as scan_mod, ingest as ingest_mod
+    from lineagebox.web import app as webapp
+    from tests.conftest import LAN
+    scan_mod.scan(con, cfg)
+    ingest_mod.ingest(con, cfg)
+    image = con.execute("SELECT id, sha256 FROM image ORDER BY id LIMIT 1").fetchone()
+    face = con.execute("""INSERT INTO face(image_id, x1, y1, x2, y2, det_score, quality, embedding)
+                          VALUES (?, 0.1, 0.1, 0.5, 0.5, 0.9, 25, zeroblob(2048))""", (image["id"],)).lastrowid
+    con.commit()
+    cfg.picture_path(image["sha256"], None).unlink()
+    assert TestClient(webapp.create_app(cfg), client=LAN).get(f"/face/{face}").status_code == 404

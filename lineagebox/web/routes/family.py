@@ -1,9 +1,10 @@
-"""Family links by id, the family checks, partners together or not, and the person marked as me."""
+"""Family links by id, how a child belongs to a parent (birth, adopted, foster), the family checks, partners together
+or not, and the person marked as me."""
 from fastapi import APIRouter, Depends, HTTPException
 
 from lineagebox import catalog, changes, family, family_check, settings
-from lineagebox.web.common import (ADMIN, MEMBER, CheckBody, MeBody, UnlinkBody, _among, _family_spec, _from_app,
-                                   _people_or_404)
+from lineagebox.web.common import (ADMIN, MEMBER, CheckBody, MeBody, PediBody, UnlinkBody, _among, _family_spec,
+                                   _from_app, _people_or_404)
 from lineagebox.web.deps import con, viewer, writer
 
 router = APIRouter()
@@ -13,6 +14,7 @@ ACCESS = {
     "/api/family/checks/ok": ADMIN,
     "/api/family/current": MEMBER,
     "/api/family/me": ADMIN,
+    "/api/family/kind": MEMBER,
 }
 
 
@@ -57,3 +59,17 @@ def set_me(body: MeBody, c=Depends(con)):
         raise HTTPException(404, "No such person")
     settings.put(c, "me", body.person_id)
     return {}
+
+
+@router.post("/api/family/kind", dependencies=[Depends(_from_app)])
+def set_kind(body: PediBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
+    """A child entered as born to a parent was adopted, or fostered, or the other way round."""
+    _people_or_404(c, body.child, body.parent)
+    if not c.execute("SELECT 1 FROM parent WHERE child_id = ? AND parent_id = ?", (body.child, body.parent)).fetchone():
+        raise HTTPException(404, "They aren't entered as parent and child.")
+    names = (catalog.person(c, body.child)["name"], catalog.person(c, body.parent)["name"])
+    word = {"birth": "born to", "adopted": "adopted by", "foster": "fostered by"}.get(body.kind, body.kind)
+    with changes.tracking(w, v, "family", f"Said {names[0]} was {word} {names[1]}",
+                          _family_spec(v, body.child, body.parent)) as kept:
+        family.set_pedi(w, body.child, body.parent, body.kind, _among(v))
+    return {"undo": kept.id}

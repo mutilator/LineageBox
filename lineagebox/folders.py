@@ -5,7 +5,8 @@ import sqlite3
 from datetime import date
 from dataclasses import dataclass, field
 
-from lineagebox import retry
+from lineagebox import errors, retry
+from lineagebox.dates import from_mtime, photo_date, south
 from lineagebox.events import day_first
 from lineagebox.llm import CutOff, Ollama
 
@@ -134,15 +135,18 @@ def _ask(client: Ollama, system: str, batch: list) -> dict:
     return client.chat_json(system, user, SCHEMA, temperature=0.7, max_tokens=room)[0]
 
 
-def date_from_folders(con: sqlite3.Connection) -> int:
-    """Re-date photos whose only date is the file time (when a copy was made) from dates in their folder names.
+def date_from_folders(con: sqlite3.Connection, image_ids: list[int] | None = None) -> int:
+    """Re-date photos whose only date is the file time (when a copy was made) from dates in their folder names (only
+    image_ids', if given).
 
     The folder date wins when it names a month, or names a different year than the file time. A year-only folder
     that agrees with the file time keeps the more precise file time. Returns the number of photos re-dated.
     """
     folders = FolderIndex(con)
     changed = []
-    for r in con.execute("SELECT id, taken_at FROM image WHERE taken_at_source = 'mtime'").fetchall():
+    only = "AND id IN (SELECT value FROM json_each(?))" if image_ids is not None else ""
+    for r in con.execute(f"SELECT id, taken_at FROM image WHERE taken_at_source = 'mtime' {only}",
+                         (json.dumps(image_ids),) if image_ids is not None else ()).fetchall():
         ctx = folders.context(r["id"])
         if not ctx.year:
             continue
@@ -152,6 +156,102 @@ def date_from_folders(con: sqlite3.Connection) -> int:
     con.executemany("UPDATE image SET taken_at = ?, taken_at_source = 'folder' WHERE id = ?", changed)
     con.commit()
     return len(changed)
+
+
+# ---- what a folder means, set by hand --------------------------------------------------------------------------------
+
+REINDEX_AT_ONCE = 500  # photos under a corrected folder searched again at once; more wait for the worker's next pass
+
+
+class Problem(errors.Problem):
+    """A correction that can't be saved; the message is shown to whoever made it."""
+
+
+def set_meaning(con: sqlite3.Connection, folder_id: int, place: str, event: str, people: str, when: str) -> None:
+    """A person's correction of what a folder's name means: its place, its occasion, the names written in it, and its
+    date (a year, a month or a day). Kept as theirs (source 'user'): the AI never reads the name again. Doesn't
+    commit; reflow() then works out again what follows from it."""
+    place = " ".join((place or "").split())[:120] or None
+    event = " ".join((event or "").split())[:120] or None
+    names = [n for n in (" ".join(p.split())[:60] for p in (people or "").split(",")) if n][:20]
+    year = month = day = None
+    if (when or "").strip():
+        try:
+            span = photo_date(when, south(con), day_first(con))
+        except errors.Problem as e:
+            raise Problem(str(e)) from None
+        first, last = span.first, span.last
+        if first == last:
+            year, month, day = first.year, first.month, first.day
+        elif (first.year, first.month) == (last.year, last.month) and first.day == 1:
+            year, month = first.year, first.month
+        elif first.year == last.year and (first.month, first.day, last.month, last.day) == (1, 1, 12, 31):
+            year = first.year
+        else:
+            raise Problem("A folder's date is a year, a month or a day, like 1987, June 1987 or 1987-06-14.")
+    row = con.execute("SELECT kind, place, place_type FROM folder WHERE id = ?", (folder_id,)).fetchone()
+    kind = row["kind"] if row else None
+    if event:  # a folder said to mean something is no longer a camera's or a junk one, whose context is left out
+        kind = "event"
+    elif place:
+        kind = "place"
+    elif names:
+        kind = "person"
+    elif year:
+        kind = "date"
+    elif kind not in NO_CONTEXT_KINDS:
+        kind = "misc"
+    keep_type = row is not None and place and (row["place"] or "").lower() == place.lower()
+    con.execute("""UPDATE folder SET kind = ?, place = ?, place_type = ?, event = ?, people_hint = ?, year = ?,
+                   month = ?, day = ?, source = 'user' WHERE id = ?""",
+                (kind, place, row["place_type"] if keep_type else None, event, json.dumps(names), year, month, day,
+                 folder_id))
+
+
+def read_again(con: sqlite3.Connection, folder_id: int) -> None:
+    """Forget a correction: the AI reads the folder's name again on the worker's next pass, and a date written in it
+    is read again too. Until then the folder gives its photos nothing. Doesn't commit."""
+    con.execute("""UPDATE folder SET kind = NULL, place = NULL, place_type = NULL, event = NULL, people_hint = NULL,
+                   year = NULL, month = NULL, day = NULL, source = 'auto' WHERE id = ?""", (folder_id,))
+
+
+def images_under(con: sqlite3.Connection, folder_id: int) -> list[int]:
+    """The photos with a file in this folder or below it."""
+    row = con.execute("SELECT path FROM folder WHERE id = ?", (folder_id,)).fetchone()
+    if row is None:
+        return []
+    return [r[0] for r in con.execute("""SELECT DISTINCT f.image_id FROM file f JOIN folder d ON d.id = f.folder_id
+                                         WHERE NOT f.missing AND f.image_id IS NOT NULL
+                                         AND (:p = '' OR d.path = :p OR substr(d.path, 1, length(:p) + 1) = :p || '/')""",
+                                      {"p": row["path"]})]
+
+
+def reflow(con: sqlite3.Connection, folder_id: int) -> int:
+    """After a folder's meaning changed: the photos in it and below that took their date from a folder are dated
+    from their folders again (or go back to their file's time), and they are searched by what it means now (at once
+    for up to REINDEX_AT_ONCE, else on the worker's next pass). The map looks up a new place on the worker's next
+    pass; descriptions already written keep what the AI was told then. Commits as it goes. Returns how many photos."""
+    from lineagebox import search  # it needs this module to be loaded first
+    ids = images_under(con, folder_id)
+    listed = json.dumps(ids)
+    for image_id, mtime in con.execute("""SELECT i.id, min(f.mtime) FROM image i JOIN file f ON f.image_id = i.id
+                                          WHERE i.id IN (SELECT value FROM json_each(?)) AND i.taken_at_source = 'folder'
+                                          AND NOT f.missing GROUP BY i.id""", (listed,)).fetchall():
+        con.execute("UPDATE image SET taken_at = ?, taken_at_source = 'mtime' WHERE id = ?",
+                    (from_mtime(mtime), image_id))
+    con.commit()
+    date_from_folders(con, ids)
+    if len(ids) > REINDEX_AT_ONCE:
+        con.execute("DELETE FROM search_fts WHERE rowid IN (SELECT value FROM json_each(?))", (listed,))
+        con.commit()
+        return len(ids)
+    index = FolderIndex(con)
+    for n, image_id in enumerate(ids, 1):
+        search.index_image(con, image_id, index)
+        if n % search.COMMIT_EVERY == 0:
+            con.commit()
+    con.commit()
+    return len(ids)
 
 
 @dataclass

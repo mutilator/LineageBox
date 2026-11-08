@@ -8,8 +8,10 @@ from fastapi.responses import HTMLResponse
 
 from lineagebox import (accounts, catalog, changes, check, cleanup, family, family_check, orientation, people,
                         settings, writeback)
-from lineagebox.web.common import ADMIN, MEMBER, ImageIds, SameBody, UndoSinceBody, _from_app, _moved
-from lineagebox.web.deps import con, page, paging, site, viewer
+from lineagebox import face_ages, faces  # Cleanup → Camera clocks' count; Confirm faces' ages and faces missed
+from lineagebox import scan_dates  # Cleanup → Suggested dates' count
+from lineagebox.web.common import ADMIN, MEMBER, ImageIds, SameBody, UndoSinceBody, _from_app, _merge_spec, _moved
+from lineagebox.web.deps import con, page, paging, site, viewer, writer
 from lineagebox.web.site import Site
 
 router = APIRouter()
@@ -24,13 +26,14 @@ ACCESS = {
     "/cleanup/changes": ADMIN,
     "/api/changes/{change_id}/undo": ADMIN,
     "/api/changes/undo-since": ADMIN,
+    "/api/changes/{change_id}/undo-own": MEMBER,  # a member's own change, just made (changes.undo_own)
     "/cleanup/same": ADMIN,
     "/api/same/merge": ADMIN,
     "/api/same/different": ADMIN,
     "/cleanup/copies": ADMIN,
-    "/cleanup/similar": ADMIN,
+    "/cleanup/similar": MEMBER,  # a member: of their own uploads (_own_uploads)
     "/api/similar/remove-all": ADMIN,
-    "/cleanup/blurry": ADMIN,
+    "/cleanup/blurry": MEMBER,  # a member: of their own uploads
     "/cleanup/reference/{kind}": ADMIN,
     "/cleanup/removed": ADMIN,
     "/cleanup/kept": ADMIN,
@@ -41,24 +44,51 @@ ACCESS = {
 # The parts of the Cleanup page and how each counts what it shows, on the viewer's connection. The page opens with
 # Loading… in every card and app.js fetches each part from /cleanup/counts/{part} (data-later): on a big library some
 # take seconds, so each number shows as soon as it is ready instead of the whole page waiting for the slowest. Each
-# part is one or more cards (reference: one per kind), but "described" is the note under them.
+# part is one or more cards (reference: one per kind), but "described" is the note under them. A card whose page has
+# tabs or lists of more than one thing shows them all added up, and says how many of each (_cleanup_counts.html).
 COUNTS = {
     "copies": lambda c, now: cleanup.summary(c, now.blurry_below, {"redundant_copies"}),
     "similar": lambda c, now: cleanup.summary(c, now.blurry_below, {"similar_groups"}),
     "blurry": lambda c, now: cleanup.summary(c, now.blurry_below, {"blurry", "unmeasured"}),
     "reference": lambda c, now: cleanup.summary(c, now.blurry_below, {"reference"}),
-    "faces": lambda c, now: {"groups": catalog.clusters(c, 0, 0)[1], "beside": people.beside_named(c)},
+    "faces": lambda c, now: _faces_counts(c),
     "family": lambda c, now: {"issues": len(family_check.check(c))},
     "turned": lambda c, now: {"turned": len(orientation.suggestions(c, now.turn_suggest))},
     "damaged": lambda c, now: check.progress(c),
     "changes": lambda c, now: dict(zip(("recent", "widened"), c.execute(
-        "SELECT count(*), count(widened) FROM change_log WHERE undone_at IS NULL").fetchone())),
+        """SELECT count(*) FILTER (WHERE at >= datetime('now', 'localtime', '-30 days')), count(widened)
+           FROM change_log WHERE undone_at IS NULL""").fetchone())),
     "same": lambda c, now: {"same": len(people.maybe_same(c, set(settings.get(c, people.SAME_OK_KEY, []))))},
-    "kept": lambda c, now: cleanup.summary(c, now.blurry_below, {"kept"}),
+    "clocks": lambda c, now: {"cameras": len(face_ages.before_birth_by_camera(c))},  # routes/camera_clock.py
+    "dates": lambda c, now: scan_dates.counts(c),  # routes/suggested_dates.py
+    "kept": lambda c, now: _kept_counts(c, now),
     "removed": lambda c, now: cleanup.summary(c, now.blurry_below, {"removed"}),
     "described": lambda c, now: catalog.stats(c),
 }
-MEMBER_PARTS = ("faces", "family", "described")  # faces to name and their part of the tree; the rest moves files
+
+
+def _faces_counts(c) -> dict:
+    """What each tab of Confirm faces has, as its tabs count it (browse.cleanup_faces_page, face_checks.counts)."""
+    return {"beside": people.beside_named(c), "finish": people.to_finish(c, 0, 0)[1],
+            "groups": catalog.clusters(c, 0, 0)[1],
+            "ages": len(face_ages.age_checks(c, set(settings.get(c, face_ages.OK_KEY, [])))),
+            "missed": faces.missed(c, 0, 0)[1]}
+
+
+def _kept_counts(c, now) -> dict:
+    """Kept's photos and folder pairs (cleanup.summary counts both together)."""
+    pairs = c.execute("SELECT count(*) FROM kept_copies").fetchone()[0]
+    return {"kept": cleanup.summary(c, now.blurry_below, {"kept"})["kept"] - pairs, "pairs": pairs}
+
+
+# faces to name, their part of the tree, and the blank, blurry and similar shots among their own uploads (which they
+# may move to Removed); the rest is the whole library's
+MEMBER_PARTS = ("faces", "family", "blurry", "similar", "described")
+# a member's counts of what they uploaded: (c, now, their photos)
+OWN_COUNTS = {
+    "blurry": lambda c, now, own: {"blurry": cleanup.blurry(c, now.blurry_below, 0, 0, own)[1], "unmeasured": 0},
+    "similar": lambda c, now, own: {"similar_groups": cleanup.similar_groups(c, "all", only=own)[1]},
+}
 COUNTS_FOR = 60  # seconds each part's numbers are kept
 
 
@@ -84,7 +114,11 @@ def cleanup_counts(request: Request, part: str, v=Depends(viewer), c=Depends(con
     if part not in _parts(v, now):
         raise HTTPException(404)
     # kept a minute (Site.kept): coming back to Cleanup counts nothing again, unless something was changed meanwhile
-    n = s.keep(v, ("cleanup", part, now.blurry_below, now.turn_suggest), COUNTS_FOR, lambda: COUNTS[part](c, now))
+    if v.limited and part in OWN_COUNTS:  # of what they uploaded
+        work = lambda: OWN_COUNTS[part](c, now, _own_uploads(c, v))  # noqa: E731
+    else:
+        work = lambda: COUNTS[part](c, now)  # noqa: E731
+    n = s.keep(v, ("cleanup", part, now.blurry_below, now.turn_suggest), COUNTS_FOR, work)
     return page(request, "_cleanup_counts.html", part=part, n=n, labels=cleanup.REFERENCE_LABELS)
 
 
@@ -134,18 +168,31 @@ def damaged_ok(body: ImageIds, c=Depends(con)):
 
 
 @router.get("/cleanup/changes", response_class=HTMLResponse)
-def recent_changes_page(request: Request, c=Depends(con)):
-    """What family members changed, newest first, with undo; those that let someone see more are marked."""
-    rows = changes.recent(c)
-    return page(request, "cleanup_changes.html", nav="cleanup", rows=rows,
+def recent_changes_page(request: Request, members: bool = False, c=Depends(con)):
+    """What was changed, newest first, with undo; members' changes that let someone see more are marked.
+    members: only family members' changes."""
+    rows = changes.recent(c, members_only=members)
+    everyone = accounts.everyone(c)
+    return page(request, "cleanup_changes.html", nav="cleanup", rows=rows, members=members,
                 widened=sum(1 for r in rows if r["widened"] and not r["undone_at"]),
-                emails={a["id"]: a["email"] for a in accounts.everyone(c)})
+                has_members=any(a["role"] == "member" for a in everyone),
+                emails={a["id"]: a["email"] for a in everyone})
 
 
 @router.post("/api/changes/{change_id}/undo", dependencies=[Depends(_from_app)])
 def undo_change(change_id: int, c=Depends(con)):
     try:
         summary = changes.undo(c, change_id)
+    except changes.Conflict as e:
+        raise HTTPException(409, str(e)) from None
+    return {"message": f"Undone: {summary}", "reload": True}
+
+
+@router.post("/api/changes/{change_id}/undo-own", dependencies=[Depends(_from_app)])
+def undo_own_change(change_id: int, v=Depends(viewer), w=Depends(writer)):
+    """The Undo shown just after a change: a member's own, for a while; anything, for an admin."""
+    try:
+        summary = changes.undo_own(w, v, change_id)
     except changes.Conflict as e:
         raise HTTPException(409, str(e)) from None
     return {"message": f"Undone: {summary}", "reload": True}
@@ -168,17 +215,19 @@ def same_person_page(request: Request, c=Depends(con)):
 
 
 @router.post("/api/same/merge", dependencies=[Depends(_from_app)])
-def merge_same(body: SameBody, c=Depends(con)):
+def merge_same(body: SameBody, v=Depends(viewer), c=Depends(con)):
     """The same person: the one a member added goes into the other. keep_seeing: the member who added them goes
     on seeing them (an exception on their account), whether they are family or a friend from another tree."""
     added = catalog.person(c, body.added)
     if added is None or catalog.person(c, body.other) is None or body.added == body.other:
         raise HTTPException(404, "No such person")
-    if body.keep_seeing and added["added_by"]:
-        c.execute("INSERT OR IGNORE INTO access_rule(account_id, person_id, show, branch) VALUES (?, ?, 1, 0)",
-                  (added["added_by"], body.other))
-    people.merge(c, body.added, body.other)
-    c.commit()
+    other = catalog.person(c, body.other)
+    with changes.tracking(c, v, "person", f"Merged {added['name']} into {other['name']}",
+                          _merge_spec(c, v, body.added, body.other)):
+        if body.keep_seeing and added["added_by"]:
+            c.execute("INSERT OR IGNORE INTO access_rule(account_id, person_id, show, branch) VALUES (?, ?, 1, 0)",
+                      (added["added_by"], body.other))
+        people.merge(c, body.added, body.other)
     return {"reload": True}
 
 
@@ -200,16 +249,19 @@ def copies_page(request: Request, pg: int = Query(1, alias="page", ge=1), per: s
 
 @router.get("/cleanup/similar", response_class=HTMLResponse)
 def similar_page(request: Request, kind: str = "all", keep: str = "raw", pg: int = Query(1, alias="page", ge=1),
-                 per: str | None = None, c=Depends(con)):
+                 per: str | None = None, v=Depends(viewer), c=Depends(con)):
+    """Groups of similar shots to clear; a member's of their own uploads only, without Keep (the library's lists are
+    the admins') and without clearing every group at once."""
     if kind not in cleanup.SIMILAR_KINDS:
         raise HTTPException(404)
     p = paging(request, "similar", pg, per, "25")
-    groups, p.total = cleanup.similar_groups(c, kind, keep != "jpeg", p.offset, p.size)
+    own = _own_uploads(c, v) if v.limited else None
+    groups, p.total = cleanup.similar_groups(c, kind, keep != "jpeg", p.offset, p.size, own)
+    bulk = kind in cleanup._COPY_KINDS and not v.limited
     return page(request, "cleanup_similar.html", groups=groups, total=p.total, paging=p,
                 kind=kind, keep=keep, kinds=cleanup.SIMILAR_KINDS,
-                hint=cleanup.SIMILAR_HINTS[kind], counts=cleanup.similar_counts(c),
-                bulk=kind in cleanup._COPY_KINDS,
-                ticked=len(cleanup.similar_ticked(c, kind, keep != "jpeg")) if kind in cleanup._COPY_KINDS else 0,
+                hint=cleanup.SIMILAR_HINTS[kind], counts=cleanup.similar_counts(c, own),
+                bulk=bulk, ticked=len(cleanup.similar_ticked(c, kind, keep != "jpeg")) if bulk else 0,
                 page_query={"kind": kind, "keep": keep} if kind == "raw" else {"kind": kind})
 
 
@@ -222,13 +274,27 @@ def remove_all_similar(kind: str = Query(), keep: str = "raw", c=Depends(con), s
 
 @router.get("/cleanup/blurry", response_class=HTMLResponse)
 def blurry_page(request: Request, pg: int = Query(1, alias="page", ge=1), per: str | None = None,
-                c=Depends(con), s: Site = Depends(site)):
+                v=Depends(viewer), c=Depends(con), s: Site = Depends(site)):
+    """Photos with almost no sharp detail, worst first; a member's of their own uploads only."""
     p = paging(request, "blurry", pg, per, "100")
     below = s.live(c).blurry_below
-    images, p.total = cleanup.blurry(c, below, p.offset, p.size)
+    own = _own_uploads(c, v) if v.limited else None
+    images, p.total = cleanup.blurry(c, below, p.offset, p.size, own)
     return page(request, "cleanup_list.html", title="Blank and blurry", images=images, total=p.total, paging=p,
                 reason="blank or blurry", kind="blurry",
-                unmeasured=cleanup.summary(c, below, {"unmeasured"})["unmeasured"])
+                unmeasured=0 if v.limited else cleanup.summary(c, below, {"unmeasured"})["unmeasured"])
+
+
+def _own_uploads(c, v) -> set[int]:
+    """The photos a member uploaded and nobody else has: every copy of them on the share is in their uploads folder.
+    Those are theirs to move to Removed (routes/photos.py); a photo with a copy elsewhere is the library's, for an
+    admin to clean up."""
+    folder = (v.account or {}).get("upload_folder")
+    if not folder:
+        return set()
+    return {r[0] for r in c.execute("""SELECT image_id FROM file WHERE NOT missing AND image_id IS NOT NULL
+                                       GROUP BY image_id HAVING sum(path LIKE :under ESCAPE '!') = count(*)""",
+                                    {"under": catalog.under(folder)})}
 
 
 @router.get("/cleanup/reference/{kind}", response_class=HTMLResponse)

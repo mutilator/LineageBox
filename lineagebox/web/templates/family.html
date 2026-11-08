@@ -1,159 +1,166 @@
 {% extends "base.html" %}
-{% block title %}Family{% endblock %}
+{% block title %}{% trans %}Family{% endtrans %}{% endblock %}
+{% block body_class %}{% trans %}family-page{% endtrans %}{% endblock %}{# printed without its forms (app.css, app.js) #}
 {% block main %}
 {% from "_family_macros.html" import card, glance with context %}
-<h1>Family</h1>
+<h1>{% trans %}Family{% endtrans %}</h1>
 {% if viewer.admin %}
 <details class="info-panel read-panel" id="read">
-  <summary><h2>Read into the family tree</h2></summary>
+  <summary><h2>{% trans %}Read into the family tree{% endtrans %}</h2></summary>
   <p class="meta">{% include "_family_read_about.html" %}</p>
   {% set read_heading = "h3" %}
   {% include "_family_read_form.html" %}
 </details>
 {% endif %}
 {% if ego %}
-<p class="meta">Relationships as seen from <a href="/person/{{ ego }}">{{ g.name(ego) }}</a>. Add or change them on each
-person's page; everything else (nieces, cousins, in-laws, step-family, former family) is worked out from those.</p>
+<p class="meta">{% trans name=g.name(ego) %}Relationships as seen from <a href="/person/{{ ego }}">{{ name }}</a>. Add or change them on each
+person's page; everything else (nieces, cousins, in-laws, step-family, former family) is worked out from those.{% endtrans %}</p>
 {% else %}
-<p class="note">Start on your own page (under <a href="/people">People</a>): press <b>This is me</b>, then add your parents,
+<p class="note">{% trans %}Start on your own page (under <a href="/people">People</a>): press <b>This is me</b>, then add your parents,
 brothers and sisters, partner and children there. Nieces and nephews, cousins, in-laws and step-family are worked out
-from who is whose parent, sibling or partner.</p>
+from who is whose parent, sibling or partner.{% endtrans %}</p>
 {% endif %}
 
 {# The family around one person, a generation or two each way. A card puts that person in the middle, to climb up or
    down, and a double click on it opens their page; the card in the middle opens its page with one. #}
 {% macro vcard(pid, mark="", former=false) %}
+  <span class="fcard-holder">
   <a class="fcard{% if pid == view.center %} center{% endif %}{% if former %} former{% endif %}{% if g.people[pid].deceased %} late{% endif %}"
      href="{{ '/person/%d'|format(pid) if pid == view.center else '/family?center=%d#view'|format(pid) }}"
      {%- if pid != view.center %} data-double="/person/{{ pid }}"{% endif %}
-     title="{{ "Open " ~ g.name(pid) ~ "'s page" if pid == view.center else "Put " ~ g.name(pid) ~ " in the middle; double-click to open their page" }}">
+     title="{{ _("Open %(name)s's page", name=g.name(pid)) if pid == view.center else _("Put %(name)s in the middle; double-click to open their page", name=g.name(pid)) }}">
     {%- if mark %}<span class="climb-mark" aria-hidden="true">{{ mark }}</span>{% endif %}
     {%- if covers.get(pid) %}<img src="/face/{{ covers[pid] }}" alt="" loading="lazy">{% else %}<span class="ph">{{ g.name(pid)[:1] }}</span>{% endif %}
     <span class="name">{{ g.name(pid) }}</span>
-    {%- if pid == ego %}<span class="kin">you</span>{% elif kin.get(pid) %}<span class="kin">{{ kin[pid].label }}</span>{% endif %}
+    {%- if pid == ego %}<span class="kin">{% trans %}you{% endtrans %}</span>{% elif kin.get(pid) %}<span class="kin">{{ kin[pid].label }}</span>{% endif %}
   </a>
+  {%- if pid != view.center %}<a class="fcard-open" href="/person/{{ pid }}" title="{{ _("Open %(name)s's page", name=g.name(pid)) }}" aria-label="{{ _("Open %(name)s's page", name=g.name(pid)) }}">↗</a>{% endif %}
+  </span>
 {% endmacro %}
 
 {% if view %}
 <section class="family-view" id="view">
-  <h2>Family tree</h2>
-  <p class="hint">Click anyone to put them in the middle and see their family; double-click to open their page (one
-  click does, for the one in the middle). ↑ and ↓ mark where the family goes on.</p>
+  <h2>{% trans %}Family tree{% endtrans %}</h2>
+  <p class="hint">{% trans %}Click anyone to put them in the middle and see their family, or ↗ on them to open their page (one
+  click on the one in the middle does). ↑ and ↓ mark where the family goes on.{% endtrans %}</p>
   {%- if view.path|length > 1 %}
-  <nav class="hint-path" aria-label="The way here from you">
-    {%- for pid in view.path %}<a href="/family?center={{ pid }}#view"{% if pid == view.center %} aria-current="true"{% endif %}>{{ "You" if pid == ego else g.name(pid) }}</a>
+  <nav class="hint-path" aria-label="{{ _('The way here from you') }}">
+    {%- for pid in view.path %}<a href="/family?center={{ pid }}#view"{% if pid == view.center %} aria-current="true"{% endif %}>{{ _("You") if pid == ego else g.name(pid) }}</a>
     {%- if kin.get(pid) and pid != ego %} <small>{{ kin[pid].label }}</small>{% endif %}{% if not loop.last %}<span class="sep">›</span>{% endif %}{% endfor %}
   </nav>
   {%- endif %}
   {%- if view.above %}
-  <p class="climb">↑ {{ view.above }} more generation{{ "s" if view.above > 1 }} above: click a grandparent marked ↑</p>
+  <p class="climb">{% trans count=view.above %}↑ {{ count }} more generation above: click a grandparent marked ↑{% pluralize %}↑ {{ count }} more generations above: click a grandparent marked ↑{% endtrans %}</p>
   {%- endif %}
   {%- if view.grandparents|selectattr(1)|list %}
   <div class="gen">
     {%- for parent, gps in view.grandparents if gps %}
-    <div class="branch"><span class="branch-label">{{ g.name(parent) }}'s parents</span>
+    <div class="branch"><span class="branch-label">{% trans name=g.name(parent) %}{{ name }}'s parents{% endtrans %}</span>
       <div class="couple">{% for gp in gps %}{{ vcard(gp, "↑" if gp in view.up_from else "") }}{% endfor %}</div></div>
     {%- endfor %}
   </div>
   {%- endif %}
   {%- if view.parents %}
   <div class="gen">
-    <div class="branch"><span class="branch-label">{{ g.name(view.center) }}'s parents</span>
+    <div class="branch"><span class="branch-label">{% trans name=g.name(view.center) %}{{ name }}'s parents{% endtrans %}</span>
       <div class="couple">{% for p in view.parents %}{{ vcard(p) }}{% endfor %}</div></div>
   </div>
   {%- endif %}
   <div class="gen middle">
     {%- if view.older %}
-    <div class="branch"><span class="branch-label">older brothers and sisters</span>
+    <div class="branch"><span class="branch-label">{% trans %}older brothers and sisters{% endtrans %}</span>
       <div class="couple">{% for p in view.older %}{{ vcard(p) }}{% endfor %}</div></div>
     {%- endif %}
-    <div class="branch"><span class="branch-label">{{ "partners" if view.partners|length > 1 else "and partner" if view.partners else "" }}</span>
+    <div class="branch"><span class="branch-label">{{ _("partners") if view.partners|length > 1 else _("and partner") if view.partners else "" }}</span>
       <div class="couple">{{ vcard(view.center) }}{% for p, current in view.partners %}{{ vcard(p, former=current == false) }}{% endfor %}</div></div>
     {%- if view.younger %}
-    <div class="branch"><span class="branch-label">younger brothers and sisters</span>
+    <div class="branch"><span class="branch-label">{% trans %}younger brothers and sisters{% endtrans %}</span>
       <div class="couple">{% for p in view.younger %}{{ vcard(p) }}{% endfor %}</div></div>
     {%- endif %}
   </div>
   {%- if view.children|selectattr(1)|list %}
   <div class="gen">
     {%- for parent, kids in view.children if kids %}
-    <div class="branch{% if parent == view.center %} own{% endif %}"><span class="branch-label">{{ g.name(parent) }}'s children</span>
+    <div class="branch{% if parent == view.center %} own{% endif %}"><span class="branch-label">{% trans name=g.name(parent) %}{{ name }}'s children{% endtrans %}</span>
       <div class="couple">{% for k in kids %}{{ vcard(k, "↓" if k in view.down_from else "") }}{% endfor %}</div></div>
     {%- endfor %}
   </div>
   {%- endif %}
   {%- if view.below %}
-  <p class="climb">↓ {{ view.below }} more generation{{ "s" if view.below > 1 }} below: click a child marked ↓</p>
+  <p class="climb">{% trans count=view.below %}↓ {{ count }} more generation below: click a child marked ↓{% pluralize %}↓ {{ count }} more generations below: click a child marked ↓{% endtrans %}</p>
   {%- endif %}
 </section>
 {% endif %}
 
 {% if line_root is not none %}
 <p class="whole-line"><a class="button primary" href="/family/tree?root={{ line_root }}{% if view %}&amp;person={{ view.center }}{% endif %}"
-  data-key="w" data-key-label="View in classic family tree style">View in classic family tree style</a>
-  <span class="hint inline">On a page of its own, to move around and zoom in and out, and to save as one large
-  picture.</span></p>
+  data-key="w" data-key-label="{{ _('View in classic family tree style') }}">{% trans %}View in classic family tree style{% endtrans %}</a>
+  <span class="hint inline">{% trans %}On a page of its own, to move around and zoom in and out, and to save as one large
+  picture.{% endtrans %}</span>
+  <a class="button quiet" href="/book/branch/{{ line_root }}" title="{{ _('Everyone in this line, a page each: portraits, lives, families and best photos, to print or save as a PDF') }}">{% trans %}A book of this family{% endtrans %}</a></p>
 {% endif %}
 
 {% if groups %}
 <details class="info-panel">
-<summary><h2>Everyone, by relationship</h2> <span class="hint inline">{{ groups|map(attribute=1)|map("length")|sum }} people</span></summary>
-<p class="hint">Point at a group to see who is in it, or click it to keep it open.</p>
+<summary><h2>{% trans %}Everyone, by relationship{% endtrans %}</h2> <span class="hint inline">{% trans groups=groups|map(attribute=1)|map("length")|sum %}{{ groups }} people{% endtrans %}</span></summary>
+<p class="hint">{% trans %}Point at a group to see who is in it, or click it to keep it open.{% endtrans %}</p>
 {% for name, ids in groups %}{{ glance(name|capitalize, ids, former=name == "former family") }}{% endfor %}
 </details>
 {% endif %}
 
 {% if others %}
 <details class="info-panel">
-<summary><h2>Friends, pets and others</h2> <span class="hint inline">{{ others|map(attribute=1)|map("length")|sum }}</span></summary>
+<summary><h2>{% trans %}Friends, pets and others{% endtrans %}</h2> <span class="hint inline">{{ others|map(attribute=1)|map("length")|sum }}</span></summary>
 {% for label, ids in others %}{{ glance(label, ids) }}{% endfor %}
 </details>
 {% endif %}
 
 {% if circles %}
 <details class="info-panel">
-<summary><h2>Acquaintances, by group</h2> <span class="hint inline">{{ circles|length }} group{{ "" if circles|length == 1 else "s" }}</span></summary>
+<summary><h2>{% trans %}Acquaintances, by group{% endtrans %}</h2> <span class="hint inline">{% trans count=circles|length %}{{ count }} group{% pluralize %}{{ count }} groups{% endtrans %}</span></summary>
 {% for name, ids in circles.items() %}{{ glance(name, ids) }}{% endfor %}
 </details>
 {% endif %}
 
 {% if unplaced %}
 <details class="info-panel">
-<summary><h2>Not placed yet</h2> <span class="hint inline">{{ unplaced|length }}</span></summary>
-<p class="meta">Named people with no relationship or group entered. Open one to say how they're related, or put
-them in a group (Teachers, Family friends, a band).</p>
+<summary><h2>{% trans %}Not placed yet{% endtrans %}</h2> <span class="hint inline">{{ unplaced|length }}</span></summary>
+<p class="meta">{% trans %}Named people with no relationship or group entered. Open one to say how they're related, or put
+them in a group (Teachers, Family friends, a band).{% endtrans %}</p>
 <div class="family-cards">{% for p in unplaced %}{{ card(p.id) }}{% endfor %}</div>
 </details>
 {% endif %}
 
-<section class="panel" id="gedcom">
-  <h2>Family tree programs (GEDCOM)</h2>
-  <p class="hint">A GEDCOM file holds everyone, with their names, life events, families and relationships: Ancestry,
-  FamilySearch, MyHeritage, Gramps and the like open it.</p>
-  <h3>Export</h3>
-  <p class="hint">Download the family tree as a GEDCOM file.{% if names_to_check %} <a href="/family/names">{{ names_to_check }}
-  name{{ "" if names_to_check == 1 else "s" }} to check</a> first: given name and surname apart.{% endif %}</p>
+{#- folded away: what most of the family never needs (/family#gedcom opens it) #}
+<details class="info-panel" id="gedcom" data-keep-open>
+  <summary><h2>{% trans %}Family tree programs{% endtrans %}</h2> <span class="hint inline">{% trans %}Ancestry, FamilySearch, MyHeritage, Gramps: export or bring in a tree{% endtrans %}</span></summary>
+  <p class="hint">{% trans %}A GEDCOM file holds everyone, with their names, life events, families and relationships: Ancestry,
+  FamilySearch, MyHeritage, Gramps and the like open it.{% endtrans %}</p>
+  <h3>{% trans %}Export{% endtrans %}</h3>
+  <p class="hint">{% trans %}Download the family tree as a GEDCOM file.{% endtrans %}{% if names_to_check %} {% trans count=names_to_check %}<a href="/family/names">{{ count }}
+  name to check</a> first: given name and surname apart.{% pluralize %}<a href="/family/names">{{ count }}
+  names to check</a> first: given name and surname apart.{% endtrans %}{% endif %}</p>
   <form action="/family/export" method="get" class="inline-facts">
-    <label>Version <select name="version">
-      <option value="7.0" selected>GEDCOM 7.0 (current)</option>
-      <option value="5.5.1">GEDCOM 5.5.1 (older programs)</option>
+    <label>{% trans %}Version{% endtrans %} <select name="version">
+      <option value="7.0" selected>{% trans %}GEDCOM 7.0 (current){% endtrans %}</option>
+      <option value="5.5.1">{% trans %}GEDCOM 5.5.1 (older programs){% endtrans %}</option>
     </select></label>
-    <label><input type="checkbox" name="photos" value="true"> with each person's portrait</label>
-    <label><input type="checkbox" name="private" value="true"> leave out living people's details</label>
-    <button type="submit" class="primary">Download</button>
+    <label><input type="checkbox" name="photos" value="true"> {% trans %}with each person's portrait{% endtrans %}</label>
+    <label><input type="checkbox" name="private" value="true"> {% trans %}leave out living people's details{% endtrans %}</label>
+    <button type="submit" class="primary">{% trans %}Download{% endtrans %}</button>
   </form>
-  <p class="hint">With portraits, it is a GEDZIP: the GEDCOM file and a photo of each person, cropped to their face.
-  Leaving out living people's details keeps their names to "Living" and their dates and photos out, for sharing.</p>
+  <p class="hint">{% trans %}With portraits, it is a GEDZIP: the GEDCOM file and a photo of each person, cropped to their face.
+  Leaving out living people's details keeps their names to "Living" and their dates and photos out, for sharing.{% endtrans %}</p>
   {% if viewer.admin %}
-  <h3>Import</h3>
-  <p class="hint">Bring in a family tree from another program. Its people are matched to those here, and nothing
-  changes until you have checked who is who.</p>
+  <h3>{% trans %}Import{% endtrans %}</h3>
+  <p class="hint">{% trans %}Bring in a family tree from another program. Its people are matched to those here, and nothing
+  changes until you have checked who is who.{% endtrans %}</p>
   <p class="inline-facts">
-    <input type="file" id="gedcom-file" accept=".ged,.gdz,.zip" aria-label="GEDCOM file">
-    <button type="button" id="gedcom-upload">Read it</button>
-    <span class="hint inline" id="gedcom-note">A .ged file (or .gdz) from Ancestry, FamilySearch, MyHeritage, Gramps or
-    LineageBox.</span>
+    <input type="file" id="gedcom-file" accept=".ged,.gdz,.zip" aria-label="{{ _('GEDCOM file') }}">
+    <button type="button" id="gedcom-upload">{% trans %}Read it{% endtrans %}</button>
+    <span class="hint inline" id="gedcom-note">{% trans %}A .ged file (or .gdz) from Ancestry, FamilySearch, MyHeritage, Gramps or
+    LineageBox.{% endtrans %}</span>
   </p>
   {% endif %}
-</section>
+</details>
 {% endblock %}

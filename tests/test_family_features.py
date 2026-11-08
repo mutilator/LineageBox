@@ -409,8 +409,10 @@ def test_removing_someone_added_by_mistake(site, cfg, con):
                                                                                 "person_ids": [wrong, p["Cora"]]}}), "Two")
     con.execute("INSERT OR REPLACE INTO settings(key, value) VALUES ('me', ?)", (str(wrong),))
     con.commit()
-    assert f'data-api="/api/people/{wrong}/remove"' in sam.get(f"/person/{wrong}").text
-    assert "/remove" not in sam.get(f"/person/{p['Cora']}").text.split("<h2>Photos</h2>")[1]  # in photos: stays
+    page = sam.get(f"/person/{wrong}").text
+    assert f'data-api="/api/people/{wrong}/remove"' in page and "Remove Wrong Person? Their family links" in page
+    cora = sam.get(f"/person/{p['Cora']}").text.split('class="danger-zone"')[1]
+    assert "/remove" not in cora and "Cora has an account (cora@example.com)" in cora  # she stays, and why
     r = sam.post(f"/api/people/{wrong}/remove", headers=APP)
     assert r.status_code == 200 and r.json()["message"] == "Wrong Person was removed."
     for sql in ("SELECT 1 FROM person WHERE id = ?", "SELECT 1 FROM parent WHERE child_id = ?",
@@ -420,10 +422,7 @@ def test_removing_someone_added_by_mistake(site, cfg, con):
     assert json.loads(spec)["who"]["person_ids"] == [p["Cora"]]
     assert not con.execute("SELECT 1 FROM settings WHERE key = 'me'").fetchone()
     assert sam.post(f"/api/people/{wrong}/remove", headers=APP).status_code == 404
-    # someone named in photos, or with an account, stays
-    in_photos = con.execute("SELECT person_id FROM face WHERE person_id IS NOT NULL").fetchone()[0]
-    r = sam.post(f"/api/people/{in_photos}/remove", headers=APP)
-    assert r.status_code == 400 and "is named in photos" in r.json()["detail"]
+    # someone with an account stays
     signs_in = people.person_id(con, "Signs In")
     fx.account(con, signs_in, "signs.in@example.com")
     r = sam.post(f"/api/people/{signs_in}/remove", headers=APP)
@@ -432,6 +431,41 @@ def test_removing_someone_added_by_mistake(site, cfg, con):
     assert signed_in(cfg, con, site["who"]["Cora"]).post(f"/api/people/{p['Jim']}/remove",
                                                          headers=APP).status_code == 404
     assert con.execute("SELECT 1 FROM person WHERE id = ?", (p["Jim"],)).fetchone()
+
+
+def test_removing_someone_named_in_photos_unnames_their_faces(site, cfg, con):
+    """Their name comes off every face that had it, which is unnamed again (to be grouped, recognised or named), and
+    off the photos they were added to by hand; nothing else's faces change, and search no longer finds them there."""
+    p, ph, fc = site["people"], site["photos"], site["faces"]
+    sam = signed_in(cfg, con, site["who"]["Sam"])
+    hank_faces = fc["hank.jpg"] + fc["hank_sam.jpg"][:1]
+    sams_face = fc["hank_sam.jpg"][1]
+    con.execute("UPDATE face SET named_by = ?, cluster_id = 5, assign_score = 0.9 WHERE id = ?",
+                (site["who"]["Sam"]["id"], hank_faces[0]))
+    con.execute("INSERT INTO face_not_person(face_id, person_id) VALUES (?, ?)", (sams_face, p["Hank"]))
+    con.execute("INSERT INTO image_person(image_id, person_id, added_at) VALUES (?, ?, '2026-01-01')",
+                (ph["scenery.jpg"], p["Hank"]))
+    con.commit()
+    search.rebuild(con)
+    assert {ph["hank.jpg"], ph["scenery.jpg"]} <= {r["id"] for r in search.query(con, "Hank")}
+    page = sam.get(f"/person/{p['Hank']}").text
+    assert (f"Remove Hank? Their name comes off 3 photos: the 2 faces named Hank will be unnamed again. Their family "
+            f"links") in page
+    r = sam.post(f"/api/people/{p['Hank']}/remove", headers=APP)
+    assert r.status_code == 200 and r.json()["message"] == "Hank was removed. 2 faces are unnamed again."
+    assert not con.execute("SELECT 1 FROM person WHERE id = ?", (p["Hank"],)).fetchone()
+    rows = con.execute("""SELECT person_id, assigned_by, assign_score, cluster_id, named_by FROM face
+                          WHERE id IN (SELECT value FROM json_each(?))""", (json.dumps(hank_faces),)).fetchall()
+    assert [tuple(r) for r in rows] == [(None,) * 5] * 2  # as if never named: free to be recognised or grouped
+    sams = con.execute("SELECT person_id, assigned_by FROM face WHERE id = ?", (sams_face,)).fetchone()
+    assert tuple(sams) == (p["Sam"], "user")  # the face beside theirs keeps its name
+    for sql in ("SELECT 1 FROM image_person WHERE person_id = ?", "SELECT 1 FROM face_not_person WHERE person_id = ?",
+                "SELECT 1 FROM parent WHERE parent_id = ?", "SELECT 1 FROM partner WHERE a = ?1 OR b = ?1"):
+        assert not con.execute(sql, (p["Hank"],)).fetchone(), sql
+    assert not {ph["hank.jpg"], ph["scenery.jpg"]} & {r["id"] for r in search.query(con, "Hank")}
+    assert ph["hank_sam.jpg"] in {r["id"] for r in search.query(con, "Sam")}
+    # what the reading's page asks before it offers Remove from the tree (its question says nothing of faces)
+    assert people.in_photos(con, p["Jim"]) and not people.in_photos(con, p["Hal"])  # added by hand; in none
 
 
 def test_place_lookups_follow_the_nominatim_policy(cfg, monkeypatch):

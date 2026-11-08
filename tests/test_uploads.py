@@ -233,13 +233,16 @@ def test_downloads_hold_only_what_they_see(site, cfg, con):
     ids = [ph["cora_bart.jpg"], ph["rex.jpg"], ph["zed.jpg"], ph["hank.jpg"]]
     r = cora.post("/download", data={"image": [str(i) for i in ids]})
     assert r.status_code == 200 and r.headers["content-type"] == "application/zip"
-    names = zipfile.ZipFile(io.BytesIO(r.content)).namelist()
-    assert sorted(names) == ["cora_bart.jpg", "rex.jpg"]
+    z = zipfile.ZipFile(io.BytesIO(r.content))
+    names = z.namelist()
+    assert sorted(n for n in names if not n.endswith(".xmp")) == ["cora_bart.jpg", "rex.jpg"]
+    assert "cora_bart.jpg.xmp" in names  # its names, beside it (sidecars.py), only those she sees
+    assert fx.SECRET not in "".join(z.read(n).decode("utf-8") for n in names if n.endswith(".xmp"))
     only_hidden = cora.post("/download", data={"image": [str(ph["zed.jpg"])]})
     assert only_hidden.status_code == 404
     tour = tours.save_tour(con, None, None, tours.clean({"title": "All"}), "All", site["who"]["Cora"]["id"])
     r = cora.get(f"/download/tour/{tour}")
-    got = sorted(zipfile.ZipFile(io.BytesIO(r.content)).namelist())
+    got = sorted(n for n in zipfile.ZipFile(io.BytesIO(r.content)).namelist() if not n.endswith(".xmp"))
     assert got == sorted(n for n, i in ph.items() if i in access.compute(con, site["who"]["Cora"]).images)
 
 

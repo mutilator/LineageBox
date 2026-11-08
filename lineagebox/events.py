@@ -17,14 +17,22 @@ from datetime import date
 
 from lineagebox import errors
 
-# GEDCOM event tags people can add, with what the pages call them. BIRT and DEAT are a person's; MARR and DIV a
-# couple's; EVEN is anything else, described by its type.
-PERSON_EVENTS = {"BIRT": "Born", "DEAT": "Died", "BAPM": "Baptized", "CHR": "Christened", "BURI": "Buried",
-                 "CREM": "Cremated", "GRAD": "Graduated", "RESI": "Lived in", "OCCU": "Worked as", "EDUC": "Studied",
-                 "RETI": "Retired", "EMIG": "Emigrated", "IMMI": "Immigrated", "NATU": "Naturalized",
-                 "MILI": "Military service", "EVEN": "Other event"}
-COUPLE_EVENTS = {"MARR": "Married", "ENGA": "Engaged", "DIV": "Divorced", "EVEN": "Other event"}
+# GEDCOM 7 event tags people can add, with what the pages call them, roughly in the order of a life. BIRT and DEAT
+# are a person's; MARR and DIV a couple's; EVEN is anything else, described by its type.
+PERSON_EVENTS = {"BIRT": "Born", "ADOP": "Adopted", "BAPM": "Baptized", "CHR": "Christened", "BLES": "Blessed",
+                 "FCOM": "First communion", "BARM": "Bar mitzvah", "BASM": "Bat mitzvah", "CONF": "Confirmed",
+                 "GRAD": "Graduated", "EDUC": "Studied", "OCCU": "Worked as", "MILI": "Military service",
+                 "RESI": "Lived in", "CENS": "In a census", "EMIG": "Emigrated", "IMMI": "Immigrated",
+                 "NATU": "Naturalized", "NATI": "Nationality", "RELI": "Religion", "ORDN": "Ordained",
+                 "TITL": "Title", "RETI": "Retired", "WILL": "Made a will", "DEAT": "Died", "BURI": "Buried",
+                 "CREM": "Cremated", "PROB": "Probate", "EVEN": "Other event"}
+COUPLE_EVENTS = {"ENGA": "Engaged", "MARB": "Banns read", "MARL": "Marriage licence", "MARC": "Marriage contract",
+                 "MARS": "Marriage settlement", "MARR": "Married", "DIVF": "Divorce filed", "DIV": "Divorced",
+                 "ANUL": "Annulled", "EVEN": "Other event"}
 ONE_EACH = {"BIRT", "DEAT", "BURI", "CREM"}  # a person has at most one of these
+# GEDCOM attributes: what they are is their value (the type column here, "Teacher" for OCCU), which GEDCOM 7 writes
+# as the payload ("1 OCCU Teacher"). The pages ask "What" for these, as for an EVEN.
+ATTRIBUTES = {"OCCU", "EDUC", "RESI", "NATI", "RELI", "TITL"}
 NAME_TYPES = {"birth": "Birth name", "married": "Married name", "aka": "Also known as", "nickname": "Nickname"}
 # name particles that belong to the surname: "Anna Van Dyke"
 PARTICLES = {"van", "von", "de", "der", "den", "del", "della", "di", "da", "du", "la", "le", "st", "st.", "mac", "ter"}

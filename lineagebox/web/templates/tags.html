@@ -1,16 +1,17 @@
 {% extends "base.html" %}
-{% block title %}Tags{% endblock %}
+{% block title %}{% trans %}Tags{% endtrans %}{% endblock %}
 {% block main %}
-<h1>Tags</h1>
-<p class="meta">Keywords given to photos, by the AI as it describes them or by you on a photo's page: things, places, activities, seasons.
-{%- if described < to_describe %} So far {{ "{:,}".format(described) }} of {{ "{:,}".format(to_describe) }} photos are described, and the list grows as the rest are.{% endif %}
-A group of similar shots counts once.</p>
+<h1>{% trans %}Tags{% endtrans %}</h1>
+<p class="meta">{% trans %}Keywords given to photos, by the AI as it describes them or by you on a photo's page: things, places, activities, seasons.{% endtrans %}
+{%- if described < to_describe %} {% trans described=described|number, to_describe=to_describe|number %}So far {{ described }} of {{ to_describe }} photos are described, and the list grows as the rest are.{% endtrans %}{% endif %}
+{% trans %}A group of similar shots counts once.{% endtrans %}{% if viewer.admin %} {% trans %}Open a tag to rename it, merge it into another, or take
+it off every photo.{% endtrans %}{% endif %}</p>
 
 <form class="tag-filter" action="/tags" data-filter="#tag-list">
-  <input type="search" name="q" value="{{ tag_q }}" placeholder="Filter tags: dog, beach, birthday…" aria-label="Filter tags" autofocus data-key="f">
-  <label><input type="radio" name="sort" value="count"{% if sort != "name" %} checked{% endif %}> Most photos</label>
-  <label><input type="radio" name="sort" value="name"{% if sort == "name" %} checked{% endif %}> A–Z</label>
-  <noscript><button type="submit">Filter</button></noscript>
+  <input type="search" name="q" value="{{ tag_q }}" placeholder="{{ _('Filter tags: dog, beach, birthday…') }}" aria-label="{{ _('Filter tags') }}" autofocus data-key="f">
+  <label><input type="radio" name="sort" value="count"{% if sort != "name" %} checked{% endif %}> {% trans %}Most photos{% endtrans %}</label>
+  <label><input type="radio" name="sort" value="name"{% if sort == "name" %} checked{% endif %}> {% trans %}A–Z{% endtrans %}</label>
+  <noscript><button type="submit">{% trans %}Filter{% endtrans %}</button></noscript>
 </form>
 
 <div id="tag-list">{% include "_tag_list.html" %}</div>

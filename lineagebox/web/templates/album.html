@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{#- An album (albums.py, routes/albums.py): its photos in its order, each with the album's caption (or the photo's own),
+    its slideshow and video. Its maker, or an admin, puts the photos in order (dragged, or ↑ ↓), picks the cover, writes
+    the captions and shares it (app.js, data-album). #}
+{% block title %}{{ album.name }}{% endblock %}
+{% block main %}
+{%- set cover_id = album.cover_id if album.cover_id in photos|map(attribute="id")|list else (photos[0].id if photos else none) %}
+<nav class="crumbs"><a href="/albums">{% trans %}Albums{% endtrans %}</a><span class="sep">/</span><h1>{{ album.name }}</h1></nav>
+{% if album.about %}<p class="album-about">{{ album.about }}</p>{% endif %}
+<p class="meta">{% trans count=photos|length, photos=photos|length|number %}{{ photos }} photo{% pluralize %}{{ photos }} photos{% endtrans %}{% if slides and slides[0].span %} · {{ slides[0].span }}{% endif %}</p>
+{% if from_whom %}<p class="note">{% trans %}{{ from_whom }} shared this album with you.{% endtrans %}</p>{% endif %}
+<p class="tour-actions">
+  {%- if slides %}<button type="button" class="primary" data-play="#slides" data-seconds="{{ seconds }}" data-key="p" data-key-label="{{ _('Play the slideshow') }}">{% trans %}▶ Play{% endtrans %}</button>{% endif %}
+  {%- if photos %}<a class="button quiet" href="/download/album/{{ album.id }}" download>{% trans %}Download all{% endtrans %}</a>{% endif %}
+  {%- if mine %}
+  <button type="button" data-toggle="#album-edit" data-toggle-label="{{ _('Cancel') }}" aria-expanded="false" aria-controls="album-edit">{% trans %}Rename{% endtrans %}</button>
+  <button type="button" class="quiet" data-api="/api/albums/{{ album.id }}/delete"
+          data-confirm="{{ _('Delete the album %(name)s? Only the album goes: its photos stay where they are.', name=album.name) }}">{% trans %}Delete{% endtrans %}</button>
+  {%- endif %}
+  {%- if slides %}<span class="hint inline kbd-hint">{% trans %}In the slideshow: space pauses, ← → step, Esc leaves.{% endtrans %}</span>{% endif %}
+</p>
+{% if mine %}
+<form id="album-edit" class="panel album-edit" data-api="/api/albums/{{ album.id }}" hidden>
+  <label>{% trans %}Name{% endtrans %} <input name="name" value="{{ album.name }}" required maxlength="120" class="wide"></label>
+  <label>{% trans %}A few words about it{% endtrans %} <textarea name="about" rows="2" maxlength="500" placeholder="{{ _('What it is: who, where, when') }}">{{ album.about }}</textarea></label>
+  <button type="submit">{% trans %}Save{% endtrans %}</button>
+</form>
+{% endif %}
+{% if video and slides %}
+<div class="video-part"{% if video.made and video.made.state in ("waiting", "making") %} data-live="/album/{{ album.id }}/video" data-every="5"{% endif %}>
+{% include "_slideshow_video.html" %}
+</div>
+{% endif %}
+
+{% if not photos %}
+<p class="note">{% trans %}No photos in it yet.{% endtrans %}{% if mine %} {% trans name=album.name %}Tick photos on any page of photos (a folder, a year, a search, a person) and type “{{ name }}” under Add to an album at the bottom; or open a photo and add it under Albums.{% endtrans %}{% endif %}</p>
+{% elif mine %}
+<p class="hint">{% trans %}Drag the photos into the order you want, or use ↑ and ↓. ★ makes a photo the album's cover. Type a
+  caption under a photo for this album, then Enter (with none, the photo's own caption shows, in grey). × takes a photo
+  out of the album; it stays in your photos.{% endtrans %}</p>
+<ol class="album-photos" data-album="{{ album.id }}">
+  {%- for p in photos %}
+  <li class="album-photo" draggable="true" data-image="{{ p.id }}" id="ap{{ p.id }}">
+    <a class="tile" href="/image/{{ p.id }}?ctx={{ ctx|urlencode }}" draggable="false"><img src="/t/{{ p.sha256 }}" loading="lazy" draggable="false" alt="{{ p.caption or p.own or (_('Video from %(taken_at)s', taken_at=p.taken_at|date(false)) if p.media == 'video' else _('Photo from %(taken_at)s', taken_at=p.taken_at|date(false))) }}">
+      {%- if p.media == "video" %}<span class="badge video" title="{{ _('Video') }}">▶ {{ p.duration|duration }}</span>{% endif %}</a>
+    <div class="album-controls">
+      <button type="button" class="quiet" data-move="-1" title="{{ _('Earlier in the album') }}" aria-label="{{ _('Move earlier') }}">↑</button>
+      <button type="button" class="quiet" data-move="1" title="{{ _('Later in the album') }}" aria-label="{{ _('Move later') }}">↓</button>
+      <button type="button" class="quiet{% if p.id == cover_id %} on{% endif %}" data-api="/api/albums/{{ album.id }}/cover" data-body='{{ {"image_id": p.id}|tojson }}' data-reload aria-pressed="{{ 'true' if p.id == cover_id else 'false' }}" title="{{ _("The album's cover") if p.id == cover_id else _("Make this the album's cover") }}" aria-label="{{ _("The album's cover") }}">★</button>
+      <button type="button" class="quiet" data-api="/api/albums/{{ album.id }}/remove" data-body='{{ {"image_ids": [p.id]}|tojson }}' data-remove="#ap{{ p.id }}" title="{{ _('Take it out of the album (it stays in your photos)') }}" aria-label="{{ _('Take it out of the album') }}">×</button>
+    </div>
+    <form class="album-caption" data-api="/api/albums/{{ album.id }}/caption">
+      <input type="hidden" name="image_id" value="{{ p.id }}">
+      <input name="text" value="{{ p.caption }}" maxlength="500" placeholder="{{ p.own or _('A caption for this album') }}" aria-label="{{ _("The album's caption for this photo") }}" data-submit>
+    </form>
+  </li>
+  {%- endfor %}
+</ol>
+{% else %}
+<ol class="album-photos view">
+  {%- for p in photos %}
+  {%- set said = p.caption or p.own %}
+  <li class="album-photo">
+    <a class="tile" href="/image/{{ p.id }}?ctx={{ ctx|urlencode }}"><img src="/t/{{ p.sha256 }}" loading="lazy" alt="{{ said or (_('Video from %(taken_at)s', taken_at=p.taken_at|date(false)) if p.media == 'video' else _('Photo from %(taken_at)s', taken_at=p.taken_at|date(false))) }}">
+      {%- if p.media == "video" %}<span class="badge video" title="{{ _('Video') }}">▶ {{ p.duration|duration }}</span>{% endif %}</a>
+    {%- if said %}<p class="said">{{ said }}</p>{% endif %}
+  </li>
+  {%- endfor %}
+</ol>
+{% endif %}
+
+{% if sharing %}
+<details class="info-panel"{% if sharing.shares %} open{% endif %}>
+  <summary><h2>{% trans %}Sharing{% endtrans %}</h2> <span class="hint inline">
+    {%- if sharing.shares %}{% trans shares=sharing.shares|map(attribute="with")|join(", ") %}shared with {{ shares }}{% endtrans %}{% else %}{% trans %}not shared{% endtrans %}{% endif %}</span></summary>
+  {{ m.share_panel(sharing, _("this album")) }}
+</details>
+{% endif %}
+<script type="application/json" id="slides">{{ slides|tojson }}</script>
+{% endblock %}

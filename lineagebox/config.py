@@ -11,6 +11,7 @@ instead (see settings.py); all of the above only gives those their starting valu
 import dataclasses
 import ipaddress
 import os
+import re
 import sys
 import tomllib
 import urllib.parse
@@ -27,7 +28,7 @@ NOT_SETTINGS = {"LINEAGEBOX_CONFIG", "LINEAGEBOX_FFMPEG", "LINEAGEBOX_HOST", "LI
 # Whole-number settings and the values that work, here and on the Settings page (settings.py)
 RANGES = {"ingest_threads": (1, 16), "worker_interval_minutes": (5, 1440), "llm_workers": (1, 8),
           "session_days": (1, 365), "upload_max_gb": (1, 100), "video_threads": (1, 8), "copy_threads": (1, 32),
-          "hover_preview_ms": (0, 5000)}
+          "hover_preview_ms": (0, 5000), "backup_keep_daily": (1, 90), "backup_keep_weekly": (0, 104)}
 
 
 class ConfigError(ValueError):
@@ -40,9 +41,17 @@ class Config:
                                                       # photo source is in; catalog paths start here
     data_dir: Path
     folders: tuple[str, ...] = ()                     # watched folders, relative to share_root, '/' separated
-    image_extensions: tuple[str, ...] = (".jpg", ".jpeg", ".png", ".nef")
+    # JPEG, PNG, TIFF, HEIC (iPhones) and cameras' raw files: every kind media.py reads (tests/test_media.py checks)
+    image_extensions: tuple[str, ...] = (".jpg", ".jpeg", ".png", ".tif", ".tiff", ".heic", ".heif", ".hif", ".nef",
+                                         ".nrw", ".cr2", ".cr3", ".crw", ".arw", ".srf", ".sr2", ".dng", ".raf",
+                                         ".orf", ".rw2", ".rwl", ".pef", ".srw", ".3fr", ".iiq", ".mos", ".mef",
+                                         ".mrw", ".erf", ".kdc", ".dcr")
     video_extensions: tuple[str, ...] = (".mts", ".m2ts", ".mp4", ".m4v", ".mov", ".3gp", ".3g2", ".avi", ".wmv",
                                          ".mpg", ".mpeg", ".mkv")
+    # Sound alone: digitised cassettes, voice memos, recorders' files (media 'audio'; a "video" file with no picture,
+    # like a phone's .3gp voice note, is one too). A song tagged as one from an album is left out (ingest.py).
+    audio_extensions: tuple[str, ...] = (".mp3", ".m4a", ".aac", ".wav", ".wma", ".ogg", ".oga", ".opus", ".flac",
+                                         ".amr", ".aif", ".aiff")
     ignore_dirs: tuple[str, ...] = ("Thumbs", "Previews", ".thumbnails")
     ingest_threads: int = 8
     video_threads: int = 2                            # videos read at a time (of ingest_threads): each is a long read
@@ -52,11 +61,15 @@ class Config:
     transcribe_enabled: bool = True                   # transcripts of videos (Whisper)
     faces_enabled: bool = True                        # finding and recognizing faces
     places_lookup: bool = False                       # find place names on the map with OpenStreetMap (sends them)
+    sidecars_enabled: bool = False                    # XMP sidecars of names and captions beside the photos (sidecars.py)
+    import_enabled: bool = True                       # names, tags and dates from other apps' metadata (imports.py)
     ollama_url: str = "http://localhost:11434"
     ollama_model: str = "ministral-3"
     llm_workers: int = 3
     llm_image_size: int = 1024
     ollama_keep_alive: str = "30m"
+    ollama_embed_model: str = ""                      # search by meaning (embeddings.py), e.g. "nomic-embed-text";
+                                                      # "" finds words only
     models_dir: Path = Path.home() / ".insightface"   # holds models/buffalo_l
     share_path: str = ""                              # share_root as people's PCs see it; default share_root
     # Folders of the media root that people's PCs find somewhere else, most often one per source:
@@ -68,6 +81,7 @@ class Config:
     tls_cert: str = ""                                # HTTPS: the certificate and key files (PEM); "" serves HTTP
     tls_key: str = ""
     hover_preview_ms: int = 500                       # pointing at a photo this long shows it larger (app.js); 0: never
+    language: str = ""                                # pages' language for browsers asking none installed (i18n.py)
     # Family accounts (accounts.py, access.py): off, the web UI answers the home network only, with no sign-in
     accounts_enabled: bool = False
     google_client_id: str = ""                        # Sign in with Google: the OAuth client's ID and secret
@@ -80,6 +94,11 @@ class Config:
     # Updates (updates.py): once a day the newest release's version number is asked of GitHub, for admins to see
     update_check: bool = True
     update_repository: str = "mutilator/LineageBox"   # owner/name on GitHub; a fork's Docker image names its own
+    # Backups (backup.py): a checked copy of the catalog once a day, kept for weeks
+    backup_enabled: bool = True
+    backup_folder: str = ""                           # "" for the data folder's backups/nightly
+    backup_keep_daily: int = 7                        # the newest copy of each of the last 7 days...
+    backup_keep_weekly: int = 4                       # ...and of each of 4 weeks before those
     worker_interval_minutes: int = 60
     describe_schedule: str = "always"                 # always | hours | paused
     describe_from: str = "22:00"                      # with "hours": local time, may run past midnight
@@ -88,7 +107,7 @@ class Config:
     blurry_below: float = 30.0                        # sharpness cut-off for the Blank and blurry list
     turn_suggest: str = "sure"                        # Turned photos: sure | more | off (see orientation.py)
     whisper_url: str = ""                             # the speech-to-text service (whisper_service/); "" = none
-    whisper_language: str = "en"
+    whisper_language: str = "auto"                    # what is spoken: a code (en, de) or auto, Whisper's own guess
     copy_threads: int = 4                             # ffmpeg threads per 720p copy
     southern_hemisphere: bool = False                 # seasons six months on: summer is December to February
     day_first: bool = False                           # 5/6/1990 is 5 June, not May 6 (dates typed, folder names)
@@ -115,6 +134,11 @@ class Config:
 
     def thumb_path(self, sha256: str) -> Path:
         return self.thumbs_dir / sha256[:2] / f"{sha256}.webp"
+
+    def sharp_thumb_path(self, sha256: str) -> Path:
+        """A tile twice the thumbnail's size, for sharp screens: made from the preview the first time one asks for it
+        (web/tiles.py), never for the whole library at once."""
+        return self.data_dir / "thumbs2x" / sha256[:2] / f"{sha256}.webp"
 
     def preview_path(self, sha256: str) -> Path:
         return self.previews_dir / sha256[:2] / f"{sha256}.jpg"
@@ -149,20 +173,23 @@ class Config:
 KEYS = {
     ("", "media_root"): "share_root", ("", "share_root"): "share_root", ("", "data_dir"): "data_dir",
     ("scan", "folders"): "folders", ("scan", "image_extensions"): "image_extensions",
-    ("scan", "video_extensions"): "video_extensions", ("scan", "ignore_dirs"): "ignore_dirs",
+    ("scan", "video_extensions"): "video_extensions", ("scan", "audio_extensions"): "audio_extensions",
+    ("scan", "ignore_dirs"): "ignore_dirs",
     ("ingest", "threads"): "ingest_threads", ("ingest", "video_threads"): "video_threads",
     ("ingest", "thumb_size"): "thumb_size", ("ingest", "preview_size"): "preview_size",
     ("ollama", "enabled"): "describe_enabled", ("whisper", "enabled"): "transcribe_enabled",
     ("faces", "enabled"): "faces_enabled", ("places", "lookup"): "places_lookup",
     ("places", "url"): "places_url", ("places", "contact"): "places_contact",
     ("map", "tiles"): "map_tiles", ("map", "attribution"): "map_attribution",
+    ("xmp", "sidecars"): "sidecars_enabled", ("xmp", "import"): "import_enabled",
     ("ollama", "url"): "ollama_url", ("ollama", "model"): "ollama_model", ("ollama", "workers"): "llm_workers",
     ("ollama", "image_size"): "llm_image_size", ("ollama", "keep_alive"): "ollama_keep_alive",
+    ("ollama", "embed_model"): "ollama_embed_model",
     ("faces", "models_dir"): "models_dir",
     ("web", "share_path"): "share_path", ("web", "network_paths"): "network_paths",
     ("web", "allowed_networks"): "allowed_networks", ("web", "allowed_hosts"): "allowed_hosts",
     ("web", "trusted_proxies"): "trusted_proxies", ("web", "tls_cert"): "tls_cert", ("web", "tls_key"): "tls_key",
-    ("web", "hover_preview_ms"): "hover_preview_ms",
+    ("web", "hover_preview_ms"): "hover_preview_ms", ("web", "language"): "language",
     ("worker", "interval_minutes"): "worker_interval_minutes",
     ("cleanup", "blurry_below"): "blurry_below", ("cleanup", "turn_suggest"): "turn_suggest",
     ("whisper", "url"): "whisper_url", ("whisper", "language"): "whisper_language",
@@ -173,6 +200,8 @@ KEYS = {
     ("accounts", "session_days"): "session_days", ("accounts", "uploads_folder"): "uploads_folder",
     ("accounts", "uploads_into"): "uploads_into", ("accounts", "upload_max_gb"): "upload_max_gb",
     ("updates", "check"): "update_check", ("updates", "repository"): "update_repository",
+    ("backups", "enabled"): "backup_enabled", ("backups", "folder"): "backup_folder",
+    ("backups", "keep_daily"): "backup_keep_daily", ("backups", "keep_weekly"): "backup_keep_weekly",
 }
 _SECTIONS = {s for s, _ in KEYS if s}
 _TYPES = {f.name: f.type for f in dataclasses.fields(Config)}
@@ -210,9 +239,17 @@ def load(path: str | os.PathLike | None = None) -> Config:
     for field, example in (("ollama_url", "http://192.168.1.10:11434"), ("whisper_url", "http://192.168.1.10:9300")):
         if values.get(field) and (problem := url_problem(values[field])):
             raise ConfigError(f"{field}: {values[field]!r} {problem} (like {example})")
+    if "whisper_language" in values and not language_ok(values["whisper_language"]):
+        raise ConfigError(f"whisper_language is {values['whisper_language']!r}: it can be auto, or a language's "
+                          "two- or three-letter code like en or de")
     if bool(values.get("tls_cert")) != bool(values.get("tls_key")):
         raise ConfigError("HTTPS needs both tls_cert and tls_key")
     return Config(**values)
+
+
+def language_ok(value: str) -> bool:
+    """What the Whisper service takes as the language spoken (whisper_service/app.py): auto, or a code."""
+    return bool(re.fullmatch(r"[a-z]{2,3}|auto", value))
 
 
 def url_problem(url: str) -> str | None:
@@ -290,7 +327,7 @@ def _convert(field: str, value):
     if kind == tuple[str, ...]:
         items = [str(v).strip() for v in (value.split(",") if isinstance(value, str) else value)]
         items = [v for v in items if v]
-        if field in ("image_extensions", "video_extensions", "allowed_hosts"):
+        if field in ("image_extensions", "video_extensions", "audio_extensions", "allowed_hosts"):
             items = [v.lower() for v in items]
         return tuple(items)
     if kind == tuple[tuple[str, str], ...]:  # a table, a list of pairs, or folder=path,folder=path

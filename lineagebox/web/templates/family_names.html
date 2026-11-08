@@ -1,30 +1,30 @@
 {% extends "base.html" %}
-{% block title %}Names to check{% endblock %}
+{% block title %}{% trans %}Names to check{% endtrans %}{% endblock %}
 {% block main %}
-<nav class="crumbs"><a href="/family">Family</a><span class="sep">/</span><h1>Names to check</h1></nav>
-<p class="meta">Family tree programs keep given names and surnames apart, and whether a surname is a birth (maiden) or
+<nav class="crumbs"><a href="/family">{% trans %}Family{% endtrans %}</a><span class="sep">/</span><h1>{% trans %}Names to check{% endtrans %}</h1></nav>
+<p class="meta">{% trans done=done|number %}Family tree programs keep given names and surnames apart, and whether a surname is a birth (maiden) or
 married name. Each name was split at its last word; a surname with a spouse counts as married. Fix what's wrong and
-press Save, or accept every one as shown. {{ "{:,}".format(done) }} checked so far.</p>
+press Save, or accept every one as shown. {{ done }} checked so far.{% endtrans %}</p>
 {% if rows %}
 <p><button type="button" class="primary" data-api="/api/family/names/confirm" data-reload
-  data-confirm="Accept all {{ rows|length }} names as they are shown?">Accept all {{ rows|length }} as shown</button></p>
+  data-confirm="{{ _('Accept all %(rows)s names as they are shown?', rows=rows|length) }}">{% trans rows=rows|length %}Accept all {{ rows }} as shown{% endtrans %}</button></p>
 <ul class="name-review">
   {%- for r in rows %}
   <li>
     <form class="inline-facts" data-api="/api/people/{{ r.id }}/name-parts" data-settings data-remove="li">
       <a href="/person/{{ r.id }}" class="who">{{ r.name }}</a>
-      <input name="given" value="{{ r.given_name or '' }}" placeholder="given names" aria-label="Given names">
-      <input name="surname" value="{{ r.surname or '' }}" placeholder="surname" aria-label="Surname">
-      <select name="type" aria-label="Kind of name">
+      <input name="given" value="{{ r.given_name or '' }}" placeholder="{{ _('given names') }}" aria-label="{{ _('Given names') }}">
+      <input name="surname" value="{{ r.surname or '' }}" placeholder="{{ _('surname') }}" aria-label="{{ _('Surname') }}">
+      <select name="type" aria-label="{{ _('Kind of name') }}">
         {%- for value in ("birth", "married", "aka") %}<option value="{{ value }}"{% if r.name_type == value %} selected{% endif %}>{{ name_types[value]|lower }}</option>{% endfor %}
       </select>
-      <button type="submit">Save</button>
+      <button type="submit">{% trans %}Save{% endtrans %}</button>
     </form>
   </li>
   {%- endfor %}
 </ul>
-<p class="hint">A maiden name, a nickname or another name someone went by can be added on their own page.</p>
+<p class="hint">{% trans %}A maiden name, a nickname or another name someone went by can be added on their own page.{% endtrans %}</p>
 {% else %}
-<p class="note">Every name is checked.</p>
+<p class="note">{% trans %}Every name is checked.{% endtrans %}</p>
 {% endif %}
 {% endblock %}

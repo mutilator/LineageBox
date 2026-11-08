@@ -1,11 +1,20 @@
-"""Videos, through ffmpeg: what is in a file, when it was recorded, frames to look at, the sound for transcripts, and
-720p copies that browsers can play.
+"""Videos and sound recordings, through ffmpeg: what is in a file, when it was recorded, frames to look at, where a
+long tape's chapters start, the sound for transcripts, and copies that browsers can play.
 
 Measured on the library LineageBox was developed on (over a thousand videos): 95% are H.264, but browsers cannot play a
 quarter of them as they are (AVCHD .MTS, MOV with PCM sound, 3GP/3G2, AVI, WMV, HEVC). The camcorder's .MTS files
 are interlaced and have no date in the container; every one has the recording date in the H.264 stream (see
 mdpm_date). Phones write creation_time in UTC. On a small ARM board a frame takes 0.3-0.7 s (1.4 s at 4K) and a 720p
 copy of 1080i takes about as long as the video.
+
+That library's longest video was 44 minutes, which 20 frames covered at one every 2.2 minutes; a digitised tape runs
+for hours. Frames are now one every 10 s for the first 20 and then one a minute (a 44-minute video gets 61, a 2-hour
+tape 120), and a video over LONG_VIDEO gets chapters: where the picture changes completely or a blank ends, found
+from its keyframes alone (ffmpeg decodes only those: measured on a 720p H.264 test video, 6x faster than decoding
+every frame).
+
+A file with sound and no picture (a cassette digitised to MP3, a phone's voice memo, a .3gp voice note) is a
+recording: media 'audio', with a picture of its sound wave as its thumbnail.
 """
 import io
 import json
@@ -22,8 +31,21 @@ from PIL import Image
 
 from lineagebox import dates, tools
 
-FRAME_EVERY = 10  # seconds of video per sampled frame, between MIN_FRAMES and MAX_FRAMES frames
-MIN_FRAMES, MAX_FRAMES = 3, 20
+# Frames by length: one every FRAME_EVERY seconds for the first SHORT_FRAMES (a phone's clip), then one every
+# LONG_EVERY seconds (a tape), MIN_FRAMES to MAX_FRAMES in all. Faces are found on every frame (about a second each
+# on a small ARM board), so a 2-hour tape's 120 take a few minutes.
+FRAME_EVERY, SHORT_FRAMES, LONG_EVERY = 10, 20, 60
+MIN_FRAMES, MAX_FRAMES = 3, 120
+# Chapters: a video this long gets them (a digitised tape, a long recording), at least CHAPTER_EVERY seconds apart and
+# at most MOST_CHAPTERS on any length. A cut is a keyframe whose picture differs from the keyframe before by CUT in
+# ffmpeg's scene score (0 to 1): on test videos, unrelated pictures scored 0.52-0.82 and one scene 10 s later
+# 0.02-0.26. A keyframe with BLACK % of its pixels dark is the blank between two recordings on a tape. These are rules,
+# not yet measured on real tapes (the library LineageBox was developed on has none).
+LONG_VIDEO = 600
+CHAPTER_EVERY, MOST_CHAPTERS = 120, 40
+CUT, BLACK = 0.4, 98
+CHAPTER_TAIL = 30  # no chapter starts this close to the end
+CHAPTER_FRAME_AFTER = 1.5  # seconds after a chapter starts for its picture: a cut's first frames can be a smear
 HEAD_BYTES = 4 << 20  # the start of a file, read while hashing it: enough to find an .MTS file's date
 VIDEO_MIN_YEAR = 1990  # a container's date before this is a clock never set: no camera wrote one
 SOUND_SECONDS = 9000  # the most sound sent for a transcript: what the Whisper service takes (300 MB of 16 kHz WAV)
@@ -36,6 +58,28 @@ COPY_COMMENT = "LineageBox 720p copy of {name}"
 BROWSER_EXTENSIONS = {".mp4", ".m4v", ".mov"}
 BROWSER_VIDEO = {"h264"}
 BROWSER_AUDIO = {None, "aac", "mp3"}
+# a recording that plays as it is: its file's ending, and the codecs browsers play in that container
+BROWSER_SOUND = {".mp3": {"mp3"}, ".m4a": {"aac"}, ".mp4": {"aac", "mp3"}, ".aac": {"aac"}, ".3gp": {"aac"},
+                 ".wav": {"pcm_s16le", "pcm_u8", "pcm_f32le"}, ".ogg": {"vorbis", "opus", "flac"},
+                 ".oga": {"vorbis", "opus", "flac"}, ".opus": {"opus"}, ".webm": {"opus", "vorbis"}, ".flac": {"flac"}}
+# what a recording is sent to browsers as, by its file's ending (a copy is .mp4: AAC)
+SOUND_TYPES = {".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".mp4": "audio/mp4", ".aac": "audio/aac", ".3gp": "audio/mp4",
+               ".wav": "audio/wav", ".ogg": "audio/ogg", ".oga": "audio/ogg", ".opus": "audio/ogg",
+               ".webm": "audio/webm", ".flac": "audio/flac"}
+# A sound file tagged as a song from an album: music, not a family recording. Every one of these must be there, so a
+# digitised tape someone named and dated is still a recording.
+SONG_TAGS = ("artist", "album", "track")
+# ...but a CD burned at home and copied back by a computer's player is tagged that way too, with what the player
+# makes up: "Track 1" for a title, a number or "Unknown Album" for an album (old voicemails, a recorded talk). Those
+# are the family's own recordings.
+_MADE_UP = re.compile(r"^(?:(?:audio\s*)?track|piste|titel|pista|traccia|spår|nummer)\s*\d+$|^unknown\b|^\d+$", re.I)
+
+
+def is_song(tags: dict) -> bool:
+    """Whether a sound file's tags (lower-case names) say it is a song from an album, not a family recording."""
+    if not all(tags.get(t, "").strip() for t in SONG_TAGS):
+        return False
+    return not any(_MADE_UP.match(tags.get(t, "").strip()) for t in ("title", "album", "artist"))
 _ISO6709 = re.compile(r"^([+-]\d+(?:\.\d+)?)([+-]\d+(?:\.\d+)?)")
 _MDPM = bytes.fromhex("17ee8c60f84d11d98cd60800200c9a66") + b"MDPM"
 
@@ -57,11 +101,19 @@ class Probe:
     gps: tuple[float, float] | None
     camera: str | None
     # The video stream these describe, which frames and copies use. Google's motion photos hold two: the clip, and a
-    # larger single-frame still that ffmpeg would pick by itself (and then find nothing to seek to).
+    # larger single-frame still that ffmpeg would pick by itself (and then find nothing to seek to). A recording's:
+    # its sound's.
     stream: int = 0
+    song: bool = False  # sound alone, tagged as a song from an album (SONG_TAGS)
+
+    @property
+    def sound_only(self) -> bool:
+        return self.video_codec is None
 
     @property
     def codecs(self) -> str:
+        if self.sound_only:  # a recording: its sound's codec alone ("mp3")
+            return self.audio_codec or "?"
         return f"{self.video_codec or '?'}/{self.audio_codec or 'no sound'}"
 
 
@@ -82,9 +134,11 @@ def probe(path: Path) -> Probe:
     streams = out.get("streams", [])
     v = next((s for s in streams if s.get("codec_type") == "video" and not _is_cover(s)), None)
     a = next((s for s in streams if s.get("codec_type") == "audio"), None)
-    if v is None:
-        raise Error("no video stream")
     fmt = out.get("format", {})
+    if v is None:
+        if a is None:
+            raise Error("no picture or sound in it")
+        return _sound(fmt, a)
     tags = {k.lower(): str(val) for k, val in {**fmt.get("tags", {}), **v.get("tags", {})}.items()}
     duration = _number(fmt.get("duration")) or _number(v.get("duration"))
     width, height = v.get("width"), v.get("height")
@@ -102,6 +156,15 @@ def probe(path: Path) -> Probe:
                  interlaced=v.get("field_order") not in (None, "progressive", "unknown"),
                  created=_created(tags.get("creation_time")), gps=_gps(tags), camera=_camera(tags),
                  stream=int(v.get("index", 0)))
+
+
+def _sound(fmt: dict, a: dict) -> Probe:
+    """A file with sound and no picture: a recording."""
+    tags = {k.lower(): str(val) for k, val in {**fmt.get("tags", {}), **a.get("tags", {})}.items()}
+    return Probe(duration=_number(fmt.get("duration")) or _number(a.get("duration")), width=None, height=None,
+                 video_codec=None, audio_codec=a.get("codec_name"), interlaced=False,
+                 created=_created(tags.get("creation_time")), gps=_gps(tags), camera=_camera(tags),
+                 stream=int(a.get("index", 0)), song=is_song(tags))
 
 
 def _is_cover(stream: dict) -> bool:
@@ -187,13 +250,89 @@ def taken_at(p: Probe, head: bytes, name: str) -> tuple[str | None, str | None]:
     return None, None
 
 
+def frame_count(duration: float | None) -> int:
+    """How many frames a video of this length gets: one per FRAME_EVERY seconds for the first SHORT_FRAMES, then one
+    per LONG_EVERY seconds, MIN_FRAMES to MAX_FRAMES."""
+    if not duration or duration < 1:
+        return 1
+    n = min(SHORT_FRAMES, math.ceil(duration / FRAME_EVERY))
+    n += math.ceil(max(0.0, duration - SHORT_FRAMES * FRAME_EVERY) / LONG_EVERY)
+    return max(MIN_FRAMES, min(MAX_FRAMES, n))
+
+
 def sample_times(duration: float | None) -> list[float]:
-    """Where to take frames: one per FRAME_EVERY seconds, spread evenly, avoiding the very start and end (fades,
-    the camera being raised and lowered)."""
+    """Where to take frames (frame_count of them), spread evenly, avoiding the very start and end (fades, the camera
+    being raised and lowered)."""
     if not duration or duration < 1:
         return [0.0]
-    n = max(MIN_FRAMES, min(MAX_FRAMES, math.ceil(duration / FRAME_EVERY)))
+    n = frame_count(duration)
     return [round(duration * (k + 0.5) / n, 3) for k in range(n)]
+
+
+def keyframes(path: Path, p: Probe) -> list[tuple[float, float, bool]]:
+    """(seconds, scene score against the keyframe before, nearly black) of each of a video's keyframes, decoding
+    only those (a camcorder or a DVD puts one every half second; an encoder also puts one at most cuts), at 64 pixels
+    wide."""
+    vf = (f"scale=64:-2,blackframe=amount={BLACK}:threshold=32,select='gte(scene,0)',"
+          "metadata=print:file='pipe\\:1'")
+    out = tools.run([tool("ffmpeg"), "-v", "error", "-nostdin", "-skip_frame", "nokey", "-i", str(path),
+                     "-map", f"0:{p.stream}", "-an", "-sn", "-dn", "-vf", vf, "-f", "null", "-"],
+                    timeout=max(1800, (p.duration or 0) * 2), nice=True)
+    found, at, score, black = [], None, 0.0, False
+    for line in out.decode("utf-8", "replace").splitlines():
+        if line.startswith("frame:"):
+            if at is not None:
+                found.append((at, score, black))
+            m = re.search(r"pts_time:(-?[\d.]+)", line)
+            at, score, black = (float(m[1]) if m else None), 0.0, False
+        elif line.startswith("lavfi.scene_score="):
+            score = _number(line.split("=", 1)[1]) or 0.0
+        elif line.startswith("lavfi.blackframe.pblack="):
+            black = True
+    if at is not None:
+        found.append((at, score, black))
+    return found
+
+
+def chapters(keys: list[tuple[float, float, bool]], duration: float | None) -> list[float]:
+    """Where a long video's chapters start, after the first one at 0: the first picture after a blank (the gap
+    between two recordings on a tape), then the biggest changes of picture, at least CHAPTER_EVERY seconds (or a
+    MOST_CHAPTERS-th of the video) apart. [] for a video under LONG_VIDEO."""
+    if not duration or duration < LONG_VIDEO:
+        return []
+    candidates, after_black = [], False
+    for at, score, black in keys:
+        if black:
+            after_black = True
+            continue
+        if after_black:
+            candidates.append((2.0, at))  # above any scene score: a new recording begins
+        elif score >= CUT:
+            candidates.append((score, at))
+        after_black = False
+    apart = max(CHAPTER_EVERY, duration / MOST_CHAPTERS)
+    picked: list[float] = []
+    for _, at in sorted(candidates, key=lambda c: (-c[0], c[1])):
+        if at < apart or duration - at < CHAPTER_TAIL or any(abs(at - t) < apart for t in picked):
+            continue
+        picked.append(round(at, 3))
+    return sorted(picked)
+
+
+def waveform(path: Path, width: int = 1600, height: int = 600) -> Image.Image:
+    """A picture of a recording's sound: its wave, dark on a light ground, as the thumbnail every page shows for it.
+    (Its whole sound is read: about a second a minute of it.)"""
+    out = tools.run([tool("ffmpeg"), "-v", "error", "-nostdin", "-i", str(path), "-vn", "-filter_complex",
+                     f"aformat=channel_layouts=mono,showwavespic=s={width}x{height}:colors=0x3d5a80:scale=sqrt",
+                     "-frames:v", "1", "-f", "image2pipe", "-c:v", "png", "-"], timeout=1800, nice=True)
+    if not out:
+        raise Error("its sound wave could not be drawn")
+    wave = Image.open(io.BytesIO(out))
+    wave.load()
+    wave = wave.convert("RGBA")
+    picture = Image.new("RGB", wave.size, (238, 241, 245))
+    picture.paste(wave, mask=wave.getchannel("A"))
+    return picture
 
 
 def _fit(max_side: int) -> str:
@@ -235,6 +374,8 @@ def audio_wav(path: Path) -> bytes:
 
 
 def plays_in_browsers(ext: str, p: Probe) -> bool:
+    if p.sound_only:
+        return p.audio_codec in BROWSER_SOUND.get(ext.lower(), ())
     return ext.lower() in BROWSER_EXTENSIONS and p.video_codec in BROWSER_VIDEO and p.audio_codec in BROWSER_AUDIO
 
 
@@ -252,7 +393,8 @@ def copy_path(original: Path) -> Path:
 def make_copy(original: Path, taken: str | None, threads: int = 4, target: Path | None = None) -> Path:
     """Write a 720p H.264/AAC MP4 next to the original, or at target (written to a hidden .part file first, so a
     half-written copy is never mistaken for a finished one). It has the original's dates, owner and permissions, and
-    says in its comment what it is a copy of."""
+    says in its comment what it is a copy of. A recording's copy is its sound alone, as AAC (an MP4 with the same
+    kind of name, so the scan, Cleanup and the copies service treat it as a video's)."""
     target = target or copy_path(original)
     st = original.stat()  # first: no folder is made on a share whose video isn't there
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -267,13 +409,17 @@ def make_copy(original: Path, taken: str | None, threads: int = 4, target: Path 
         raise Error("its length can't be read, or is over 12 hours: no copy is made")
     vf = ",".join([*(["yadif"] if p.interlaced else []), "scale='trunc(iw*sar/2)*2':ih", "setsar=1",
                    "scale='if(gte(iw,ih),-2,trunc(min(720,iw)/2)*2)':'if(gte(iw,ih),trunc(min(720,ih)/2)*2,-2)'"])
+    if p.sound_only:  # a recording: its sound, as browsers play it
+        meta[3] = f"comment=LineageBox copy of {original.name} that browsers can play"
+        what = ["-map", f"0:{p.stream}", "-vn", "-c:a", "aac", "-b:a", "96k"]
+    else:
+        what = ["-map", f"0:{p.stream}", "-map", "0:a:0?", "-vf", vf, "-fps_mode", "passthrough", "-c:v", "libx264",
+                "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-ac", "2"]
     try:
         # as long as the video says it is, frames as they come (an MP4 made at a fixed rate would fill gaps of hours
         # with copies of the last frame), and given at most 4 times its length (a small board takes about 1x)
         tools.run([tool("ffmpeg"), "-v", "error", "-nostdin", "-y", "-i", str(original), "-t", f"{p.duration:.3f}",
-                   "-map", f"0:{p.stream}", "-map", "0:a:0?", "-vf", vf, "-fps_mode", "passthrough", "-c:v", "libx264",
-                   "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k",
-                   "-ac", "2", *meta, "-movflags", "+faststart", "-threads", str(threads), "-f", "mp4", str(part)],
+                   *what, *meta, "-movflags", "+faststart", "-threads", str(threads), "-f", "mp4", str(part)],
                   timeout=min(COPY_HOURS * 3600, max(1800, 4 * p.duration)), nice=True)
         os.utime(part, (st.st_atime, st.st_mtime))
         if hasattr(os, "chown") and hasattr(os, "geteuid") and os.geteuid() == 0:

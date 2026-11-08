@@ -1,5 +1,5 @@
 {# While the AI reads: on a reading's page (family_read_review.html), and again every few seconds
    (/family/read/{id}/progress). took: seconds since it began. #}
-<p class="read-took">{{ took // 60 }} min {{ "%02d"|format(took % 60) }} s so far{% if reading.title.startswith("Reading the photos") %}: it copies the text out of the photos first, then reads it{% endif %}.</p>
-<p class="hint">It usually takes one or two minutes, longer for a long notice or several photos. This page shows what
-  it found as soon as it is done; you can leave it and come back.</p>
+<p class="read-took">{% trans took=took // 60, d="%02d"|format(took % 60) %}{{ took }} min {{ d }} s so far{% endtrans %}{% if reading.title.startswith("Reading the photos") %}{% trans %}: it copies the text out of the photos first, then reads it{% endtrans %}{% endif %}.</p>
+<p class="hint">{% trans %}It usually takes one or two minutes, longer for a long notice or several photos. This page shows what
+  it found as soon as it is done; you can leave it and come back.{% endtrans %}</p>

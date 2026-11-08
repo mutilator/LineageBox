@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+{% set nav = "cleanup" %}
+{% block title %}{% if picked %}{% trans camera=picked.camera %}{{ camera }}'s clock{% endtrans %}{% else %}{% trans %}Camera clocks{% endtrans %}{% endif %}{% endblock %}
+{#- Cleanup → Camera clocks (routes/camera_clock.py, camera_clock.py): a camera's photos in the order it took them, a
+    month at a time. Clicking one (a link: the page comes back with it in the panel at the side) says what can be done
+    with it: start or end the wrong dates there, or say when it was really taken. -#}
+
+{%- macro how_far(seconds, at="") -%}
+{%- for n, unit in amount_of(seconds, at) -%}
+{%- if not loop.first %} {% endif -%}
+{%- if unit == "years" %}{% trans count=n %}{{ count }} year{% pluralize %}{{ count }} years{% endtrans %}
+{%- elif unit == "months" %}{% trans count=n %}{{ count }} month{% pluralize %}{{ count }} months{% endtrans %}
+{%- elif unit == "days" %}{% trans count=n %}{{ count }} day{% pluralize %}{{ count }} days{% endtrans %}
+{%- elif unit == "hours" %}{% trans count=n %}{{ count }} hour{% pluralize %}{{ count }} hours{% endtrans %}
+{%- else %}{% trans count=n %}{{ count }} minute{% pluralize %}{{ count }} minutes{% endtrans %}{% endif -%}
+{%- else %}{% trans %}less than a minute{% endtrans %}{% endfor -%}
+{%- endmacro -%}
+
+{%- macro moved(seconds, at="") -%}
+{%- if seconds > 0 %}{% trans amount=how_far(seconds, at) %}{{ amount }} later{% endtrans %}
+{%- elif seconds < 0 %}{% trans amount=how_far(seconds, at) %}{{ amount }} earlier{% endtrans %}
+{%- else %}{% trans %}not moved{% endtrans %}{% endif -%}
+{%- endmacro -%}
+
+{%- macro thumb(p) -%}
+<a class="clock-thumb" href="{{ here(year=p.own[:4], month=p.own[5:7], page=None, photo=p.id) }}#p{{ p.id }}" title="{{ _('Show it among its photos') }}"><img src="/t/{{ p.sha256 }}" alt="{{ _('Its photo the camera dated %(when)s', when=p.own|date) }}" width="44" height="44" loading="lazy"></a>
+{%- endmacro -%}
+
+{% block main %}
+<nav class="crumbs"><a href="/cleanup">{% trans %}Cleanup{% endtrans %}</a><span class="sep">/</span>
+  {%- if picked %}<a href="/cleanup/camera-clock">{% trans %}Camera clocks{% endtrans %}</a><span class="sep">/</span><h1>{{ picked.camera }}</h1>
+  {%- else %}<h1>{% trans %}Camera clocks{% endtrans %}</h1>{% endif %}</nav>
+
+{%- if not picked %}
+<p class="meta">{% trans %}A camera with its clock set wrong (a year out, a time zone left behind, or back to its first day after a
+flat battery) dates every photo it takes wrong until someone sets it again, and a clock gains or loses a little as the
+months go by. Pick a camera to see its photos in the order it took them: you find the ones it dated wrong, and say when
+one of them was really taken. Photos of that camera read later are moved the same way, dates you set by hand stay as
+they are, and <a href="/cleanup/changes">Recent changes</a> can undo it.{% endtrans %}</p>
+
+<table class="cameras">
+  <thead><tr><th>{% trans %}Camera{% endtrans %}</th><th>{% trans %}Photos{% endtrans %}</th><th>{% trans %}Its dates{% endtrans %}</th><th>{% trans %}Named before they were born{% endtrans %}</th></tr></thead>
+  <tbody>
+  {%- for k in known %}
+  <tr>
+    <td><a href="/cleanup/camera-clock?{{ {'camera': k.camera}|urlencode }}">{{ k.camera }}</a>
+      {%- if k.stretches %} <span class="hint inline">{% trans count=k.stretches %}put right once{% pluralize %}put right {{ count }} times{% endtrans %}</span>{% endif %}</td>
+    <td>{{ k.photos|number }}</td>
+    <td>{% if k.first %}{{ k.first|date(false) }} – {{ k.last|date(false) }}{% endif %}</td>
+    <td>{% if k.born_after %}<b>{% trans count=k.born_after, born_after=k.born_after|number %}{{ born_after }} face{% pluralize %}{{ born_after }} faces{% endtrans %}</b>{% endif %}</td>
+  </tr>
+  {%- else %}
+  <tr><td colspan="4">{% trans %}No photo says which camera took it.{% endtrans %}</td></tr>
+  {%- endfor %}
+  </tbody>
+</table>
+
+{%- else %}
+{%- set d = shown.draft %}
+{%- set x = shown.picked %}
+<p class="meta">{% trans count=shown.photos, n=shown.photos|number, first=picked.first|date(false), last=picked.last|date(false) %}{{ n }} photo it dated, from {{ first }} to {{ last }}, in the order it took them.{% pluralize %}{{ n }} photos it dated, from {{ first }} to {{ last }}, in the order it took them.{% endtrans %}
+  {%- if shown.flagged %} {% trans count=shown.flagged, n=shown.flagged|number %}<span class="clock-mark warn">⚠</span> marks {{ n }} with someone named in it before they were born: the usual sign its clock was wrong.{% pluralize %}<span class="clock-mark warn">⚠</span> marks {{ n }} with someone named in them before they were born: the usual sign its clock was wrong.{% endtrans %}{% endif %}</p>
+
+{%- if shown.stretches %}
+<section class="panel clock-stretches">
+  <h2>{% trans %}Put right{% endtrans %}</h2>
+  <ul>
+    {%- for st in shown.stretches %}
+    <li>
+      {%- if st.first_photo %}{{ thumb(st.first_photo) }}{% endif %}
+      {%- if st.last_photo and st.last_photo.id != st.first_photo.id %}<span class="sep">…</span>{{ thumb(st.last_photo) }}{% endif %}
+      <span class="clock-what">
+        {%- if st.open %}{% trans count=st.count, n=st.count|number, first=st.first|date %}{{ n }} photo from {{ first }} on, as the camera dated it{% pluralize %}{{ n }} photos from {{ first }} on, as the camera dated them{% endtrans %}
+        {%- else %}{% trans count=st.count, n=st.count|number, first=st.first|date, last=st.last|date %}{{ n }} photo from {{ first }} to {{ last }}, as the camera dated it{% pluralize %}{{ n }} photos from {{ first }} to {{ last }}, as the camera dated them{% endtrans %}{% endif %}:
+        <b>{{ moved(st.move, st.first_photo.own if st.first_photo else st.first) }}</b>
+        {%- if st.drift > 0 %}{% trans amount=how_far(st.drift) %}, and {{ amount }} more by the last (its clock lost time){% endtrans %}
+        {%- elif st.drift < 0 %}{% trans amount=how_far(st.drift) %}, and {{ amount }} less by the last (its clock gained time){% endtrans %}{% endif %}.
+        <span class="hint inline">{% trans count=st.pins|length %}You dated {{ count }} of them.{% pluralize %}You dated {{ count }} of them.{% endtrans %}</span>
+      </span>
+      <button type="button" class="quiet" data-api="/api/camera-clock/{{ st.id }}/remove" data-reload
+        data-confirm="{{ _("Give these %(n)s photos the camera's own dates again?", n=st.count|number) }}">{% trans %}Put them back{% endtrans %}</button>
+    </li>
+    {%- endfor %}
+  </ul>
+</section>
+{%- endif %}
+
+<div class="clock-browse">
+  <section class="clock-photos" aria-labelledby="clock-month">
+    <p class="clock-when" aria-label="{{ _('Years') }}">
+      {%- for y, n in shown.years %}<a class="chip{% if y == shown.year %} on{% endif %}" href="{{ here(year=y, month=None, page=None, photo=None) }}"{% if y == shown.year %} aria-current="true"{% endif %}>{{ y }} <small>{{ n.photos|number }}</small>{% if n.flagged %} <span class="clock-mark warn" title="{{ _('With someone not born yet') }}">⚠</span>{% endif %}</a> {% endfor %}</p>
+    <p class="clock-when" aria-label="{{ _('Months') }}">
+      {%- for m, n in shown.months %}<a class="chip{% if m == shown.month %} on{% endif %}" href="{{ here(month=m, page=None, photo=None) }}"{% if m == shown.month %} aria-current="true"{% endif %}>{{ month_short_names[m|int] }} <small>{{ n.photos|number }}</small>{% if n.flagged %} <span class="clock-mark warn" title="{{ _('With someone not born yet') }}">⚠</span>{% endif %}</a> {% endfor %}</p>
+    <h2 id="clock-month">{{ month_names[shown.month|int] }} {{ shown.year }} <span class="hint inline">{% trans count=shown.in_month, n=shown.in_month|number %}{{ n }} photo{% pluralize %}{{ n }} photos{% endtrans %}</span></h2>
+    {%- macro pager() %}
+    {%- if shown.pages > 1 %}
+    <p class="clock-pages">{% trans first=shown.page * per_page + 1, last=[shown.in_month, (shown.page + 1) * per_page]|min, n=shown.in_month|number %}{{ first }}–{{ last }} of {{ n }}{% endtrans %}
+      {%- if shown.page %} <a href="{{ here(page=shown.page - 1, photo=None) }}">{% trans %}← earlier{% endtrans %}</a>{% endif %}
+      {%- if shown.page + 1 < shown.pages %} <a href="{{ here(page=shown.page + 1, photo=None) }}">{% trans %}later →{% endtrans %}</a>{% endif %}</p>
+    {%- endif %}
+    {%- endmacro %}
+    {{ pager() }}
+    {%- for day in shown.days %}
+    <h3 class="clock-day">{{ day.day|date(false) }} <span class="hint inline">{{ day.photos|length|number }}</span></h3>
+    <div class="clock-tiles">
+      {%- for p in day.photos %}
+      {%- set on = x and x.id == p.id %}
+      <a class="clock-tile{% if p.stretch %} fixed{% endif %}{% if p.draft %} draft{% endif %}{% if p.start %} start{% endif %}{% if on %} on{% endif %}" id="p{{ p.id }}"
+        href="{{ here(photo=p.id) }}#p{{ p.id }}"{% if on %} aria-current="true"{% endif %}
+        title="{{ p.own|date }}{% if p.flagged %} · {{ _('not born yet: %(names)s', names=p.flagged|join(', ')) }}{% endif %}">
+        <img src="/t/{{ p.sha256 }}" alt="{{ _('Taken %(when)s by the camera’s clock', when=p.own|date) }}" loading="lazy" width="112" height="112">
+        {%- if p.flagged %}<span class="clock-mark warn" aria-label="{{ _('Someone in it not born yet') }}">⚠</span>{% endif %}
+        {%- if p.pinned %}<span class="clock-mark pin" aria-label="{{ _('You said when it was really taken') }}">📌</span>{% endif %}
+        {%- if p.media == "video" %}<span class="clock-mark video" aria-label="{{ _('A video') }}">▶</span>{% endif %}
+        <span class="when">{{ p.own[11:16] }}{% if p.taken_at != p.own %} <b>→ {{ p.taken_at|date(false) }}</b>{% endif %}</span>
+      </a>
+      {%- endfor %}
+    </div>
+    {%- endfor %}
+    {{ pager() }}
+  </section>
+
+  <aside class="panel clock-pick{% if x or d %} active{% endif %}" id="pick" aria-label="{{ _('The photo you clicked') }}">
+    {%- if d %}
+    <div class="clock-draft">
+      <h2>{% trans %}Its dates are wrong…{% endtrans %}</h2>
+      {%- if d.last %}
+      <p>{% trans %}from{% endtrans %} {{ thumb(d.from) }} {{ d.from.own|date }}
+        {% if d.open %}{% trans %}on, to every photo after it{% endtrans %}{% else %}{% trans %}to{% endtrans %} {{ thumb(d.to) }} {{ d.to.own|date }}{% endif %}:
+        <b>{% trans count=d.count, n=d.count|number %}{{ n }} photo{% pluralize %}{{ n }} photos{% endtrans %}</b>.</p>
+      {%- if d.over %}
+      <p class="note">{% trans %}Some of these are put right already, with others: change those instead (click one of them), or put
+        them back first.{% endtrans %}</p>
+      {%- elif not (x and x.in_draft) %}
+      <p class="hint">{% trans %}Now click one of them you know the date of (a birthday, a holiday, a photo dated by hand) and say when it
+        was really taken.{% endtrans %}</p>
+      {%- endif %}
+      {%- else %}
+      <p>{% trans %}from{% endtrans %} {{ thumb(d.from) }} {{ d.from.own|date }}.</p>
+      <p class="hint">{% trans %}Now click the last photo it dated wrong, in a later month if need be.{% endtrans %}
+        <a href="{{ here(end='end') }}">{% trans %}Or every photo after it{% endtrans %}</a></p>
+      {%- endif %}
+      <p><a href="{{ here(start=None, end=None) }}">{% trans %}Start again{% endtrans %}</a></p>
+    </div>
+    {%- endif %}
+
+    {%- if x %}
+    {%- set dated_now = x.auto_taken_at if x.by_hand and x.auto_taken_at else x.taken_at %}
+    <div class="clock-photo">
+      <a href="/image/{{ x.id }}" target="_blank" title="{{ _('Open the photo in a new tab') }}"><img class="clock-preview" src="/{{ 'p' if x.media == 'photo' else 't' }}/{{ x.sha256 }}" alt="{{ _('The photo you clicked') }}"></a>
+      <dl class="clock-facts">
+        <dt>{% trans %}The camera dated it{% endtrans %}</dt><dd>{{ x.own|date }}</dd>
+        {%- if x.taken_at != x.own %}
+        <dt>{% trans %}Dated now{% endtrans %}</dt><dd>{{ x.taken_at|date }}{% if x.by_hand %} <span class="hint inline">{% trans %}set by hand: stays{% endtrans %}</span>{% endif %}</dd>
+        {%- endif %}
+        {%- if x.people %}
+        <dt>{% trans %}In it{% endtrans %}</dt>
+        <dd>{% for q in x.people %}{{ q.name }}{% if q.born %} <span class="hint inline">{% trans value=q.born|date(false) if q.born|length == 10 else q.born %}born {{ value }}{% endtrans %}</span>{% endif %}
+          {%- if q.name in x.flagged %} <span class="clock-mark warn">⚠</span> <b>{% trans %}not born yet{% endtrans %}</b>{% endif %}{{ "," if not loop.last }} {% endfor %}</dd>
+        {%- endif %}
+      </dl>
+
+      {%- set st = x.stretch %}
+      {%- if st %}
+      {#- a photo of a stretch put right: when it was really taken, where the stretch starts and ends #}
+      <p>{% trans count=st.count, n=st.count|number, amount=moved(x.move, x.own) %}It is the one photo put right here, moved {{ amount }}.{% pluralize %}It is one of {{ n }} photos put right together; this one moved {{ amount }}.{% endtrans %}
+        {%- if x.pin %} {% trans %}You said when it was really taken.{% endtrans %}{% endif %}</p>
+      <form class="clock-real" data-api="/api/camera-clock/{{ st.id }}/pin" data-reload>
+        <input type="hidden" name="image_id" value="{{ x.id }}">
+        <label>{% trans %}It was really taken on{% endtrans %} <input type="date" name="day" value="{{ dated_now[:10] }}" required></label>
+        <label>{% trans %}at{% endtrans %} <input type="time" name="time" value="{{ dated_now[11:16] }}"></label>
+        <button type="submit" class="primary" data-busy="{{ _('Moving the dates…') }}">{{ _("Change its date") if x.pin else _("Date it") }}</button>
+      </form>
+      <p class="hint">{% if x.pin %}{% trans %}The others move with it.{% endtrans %}{% else %}{% trans %}The photos between this one and the others you dated move in step: as a clock that gained or lost
+        time as it went.{% endtrans %}{% endif %}</p>
+      <p class="clock-actions">
+        {%- if x.pin and st.pins|length > 1 %}
+        <button type="button" class="quiet" data-api="/api/camera-clock/{{ st.id }}/unpin" data-body='{{ {"image_id": x.id}|tojson }}' data-reload>{% trans %}Forget this one's date{% endtrans %}</button>
+        {%- endif %}
+        {%- if x.own > st.first %}
+        <button type="button" class="quiet" data-api="/api/camera-clock/{{ st.id }}/bounds" data-body='{{ {"first_id": x.id}|tojson }}' data-reload
+          title="{{ _('The photos before this one get the dates the camera wrote again') }}">{% trans %}The wrong dates start here{% endtrans %}</button>
+        {%- endif %}
+        {%- if x.own < st.last %}
+        <button type="button" class="quiet" data-api="/api/camera-clock/{{ st.id }}/bounds" data-body='{{ {"last_id": x.id}|tojson }}' data-reload
+          title="{{ _('The photos after this one get the dates the camera wrote again') }}">{% trans %}The wrong dates end here{% endtrans %}</button>
+        {%- endif %}
+        {%- if not st.open %}
+        <button type="button" class="quiet" data-api="/api/camera-clock/{{ st.id }}/bounds" data-body='{"to_end": true}' data-reload
+          title="{{ _('Every later photo of this camera, those read later too') }}">{% trans %}They go on to its last photo{% endtrans %}</button>
+        {%- endif %}
+        <button type="button" class="quiet" data-api="/api/camera-clock/{{ st.id }}/remove" data-reload
+          data-confirm="{{ _("Give these %(n)s photos the camera's own dates again?", n=st.count|number) }}">{% trans count=st.count, n=st.count|number %}Put the {{ n }} back{% pluralize %}Put all {{ n }} back{% endtrans %}</button>
+      </p>
+
+      {%- elif d and d.last and x.in_draft and not d.over %}
+      {#- one of the photos being picked: when it was really taken makes the stretch #}
+      <form class="clock-real" data-api="/api/camera-clock" data-then="{{ here(start=None, end=None) }}#p{{ x.id }}"
+        data-confirm="{{ _('Move the dates of these %(n)s photos with it?', n=d.count|number) }}">
+        <input type="hidden" name="camera" value="{{ picked.camera }}">
+        <input type="hidden" name="first_id" value="{{ d.from.id }}">
+        {%- if d.to %}<input type="hidden" name="last_id" value="{{ d.to.id }}">{% endif %}
+        <input type="hidden" name="image_id" value="{{ x.id }}">
+        <label>{% trans %}It was really taken on{% endtrans %} <input type="date" name="day" value="{{ dated_now[:10] }}" required autofocus></label>
+        <label>{% trans %}at{% endtrans %} <input type="time" name="time" value="{{ dated_now[11:16] }}"></label>
+        <button type="submit" class="primary" data-busy="{{ _('Moving the dates…') }}">{% trans count=d.count, n=d.count|number %}Move the {{ n }} photo{% pluralize %}Move the {{ n }} photos{% endtrans %}</button>
+      </form>
+      <p class="hint">{% trans %}Change the day, and the time too if you know it (leave it if only the date was wrong). Every photo of these
+        moves as much as this one; you can date another one further on afterwards if its clock gained or lost time.{% endtrans %}</p>
+
+      {%- elif d and not d.last %}
+      {#- picking the stretch's last photo #}
+      {%- if x.id == d.from.id %}
+      <p><a class="button" href="{{ here(end=x.id) }}#p{{ x.id }}">{% trans %}Only this photo{% endtrans %}</a>
+        <a class="button" href="{{ here(end='end') }}#p{{ x.id }}">{% trans %}This and every photo after it{% endtrans %}</a></p>
+      {%- elif x.own > d.from.own %}
+      <p><a class="button primary" href="{{ here(end=x.id) }}#p{{ x.id }}">{% trans %}The wrong dates end with this photo{% endtrans %}</a></p>
+      {%- else %}
+      <p><a class="button" href="{{ here(start=x.id) }}#p{{ x.id }}">{% trans %}Start from this photo instead{% endtrans %}</a></p>
+      {%- endif %}
+
+      {%- elif d %}
+      {#- a photo outside the photos being picked #}
+      <p>{% if x.own < d.first %}<a class="button" href="{{ here(start=x.id) }}#p{{ x.id }}">{% trans %}Start from this photo instead{% endtrans %}</a>
+        {%- else %}<a class="button" href="{{ here(end=x.id) }}#p{{ x.id }}">{% trans %}End with this photo instead{% endtrans %}</a>{% endif %}</p>
+
+      {%- else %}
+      {#- a photo whose date nothing moved #}
+      <p>{% trans %}Its date is as the camera wrote it.{% endtrans %}{% if x.flagged %} {% trans %}Someone in it wasn't born yet then, so its clock was likely wrong.{% endtrans %}{% endif %}</p>
+      <p class="clock-actions"><a class="button primary" href="{{ here(start=x.id, end=None) }}#p{{ x.id }}">{% trans %}Its dates are wrong from this photo{% endtrans %}</a>
+        {%- if x.before %}
+        <button type="button" class="quiet" data-api="/api/camera-clock/{{ x.before.id }}/bounds" data-body='{{ {"last_id": x.id}|tojson }}' data-reload>{% trans when=x.before.last|date %}Add it to the photos put right before it (to {{ when }}){% endtrans %}</button>
+        {%- endif %}
+        {%- if x.after %}
+        <button type="button" class="quiet" data-api="/api/camera-clock/{{ x.after.id }}/bounds" data-body='{{ {"first_id": x.id}|tojson }}' data-reload>{% trans when=x.after.first|date %}Add it to the photos put right after it (from {{ when }}){% endtrans %}</button>
+        {%- endif %}</p>
+      <p class="hint">{% trans id=x.id %}Only this photo? Set its date by hand <a href="/image/{{ id }}">on its page</a>.{% endtrans %}</p>
+      {%- endif %}
+    </div>
+
+    {%- elif not d %}
+    <h2>{% trans %}How to put it right{% endtrans %}</h2>
+    <ol class="clock-steps">
+      <li>{% trans %}Find the first photo it dated wrong, and click it.{% endtrans %}</li>
+      <li>{% trans %}Say its dates are wrong from there, then click the last one it dated wrong.{% endtrans %}</li>
+      <li>{% trans %}Click one of those you know the date of (a birthday, a holiday) and say when it was really taken: the others move
+        with it.{% endtrans %}</li>
+      <li>{% trans %}Its clock gained or lost time as it went? Date another photo further on: the difference is spread over the photos
+        between the two.{% endtrans %}</li>
+    </ol>
+    {%- endif %}
+  </aside>
+</div>
+{%- endif %}
+{% endblock %}

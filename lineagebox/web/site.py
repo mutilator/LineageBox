@@ -14,10 +14,11 @@ import httpx
 from fastapi import Request
 from fastapi.templating import Jinja2Templates
 
-from lineagebox import __version__, access, accounts, cleanup, db, events, settings, speech, storage, updates
+from lineagebox import __version__, access, accounts, cleanup, db, events, i18n, settings, speech, updates
 from lineagebox.config import Config
 from lineagebox.web import help as page_help
-from lineagebox.web.common import (DATE_SOURCE_LABEL, HERE, PAGE_SIZES, fmt_date, fmt_duration, locate, media_path,
+from lineagebox.web import tiles
+from lineagebox.web.common import (DATE_SOURCE_LABEL, HERE, PAGE_SIZES, ZIP_MOST, fmt_duration, locate, media_path,
                                    on_network)
 
 
@@ -25,7 +26,7 @@ SIGNED_IN_FOR = 10  # seconds a session's account is kept: a page asks for dozen
 SLOW_PAGE = 1.0  # seconds: a request that took longer goes on the Status page (Site.slow)
 SLOW_KEPT = 40  # slow requests listed there, the newest
 # what takes as long as it is big, so isn't timed: pictures, videos, originals, downloads, uploads
-UNTIMED = ("/t/", "/p/", "/face/", "/frame/", "/play/", "/original/", "/download", "/api/upload", "/static/")
+UNTIMED = ("/t/", "/t2/", "/p/", "/face/", "/frame/", "/play/", "/original/", "/download", "/api/upload", "/static/")
 
 
 class Kept:
@@ -190,26 +191,27 @@ class Site:
 
     def _templates(self) -> Jinja2Templates:
         templates = Jinja2Templates(directory=HERE / "templates")
-        templates.env.filters["date"] = fmt_date
+        # {% trans %} and _() in each request's language, and the date, number and size filters (i18n.py)
+        i18n.install(templates.env)
         templates.env.filters["duration"] = fmt_duration
-        templates.env.filters["size"] = storage.fmt_size
         templates.env.filters["gdate"] = events.show_date
         g = templates.env.globals
         g["date_source_label"] = DATE_SOURCE_LABEL
+        g["tile_alts"] = tiles.tile_alts  # the grids' alt text: who is in each photo (tiles.py)
         g["network_path"] = lambda rel: locate(self.shared_cfg(), rel)
         g["media_path"] = lambda rel="": media_path(self.cfg, rel)
         g["on_network"] = lambda rel: on_network(self.shared_cfg(), rel)
         g["removed_folder"] = lambda watched: cleanup.removed_folder(self.cfg, watched)
-        g.update(help_for=page_help.for_page, help_everywhere=page_help.EVERYWHERE, help_go=page_help.GO,
-                 help_menu=page_help.MENU)
+        g.update(help_for=page_help.for_page, help_everywhere=page_help.everywhere, help_go=page_help.go,
+                 help_menu=page_help.menu)  # each in the viewer's language
         g["day_names"] = settings.DAY_NAMES
         g["admin_pages"] = ("/", "/status", "/settings")  # not in members' menus
         g["member_pages"] = ("/folders",)  # nor this in admins': their Folders is the library's, at /
         g["page_sizes"] = PAGE_SIZES
+        g["zip_most"] = ZIP_MOST  # the tick-photos bar's Download says so before asking for more in one zip
         g["lineagebox_version"] = __version__
         # the help's link to the source code: the repository this copy's releases come from, so a fork's points to it
         g["source_url"] = f"https://github.com/{self.cfg.update_repository}" if self.cfg.update_repository else ""
-        g["month_names"] = [""] + [datetime(2000, m, 1).strftime("%B") for m in range(1, 13)]
         # in the stylesheet's and script's URLs, so browsers fetch them again after an update instead of a cached copy
         g["static_version"] = hashlib.sha256(
             b"".join(p.read_bytes() for p in sorted((HERE / "static").iterdir()) if p.is_file())).hexdigest()[:10]

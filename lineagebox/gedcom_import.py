@@ -8,9 +8,17 @@ export coming back.
 3. ask_ai: for the unsure ones, Ollama compares the two people (text only: names, dates, places, relatives) and says
    whether they are the same, and why;
 4. the person looks over every match on the import page, and changes any;
-5. apply: adds what the catalog doesn't have (people, names, events, families, relationships, groups). It never
-   removes or overwrites what was entered here: where the two disagree (another birth date, another sex), what is
-   here stays, and the report lists it.
+5. apply: adds what the catalog doesn't have (people, names, events, families, relationships, groups, notes and life
+   stories, sources and their citations, places' coordinates, photos). It never removes or overwrites what was entered
+   here: where the two disagree (another birth date, another sex), what is here stays, and the report lists it.
+
+Sources (SOUR records, and the 5.5.1 kind written in place) become written sources cited by the people and events
+they are cited for, with where in them (PAGE); one already here (the same UID, or title and author) is used again, and
+a LineageBox export's document (its UID) is that document again. Media (OBJE) are looked for in the library by file
+name: a LineageBox export's media/<SHA-256>.jpg by its SHA-256, any other by its name when only one photo has it (a
+camera's own name, IMG_1234.JPG, also by the folder it is in). A photo found has the person added to it, a document
+(MEDI, TYPE) cites them; a file not found is kept as the other tree's (tree_media), listed on the person's page and
+exported again. An event's place with coordinates (PLAC.MAP) puts the place on the map, unless someone placed it.
 """
 import io
 import json
@@ -25,12 +33,20 @@ from difflib import SequenceMatcher
 
 import httpx
 
-from lineagebox import errors, events, family, gedcom, people
+from lineagebox import documents, errors, events, family, gedcom, people, search
+from lineagebox.catalog import VISIBLE
 from lineagebox.config import Config
+from lineagebox.folders import FolderIndex
 
 MOST = 100 * 2**20  # the largest GEDCOM file taken, and the largest .ged unpacked from a zip
 PERSON_TAGS = set(events.PERSON_EVENTS)
 COUPLE_TAGS = set(events.COUPLE_EVENTS)
+# what a file is, by GEDCOM 7's MEDI or 5.5.1's TYPE: these are records of someone (documents); the rest, photos of them
+DOCUMENT_MEDIA = {"book", "card", "certificate", "document", "electronic", "fiche", "film", "magazine", "manuscript",
+                  "map", "newspaper", "tombstone", "census", "will", "letter"}
+# a camera's or a scanner's own file names (IMG_1234, DSC01234, Scan_0001, 2015-06-12 13.45.10): many photos have one,
+# so the folder it is in must match too
+GENERIC_NAME = re.compile(r"^(?:[a-z]{0,6}[_ -]?)?[\d_ .-]+$", re.I)
 ROLE_WORDS = {"FRIEND": "friend", "NGHBR": "neighbor", "GODP": "godparent"}
 SURE, LIKELY, UNSURE = 0.95, 0.8, 0.6  # match scores
 # first names and their usual short forms, each group one name: Mike is Michael (a likely match, not a sure one)
@@ -98,22 +114,93 @@ def read(data: bytes) -> dict:
     records = gedcom.parse(data)
     if not records or records[0].tag != "HEAD":
         raise Problem("This isn't a GEDCOM file: it doesn't start with a HEAD record.")
-    out = {"people": {}, "families": {}}
+    out = {"people": {}, "families": {}, "sources": {}}
+    found = _Found({r.xref: r for r in records if r.xref and r.tag == "OBJE"},
+                   {r.xref: r.payload for r in records if r.xref and r.tag in ("NOTE", "SNOTE")})
     for r in records:
         if r.tag == "INDI" and r.xref:
-            out["people"][r.xref] = _person(r)
+            out["people"][r.xref] = _person(r, found)
         elif r.tag == "FAM" and r.xref:
             out["families"][r.xref] = {
                 "partners": [n.payload for n in r.children if n.tag in ("HUSB", "WIFE") and n.payload.startswith("@")],
                 "children": [n.payload for n in r.all("CHIL") if n.payload.startswith("@")],
-                "events": [_event(n) for n in r.children if n.tag in COUPLE_TAGS | {"ANUL", "MARB", "MARC", "SEP"}],
+                "events": [_event(n) for n in r.children if n.tag in COUPLE_TAGS | {"SEP"}],
                 "uid": r.value("UID") or r.value("_UID") or None}
+        elif r.tag == "SOUR" and r.xref:
+            out["sources"][r.xref] = _source(r, found)
     if not out["people"]:
         raise Problem("The file has no people in it.")
     return out
 
 
-def _person(r: gedcom.Node) -> dict:
+class _Found:
+    """A file's OBJE records and shared notes, for the people and sources that point at them."""
+
+    def __init__(self, objects: dict, notes: dict):
+        self.objects, self.notes = objects, notes
+
+    def media(self, node: gedcom.Node) -> list[dict]:
+        """The files a person or a source links to: {'file', 'form', 'kind', 'title'}, from OBJE records (7.0 and
+        5.5.1) or written in place (5.5)."""
+        out = []
+        for link in node.all("OBJE"):
+            record = self.objects.get(link.payload, link) if link.payload.startswith("@") else link
+            for f in record.all("FILE"):
+                form = f.first("FORM") or record.first("FORM")
+                kind = (form.value("MEDI") or form.value("TYPE")) if form else ""
+                if f.payload.strip():
+                    out.append({"file": _file(f.payload)[:1000], "form": (form.payload if form else "")[:60] or None,
+                                "kind": (kind or record.value("TYPE")).lower() or None,
+                                "title": (f.value("TITL") or record.value("TITL") or link.value("TITL"))[:200] or None})
+        return out
+
+    def note_texts(self, node: gedcom.Node) -> list[tuple[str, bool]]:
+        """(text, whether it is a life story: LineageBox's _BIO) of each NOTE, a shared one's (SNOTE, @N1@) too."""
+        out = []
+        for n in node.children:
+            if n.tag in ("NOTE", "SNOTE"):
+                text = self.notes.get(n.payload, "") if n.payload.startswith("@") else n.payload
+                if text.strip():
+                    out.append((text.strip(), n.value("_BIO") == "Y"))
+        return out
+
+
+def _file(text: str) -> str:
+    """A media file as kept here: a Windows path with / ("C:/Users/x/a.jpg"), as 7.0's file:///C:/Users/x/a.jpg is
+    read back, so a file kept from one import and exported is the same file when it comes in again."""
+    text = text.strip()
+    if re.match(r"^file:///[A-Za-z]:/", text, re.I):
+        text = text[8:]
+    return text.replace("\\", "/") if re.match(r"^[A-Za-z]:[\\/]", text) else text
+
+
+def _citations(node: gedcom.Node) -> list[dict]:
+    """The sources a person or an event cites: {'sour': its record, or None and 'title' for one written in place
+    (5.5.1), 'page': where in it}."""
+    out = []
+    for c in node.all("SOUR"):
+        page = (c.value("PAGE") or "").strip()[:300] or None
+        if c.payload.startswith("@"):
+            out.append({"sour": c.payload, "page": page})
+        elif c.payload.strip():  # "1 SOUR Family Bible of Ruth Baker"
+            title, _, rest = c.payload.strip().partition("\n")
+            out.append({"sour": None, "title": title[:200], "note": (rest + "\n" + c.value("TEXT")).strip()[:4000],
+                        "page": page})
+    return out
+
+
+def _source(r: gedcom.Node, found: _Found) -> dict:
+    text = r.value("TEXT") or r.first("DATA") and r.first("DATA").value("TEXT") or ""
+    notes = "\n".join(t for t, _ in found.note_texts(r))
+    title = r.value("TITL") or r.value("ABBR") or text.strip().split("\n")[0][:80] or "A source"
+    return {"title": " ".join(title.split())[:200], "author": r.value("AUTH")[:120] or None,
+            "publication": r.value("PUBL")[:200] or None,
+            "note": "\n\n".join(x for x in (text.strip(), notes) if x)[:4000] or None,
+            "uid": r.value("UID") or r.value("_UID") or None, "media": found.media(r)}
+
+
+def _person(r: gedcom.Node, found: _Found | None = None) -> dict:
+    found = found or _Found({}, {})
     names = []
     for n in r.all("NAME"):
         m = re.match(r"^(.*?)/(.*?)/(.*)$", n.payload)
@@ -132,36 +219,63 @@ def _person(r: gedcom.Node) -> dict:
                 ) or a.value("RELA")
         if a.payload.startswith("@") and word:
             asso.append([a.payload, word.lower()])
+    # an adoption told as an ADOP event (ADOP.FAMC: by whom) where the family link itself doesn't say
+    adopted = {a.value("FAMC") for a in r.all("ADOP") if a.value("FAMC")}
+    notes = found.note_texts(r)
     return {"names": names or [{"given": "?", "surname": None, "type": "", "full": "?"}], "sex": sex,
             "events": [_event(n) for n in r.children if n.tag in PERSON_TAGS],
-            "famc": [[n.payload, n.value("PEDI").lower() or "birth"] for n in r.all("FAMC")],
+            "famc": [[n.payload, n.value("PEDI").lower() or ("adopted" if n.payload in adopted else "birth")]
+                     for n in r.all("FAMC")],
             "fams": [n.payload for n in r.all("FAMS")], "uid": r.value("UID") or r.value("_UID") or None,
-            "note": "\n".join(n.payload for n in r.all("NOTE") if not n.payload.startswith("@")),
-            "pet": r.value("_PET") == "Y", "groups": [n.payload for n in r.all("_GROUP")], "asso": asso}
+            "note": "\n".join(t for t, bio in notes if not bio),
+            "biography": "\n\n".join(t for t, bio in notes if bio) or None,
+            "pet": r.value("_PET") == "Y", "groups": [n.payload for n in r.all("_GROUP")], "asso": asso,
+            "media": found.media(r), "sources": _citations(r)}
 
 
 def _event(n: gedcom.Node) -> dict:
     tag, kind = n.tag, n.value("TYPE")
-    if tag in ("ANUL", "MARB", "MARC", "SEP"):  # couple events with no tag of their own here
-        tag, kind = "EVEN", {"ANUL": "Annulment", "MARB": "Marriage banns", "MARC": "Marriage contract",
-                             "SEP": "Separation"}[n.tag]
-    if tag == "OCCU" and n.payload and n.payload != "Y":
-        kind = n.payload
+    place = n.value("PLAC") or None
+    if tag == "SEP":  # a couple's event with no tag of its own here (some programs write it)
+        tag, kind = "EVEN", "Separation"
+    payload = n.payload.strip()
+    # "1 OCCU Teacher", "1 EVEN Moved to Oregon"; not the place, nor what an export writes when it knows no more
+    # ("1 RESI Lived in", "1 EVEN Event")
+    if payload not in ("", "Y", "Event", events.PERSON_EVENTS.get(tag)) and payload != place and (
+            tag in events.ATTRIBUTES or tag == "EVEN" and not kind):
+        kind = payload
     date, sort = _date(n.value("DATE"))
-    return {"tag": tag, "type": kind or None, "date": date, "sort": sort, "place": n.value("PLAC") or None,
-            "note": n.value("NOTE") or None}
+    lat = lon = None
+    if (at := n.first("PLAC")) and (where := at.first("MAP")):
+        lat, lon = _degrees(where.value("LATI"), "NS"), _degrees(where.value("LONG"), "EW")
+    return {"tag": tag, "type": kind[:80] if kind else None, "date": date, "sort": sort, "place": place,
+            "note": n.value("NOTE") or None, "lat": lat, "lon": lon, "sources": _citations(n)}
+
+
+def _degrees(text: str, signs: str) -> float | None:
+    """'N45.5' or 'W122.68' (GEDCOM), or '-122.68': degrees, south and west below zero; None when unreadable."""
+    text = text.strip().upper()
+    sign = -1 if text[:1] == signs[1] else 1
+    try:
+        value = float(text.lstrip(signs)) * sign
+    except ValueError:
+        return None
+    return value if abs(value) <= (90 if signs == "NS" else 180) else None
 
 
 def _date(text: str) -> tuple[str | None, str | None]:
-    """A GEDCOM date as stored here; one this can't read (a phrase, another calendar) is kept as written."""
+    """A GEDCOM date as stored here; one this can't read (a phrase, another calendar) is kept as written. A year no
+    calendar has (0000, or 9999 that some programs write for "not known") is kept too, but sorts nowhere: ages and
+    the life by age are worked out from the sort date, and Python has no day in those years."""
     if not text.strip():
         return None, None
     try:
         d = events.parse_date(text)
-        return d.gedcom, d.sort
+        written, sort = d.gedcom, d.sort
     except events.Problem:
         year = re.search(r"\b(\d{4})\b", text)
-        return text.strip().upper()[:80], year[1] if year else None
+        written, sort = text.strip().upper()[:80], year[1] if year else None
+    return written, sort if sort and 1 <= int(sort[:4]) < 9999 else None
 
 
 # ---- 2. matching ---------------------------------------------------------------------------------------------------
@@ -454,23 +568,30 @@ def apply(con: sqlite3.Connection, import_id: int) -> dict:
     if gone:  # merged into someone else, or removed, while the import was being looked over
         raise Problem(f"{', '.join(gone[:5])}{' and others' if len(gone) > 5 else ''}: matched to someone merged or "
                       f"removed since. Pick again, save, then bring it in.")
-    report = {"new": 0, "matched": 0, "names": 0, "events": 0, "links": 0, "conflicts": [], "skipped": []}
+    report = {"new": 0, "matched": 0, "names": 0, "events": 0, "links": 0, "sources": 0, "citations": 0,
+              "photos_found": 0, "files_kept": 0, "places": 0, "conflicts": [], "skipped": []}
+    found = _Sources(con, data, _Library(con), report)
     pid_of: dict[str, int] = {}
     for x, p in data["people"].items():
         chosen = matches.get(x, {}).get("choice")
         pid_of[x] = chosen if chosen else _new_person(con, p)
         report["matched" if chosen else "new"] += 1
-        _merge_person(con, pid_of[x], p, report, matched=bool(chosen))
+        _merge_person(con, pid_of[x], p, report, matched=bool(chosen), found=found)
     for x, p in data["people"].items():
         for other, word in p["asso"]:
             if other in pid_of and pid_of[other] != pid_of[x]:
                 con.execute("INSERT OR IGNORE INTO relation(person_id, of_id, kind) VALUES (?, ?, ?)",
                             (pid_of[other], pid_of[x], word))
     for fam in data["families"].values():
-        _merge_family(con, fam, pid_of, data, report)
+        _merge_family(con, fam, pid_of, data, report, found)
     con.execute("UPDATE gedcom_import SET applied_at = ?, report = ? WHERE id = ?",
                 (_now(), json.dumps(report), import_id))
     con.commit()
+    if found.photos:  # people added to photos: those photos are found by their names now
+        folders = FolderIndex(con)
+        for image_id in sorted(found.photos):
+            search.index_image(con, image_id, folders)
+        con.commit()
     return report
 
 
@@ -490,7 +611,7 @@ def _new_person(con, p: dict) -> int:
                         first["type"] if first["type"] in ("birth", "married", "aka") else "birth", p["sex"])).lastrowid
 
 
-def _merge_person(con, pid: int, p: dict, report: dict, matched: bool) -> None:
+def _merge_person(con, pid: int, p: dict, report: dict, matched: bool, found: "_Sources | None" = None) -> None:
     here = con.execute("SELECT * FROM person WHERE id = ?", (pid,)).fetchone()
     if matched and p["uid"] and p["uid"] != here["uid"]:
         con.execute("INSERT OR IGNORE INTO external_id(uid, person_id) VALUES (?, ?)", (p["uid"], pid))
@@ -508,16 +629,25 @@ def _merge_person(con, pid: int, p: dict, report: dict, matched: bool) -> None:
     elif p["sex"] and not here["sex"]:
         con.execute("UPDATE person SET sex = ? WHERE id = ?", (p["sex"], pid))
     for e in p["events"]:
-        _merge_event(con, e, report, here["name"], person_id=pid)
+        if (eid := _merge_event(con, e, report, here["name"], person_id=pid)) and found:
+            found.cite(f"e:{eid}", e.get("sources", ()))
     if p["note"] and not here["notes"]:
         con.execute("UPDATE person SET notes = ? WHERE id = ?", (p["note"], pid))
+    if p.get("biography") and not here["biography"]:
+        con.execute("UPDATE person SET biography = ? WHERE id = ?", (p["biography"], pid))
     for group in p["groups"]:
         people.add_to_group(con, pid, group)
+    if found:
+        found.cite(f"p:{pid}", p.get("sources", ()))
+        for m in p.get("media", ()):
+            found.media_of(pid, m)
     events._sync_person(con, pid)
 
 
 def _merge_event(con, e: dict, report: dict, who: str, person_id: int | None = None,
-                 couple: tuple[int, int] | None = None) -> None:
+                 couple: tuple[int, int] | None = None) -> int | None:
+    """The event added, or the one here it is (filled in), or None when the two disagree (what is here stays)."""
+    _place(con, e, report)
     where = "person_id = ?" if person_id is not None else "couple_a = ? AND couple_b = ?"
     key = (person_id,) if person_id is not None else (min(couple), max(couple))
     same = con.execute(f"SELECT * FROM event WHERE {where} AND tag = ? AND coalesce(type, '') = ?",
@@ -529,21 +659,33 @@ def _merge_event(con, e: dict, report: dict, who: str, person_id: int | None = N
             label = (events.PERSON_EVENTS if person_id is not None else events.COUPLE_EVENTS).get(e["tag"], e["tag"])
             report["conflicts"].append(f"{who}: {label.lower()} {events.show_date(e['date'])} in the file, "
                                        f"{events.show_date(target['date'])} here (kept)")
-            return
+            return None
     if target is not None:  # already here: fill in what it lacks
         if (e["date"] and not target["date"]) or (e["place"] and not target["place"]):
             con.execute("UPDATE event SET date = coalesce(date, ?), sort_date = coalesce(sort_date, ?), "
                         "place = coalesce(place, ?) WHERE id = ?", (e["date"], e["sort"], e["place"], target["id"]))
             report["events"] += 1
-        return
+        return target["id"]
     a, b = (min(couple), max(couple)) if couple else (None, None)
-    con.execute("""INSERT INTO event(person_id, couple_a, couple_b, tag, type, date, sort_date, place, note)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (person_id, a, b, e["tag"], e["type"], e["date"], e["sort"], e["place"], e["note"]))
     report["events"] += 1
+    return con.execute("""INSERT INTO event(person_id, couple_a, couple_b, tag, type, date, sort_date, place, note)
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                       (person_id, a, b, e["tag"], e["type"], e["date"], e["sort"], e["place"], e["note"])).lastrowid
 
 
-def _merge_family(con, fam: dict, pid_of: dict, data: dict, report: dict) -> None:
+def _place(con, e: dict, report: dict) -> None:
+    """An event's place with its coordinates in the file (PLAC.MAP): on the map from now on, unless it was placed
+    there by hand or checked; a lookup's guess gives way."""
+    if e.get("lat") is None or e.get("lon") is None or not (e.get("place") or "").strip():
+        return
+    report["places"] += con.execute(
+        """INSERT INTO place(name, lat, lon, found_as, source, looked_up) VALUES (?, ?, ?, NULL, 'gedcom', ?)
+           ON CONFLICT(name) DO UPDATE SET lat = excluded.lat, lon = excluded.lon, found_as = NULL, source = 'gedcom',
+           looked_up = excluded.looked_up WHERE place.source = 'osm' AND place.confirmed_at IS NULL""",
+        (e["place"].strip(), e["lat"], e["lon"], _now())).rowcount
+
+
+def _merge_family(con, fam: dict, pid_of: dict, data: dict, report: dict, found: "_Sources | None" = None) -> None:
     partners = [pid_of[x] for x in fam["partners"] if x in pid_of]
     kids = [x for x in fam["children"] if x in pid_of]
     names = lambda ids: " and ".join(con.execute("SELECT name FROM person WHERE id = ?", (i,)).fetchone()[0] for i in ids)
@@ -552,7 +694,7 @@ def _merge_family(con, fam: dict, pid_of: dict, data: dict, report: dict) -> Non
         tags = {e["tag"] for e in fam["events"]}
         row = con.execute("SELECT * FROM partner WHERE a = ? AND b = ?", (a, b)).fetchone()
         if row is None:
-            current = "DIV" not in tags
+            current = not tags & {"DIV", "ANUL"}
             if current:
                 try:
                     family._no_other_current_partner(con, a, b)
@@ -562,26 +704,25 @@ def _merge_family(con, fam: dict, pid_of: dict, data: dict, report: dict) -> Non
                     report["conflicts"].append(f"{names((a, b))}: added as former partners, since one of them has "
                                                f"another current partner here")
             con.execute("INSERT INTO partner(a, b, current, married, uid) VALUES (?, ?, ?, ?, ?)",
-                        (a, b, int(current), int(bool(tags & {"MARR", "DIV"})),
+                        (a, b, int(current), int(bool(tags & {"MARR", "DIV", "ANUL", "DIVF"})),
                          fam["uid"] if fam["uid"] and not con.execute("SELECT 1 FROM partner WHERE uid = ?",
                                                                       (fam["uid"],)).fetchone()
                          else str(uuid.uuid4())))
             report["links"] += 1
         for e in fam["events"]:
-            if e["tag"] in ("MARR", "DIV") and not (e["date"] or e["place"] or e["note"]):
+            if e["tag"] in ("MARR", "DIV") and not (e["date"] or e["place"] or e["note"] or e.get("sources")):
                 continue  # "they married", "they divorced": what the couple's married and former already say
-            _merge_event(con, e, report, names((a, b)), couple=(a, b))
+            if (eid := _merge_event(con, e, report, names((a, b)), couple=(a, b))) and found:
+                found.cite(f"e:{eid}", e.get("sources", ()))
     for x in kids:
         child = pid_of[x]
         pedi = next((how for f, how in data["people"][x]["famc"] if data["families"].get(f) is fam), "birth")
         for parent in partners:
             if parent == child or con.execute("SELECT 1 FROM parent WHERE child_id = ? AND parent_id = ?",
                                               (child, parent)).fetchone():
-                continue
+                continue  # how a link entered here belongs (birth, adopted) stays as it is
             try:
-                family._add_parent(con, child, parent)
-                con.execute("UPDATE parent SET pedi = ? WHERE child_id = ? AND parent_id = ?",
-                            (pedi if pedi in ("birth", "adopted", "foster") else "birth", child, parent))
+                family._add_parent(con, child, parent, pedi=pedi if pedi in family.PEDI else "birth")
                 report["links"] += 1
             except family.Problem as e:
                 report["skipped"].append(str(e))
@@ -591,6 +732,129 @@ def _merge_family(con, fam: dict, pid_of: dict, data: dict, report: dict) -> Non
                 a, b = sorted((pid_of[x], pid_of[y]))
                 if a != b and con.execute("INSERT OR IGNORE INTO sibling(a, b) VALUES (?, ?)", (a, b)).rowcount:
                     report["links"] += 1
+
+
+class _Library:
+    """The library's photos by file name, to find the photo a family tree's media file is (see the module's
+    docstring). The names are read once, the first time one is looked for."""
+
+    def __init__(self, con):
+        self.con, self.by_name = con, None
+
+    def find(self, file: str) -> int | None:
+        parts = [x.lower() for x in re.split(r"[\\/]", file.strip().split("?")[0]) if x]
+        if not parts:
+            return None
+        name = parts[-1]
+        stem = name.rsplit(".", 1)[0]
+        if re.fullmatch(r"[0-9a-f]{64}", stem):  # a LineageBox export's media/<SHA-256>.jpg
+            row = self.con.execute(f"SELECT i.id FROM image i WHERE i.sha256 = ? AND {VISIBLE}", (stem,)).fetchone()
+            return row[0] if row else None
+        if self.by_name is None:
+            self.by_name = defaultdict(list)
+            for path, image_id in self.con.execute(f"""SELECT f.path, f.image_id FROM file f
+                                                       JOIN image i ON i.id = f.image_id
+                                                       WHERE NOT f.missing AND {VISIBLE}"""):
+                self.by_name[path.rsplit("/", 1)[-1].lower()].append((path.lower().split("/"), image_id))
+        need = 2 if GENERIC_NAME.fullmatch(stem) else 1  # IMG_1234 alone could be anyone's: its folder too
+        hits = {image_id for path, image_id in self.by_name.get(name, ())
+                if len(parts) >= need and path[-need:] == parts[-need:]}
+        return hits.pop() if len(hits) == 1 else None
+
+
+class _Sources:
+    """The file's sources and media as they are brought in: each SOUR record made a written source here (or found
+    here) once, and cited wherever the file cites it."""
+
+    def __init__(self, con, data: dict, library: _Library, report: dict):
+        self.con, self.data, self.library, self.report = con, data, library, report
+        self.made: dict[str, tuple[str, int] | None] = {}  # SOUR record -> ("source", id) or ("document", image id)
+        self.documents: dict[str, int] | None = None
+        self.photos: set[int] = set()  # photos people were added to
+
+    def _document(self, uid: str) -> int | None:
+        if self.documents is None:  # a LineageBox export's documents, by the UID it gave them
+            self.documents = {gedcom.document_uid(sha): image_id for image_id, sha in self.con.execute(
+                "SELECT d.image_id, i.sha256 FROM document d JOIN image i ON i.id = d.image_id")}
+        return self.documents.get(uid)
+
+    def _record(self, xref: str) -> tuple[str, int] | None:
+        if xref in self.made:
+            return self.made[xref]
+        src = self.data.get("sources", {}).get(xref)
+        out = None
+        if src:
+            uid = src.get("uid")
+            if uid and (row := self.con.execute("SELECT id FROM source WHERE uid = ?", (uid,)).fetchone()):
+                out = ("source", row[0])
+            elif uid and (image := self._document(uid)):
+                out = ("document", image)
+            for m in src.get("media", ()) if out is None else ():  # a photo of the record, in the library
+                if (image := self.library.find(m["file"])) is not None:
+                    if documents.get(self.con, image) is None:
+                        kind = src["note"] if src.get("note") in documents.KINDS else "Other"
+                        documents.save(self.con, image, kind, src["title"])
+                    out = ("document", image)
+                    self.report["photos_found"] += 1
+                    break
+            if out is None:
+                sid = documents.find_source(self.con, src["title"], src.get("author") or "")
+                if sid is None:
+                    taken = uid and self.con.execute("SELECT 1 FROM source WHERE uid = ?", (uid,)).fetchone()
+                    sid = documents.save_source(self.con, None, src["title"], src.get("author") or "",
+                                                src.get("publication") or "", src.get("note") or "",
+                                                uid=None if taken else uid)
+                    self.report["sources"] += 1
+                    for m in src.get("media", ()):
+                        self.report["files_kept"] += self.con.execute(
+                            "INSERT OR IGNORE INTO tree_media(source_id, file, form, title) VALUES (?, ?, ?, ?)",
+                            (sid, m["file"], m["form"], m["title"])).rowcount
+                out = ("source", sid)
+        self.made[xref] = out
+        return out
+
+    def cite(self, target: str, cites) -> None:
+        """Cite the sources a person or event ('p:<id>', 'e:<id>') cites in the file."""
+        for c in cites:
+            if c.get("sour"):
+                found = self._record(c["sour"])
+            elif c.get("title"):  # written in place: one source per title
+                sid = documents.find_source(self.con, c["title"]) or documents.save_source(
+                    self.con, None, c["title"], note=c.get("note") or "")
+                found = ("source", sid)
+            else:
+                continue
+            if found is None:
+                continue
+            kind, ident = found
+            before = self.con.total_changes
+            if kind == "document":
+                documents.cite(self.con, ident, target)
+            else:
+                documents.cite_source(self.con, ident, target, c.get("page") or "")
+            self.report["citations"] += self.con.total_changes > before
+
+    def media_of(self, pid: int, m: dict) -> None:
+        """A file the tree links to someone: the photo in the library it is (they are added to it, or it cites them,
+        for a record), or else kept as the tree's."""
+        image = self.library.find(m["file"])
+        if image is None:
+            self.report["files_kept"] += self.con.execute(
+                "INSERT OR IGNORE INTO tree_media(person_id, file, form, title) VALUES (?, ?, ?, ?)",
+                (pid, m["file"], m["form"], m["title"])).rowcount
+            return
+        if (m.get("kind") or "") in DOCUMENT_MEDIA:
+            if documents.get(self.con, image) is None:
+                documents.save(self.con, image, "Other", m["title"] or "A record")
+            documents.cite(self.con, image, f"p:{pid}")
+            self.report["photos_found"] += 1
+        elif not self.con.execute("""SELECT 1 FROM face WHERE image_id = :i AND person_id = :p
+                                     UNION SELECT 1 FROM image_person WHERE image_id = :i AND person_id = :p""",
+                                  {"i": image, "p": pid}).fetchone():
+            self.con.execute("INSERT INTO image_person(image_id, person_id, added_at) VALUES (?, ?, ?)",
+                             (image, pid, _now()))
+            self.photos.add(image)
+            self.report["photos_found"] += 1
 
 
 def _now() -> str:

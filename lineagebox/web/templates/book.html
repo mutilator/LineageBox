@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{#- A family book (book.py, routes/book.py): made to be printed, or saved as a PDF from the print window. book.css
+    gives it its pages: a cover, the contents of a branch, and a page (or more) for each person. #}
+{% macro portrait(p, size="") %}<span class="portrait {{ size }}"><img src="/p/{{ p.sha }}" alt="" style="width: {{ p.width }}%; left: {{ p.left }}%; top: {{ p.top }}%"></span>{% endmacro %}
+{% set first = book.chapters[0] %}
+{% block title %}{% if book.branch %}{% trans title=book.title %}The family of {{ title }}: a book{% endtrans %}{% else %}{% trans title=book.title %}{{ title }}: a book{% endtrans %}{% endif %}{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/book.css?v={{ static_version }}">{% endblock %}
+{% block body_class %}{% trans %}book-page{% endtrans %}{% endblock %}
+{% block main %}
+<div class="book-tools">
+  <nav class="crumbs"><a href="/person/{{ person_id }}">{{ book.title }}</a><span class="sep">/</span><h1>{{ _("A book of the family") if book.branch else _("A book") }}</h1></nav>
+  <p class="actions">
+    <button type="button" class="primary" data-print>{% trans %}Print or save as a PDF{% endtrans %}</button>
+    {%- if book.branch %}
+    <a class="button quiet" href="/book/person/{{ person_id }}">{% trans title=book.title %}Only {{ title }}{% endtrans %}</a>
+    {%- else %}
+    <a class="button quiet" href="/book/branch/{{ person_id }}">{% trans title=book.title %}With everyone descended from {{ title }}{% endtrans %}</a>
+    {%- endif %}
+  </p>
+  <p class="hint">{% trans %}In the print window, choose <b>Save as PDF</b> (or Microsoft Print to PDF) as the printer for a file to
+    send, or to take to a print shop. Each person starts on a new page. What is in it comes from the family tree and
+    the photos{% endtrans %}{% if viewer.limited %} {% trans %}you can see{% endtrans %}{% endif %}{% trans %}: change those, and the book changes with them.{% endtrans %}</p>
+</div>
+
+<article class="book">
+  <section class="book-cover">
+    {%- if first.portrait %}{{ portrait(first.portrait, "large") }}{% endif %}
+    <h1>{% if book.branch %}{% trans title=book.title %}The family of {{ title }}{% endtrans %}{% else %}{{ book.title }}{% endif %}</h1>
+    {%- if first.years %}<p class="years">{{ first.years }}</p>{% endif %}
+    {%- if book.branch %}<p class="years">{% trans count=book.chapters|length %}{{ count }} person{% pluralize %}{{ count }} people{% endtrans %} {% trans count=(book.chapters|map(attribute="depth")|max) + 1 %}in {{ count }} generation{% pluralize %}in {{ count }} generations{% endtrans %}</p>{% endif %}
+    <p class="made">{% trans month=month_names[book.made.month], day=book.made.day, year=book.made.year %}Made {{ month }} {{ day }}, {{ year }}{% endtrans %}</p>
+  </section>
+
+  {%- if book.branch %}
+  <section class="book-contents">
+    <h2>{% trans %}Contents{% endtrans %}</h2>
+    <ol>
+      {%- for ch in book.chapters %}
+      <li style="margin-left: {{ ch.depth * 1.5 }}em"><a href="#p{{ ch.id }}">{{ ch.name }}</a>{% if ch.years %} <span class="years">{{ ch.years }}</span>{% endif %}</li>
+      {%- endfor %}
+    </ol>
+    {%- if book.left_out %}
+    <p class="hint">{% trans count=book.left_out %}{{ count }} more descendant would make the book too long: the book of one of the youngest here has theirs.{% pluralize %}{{ count }} more descendants would make the book too long: the book of one of the youngest here has theirs.{% endtrans %}</p>
+    {%- endif %}
+  </section>
+  {%- endif %}
+
+  {%- for ch in book.chapters %}
+  <section class="book-person" id="p{{ ch.id }}">
+    <header>
+      {%- if ch.portrait %}{{ portrait(ch.portrait) }}{% endif %}
+      <div>
+        <h2>{{ ch.name }}</h2>
+        {%- if ch.years %}<p class="years">{{ ch.years }}</p>{% endif %}
+        {%- if ch.other_names %}<p class="also">{% trans other_names=ch.other_names|join(", ") %}Also known as {{ other_names }}{% endtrans %}</p>{% endif %}
+      </div>
+    </header>
+    {%- if ch.story %}
+    <div class="book-story">{{ ch.story }}</div>
+    {%- endif %}
+    {%- if ch.life %}
+    <h3>{% trans %}Life{% endtrans %}</h3>
+    <ul class="book-life">
+      {%- for e in ch.life %}
+      <li><b>{{ e.what }}</b>{% if e.with %} {% trans with_=e.with %}with {{ with_ }}{% endtrans %}{% endif %}{% if e.when %}, {{ e.when }}{% endif %}{% if e.where %}, {{ e.where }}{% endif %}
+        {%- if e.note %}<span class="book-note">{{ e.note }}</span>{% endif %}</li>
+      {%- endfor %}
+    </ul>
+    {%- endif %}
+    {%- if ch.family %}
+    <h3>{% trans %}Family{% endtrans %}</h3>
+    <dl class="book-family">
+      {%- for label, names in ch.family %}<dt>{{ label }}</dt><dd>{{ names|join(", ") }}</dd>{% endfor %}
+    </dl>
+    {%- endif %}
+    {%- if ch.documents %}
+    <h3>{% trans %}Documents{% endtrans %}</h3>
+    <div class="book-docs">
+      {%- for d in ch.documents %}
+      <figure><img src="/p/{{ d.sha256 }}" alt="{{ d.title }}"><figcaption>{{ d.title }} <span class="hint inline">{{ d.kind }}</span></figcaption></figure>
+      {%- endfor %}
+    </div>
+    {%- endif %}
+    {%- if ch.photos %}
+    <h3>{% trans %}Photos{% endtrans %}</h3>
+    {%- for year, photos in ch.photos %}
+    <div class="book-year">
+      <h4>{{ year }}</h4>
+      <div class="book-photos">
+        {%- for p in photos %}
+        <figure><a href="/image/{{ p.id }}"><img src="/t/{{ p.sha }}" alt="{{ p.caption or _('Photo from %(when)s', when=p.when) }}"></a>
+          <figcaption>{% if p.caption %}{{ p.caption }} <span class="hint inline">{{ p.when }}</span>{% else %}{{ p.when }}{% endif %}</figcaption></figure>
+        {%- endfor %}
+      </div>
+    </div>
+    {%- endfor %}
+    {%- endif %}
+    {%- if not (ch.story or ch.life or ch.family or ch.documents or ch.photos) %}
+    <p class="hint">{% trans name=ch.name %}Nothing more is known of {{ name }} here yet.{% endtrans %}</p>
+    {%- endif %}
+  </section>
+  {%- endfor %}
+</article>
+{% endblock %}

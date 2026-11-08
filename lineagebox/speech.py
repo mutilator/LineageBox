@@ -1,10 +1,14 @@
-"""Stage: what is said in each video, from the Whisper service (whisper_service/), for the search and the
-video's page.
+"""Stage: what is said in each video and sound recording, and in the stories the family records (stories.py), from
+the Whisper service (whisper_service/), for the search and their pages.
 
-The worker takes the sound out of the video (16 kHz mono WAV) and sends it; the service answers with timed segments.
+The worker takes the sound out of the file (16 kHz mono WAV) and sends it; the service answers with timed segments.
 Whisper writes words over sounds that are not speech ("you", "Thank you.", "Thanks for watching!"), and family
 videos are mostly wind, music and children shouting, so segments are filtered here. The service's whole answer is
 kept, so better rules (a higher VERSION) re-filter every transcript without asking Whisper again.
+
+A transcript's lines can be corrected on its page (correct()): each correction is kept by the second its line starts
+at, so filtering again, or hearing the video again, keeps it. The language is the setting's (whisper_language):
+"auto" by default, for Whisper to tell from the speech itself.
 """
 import json
 import re
@@ -17,12 +21,13 @@ from typing import Callable
 
 import httpx
 
-from lineagebox import retry, search, video
+from lineagebox import errors, retry, search, video
 from lineagebox.catalog import VISIBLE
 from lineagebox.config import Config
 from lineagebox.folders import FolderIndex
 
 VERSION = 1
+LINE_MOST = 500  # characters in one corrected line of a transcript
 GIVE_UP_AFTER = 3  # failures in a row: the service is gone (its machine went to sleep)
 # Measured on the service (whisper.cpp, large-v3-turbo, Silero VAD first): real speech has avg_logprob -0.20 at the
 # median and -0.52 at the 10th percentile; below -0.6 are interjections and garbled phrases; the one hallucination in
@@ -50,6 +55,7 @@ class SpeechStats:
     failed: int = 0
     gave_up: bool = False
     stopped: bool = False
+    stories: int = 0  # of done: recorded stories
     seconds: float = 0.0
     audio_seconds: float = 0.0
     last_error: str | None = None
@@ -83,7 +89,7 @@ class Whisper:
     def check(self) -> str:
         """A sentence for the Settings page."""
         if not self.url:
-            return "No speech-to-text service is set, so videos get no transcripts."
+            return "No speech-to-text service is set, so videos, recordings and stories get no transcripts."
         try:
             h = self.http.get("/health", timeout=10).json()
         except (httpx.HTTPError, ValueError) as e:
@@ -122,56 +128,66 @@ def keep(segments: list[dict]) -> list[tuple[float, float, str]]:
     return out
 
 
-_PENDING = f"""FROM image i WHERE i.media = 'video' AND i.codecs NOT LIKE '%/no sound' AND {VISIBLE}
+_PENDING = f"""FROM image i WHERE i.media IN ('video', 'audio') AND i.codecs NOT LIKE '%/no sound' AND {VISIBLE}
                AND NOT EXISTS (SELECT 1 FROM transcript t WHERE t.image_id = i.id) AND {retry.waiting("transcribe")}"""
+_STORIES = f"""FROM story s WHERE s.heard IS NULL AND s.removed_at IS NULL
+               AND {retry.waiting("stories", "s.id")}"""
 
 
 def count_pending(con: sqlite3.Connection) -> int:
-    return con.execute(f"SELECT count(*) {_PENDING}").fetchone()[0]
+    """Videos and recordings with sound and no transcript, and recorded stories not heard yet."""
+    return (con.execute(f"SELECT count(*) {_PENDING}").fetchone()[0]
+            + con.execute(f"SELECT count(*) {_STORIES}").fetchone()[0])
 
 
 def transcribe(con: sqlite3.Connection, cfg: Config, limit: int | None = None,
                stop: Callable[[], bool] | None = None) -> SpeechStats:
-    """Transcribe videos that have sound and no transcript, newest first. While Whisper works on one video, the next
-    one's sound is taken out of its file. stop() is asked between videos."""
+    """Transcribe the recorded stories not heard yet (short, and the family's own words: first), then the videos and
+    recordings that have sound and no transcript, newest first. While Whisper works on one, the next one's sound is
+    taken out of its file. stop() is asked between them."""
     refilter(con)
+    stories = con.execute(f"SELECT s.id, s.file {_STORIES} ORDER BY s.id").fetchall()
     rows = con.execute(f"""SELECT i.id, (SELECT f.path FROM file f WHERE f.image_id = i.id AND NOT f.missing
                                          ORDER BY length(f.path), f.path LIMIT 1) AS path
-                           {_PENDING} ORDER BY i.id DESC""").fetchall()[:limit]
-    stats = SpeechStats(pending=len(rows))
-    if not rows:
+                           {_PENDING} ORDER BY i.id DESC""").fetchall()
+    todo = [("story", r["id"], cfg.data_dir / "stories" / r["file"]) for r in stories]
+    todo += [("image", r["id"], cfg.source_path(r["path"])) for r in rows]
+    todo = todo[:limit]
+    stats = SpeechStats(pending=len(todo))
+    if not todo:
         return stats
     client, folders, t0 = Whisper(cfg), FolderIndex(con), time.monotonic()
     failed_in_a_row = 0
 
-    def sound(row):
+    def sound(item):
         try:
-            return row, video.audio_wav(cfg.source_path(row["path"])), None
+            return item, video.audio_wav(item[2]), None
         except (video.Error, OSError) as e:
-            return row, None, e
+            return item, None, e
 
     with ThreadPoolExecutor(1) as pool:
-        todo = iter(rows)
-        ahead = pool.submit(sound, next(todo))
+        items = iter(todo)
+        ahead = pool.submit(sound, next(items))
         while ahead is not None:
-            row, wav, error = ahead.result()
+            (kind, item_id, _), wav, error = ahead.result()
+            stage = "stories" if kind == "story" else "transcribe"
             ahead = None
             if not (stop is not None and stop()):
-                ahead = pool.submit(sound, nxt) if (nxt := next(todo, None)) is not None else None
+                ahead = pool.submit(sound, nxt) if (nxt := next(items, None)) is not None else None
             else:
                 stats.stopped = True
             if wav is None:
                 stats.failed += 1
-                if isinstance(error, (OSError, video.Unavailable, video.TimedOut)):  # not the video: try again later
-                    retry.later(con, "transcribe", row["id"], str(error))
+                if isinstance(error, (OSError, video.Unavailable, video.TimedOut)):  # not the file: try again later
+                    retry.later(con, stage, item_id, str(error))
                 else:  # no usable sound track: an empty transcript, so it is not tried again
-                    _record(con, folders, row["id"], "", {"error": str(error), "segments": []})
+                    _save(con, folders, kind, item_id, "", {"error": str(error), "segments": []})
                 continue
             try:
                 answer = client.transcribe(wav)
             except httpx.HTTPStatusError as e:
                 if e.response.status_code < 500:  # it could not use this file: not sent again, or it would block
-                    _record(con, folders, row["id"], "", {"error": f"HTTP {e.response.status_code}", "segments": []})
+                    _save(con, folders, kind, item_id, "", {"error": f"HTTP {e.response.status_code}", "segments": []})
                     stats.failed += 1
                     stats.last_error = f"Whisper answered {e.response.status_code}: {e.response.text[:200]}"
                     continue
@@ -183,9 +199,9 @@ def transcribe(con: sqlite3.Connection, cfg: Config, limit: int | None = None,
                 failed_in_a_row += 1
                 stats.last_error = (f"Whisper answered {error.response.status_code}: {error.response.text[:200]}"
                                     if isinstance(error, httpx.HTTPStatusError) else f"{type(error).__name__}: {error}")
-                print(f"video {row['id']}: {type(error).__name__}: {error}", flush=True)
-                if isinstance(error, httpx.HTTPStatusError):  # it answered, but not for this video: later, not first
-                    retry.later(con, "transcribe", row["id"], stats.last_error)
+                print(f"{kind} {item_id}: {type(error).__name__}: {error}", flush=True)
+                if isinstance(error, httpx.HTTPStatusError):  # it answered, but not for this one: later, not first
+                    retry.later(con, stage, item_id, stats.last_error)
                 if failed_in_a_row >= GIVE_UP_AFTER:
                     stats.gave_up = True
                     if ahead is not None:
@@ -193,34 +209,119 @@ def transcribe(con: sqlite3.Connection, cfg: Config, limit: int | None = None,
                     break
                 continue
             failed_in_a_row = 0
-            _record(con, folders, row["id"], answer.get("model") or "?", answer)
+            _save(con, folders, kind, item_id, answer.get("model") or "?", answer)
             stats.done += 1
+            stats.stories += kind == "story"
             stats.audio_seconds += float(answer.get("duration") or 0)
     stats.seconds = time.monotonic() - t0
     return stats
 
 
+def _save(con: sqlite3.Connection, folders: FolderIndex, kind: str, item_id: int, model: str, answer: dict) -> None:
+    if kind == "story":
+        _record_story(con, item_id, model, answer)
+    else:
+        _record(con, folders, item_id, model, answer)
+
+
+# ---- corrections ---------------------------------------------------------------------------------------------------
+
+def key(start: float) -> str:
+    """A line's key in transcript.edits: the second it starts at, as the kept segments have it (to 2 places)."""
+    return f"{float(start):.2f}"
+
+
+def lines(segments: list, edits: dict | None) -> list[dict]:
+    """The transcript's lines: Whisper's kept segments, each as someone corrected it, if anyone did. A line corrected
+    to nothing (nobody said that) has text "" and removed set: its page shows it faded, to be put back."""
+    edits = edits or {}
+    out = []
+    for start, end, text in segments:
+        mine = edits.get(key(start))
+        out.append({"start": start, "end": end, "text": text if mine is None else mine, "heard": text,
+                    "edited": mine is not None, "removed": mine is not None and not mine.strip()})
+    return out
+
+
+def text_of(segments: list, edits: dict | None) -> str:
+    """The transcript's text, for search and the AI: its lines as corrected, without those taken out."""
+    return " ".join(ln["text"] for ln in lines(segments, edits) if not ln["removed"])
+
+
+def for_page(con: sqlite3.Connection, image_id: int) -> dict | None:
+    """A video's or recording's transcript for its page: the row, its lines with corrections (lines()), and why it
+    couldn't be made, if it couldn't. None before it is transcribed."""
+    row = con.execute("SELECT * FROM transcript WHERE image_id = ?", (image_id,)).fetchone()
+    if row is None:
+        return None
+    segments, edits = json.loads(row["segments"]), json.loads(row["edits"] or "{}")
+    return {**dict(row), "segments": segments, "lines": lines(segments, edits), "edited": bool(edits),
+            "error": json.loads(row["raw"]).get("error")}
+
+
+class Problem(errors.Problem):
+    """A correction that can't be saved; the message says why, for whoever made it."""
+
+
+def correct(con: sqlite3.Connection, image_id: int, start: float, text: str | None) -> None:
+    """Put one line of a transcript right, as a person's edit that hearing or filtering it again never overwrites.
+    text: the line as it should be ("" when nothing was said there); None puts back what Whisper heard. The search
+    index is the caller's to update. Doesn't commit."""
+    row = con.execute("SELECT segments, edits FROM main.transcript WHERE image_id = ?", (image_id,)).fetchone()
+    if row is None:
+        raise Problem("It hasn't been transcribed yet.")
+    segments, edits = json.loads(row["segments"]), json.loads(row["edits"] or "{}")
+    k = key(start)
+    heard = next((t for s, _, t in segments if key(s) == k), None)
+    if heard is None:
+        raise Problem("That line isn't in the transcript any more: reload the page.")
+    text = None if text is None else " ".join(text.split())[:LINE_MOST]
+    if text is None or text == heard:
+        edits.pop(k, None)
+    else:
+        edits[k] = text
+    con.execute("UPDATE main.transcript SET edits = ?, text = ?, edited_at = ? WHERE image_id = ?",
+                (json.dumps(edits) if edits else None, text_of(segments, edits),
+                 datetime.now().isoformat(timespec="seconds") if edits else None, image_id))
+
+
+# ---- keeping what was heard ----------------------------------------------------------------------------------------
+
 def _record(con: sqlite3.Connection, folders: FolderIndex, image_id: int, model: str, answer: dict) -> None:
     kept = keep(answer.get("segments") or [])
-    con.execute("""INSERT OR REPLACE INTO transcript(image_id, model, version, created_at, text, segments, raw)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (image_id, model, VERSION, datetime.now().isoformat(timespec="seconds"),
-                 " ".join(t for _, _, t in kept), json.dumps(kept), json.dumps(answer)))
+    old = con.execute("SELECT edits FROM transcript WHERE image_id = ?", (image_id,)).fetchone()
+    edits = json.loads(old[0] or "{}") if old else {}  # people's corrections stay, whatever Whisper hears this time
+    con.execute("""INSERT INTO transcript(image_id, model, version, created_at, text, segments, raw)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(image_id) DO UPDATE SET model = excluded.model, version = excluded.version,
+                       created_at = excluded.created_at, text = excluded.text, segments = excluded.segments,
+                       raw = excluded.raw""",
+                (image_id, model, VERSION, datetime.now().isoformat(timespec="seconds"), text_of(kept, edits),
+                 json.dumps(kept), json.dumps(answer)))
     retry.done(con, "transcribe", [image_id])
     search.index_image(con, image_id, folders)
     con.commit()  # one video at a time: each takes long enough that this is a short write between long waits
 
 
+def _record_story(con: sqlite3.Connection, story_id: int, model: str, answer: dict) -> None:
+    """What is said in a recorded story, as Whisper heard it (story.words, what someone wrote, is never touched)."""
+    kept = keep(answer.get("segments") or [])
+    con.execute("UPDATE story SET heard = ?, segments = ?, raw = ?, model = ? WHERE id = ?",
+                (" ".join(t for _, _, t in kept), json.dumps(kept), json.dumps(answer), model, story_id))
+    retry.done(con, "stories", [story_id])
+    con.commit()  # the search index takes it in on the worker's next look at search_stale (migration 027)
+
+
 def refilter(con: sqlite3.Connection) -> int:
-    """Apply this version's rules to transcripts kept under older ones."""
-    rows = con.execute("SELECT image_id, raw FROM transcript WHERE version < ?", (VERSION,)).fetchall()
+    """Apply this version's rules to transcripts kept under older ones; people's corrections stay."""
+    rows = con.execute("SELECT image_id, raw, edits FROM transcript WHERE version < ?", (VERSION,)).fetchall()
     if not rows:
         return 0
     folders = FolderIndex(con)
     for r in rows:
         kept = keep(json.loads(r["raw"]).get("segments") or [])
         con.execute("UPDATE transcript SET version = ?, text = ?, segments = ? WHERE image_id = ?",
-                    (VERSION, " ".join(t for _, _, t in kept), json.dumps(kept), r["image_id"]))
+                    (VERSION, text_of(kept, json.loads(r["edits"] or "{}")), json.dumps(kept), r["image_id"]))
         search.index_image(con, r["image_id"], folders)
     con.commit()
     return len(rows)

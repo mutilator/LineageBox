@@ -23,6 +23,11 @@ Each layer overrides the one before:
 Some settings are deliberately not on the page: the photo folders, the catalog folder and the network allow list. A
 mistake there could lock everyone out.
 
+A few choices belong to each browser, not to the install, and are kept only there (its `localStorage`): light or dark
+(More → Colours), the map's ticked layers, and whether keys of one letter work. The catalog's `settings` table also
+keeps what LineageBox notes for itself, never set by hand; one of them, `first_run_hidden`, is set once the first steps
+on an admin's Home are all done or put away.
+
 Value formats in environment variables: lists are separated by commas (`LINEAGEBOX_SCAN_IGNORE_DIRS=Thumbs,@eaDir`), and
 pairs are written `folder=path,folder=path` (`LINEAGEBOX_WEB_NETWORK_PATHS=local=\\nas\photo`). Booleans are `true` or
 `false`.
@@ -39,8 +44,9 @@ it differs.
 | `media_root` | required (Docker: `/photos`) | | The folder every photo source is in. Every catalog path starts here. |
 | `data_dir` | required (Docker: `/data`) | | The catalog: database, thumbnails, previews. Must be on a local disk. |
 | `[scan] folders` | none | Page | Watched folders inside `media_root`, `/`-separated (`local/Pictures`). |
-| `[scan] image_extensions` | `.jpg .jpeg .png .nef` | | Photo file types to catalogue. |
-| `[scan] video_extensions` | `.mts .m2ts .mp4 .m4v .mov .3gp .3g2 .avi .wmv .mpg .mpeg .mkv` | | Video file types. |
+| `[scan] image_extensions` | `.jpg .jpeg .png .tif .tiff .heic .heif .hif` and cameras' raw files (`.nef .nrw .cr2 .cr3 .crw .arw .srf .sr2 .dng .raf .orf .rw2 .rwl .pef .srw .3fr .iiq .mos .mef .mrw .erf .kdc .dcr`) | | Photo file types to catalogue: every kind LineageBox reads. Leave a kind out to skip those files. |
+| `[scan] video_extensions` | `.mts .m2ts .mp4 .m4v .mov .3gp .3g2 .avi .wmv .mpg .mpeg .mkv` | | Video file types. A video file with sound and no picture (a phone's voice note) is catalogued as a sound recording. |
+| `[scan] audio_extensions` | `.mp3 .m4a .aac .wav .wma .ogg .oga .opus .flac .amr .aif .aiff` | | Sound recordings to catalogue: digitised cassettes, voice memos. A file tagged as a song from an album (artist, album and track number) is left out as music. Set it to an empty list (`[]`) to catalogue no sound files. |
 | `[scan] ignore_dirs` | `Thumbs Previews .thumbnails` (Docker adds NAS recycle bins and thumbnail folders) | Page | Folder names (case-insensitive patterns) whose files are listed but never read. |
 
 ### Reading photos
@@ -49,7 +55,7 @@ it differs.
 |---|---|---|---|
 | `[ingest] threads` | 8 (Docker: 4) | Page | Photos read at a time. Fewer for a slow disk or share. |
 | `[ingest] video_threads` | 2 | | Of those, how many may be videos (long reads). |
-| `[ingest] thumb_size` | 400 | | Thumbnail size in pixels (WebP). |
+| `[ingest] thumb_size` | 400 | | Thumbnail size in pixels (WebP). Sharp screens get tiles of twice this size, made from the preview when first shown and kept in `data_dir/thumbs2x` (no setting). |
 | `[ingest] preview_size` | 2048 | | Preview size in pixels (JPEG), also used for faces and the AI. |
 | `[copies] threads` | 4 (Docker: 2) | | ffmpeg threads per 720p video copy. |
 | `[worker] interval_minutes` | 60 | Page | How often to look for new photos. Describing a backlog also pauses this often to look. |
@@ -64,9 +70,10 @@ it differs.
 | `[ollama] workers` | 3 (Docker: 2) | Page | Photos sent at a time. One more than Ollama's `OLLAMA_NUM_PARALLEL` keeps it busy. |
 | `[ollama] image_size` | 1024 | | Longest side sent to the model (about 1,500 prompt tokens). |
 | `[ollama] keep_alive` | `30m` | | How long Ollama keeps the model loaded between photos. |
-| `[whisper] enabled` | true | Page | Transcripts of videos. |
+| `[ollama] embed_model` | `""` (Docker and `config.example.toml`: `nomic-embed-text`) | Page | Search by meaning: the model that reads descriptions and searches ([docs/ollama.md](ollama.md#search-by-meaning)). `""` finds words only. Changing it reads every description again. |
+| `[whisper] enabled` | true | Page | Transcripts of videos, sound recordings and recorded stories. |
 | `[whisper] url` | none | Page | The speech-to-text service's address, e.g. `http://pc:9300`. |
-| `[whisper] language` | `en` | | The language spoken in videos, or `auto`. |
+| `[whisper] language` | `auto` | Page | The language spoken: `auto` lets Whisper tell from the speech, video by video; or a code such as `en` or `de` when it guesses wrong. |
 | `[faces] enabled` | true | Page | Finding and recognizing faces. |
 | `[faces] models_dir` | `~/.insightface` (Docker: `/data/insightface`) | | Where the face models are downloaded. |
 | `[library] about` | none | Page | Whose photos these are ("a family in Oregon, USA"). Helps the AI read places in folder names. |
@@ -100,6 +107,7 @@ is then 5 June, and a folder named "Party 5.6.98" is from 5 June 1998 (unticked,
 | `[web] trusted_proxies` | none | Page | Reverse proxies whose `X-Forwarded-For` and `X-Forwarded-Proto` are believed. |
 | `[web] tls_cert`, `[web] tls_key` | none | Page | HTTPS without a proxy: certificate (full chain) and key, PEM. Both or neither. |
 | `[web] hover_preview_ms` | 500 | Page | Milliseconds of pointing at a photo before it shows larger; 0 never. |
+| `[web] language` | none (English) | | Once a translation is installed ([translating](translating.md)): the pages' language for a browser that asks for none LineageBox has (`de`, `pt_BR`). A browser's own choice (More → Language) and its languages come first. |
 
 ### Family accounts
 
@@ -114,6 +122,30 @@ is then 5 June, and a folder named "Party 5.6.98" is from 5 June 1998 (unticked,
 | `[accounts] upload_max_gb` | 4 | Page | The largest single uploaded file. |
 | `[updates] check` | true | Page | Ask GitHub once a day for the newest release's version, to show admins that an update is out. |
 | `[updates] repository` | `mutilator/LineageBox` | | Where releases are published (`owner/name` on GitHub), and where the help panel's About links for the source code. A fork's images name their own. |
+
+Photo frames' device links are made and turned off on **Settings → Photo frames**, and kept in the catalog
+(`device_link`), not in a config file: each is a name, the one view it shows, how long each photo stays (8 to 60
+seconds), and whether it works only on the home network. A link away from home uses `[accounts] public_url`. New for
+you has no settings: it is shown inside the site only, and nothing is ever sent.
+
+### Backups
+
+| Setting | Default | Page | What it is |
+|---|---|---|---|
+| `[backups] enabled` | true | Page | A checked copy of the catalog on the worker's first pass of each day ([Backups](install.md#backups)). |
+| `[backups] folder` | `data_dir/backups/nightly` | Page | Where the copies go: a folder outside the watched folders that the web app and the worker can write to (in Docker, one mounted into both). In a config file it may be relative to `data_dir`; the page takes a whole path. |
+| `[backups] keep_daily` | 7 | Page | Keep the newest copy of each of this many days (1 to 90)... |
+| `[backups] keep_weekly` | 4 | Page | ...and of each of this many weeks before those (0 to 104). |
+
+### Other photo programs
+
+| Setting | Default | Page | What it is |
+|---|---|---|---|
+| `[xmp] sidecars` | false | Page | Write an XMP sidecar beside each photo the family gave names, a caption, tags given by hand, a date set by hand or a place put on the map by hand (`IMG_1234.JPG.xmp` beside `IMG_1234.JPG`), for digiKam, darktable, Lightroom and ExifTool. The worker writes them (in Docker, the copies service, as the worker only reads the photos), a few minutes at a time, and keeps them up to date; one another program made is left alone. Downloads and the export carry them either way. |
+| `[xmp] import` | true | Page | Bring in what other apps left with the photos: faces named in XMP (digiKam, Lightroom, Picasa, Windows Photo Gallery) and in Picasa's `.picasa.ini`, keywords, captions, dates and places, and Google Takeout's JSON beside the photos. Below anything set here, each photo read once. A catalog that had photos before this setting existed starts with it off. |
+
+Environment variables: `LINEAGEBOX_XMP_SIDECARS`, `LINEAGEBOX_XMP_IMPORT`. Naming photos with GPS after the nearest
+town has no setting: it uses the list of towns that comes with LineageBox, and asks nothing online.
 
 ### Other environment variables
 
@@ -143,7 +175,7 @@ is then 5 June, and a folder named "Party 5.6.98" is from 5 June 1998 (unticked,
 | `OLLAMA_VERSION`, `OLLAMA_NUM_PARALLEL` | | Ollama in Docker: its version, and photos at once. |
 | `WHISPER_URL` | `[whisper] url` | The speech-to-text service on another machine. |
 | `WHISPER_MODEL` | | Whisper in Docker: its model. |
-| `WHISPER_LANGUAGE` | `[whisper] language` | The language spoken in the videos. |
+| `WHISPER_LANGUAGE` | `[whisper] language` | The language spoken in videos, recordings and stories (`auto` by default). |
 | `LIBRARY_ABOUT` | `[library] about` | Whose photos these are. |
 | `NETWORK_PATHS` | `[web] network_paths` | Where PCs find each source. |
 | `ALLOWED_NETWORKS` | `[web] allowed_networks` | Who may use it. |

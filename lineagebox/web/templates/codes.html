@@ -1,42 +1,42 @@
 {% extends "base.html" %}
-{% block title %}Codes for signing in at home{% endblock %}
+{% block title %}{% trans %}Codes for signing in at home{% endtrans %}{% endblock %}
 {% block main %}
-<h1>Settings</h1>
+<h1>{% trans %}Settings{% endtrans %}</h1>
 <div class="settings-page">
 {% include "_settings_nav.html" %}
 <div class="settings-body">
-<p class="meta">When the internet is down, Google can't say who is signing in. An admin at home, on the home network,
+<p class="meta">{% trans %}When the internet is down, Google can't say who is signing in. An admin at home, on the home network,
 can then sign in with their email and the 6-digit code an authenticator app on their phone shows (Google
-Authenticator, Microsoft Authenticator and others do). The code changes every 30 seconds, and each works once.</p>
+Authenticator, Microsoft Authenticator and others do). The code changes every 30 seconds, and each works once.{% endtrans %}</p>
 {%- if not cfg.accounts_enabled %}
-<p class="note">Family accounts are off, so nobody signs in yet. Codes made now work once they are on.</p>
+<p class="note">{% trans %}Family accounts are off, so nobody signs in yet. Codes made now work once they are on.{% endtrans %}</p>
 {%- endif %}
 
 <div class="settings">
 <section class="panel" id="codes">
-  <h2>Codes for signing in at home</h2>
+  <h2>{% trans %}Codes for signing in at home{% endtrans %}</h2>
   {%- for a in admins %}
   <div class="account-row" id="a{{ a.id }}">
     <h3>{{ a.person_name or a.email }} <span class="hint inline">{% if a.person_name %}{{ a.email }} · {% endif %}
-      {%- if you and you.id == a.id %}you · {% endif %}{{ "has a code" if a.local_secret else "no code yet" }}
-      {%- if a.disabled_at %} · switched off{% endif %}</span></h3>
+      {%- if you and you.id == a.id %}{% trans %}you{% endtrans %} · {% endif %}{{ _("has a code") if a.local_secret else _("no code yet") }}
+      {%- if a.disabled_at %} · {% trans %}switched off{% endtrans %}{% endif %}</span></h3>
     <p class="actions">
       <button type="button"{% if not a.local_secret %} class="primary"{% endif %} data-api="/api/accounts/{{ a.id }}/local-code" data-html="#code{{ a.id }}"
-        {%- if a.local_secret %} data-confirm="Make a new code for {{ a.email }}? The one in the authenticator app now stops working."{% endif %}>
-        {{- "Make a new code" if a.local_secret else "Make a code" }}</button>
+        {%- if a.local_secret %} data-confirm="{{ _('Make a new code for %(email)s? The one in the authenticator app now stops working.', email=a.email) }}"{% endif %}>
+        {{- _("Make a new code") if a.local_secret else _("Make a code") }}</button>
       {%- if a.local_secret %}
-      <button type="button" class="quiet" data-api="/api/accounts/{{ a.id }}/local-code/remove" data-confirm="Take away the code of {{ a.email }}? Signing in at home without the internet stops working until a new one is made." data-reload>Take the code away</button>
+      <button type="button" class="quiet" data-api="/api/accounts/{{ a.id }}/local-code/remove" data-confirm="{{ _('Take away the code of %(email)s? Signing in at home without the internet stops working until a new one is made.', email=a.email) }}" data-reload>{% trans %}Take the code away{% endtrans %}</button>
       {%- endif %}
     </p>
     <div id="code{{ a.id }}"></div>
   </div>
   {%- else %}
-  <p class="note">There is no admin account yet. Add yours on <a href="/accounts">Family accounts</a> first, as an admin.</p>
+  <p class="note">{% trans %}There is no admin account yet. Add yours on <a href="/accounts">Family accounts</a> first, as an admin.{% endtrans %}</p>
   {%- endfor %}
 </section>
 </div>
-<p class="hint">Family members sign in with Google or a passkey. A passkey works at home without the internet too,
-when the home network can find the site by its name. A lost phone: take its code away here, or make a new one.</p>
+<p class="hint">{% trans %}Family members sign in with Google or a passkey. A passkey works at home without the internet too,
+when the home network can find the site by its name. A lost phone: take its code away here, or make a new one.{% endtrans %}</p>
 </div>
 </div>
 {% endblock %}

@@ -1,25 +1,44 @@
 {% extends "base.html" %}
-{% block title %}Map{% endblock %}
+{% block title %}{% trans %}Map{% endtrans %}{% endblock %}
 {% block head %}
 <link rel="stylesheet" href="/static/vendor/leaflet-1.9.4/leaflet.css">
 <script src="/static/vendor/leaflet-1.9.4/leaflet.js" defer></script>
 <script src="/static/map.js?v={{ static_version }}" defer></script>
 {% endblock %}
 {% block main %}
-<h1>Map</h1>
-<p class="meta">Where the photos were taken (by their GPS, else the place in their folder's name), and where family
+<h1>{% trans %}Map{% endtrans %}</h1>
+<p class="meta">{% trans %}Where the photos were taken (where someone put them, their GPS, else their folder's place), and where family
 events happened (from Life events). Pick a year below to see that year only; the bars are photos per year, darker
-where the camera or the folder says when, lighter where only the file's time does.</p>
-<div class="map-years" id="years" aria-label="Photos per year"></div>
+where the camera or the folder says when, lighter where only the file's time does.{% endtrans %}</p>
+{#- Placing a photo, or for an admin a folder, by hand (/map?place=image:12 or /map?place=folder:3, from its page):
+    map.js fills this in and shows it. A pin is put down by clicking the map, by finding a town, or (from the keyboard)
+    in the middle of the map, then dragged to the spot. #}
+<section class="map-placing" id="placing" hidden aria-labelledby="placing-title">
+  <img id="placing-thumb" alt="" hidden>
+  <div>
+    <h2 id="placing-title">{% trans %}Where was <span id="placing-what">this photo</span> taken?{% endtrans %}</h2>
+    <p class="hint" id="placing-where">{% trans %}Click the map where it was taken, or find a town, then drag the pin to the spot.{% endtrans %}</p>
+    <p class="placing-find"><label>{% trans %}Find a town{% endtrans %} <input type="search" id="placing-town" autocomplete="off" placeholder="{{ _('town or city') }}"></label>
+      <button type="button" class="quiet" id="placing-centre" title="{{ _('Move the map with the arrow keys and + and −, then put the pin in its middle') }}">{% trans %}Pin the middle of the map{% endtrans %}</button></p>
+    <ul class="placing-towns" id="placing-towns" aria-live="polite"></ul>
+    <p class="placing-buttons"><button type="button" class="primary" id="placing-save" disabled>{% trans %}Save this place{% endtrans %}</button>
+      <button type="button" class="quiet" id="placing-clear" hidden>{% trans %}Take it off the map{% endtrans %}</button>
+      <a id="placing-back" href="/map">{% trans %}Back{% endtrans %}</a></p>
+  </div>
+</section>
+<div class="map-years" id="years" aria-label="{{ _('Photos per year') }}"></div>
 <p class="year-pick">
-  <input type="range" id="year" min="1900" max="2030" step="1" aria-label="Year" data-key="y" data-key-label="Pick a year (then ← →)">
-  <b id="year-label">All years</b>
-  <button type="button" id="all-years" class="quiet" data-key="a">All years</button>
+  <input type="range" id="year" min="1900" max="2030" step="1" aria-label="{{ _('Year') }}" data-key="y" data-key-label="{{ _('Pick a year (then ← →)') }}">
+  <b id="year-label">{% trans %}All years{% endtrans %}</b>
+  <button type="button" id="all-years" class="quiet" data-key="a">{% trans %}All years{% endtrans %}</button>
   <span class="hint inline" id="map-note"></span>
 </p>
 <div id="map" data-tiles="{{ cfg.map_tiles }}" data-attribution="{{ cfg.map_attribution }}"{% if viewer.admin %} data-admin{% endif %}></div>
-<p class="hint">Circles are bigger for more photos; click one for its photos. Tick or untick what to show in the box
-  at the map's top right.
-  {%- if not cfg.places_lookup %} Places named in folders and life events show once <a href="/settings#map">finding them
-  with OpenStreetMap</a> is on.{% endif %}</p>
+<p class="hint">{% trans %}Circles are bigger for more photos; click one for its photos. Tick or untick what to show in the box
+  at the map's top right. To put a photo on the map yourself, open it and pick “Put it on the map” in its Details.{% endtrans %}
+  {%- if not cfg.places_lookup %} {% trans %}Places named in folders and life events show once <a href="/settings#map">finding them
+  with OpenStreetMap</a> is on.{% endtrans %}{% endif %}</p>
+<p class="hint">{% trans %}Town names for photos with GPS: <a href="https://www.geonames.org/" target="_blank"
+  rel="noopener">GeoNames</a>, <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY
+  4.0</a>. The list of towns comes with LineageBox, so naming places sends nothing anywhere.{% endtrans %}</p>
 {% endblock %}

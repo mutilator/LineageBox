@@ -1,15 +1,15 @@
 {# The Tours page's suggestions: loaded after the page by app.js (data-later), since they take a while to work out. #}
 {%- if suggestions %}
-<h2>Suggested tours</h2>
-<p class="hint">Picked from what your photos show most: the people in the most of them, busy years and seasons,
-birthdays coming up, and occasions that come back every year. They change as photos are added and people named.</p>
+<h2>{% trans %}Suggested tours{% endtrans %}</h2>
+<p class="hint">{% trans %}Picked from what your photos show most: the people in the most of them, busy years and seasons,
+birthdays coming up, and occasions that come back every year. They change as photos are added and people named.{% endtrans %}</p>
 <div class="suggestions">
 {%- for s in suggestions %}
   <div class="suggestion">
     <div class="covers">{% for sha in s.covers %}<img src="/t/{{ sha }}" alt="" loading="lazy">{% endfor %}</div>
     <b>{{ s.name }}</b>
-    <span class="hint">{{ s.why }} · {{ "{:,}".format(s.count) }} photo{{ "" if s.count == 1 else "s" }}</span>
-    <button type="button" data-api="/api/tours" data-body='{{ s.body|tojson }}' data-busy="Making…">Make this tour</button>
+    <span class="hint">{% trans count=s.count, why=s.why, s_count=s.count|number %}{{ why }} · {{ s_count }} photo{% pluralize %}{{ why }} · {{ s_count }} photos{% endtrans %}</span>
+    <button type="button" data-api="/api/tours" data-body='{{ s.body|tojson }}' data-busy="{{ _('Making…') }}">{% trans %}Make this tour{% endtrans %}</button>
   </div>
 {%- endfor %}
 </div>

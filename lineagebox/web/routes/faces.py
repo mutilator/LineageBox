@@ -6,8 +6,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 
 from lineagebox import access, catalog, changes, faces, media, people
-from lineagebox.web.common import (ADMIN, MEMBER, FacesBody, MergeBody, NameBody, _among, _by, _face_to_change,
-                                   _faces_spec, _family_spec, _from_app, _people_or_404, _same_group)
+from lineagebox.web.common import (ADMIN, MEMBER, FacesBody, MergeBody, NameBody, RenameBody, _among, _by,
+                                   _face_to_change, _faces_spec, _family_spec, _from_app, _merge_spec, _people_or_404,
+                                   _same_group)
 from lineagebox.web.deps import con, site, viewer, writer
 from lineagebox.web.site import Site
 
@@ -47,7 +48,10 @@ def face_crop(face_id: int, v=Depends(viewer), s: Site = Depends(site)):
         raise HTTPException(404)
     path = s.cfg.face_crop_path(face_id, f["x1"], f["y1"])
     if not path.is_file():
-        im = Image.open(s.cfg.picture_path(f["sha256"], f["frame"]))
+        picture = s.cfg.picture_path(f["sha256"], f["frame"])
+        if not picture.is_file():  # its preview is gone (made again on the worker's daily check): nothing to crop yet
+            raise HTTPException(404, "This face's picture isn't there yet")
+        im = Image.open(picture)
         w, h = im.size
         cx, cy = (f["x1"] + f["x2"]) / 2 * w, (f["y1"] + f["y2"]) / 2 * h
         half = max((f["x2"] - f["x1"]) * w, (f["y2"] - f["y1"]) * h) * 0.75
@@ -74,9 +78,9 @@ def name_cluster(cluster_id: int, body: NameBody, face: list[int] = Query(), v=D
                  w=Depends(writer)):
     _same_group(c, cluster_id, face)
     faces = people.cluster_faces(c, cluster_id)  # a member's: those in photos they see
-    with changes.tracking(w, v, "faces", f"Named {len(faces)} faces {body.name}", _faces_spec(v, faces)):
+    with changes.tracking(w, v, "faces", f"Named {len(faces)} faces {body.name}", _faces_spec(v, faces)) as kept:
         pid = people.name_faces(w, faces, body.name, body.name_id, _among(v), _by(v))
-    return {"person_id": pid}
+    return {"person_id": pid, "undo": kept.id}
 
 
 @router.post("/api/clusters/{cluster_id}/ignore", dependencies=[Depends(_from_app)])
@@ -84,17 +88,17 @@ def ignore_cluster(cluster_id: int, face: list[int] = Query(), v=Depends(viewer)
                    w=Depends(writer)):
     _same_group(c, cluster_id, face)
     ids = people.cluster_faces(c, cluster_id)
-    with changes.tracking(w, v, "faces", f"Hid a group of {len(ids)} faces", _faces_spec(v, ids)):
+    with changes.tracking(w, v, "faces", f"Hid a group of {len(ids)} faces", _faces_spec(v, ids)) as kept:
         people.set_aside(w, ids)
-    return {"faces": len(ids)}
+    return {"faces": len(ids), "undo": kept.id}
 
 
 @router.post("/api/faces/{face_id}/name", dependencies=[Depends(_from_app)])
 def name_face(face_id: int, body: NameBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     _face_to_change(c, v, face_id)
-    with changes.tracking(w, v, "faces", f"Named a face {body.name}", _faces_spec(v, [face_id])):
+    with changes.tracking(w, v, "faces", f"Named a face {body.name}", _faces_spec(v, [face_id])) as kept:
         pid = people.name_faces(w, [face_id], body.name, body.name_id, _among(v), _by(v))
-    return {"person_id": pid}
+    return {"person_id": pid, "undo": kept.id}
 
 
 @router.post("/api/faces/{face_id}/not", dependencies=[Depends(_from_app)])
@@ -102,9 +106,9 @@ def not_them(face_id: int, v=Depends(viewer), c=Depends(con), w=Depends(writer))
     if catalog.face(c, face_id) is None:
         raise HTTPException(404, "No such face")
     _face_to_change(c, v, face_id)
-    with changes.tracking(w, v, "faces", "Took a name off a face", _faces_spec(v, [face_id])):
+    with changes.tracking(w, v, "faces", "Took a name off a face", _faces_spec(v, [face_id])) as kept:
         people.not_them(w, [face_id])
-    return {}
+    return {"undo": kept.id}
 
 
 @router.post("/api/faces/{face_id}/not-a-face", dependencies=[Depends(_from_app)])
@@ -112,9 +116,9 @@ def not_a_face(face_id: int, v=Depends(viewer), c=Depends(con), w=Depends(writer
     if catalog.face(c, face_id) is None:
         raise HTTPException(404, "No such face")
     _face_to_change(c, v, face_id)
-    with changes.tracking(w, v, "faces", "Marked something as not a face", _faces_spec(v, [face_id])):
+    with changes.tracking(w, v, "faces", "Marked something as not a face", _faces_spec(v, [face_id])) as kept:
         people.set_aside(w, [face_id], "not_a_face")
-    return {}
+    return {"undo": kept.id}
 
 
 @router.post("/api/images/{image_id}/faces", dependencies=[Depends(_from_app)])
@@ -143,35 +147,55 @@ def look_again(image_id: int, v=Depends(viewer), c=Depends(con), w=Depends(write
 @router.post("/api/faces/{face_id}/reject", dependencies=[Depends(_from_app)])
 def reject_face(face_id: int, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     _face_to_change(c, v, face_id)
-    with changes.tracking(w, v, "faces", "Set a face aside", _faces_spec(v, [face_id])):
+    with changes.tracking(w, v, "faces", "Set a face aside", _faces_spec(v, [face_id])) as kept:
         people.set_aside(w, [face_id])
-    return {}
+    return {"undo": kept.id}
 
 
 @router.post("/api/people/{person_id}/rename", dependencies=[Depends(_from_app)])
-def rename_person(person_id: int, body: NameBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
+def rename_person(person_id: int, body: RenameBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
+    """A new name. An admin's rename to the name of someone else merges the two (people.rename), so it is asked
+    first: the answer is {"confirm": ...} until the same rename comes back with merge set."""
     _people_or_404(c, person_id)
     old = (catalog.person(c, person_id) or {"name": "?"})["name"]
+    into = people.same_name(w, person_id, body.name) if v.admin else None
+    if into is not None:
+        other = catalog.person(w, into)["name"]
+        if not body.merge:
+            return {"confirm": f"{other} is already in the catalog. Renaming {old} to that makes the two one person: "
+                               f"{old}'s faces, photos and family go to {other}. Merge them? (Cleanup → Recent "
+                               f"changes can undo it.)"}
+        with changes.tracking(w, v, "person", f"Merged {old} into {other}", _merge_spec(w, v, person_id, into)):
+            pid = people.rename(w, person_id, body.name, merge_same=True)
+        return {"person_id": pid}
     with changes.tracking(w, v, "person", f"Renamed {old} to {body.name}", _family_spec(v, person_id)):
         pid = people.rename(w, person_id, body.name, merge_same=v.admin)
     return {"person_id": pid}
 
 
 @router.post("/api/people/{person_id}/merge", dependencies=[Depends(_from_app)])
-def merge_person(person_id: int, body: MergeBody, c=Depends(con)):
+def merge_person(person_id: int, body: MergeBody, v=Depends(viewer), c=Depends(con)):
     if catalog.person(c, person_id) is None or catalog.person(c, body.into) is None:
         raise HTTPException(404, "No such person")
     if body.into == person_id:
         raise HTTPException(400, "Pick someone else to merge into.")
-    return {"person_id": people.merge(c, person_id, body.into)}
+    names = [catalog.person(c, p)["name"] for p in (person_id, body.into)]
+    with changes.tracking(c, v, "person", "Merged {} into {}".format(*names), _merge_spec(c, v, person_id, body.into)):
+        pid = people.merge(c, person_id, body.into)
+    return {"person_id": pid}
 
 
 @router.post("/api/people/{person_id}/remove", dependencies=[Depends(_from_app)])
-def remove_person(person_id: int, c=Depends(con)):
-    """Someone added by mistake taken out of the family tree (people.remove says who can't be)."""
+def remove_person(person_id: int, v=Depends(viewer), c=Depends(con)):
+    """Someone taken out of the catalog, their name off every face that had it (people.remove says who can't be).
+    Kept on Recent changes, so a removal by mistake can be undone."""
     if catalog.person(c, person_id) is None:
         raise HTTPException(404, "No such person")
-    return {"message": f"{people.remove(c, person_id)} was removed."}
+    with changes.tracking(c, v, "person", f"Removed {catalog.person(c, person_id)['name']}",
+                          _merge_spec(c, v, person_id)) as kept:
+        name, unnamed = people.remove(c, person_id)
+    faces = f" {unnamed:,} face{'' if unnamed == 1 else 's'} {'is' if unnamed == 1 else 'are'} unnamed again."
+    return {"message": f"{name} was removed." + (faces if unnamed else ""), "undo": kept.id}
 
 
 @router.post("/api/people/{person_id}/faces", dependencies=[Depends(_from_app)])

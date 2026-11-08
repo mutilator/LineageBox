@@ -1,47 +1,47 @@
 {% extends "base.html" %}
 {% set nav = "cleanup" %}
-{% block title %}Turned photos{% endblock %}
+{% block title %}{% trans %}Turned photos{% endtrans %}{% endblock %}
 {% macro turned_grid(found) %}
 <div class="grid selectable">
 {%- for s in found %}
   <label class="tile pick" title="{{ s.doubt or ('%d faces say it is turned'|format(s.faces)) }}">
     {%- if not s.problem %}<input type="checkbox" name="image" value="{{ s.id }}">{% endif %}
-    <img src="/t/{{ s.image.sha256 }}" class="turn-{{ s.turn }}" loading="lazy" alt="Photo from {{ s.image.taken_at|date(false) }}, shown turned">
-    <a class="open" href="/image/{{ s.id }}" target="_blank" title="Open it as it is now, in a new tab">↗</a>
+    <img src="/t/{{ s.image.sha256 }}" class="turn-{{ s.turn }}" loading="lazy" alt="{{ _('Photo from %(taken_at)s, shown turned', taken_at=s.image.taken_at|date(false)) }}">
+    <a class="open" href="/image/{{ s.id }}" target="_blank" title="{{ _('Open it as it is now, in a new tab') }}">↗</a>
     {%- if s.problem %}<span class="badge wide">{{ s.problem }}</span>{% elif s.doubt %}<span class="badge wide">{{ s.doubt }}</span>{% endif %}
   </label>
 {%- endfor %}
 </div>
 {% endmacro %}
 {% block main %}
-<nav class="crumbs"><a href="/cleanup">Cleanup</a><span class="sep">/</span><h1>Turned photos</h1></nav>
-<p class="meta">Photos whose faces all lie the same way, none of them upright, shown here turned the way the faces say.
+<nav class="crumbs"><a href="/cleanup">{% trans %}Cleanup{% endtrans %}</a><span class="sep">/</span><h1>{% trans %}Turned photos{% endtrans %}</h1></nav>
+<p class="meta">{% trans %}Photos whose faces all lie the same way, none of them upright, shown here turned the way the faces say.
 Tick the ones that now look right and turn them: their files are changed too (only the orientation tag, not the
-picture), so every program shows them the right way up. Mark the rest fine, and they are not listed again.
-{%- if ok_count %} {{ "{:,}".format(ok_count) }} marked fine so far.{% endif %} What is listed is set under
-<a href="/settings#cleanup">Settings → Cleanup</a>.</p>
+picture), so every program shows them the right way up. Mark the rest fine, and they are not listed again.{% endtrans %}
+{%- if ok_count %} {% trans ok_count=ok_count|number %}{{ ok_count }} marked fine so far.{% endtrans %}{% endif %} {% trans %}What is listed is set under
+<a href="/settings#cleanup">Settings → Cleanup</a>.{% endtrans %}</p>
 
 {% if sure or unsure %}
 <form class="select-form" data-select-api="/api/images/turn">
   {%- if sure %}
-  <h2>Surely turned <small>{{ sure|length }}</small></h2>
+  <h2>{% trans %}Surely turned{% endtrans %} <small>{{ sure|length }}</small></h2>
   {{ turned_grid(sure) }}
   {%- endif %}
   {%- if unsure %}
-  <h2>Worth a look <small>{{ unsure|length }}</small></h2>
-  <p class="hint">The faces say these are turned, but not as surely: only one face, or the AI thinks the photo is the
-  right way up as it is (people lying down or bent over have their heads sideways too).</p>
+  <h2>{% trans %}Worth a look{% endtrans %} <small>{{ unsure|length }}</small></h2>
+  <p class="hint">{% trans %}The faces say these are turned, but not as surely: only one face, or the AI thinks the photo is the
+  right way up as it is (people lying down or bent over have their heads sideways too).{% endtrans %}</p>
   {{ turned_grid(unsure) }}
   {%- endif %}
   <div class="select-bar">
-    <button type="button" data-select="all" data-key="a">Select all</button>
-    <button type="button" data-select="none" data-key="n">Select none</button>
-    <button type="submit" class="primary" data-label="Turn {n} the right way up" disabled>Turn 0 the right way up</button>
-    <button type="submit" data-api="/api/images/turn-ok" data-label="{n} are fine as they are" disabled>0 are fine as they are</button>
+    <button type="button" data-select="all" data-key="a">{% trans %}Select all{% endtrans %}</button>
+    <button type="button" data-select="none" data-key="n">{% trans %}Select none{% endtrans %}</button>
+    <button type="submit" class="primary" data-label="{{ _('Turn {n} the right way up') }}" disabled>{% trans %}Turn 0 the right way up{% endtrans %}</button>
+    <button type="submit" data-api="/api/images/turn-ok" data-label="{{ _('{n} are fine as they are') }}" disabled>{% trans %}0 are fine as they are{% endtrans %}</button>
   </div>
 </form>
 {% else %}
-<p class="note">No photos look turned{% if level == "sure" %}, as surely as this setting asks; Settings → Cleanup can
-list the less sure ones too{% endif %}.</p>
+<p class="note">{% trans %}No photos look turned{% endtrans %}{% if level == "sure" %}{% trans %}, as surely as this setting asks; Settings → Cleanup can
+list the less sure ones too{% endtrans %}{% endif %}.</p>
 {% endif %}
 {% endblock %}

@@ -1,6 +1,8 @@
-# Setting up Whisper: what is said in videos
+# Setting up Whisper: what is said in videos, recordings and stories
 
-LineageBox takes the sound out of each video and sends it to its speech-to-text service (`whisper_service/`, built on [whisper.cpp](https://github.com/ggml-org/whisper.cpp)). What was said becomes searchable ("happy birthday", a name) and shows on the video's page, with each line linked to its moment in the video. Wind, music and the usual Whisper inventions ("Thank you.", "you") are filtered out.
+LineageBox takes the sound out of each video and sound recording (a digitised cassette, a voice memo), and of each story the family records on a photo or a person's page, and sends it to its speech-to-text service (`whisper_service/`, built on [whisper.cpp](https://github.com/ggml-org/whisper.cpp)). What was said becomes searchable ("happy birthday", a name) and shows on the page, with each line linked to its moment in the video or recording. Wind, music and the usual Whisper inventions ("Thank you.", "you") are filtered out. Recorded stories go first: they are short, and the family's own words.
+
+A line Whisper misheard can be put right on the page ("fix"), and a story's words by whoever recorded it. Corrections are kept as the family's: hearing the video again, or filtering it under better rules, never writes over them.
 
 The service can run in three places:
 
@@ -8,7 +10,7 @@ The service can run in three places:
 |---|---|
 | [A Windows PC with an NVIDIA graphics card](#on-a-windows-pc-with-an-nvidia-graphics-card) | Fast: tens of times faster than the videos play. |
 | [In Docker, next to LineageBox](#in-docker-next-to-lineagebox) | No other machine. Runs on the processor, so it is slow, but it gets through a library in the background. |
-| [Nowhere: turned off](#turning-it-off) | Everything else works; videos just have no transcripts. |
+| [Nowhere: turned off](#turning-it-off) | Everything else works; videos, recordings and stories just have no transcripts (stories can still be listened to, and their words typed by hand). |
 
 Transcribing runs during the same hours as AI descriptions (**When the AI may describe** on the Settings page).
 
@@ -63,13 +65,13 @@ On **Linux with an NVIDIA card**, build whisper.cpp with CUDA (`cmake -B build -
 
 The models are kept in the Docker volume `lineagebox_whisper`.
 
-**Language:** LineageBox asks for English by default. For another language, set `WHISPER_LANGUAGE` in `.env` to its code (e.g. `de`), or to `auto` to let Whisper tell.
+**Language:** LineageBox asks Whisper to tell the language from the speech itself (`auto`), each video, recording and story on its own, so a family that speaks two languages gets both. Short, noisy clips can be guessed wrong; to have one language always, set it under **Settings → AI, speech and faces** (**Language spoken**, a code such as `en` or `de`), or `WHISPER_LANGUAGE` in `.env`. The English-only models (`.en`) always hear English.
 
 **Who may use it:** like LineageBox, the service only answers the home network (private IPv4 and IPv6 addresses). If LineageBox reaches it from another range, such as a VPN's `100.64.0.0/10`, set `WHISPER_ALLOWED_NETWORKS=100.64.0.0/10` (comma-separated) where the service runs.
 
 ## Turning it off
 
-Untick **Transcribe what is said in videos** on the Settings page. Transcripts already made stay, and remain searchable. Tick it again to carry on.
+Untick **Transcribe what is said in videos, sound recordings and recorded stories** on the Settings page. Transcripts already made stay, and remain searchable. Tick it again to carry on.
 
 ## When something is wrong
 

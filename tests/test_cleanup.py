@@ -183,6 +183,12 @@ def test_kept_photos_are_not_suggested_again(lib, cfg):
     assert cleanup.keep_images(con, [image_id]) == 1
     assert image_id not in blurry_ids() and cleanup.reference_photos(con)["papers"] == []
     assert cleanup.summary(con, 1e9)["kept"] == 1 and [r["id"] for r in cleanup.kept(con)[0]] == [image_id]
+    # the Cleanup card counts the photos and the folder pairs kept, as its page lists both
+    con.execute("INSERT INTO kept_copies(folder_a, folder_b, kept_at) VALUES (1, 2, '2026-11-08T10:00:00')")
+    con.commit()
+    card = TestClient(webapp.create_app(cfg), client=LAN).get("/cleanup/counts/kept").text
+    assert '<span class="num">2</span>' in card and "1 photo,\n1 folder pair." in card
+    con.execute("DELETE FROM kept_copies")
     cleanup.keep_images(con, [image_id], keep=False)
     assert image_id in blurry_ids()
 
@@ -290,3 +296,51 @@ def test_similar_shots_survive_odd_rows(lib, cfg):
         _mark(kind, [a, dict(a)], True)  # the same photo twice, size unknown
         _mark(kind, [a, {**a, "id": 2}], True)  # two photos of unknown size: neither is a "smaller copy"
     assert not _mark("smaller", [a, {**a, "id": 2}], True)
+
+
+def test_members_clean_up_their_own_uploads(con, cfg, library):
+    """Blank and blurry, and Similar shots, for a member: of the photos they uploaded and nobody else has, moved to
+    Removed as their uploads are; never another photo they see, nor one they don't."""
+    from lineagebox import settings
+    from tests import family_fixture as fx
+    from tests.test_uploads import client, jpeg, upload
+
+    site = fx.build(con, cfg, library)
+    p, photos = site["people"], site["photos"]
+    fx.account(con, p["Sam"], "sam@example.com", "admin")
+    cora = fx.account(con, p["Cora"], "cora@example.com")
+    settings.save(con, cfg, {"accounts_enabled": True})
+    for name, color in (("a.jpg", "red"), ("b.jpg", "green"), ("c.jpg", "blue")):
+        assert upload(client(cfg, con, cora), name, jpeg(color), folder="Trip").status_code == 200
+    scan(con, cfg)
+    ingest(con, cfg, show_progress=False)
+    up = {n: con.execute("SELECT image_id FROM file WHERE path LIKE ?", (f"%/Trip/{n}",)).fetchone()[0]
+          for n in ("a.jpg", "b.jpg", "c.jpg")}
+    hers_too = photos["cora_bart.jpg"]  # a photo she sees, not one she uploaded
+    con.execute("UPDATE image SET sharpness = 80, dup_group_id = NULL")
+    con.execute("UPDATE image SET dup_group_id = ? WHERE id IN (?, ?, ?)", (up["a.jpg"], up["a.jpg"], up["b.jpg"],
+                                                                            hers_too))
+    con.execute("UPDATE image SET sharpness = 1 WHERE id IN (?, ?, ?)", (up["c.jpg"], hers_too, photos["zed.jpg"]))
+    con.commit()
+
+    as_cora = client(cfg, con, cora)
+    page = as_cora.get("/cleanup").text
+    assert 'data-later="/cleanup/counts/blurry"' in page and 'data-later="/cleanup/counts/similar"' in page
+    assert 'data-later="/cleanup/counts/copies"' not in page
+    assert '<span class="num">1</span>' in as_cora.get("/cleanup/counts/blurry").text
+    assert '<span class="num">1</span>' in as_cora.get("/cleanup/counts/similar").text
+    blurry = as_cora.get("/cleanup/blurry").text
+    assert f'value="{up["c.jpg"]}"' in blurry and f'value="{hers_too}"' not in blurry
+    assert f'value="{photos["zed.jpg"]}"' not in blurry and "/api/images/keep" not in blurry
+    similar = as_cora.get("/cleanup/similar").text
+    assert f'value="{up["a.jpg"]}"' in similar and f'value="{up["b.jpg"]}"' in similar
+    assert f'value="{hers_too}"' not in similar and "Keep all" not in similar and "an admin can put them back" in similar
+    assert as_cora.post("/api/similar/remove-all?kind=same", headers=APP).status_code in (403, 404)
+
+    r = as_cora.post("/api/images/remove", json={"image_ids": [up["c.jpg"]], "reason": "blank or blurry"}, headers=APP)
+    assert r.status_code == 200 and r.json()["moved"] == 1, r.text
+    assert as_cora.post("/api/images/remove", json={"image_ids": [hers_too]}, headers=APP).status_code == 404
+
+    sam = client(cfg, con, fx.account(con, p["Bart"], "bart@example.com", "admin"))
+    everyone = sam.get("/cleanup/blurry").text  # an admin's: the whole library's
+    assert f'value="{hers_too}"' in everyone and f'value="{photos["zed.jpg"]}"' in everyone

@@ -1,15 +1,18 @@
-"""Photo tours: the list, suggestions, the wizard, a tour and its slideshow, and kinds of tours."""
+"""Photo tours: the list, suggestions, the wizard, a tour and its slideshow (and saved as a video), and kinds of
+tours."""
 import dataclasses
 import json
+import re
 import time
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 
-from lineagebox import access, accounts, catalog, dates, sharing, tour_suggestions, tours
-from lineagebox.web.common import (ADMIN, MEMBER, _by, _covers, _from_app, _own_tour, _people_or_404,
-                                   _share_panel)
+from lineagebox import access, accounts, albums, catalog, dates, sharing, slideshow, tour_suggestions, tours
+from lineagebox.web.common import (ADMIN, MEMBER, PRIVATE, _attachment, _by, _covers, _from_app, _own_tour,
+                                   _people_or_404, _share_panel)
 from lineagebox.web.deps import con, page, site, viewer, writer
+from lineagebox.web import pieces  # a tour's photos a piece at a time
 from lineagebox.web.site import Site
 
 router = APIRouter()
@@ -24,6 +27,9 @@ ACCESS = {
     "/api/tours": MEMBER,
     "/api/tours/{tour_id}": MEMBER,
     "/api/tours/{tour_id}/delete": MEMBER,
+    "/api/tours/{tour_id}/video": MEMBER,
+    "/tour/{tour_id}/video": MEMBER,
+    "/download/tour/{tour_id}/video": MEMBER,
     "/settings/tour-types/{type_id}": ADMIN,
     "/api/tour-types": ADMIN,
     "/api/tour-types/{type_id}": ADMIN,
@@ -85,7 +91,7 @@ def tours_page(request: Request, v=Depends(viewer), c=Depends(con), w=Depends(wr
         t["asks"] = tours.questions(t["spec"])
     mine = [t for t in saved if v.admin or t["account_id"] == v.account_id]
     return page(request, "tours.html", nav="tours", tours=mine, others=[t for t in saved if t not in mine],
-                types=kinds)
+                types=kinds, albums=albums.listing(c)[:8])
 
 
 def suggestions(s: Site, v: access.Viewer, c) -> list[dict]:
@@ -117,11 +123,25 @@ def try_tour(request: Request, body: str = "", v=Depends(viewer), c=Depends(con)
     except (ValueError, tours.Problem):
         raise HTTPException(404, "No such tour") from None
     chosen = tours.photos(c, spec, s.live(c).blurry_below)
-    images = [{"id": p["id"], "sha256": p["sha"], "taken_at": p["taken"], "taken_at_source": None,
-               "media": p["media"], "duration": p["duration"]} for p in chosen]
-    return page(request, "tour.html", nav="tours", tour={"id": None, "name": tours.title(c, spec), "spec": spec},
-                images=images, slides=tours.slides(c, chosen), about=tours.describe(c, spec), ctx="", theirs=False,
-                from_whom=None, sharing=None, keep=asked)
+    images = _tiles(chosen)
+    photos = pieces.part(request, images, "")
+    if photos["w"].piece:
+        return page(request, "_piece.html", p=photos)
+    name = tours.title(c, spec)
+    return page(request, "tour.html", nav="tours", tour={"id": None, "name": name, "spec": spec},
+                images=images, photos=photos, slides=with_title(c, name, chosen), about=tours.describe(c, spec),
+                ctx="", theirs=False, from_whom=None, sharing=None, keep=asked, video=None)
+
+
+def _tiles(chosen: list[dict]) -> list[dict]:
+    """A tour's photos as the grids show photos."""
+    return [{"id": p["id"], "sha256": p["sha"], "taken_at": p["taken"], "taken_at_source": None,
+             "media": p["media"], "duration": p["duration"]} for p in chosen]
+
+
+def with_title(c, name: str, chosen: list[dict], about: str = "") -> list[dict]:
+    """The slides, after a title card with the name and the time the photos span (none when there are no photos)."""
+    return [tours.title_card(name, chosen, about), *tours.slides(c, chosen)] if chosen else []
 
 
 def wizard(request: Request, c, tour_type: dict | None, tour: dict | None):
@@ -142,21 +162,83 @@ def new_tour(request: Request, type: int = Query(), c=Depends(con)):
 
 
 @router.get("/tour/{tour_id}", response_class=HTMLResponse)
-def tour_page(request: Request, tour_id: int, v=Depends(viewer), c=Depends(con), w=Depends(writer),
-              s: Site = Depends(site)):
+def tour_page(request: Request, tour_id: int, select: bool = False, v=Depends(viewer), c=Depends(con),
+              w=Depends(writer), s: Site = Depends(site)):
+    """A tour: its slideshow, and its photos a piece at a time (pieces.py), which can be ticked to work on."""
     t = tours.tour(c, tour_id)
     if t is None:
         raise HTTPException(404, "No such tour")
+    if request.query_params.get("piece") == "1":  # the next piece of its photos (pieces.py): picked once a minute
+        chosen = s.keep(v, ("tour piece", tour_id), 60, lambda: shown(s, v, c, w, t)[0])
+        return page(request, "_piece.html", p=pieces.part(request, _tiles(chosen), f"tour:{tour_id}", select))
     chosen, _ = shown(s, v, c, w, t)
-    images = [{"id": p["id"], "sha256": p["sha"], "taken_at": p["taken"], "taken_at_source": None,
-               "media": p["media"], "duration": p["duration"]} for p in chosen]
+    images = _tiles(chosen)
     theirs = v.admin or t["account_id"] == v.account_id
     from_whom = next((x["by_name"] for x in sharing.with_me(w, v.account_id)
                       if x["kind"] == "tour" and x["item_id"] == tour_id), None) if not theirs else None
     signed_in = getattr(request.state, "account", None)
-    return page(request, "tour.html", nav="tours", tour=t, images=images, slides=tours.slides(c, chosen),
+    return page(request, "tour.html", nav="tours", tour=t, images=images, slides=with_title(c, t["name"], chosen),
+                photos=pieces.part(request, images, f"tour:{tour_id}", select), select=select,
+                everything=[p["id"] for p in images] if select else None,
                 about=tours.describe(c, t["spec"]), ctx=f"tour:{tour_id}", theirs=theirs, from_whom=from_whom,
-                sharing=_share_panel(w, v, "tour", tour_id) if theirs and signed_in else None)
+                sharing=_share_panel(w, v, "tour", tour_id) if theirs and signed_in else None,
+                video=video_part("tour", tour_id, slideshow.latest(w, v.account_id, "tour", tour_id)))
+
+
+# ---- saved as a video (slideshow.py) -------------------------------------------------------------------------------
+
+def video_part(kind: str, item_id: int, made: dict | None, polled: bool = False) -> dict:
+    """What _slideshow_video.html shows of a tour's or an album's video: whether one was asked for and how far it
+    is. polled: asked for again by the part itself (data-live), which has the page loaded again once it is done."""
+    return {"kind": kind, "item_id": item_id, "made": made, "polled": polled,
+            "most_minutes": slideshow.MOST_MINUTES, "keep_days": slideshow.KEEP_DAYS}
+
+
+def ask_for_video(w, v: access.Viewer, kind: str, item_id: int, name: str, slides: list[dict], seconds: int) -> dict:
+    """Ask the worker for the video of these slides, as the viewer sees them."""
+    if v.seeing_as:
+        raise HTTPException(403, "Nothing can be changed while seeing the site as someone else.")
+    slideshow.ask(w, v.account_id, kind, item_id, name, slides, seconds)
+    return {"reload": True, "message": "The video is being made: this page says when it is ready."}
+
+
+def video_file(s: Site, w, v: access.Viewer, kind: str, item_id: int, name: str) -> FileResponse:
+    """The viewer's own video of a tour or an album, once made."""
+    found = slideshow.path(s.cfg, w.execute(f"""SELECT * FROM main.slideshow_video WHERE {kind}_id = ?
+                                                AND account_id IS ? ORDER BY id DESC LIMIT 1""",
+                                            (item_id, v.account_id)).fetchone())
+    if found is None:
+        raise HTTPException(404, "There is no video of it yet")
+    plain = re.sub(r"[^\w -]+", "", name).strip() or kind
+    return FileResponse(found, media_type="video/mp4",
+                        headers={"Content-Disposition": _attachment(f"{plain}.mp4"), **PRIVATE})
+
+
+@router.post("/api/tours/{tour_id}/video", dependencies=[Depends(_from_app)])
+def tour_video(tour_id: int, v=Depends(viewer), c=Depends(con), w=Depends(writer), s: Site = Depends(site)):
+    """Save as a video: the tour as the viewer sees it, made by the worker."""
+    t = tours.tour(c, tour_id)
+    if t is None:
+        raise HTTPException(404, "No such tour")
+    chosen, _ = shown(s, v, c, w, t)
+    return ask_for_video(w, v, "tour", tour_id, t["name"], with_title(c, t["name"], chosen), t["spec"]["seconds"])
+
+
+@router.get("/tour/{tour_id}/video", response_class=HTMLResponse)
+def tour_video_part(request: Request, tour_id: int, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
+    """How far the tour's video is, for its page to show as it goes."""
+    if tours.tour(c, tour_id) is None:
+        raise HTTPException(404, "No such tour")
+    return page(request, "_slideshow_video.html",
+                video=video_part("tour", tour_id, slideshow.latest(w, v.account_id, "tour", tour_id), polled=True))
+
+
+@router.get("/download/tour/{tour_id}/video")
+def download_tour_video(tour_id: int, v=Depends(viewer), c=Depends(con), w=Depends(writer), s: Site = Depends(site)):
+    t = tours.tour(c, tour_id)
+    if t is None:
+        raise HTTPException(404, "No such tour")
+    return video_file(s, w, v, "tour", tour_id, t["name"])
 
 
 @router.get("/tour/{tour_id}/edit", response_class=HTMLResponse)

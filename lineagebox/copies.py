@@ -17,11 +17,12 @@ from pathlib import Path
 from typing import Callable
 
 from lineagebox import retry, video
-from lineagebox.catalog import VISIBLE
+from lineagebox.catalog import ON_SHARE
 from lineagebox.config import Config
 
 IDLE = 300  # seconds between looks for videos that need a copy
 BATCH = 25
+SIDECAR_MINUTES = 3  # each round writes XMP sidecars for this long at most, between the copies
 
 
 def present_files(con: sqlite3.Connection, image_id: int) -> list[str]:
@@ -40,7 +41,7 @@ def find_copy(con: sqlite3.Connection, cfg: Config, image_id: int) -> Path | Non
 def check(con: sqlite3.Connection, cfg: Config) -> int:
     """Videos marked as having a copy whose copy is gone (deleted by hand) need one again. Returns how many. When the
     video itself can't be seen either, its disk or share is offline: it is left as it is."""
-    gone = [r["id"] for r in con.execute(f"SELECT i.id FROM image i WHERE i.playable = 'copy' AND {VISIBLE}")
+    gone = [r["id"] for r in con.execute(f"SELECT i.id FROM image i WHERE i.playable = 'copy' AND {ON_SHARE}")
             if find_copy(con, cfg, r["id"]) is None
             and any((cfg.share_root / rel).is_file() for rel in present_files(con, r["id"]))]
     con.executemany("UPDATE image SET playable = 'needed' WHERE id = ?", ((i,) for i in gone))
@@ -49,16 +50,18 @@ def check(con: sqlite3.Connection, cfg: Config) -> int:
 
 
 def count_pending(con: sqlite3.Connection) -> int:
-    return con.execute(f"""SELECT count(*) FROM image i WHERE i.playable = 'needed' AND {VISIBLE}
+    return con.execute(f"""SELECT count(*) FROM image i WHERE i.playable = 'needed' AND {ON_SHARE}
                            AND {retry.waiting("copies")}""").fetchone()[0]
 
 
 def make(con: sqlite3.Connection, cfg: Config, limit: int | None = None, stop: Callable[[], bool] | None = None,
          failed: Callable[[str], None] = print) -> int:
-    """Make the copies that are needed, newest video first, one at a time. Returns how many were made. Each copy is
+    """Make the copies that are needed, newest video first, one at a time; Live Photos' clips (live.py), a few
+    seconds each and played only from their still's page, after the videos. Returns how many were made. Each copy is
     printed (the container's log); failures also go to failed()."""
-    rows = con.execute(f"""SELECT i.id, i.taken_at, i.duration FROM image i WHERE i.playable = 'needed' AND {VISIBLE}
-                           AND {retry.waiting("copies")} ORDER BY i.id DESC""").fetchall()[:limit]
+    rows = con.execute(f"""SELECT i.id, i.taken_at, i.duration FROM image i WHERE i.playable = 'needed' AND {ON_SHARE}
+                           AND {retry.waiting("copies")}
+                           ORDER BY i.live_of IS NOT NULL, i.id DESC""").fetchall()[:limit]
     made = 0
     for r in rows:
         if stop is not None and stop():
@@ -92,8 +95,18 @@ def make(con: sqlite3.Connection, cfg: Config, limit: int | None = None, stop: C
 
 
 def run_forever(con: sqlite3.Connection, base: Config) -> None:
-    from lineagebox import settings
+    from lineagebox import settings, sidecars
     from lineagebox.activity import log, note_problem
+
+    def write_sidecars(cfg: Config) -> None:
+        """XMP sidecars beside the photos (sidecars.py): in Docker this service writes them, as the worker only reads
+        the photo folders. They need no ffmpeg, and go between rounds of copies, which can take days on a first run."""
+        side = sidecars.run(con, cfg, minutes=SIDECAR_MINUTES)
+        if side.written or side.removed:
+            log(con, f"sidecars: wrote {side.written}, took away {side.removed}"
+                + (f"; {side.left} photos left" if side.left else ""))
+        if side.read_only or side.written:
+            note_problem(con, "sidecars", sidecars.READ_ONLY if side.read_only else None)
 
     log(con, "720p copies: started")
     while True:
@@ -101,6 +114,7 @@ def run_forever(con: sqlite3.Connection, base: Config) -> None:
             cfg = settings.current(con, base)
             if not video.available():  # the worker says so on the Status page too
                 note_problem(con, "ffmpeg", video.MISSING)
+                write_sidecars(cfg)
                 time.sleep(IDLE)
                 continue
             check(con, cfg)
@@ -109,7 +123,9 @@ def run_forever(con: sqlite3.Connection, base: Config) -> None:
             while made := make(con, cfg, limit=BATCH, failed=lambda m: log(con, m)):
                 log(con, f"720p copies: made {made} in {(time.monotonic() - t0) / 60:.0f} min; "
                          f"{count_pending(con)} still to make")
+                write_sidecars(cfg)
                 t0 = time.monotonic()
+            write_sidecars(cfg)
         except sqlite3.OperationalError:  # the database stayed busy; try again on the next round
             con.rollback()
         except Exception:

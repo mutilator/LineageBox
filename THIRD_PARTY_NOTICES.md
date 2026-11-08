@@ -23,6 +23,12 @@ licence can't be combined with the AGPL on its own terms. This permission allows
 | Component | Where | Licence |
 |---|---|---|
 | [Leaflet](https://leafletjs.com) 1.9.4, the map | `lineagebox/web/static/vendor/leaflet-1.9.4/` | BSD-2-Clause. © 2010-2023 Volodymyr Agafonkin, © 2010-2011 CloudMade. The text is in `LICENSE` next to it. |
+| [GeoNames](https://www.geonames.org/) towns and cities, for naming photos with GPS after the nearest town | `lineagebox/data/towns.tsv.gz` | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), © GeoNames. Changed: `cities5000.txt` (populated places of over 5,000 people, downloaded 2026-11-07) trimmed to each town's name, position (rounded to 3 decimals), country and region (names from `countryInfo.txt` and `admin1CodesASCII.txt`) and population in thousands. The Map page credits it. |
+
+Translators' tool, not in the repository or the images: [Babel](https://babel.pocoo.org)'s `pybabel` (BSD-3-Clause),
+a development dependency (`pip install -e ".[dev]"`) that extracts the text to translate and compiles catalogs
+([translating](docs/translating.md)). LineageBox doesn't need it to run; it reads compiled catalogs with Python's own
+`gettext`.
 
 ## In the LineageBox image
 
@@ -38,6 +44,9 @@ PSF License (`/usr/local/lib/python3.12/LICENSE.txt`).
 - **ExifTool** (`libimage-exiftool-perl`), © Phil Harvey, and **Perl**: the terms of Perl itself (GPL-1.0-or-later or
   the Artistic License).
 - **tzdata**: public domain.
+- **DejaVu Sans** (`fonts-dejavu-core`, which ffmpeg's libraries bring in anyway), for the words drawn on tours and
+  albums saved as a video: the Bitstream Vera Fonts licence and public domain (changes by the DejaVu authors), which
+  allow using and passing on the fonts with any software.
 
 Each Debian package's copyright and licence is in `/usr/share/doc/<package>/copyright`. `/app/packages.txt` lists
 every Debian package in the image and its exact version.
@@ -49,7 +58,7 @@ lists the exact set. Each package's licence files are in its `*.dist-info` folde
 | Licence | Packages |
 |---|---|
 | MIT | annotated-doc, annotated-types, anyio, cbor2, charset-normalizer, fastapi, h11, insightface (the library; its models are [below](#downloaded-when-lineagebox-runs)), narwhals, onnxruntime, pip, pydantic, pydantic-core, rawpy, typing-inspection, urllib3 |
-| BSD-3-Clause | click, cloudpickle, httpcore, httpx, idna, Jinja2, joblib, lazy-loader, MarkupSafe, networkx, numpy (some parts 0BSD, MIT, Zlib or CC0-1.0), protobuf, pycparser, scikit-image (some parts BSD-2-Clause), scikit-learn, scipy, segno, starlette, threadpoolctl, tifffile, uvicorn, webauthn |
+| BSD-3-Clause | click, cloudpickle, httpcore, httpx, idna, Jinja2, joblib, lazy-loader, MarkupSafe, networkx, numpy (some parts 0BSD, MIT, Zlib or CC0-1.0), pillow-heif (its own code; the libraries in its wheel are listed below), protobuf, pycparser, scikit-image (some parts BSD-2-Clause), scikit-learn, scipy, segno, starlette, threadpoolctl, tifffile, uvicorn, webauthn |
 | MIT-0 | cffi |
 | MIT and BSD-3-Clause | PyWavelets |
 | BSD-2-Clause | ImageHash, imageio, pyasn1, pyasn1-modules |
@@ -70,6 +79,10 @@ or inside the package:
 - **rawpy:** LibRaw, compiled in (LGPL-2.1 or CDDL-1.0; rawpy ships it under the **LGPL-2.1**, in
   `rawpy-*.dist-info/licenses/LICENSE.LibRaw`), with JasPer (JasPer License 2.0), libjpeg-turbo, Little CMS (MIT) and
   GCC's OpenMP runtime (GPL-3.0-or-later with the GCC Runtime Library Exception).
+- **pillow-heif** (HEIC photos): libheif 1.23.6 and libde265 1.1.3 (**LGPL-3.0**), and the x265 4.3 encoder
+  (**GPL-2.0-or-later**), which pillow-heif says makes its wheel as a whole GPL-licensed. Their versions and the
+  links to their source are in `pillow_heif-*.dist-info/licenses/LICENSES_bundled.txt`; the texts of the GPL and LGPL
+  are in `/usr/share/common-licenses`.
 - **Pillow:** FreeType (FreeType License), HarfBuzz, libjpeg-turbo (IJG, BSD-3-Clause and Zlib licences), Little CMS,
   libwebp, libtiff, OpenJPEG, libpng, libavif, Brotli, liblzma, zstd, libxcb, libXau and zlib. Their texts are in
   `pillow-*.dist-info/licenses/LICENSE`.
@@ -109,11 +122,13 @@ or inside the package:
 ## Source code for copyleft components
 
 The images include, unchanged, software under the GPL and LGPL: FFmpeg with x264 and x265 and other Debian packages,
-FFmpeg's libraries inside OpenCV, LibRaw inside rawpy, libquadmath and the GCC runtime libraries.
+FFmpeg's libraries inside OpenCV, LibRaw inside rawpy, libheif, libde265 and x265 inside pillow-heif, libquadmath and
+the GCC runtime libraries.
 
 - **Debian packages:** the source of every version in `packages.txt` is on
   [snapshot.debian.org](https://snapshot.debian.org), which keeps every version Debian has published.
-- **Python packages:** their source releases are on [PyPI](https://pypi.org), next to the wheels.
+- **Python packages:** their source releases are on [PyPI](https://pypi.org), next to the wheels. The libraries in
+  pillow-heif's wheels are built from the upstream versions its `LICENSES_bundled.txt` links to.
 - **Written offer:** for three years after we last distribute an image, we will give anyone who asks the complete
   corresponding source code of the GPL and LGPL software in it, on a medium customarily used for software interchange,
   for no more than the cost of making and sending it. Ask at scott@g-tech.dev, naming the image's tag or
@@ -135,7 +150,9 @@ when its SHA-256 is the one in the code (`lineagebox/faces.py`, `whisper_service
 - **The Ollama model you choose**, by Ollama (a separate program, MIT). The default `ministral-3` is under the
   Apache-2.0 licence. `gemma3` is under the [Gemma Terms of Use](https://ai.google.dev/gemma/terms) and its
   [Prohibited Use Policy](https://ai.google.dev/gemma/prohibited_use_policy). Each model's page on
-  [ollama.com](https://ollama.com/library) names its licence.
+  [ollama.com](https://ollama.com/library) names its licence. The default model for search by meaning,
+  `nomic-embed-text` (Nomic AI), is under the Apache-2.0 licence; like the others, Ollama downloads it when asked,
+  and LineageBox doesn't include it.
 
 ## Online services
 

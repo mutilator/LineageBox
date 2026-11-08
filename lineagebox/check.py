@@ -26,7 +26,7 @@ from pathlib import Path
 from PIL import Image
 
 from lineagebox import retry, settings
-from lineagebox.catalog import VISIBLE
+from lineagebox.catalog import ON_SHARE
 from lineagebox.config import Config
 from lineagebox.ingest import STAGE_INGEST
 
@@ -168,13 +168,14 @@ def check(con: sqlite3.Connection, cfg: Config, stop=None, every: bool = False, 
 
 
 def missing_derivatives(con: sqlite3.Connection, cfg: Config) -> list[int]:
-    """Photos and videos in the library whose preview, thumbnail or video frames are gone or empty."""
+    """Photos and videos in the library (Live Photos' clips too) whose preview, thumbnail or video frames are gone
+    or empty."""
     frames = {}
     for image_id, idx in con.execute("SELECT image_id, idx FROM video_frame"):
         frames.setdefault(image_id, []).append(idx)
     out = []
     for r in con.execute(f"""SELECT i.id, i.sha256, i.media FROM image i WHERE i.stage & {STAGE_INGEST}
-                             AND {VISIBLE}""").fetchall():
+                             AND {ON_SHARE}""").fetchall():
         paths = [cfg.preview_path(r["sha256"]), cfg.thumb_path(r["sha256"])]
         if r["media"] == "video":
             paths += [cfg.frame_path(r["sha256"], idx) for idx in frames.get(r["id"], [])]

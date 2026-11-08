@@ -74,6 +74,7 @@ The first start downloads the images, which takes a few minutes. Later starts ta
 from the Status page ([updating](../install.md#updating-and-backups)).
 
 Open **http://&lt;this machine's address&gt;:8000** in a browser. Use `http://localhost:8000` on the machine itself.
+It opens on **Getting started**: the steps below and the next ones, each ticked off once it is done.
 
 ## 6. Pick your photos and the AI model
 

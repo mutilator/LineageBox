@@ -2,23 +2,26 @@
     Each Settings link names the first panel of its part: on the Settings page app.js shows only the part that the
     address's # is in (#https, #add, as other pages link to them), and marks its link. Without the script every part
     shows, one under another, and the links jump to them. The other two pages are marked here. #}
-<nav class="settings-nav" aria-label="Settings">
+<nav class="settings-nav" aria-label="{{ _('Settings') }}">
   <ul>
-    <li><a href="/settings#folders">Folders</a></li>
-    <li><a href="/settings#schedule">Schedule</a></li>
-    <li><a href="/settings#ollama">AI, speech and faces</a></li>
-    <li><a href="/settings#map">Map</a></li>
-    <li><a href="/settings#tours">Tours</a></li>
-    <li><a href="/settings#cleanup">Cleanup</a></li>
-    <li><a href="/settings#browsing">Browsing</a></li>
-    <li><a href="/settings#address">Address and HTTPS</a></li>
-    <li><a href="/settings#updates">Updates</a></li>
+    <li><a href="/settings#folders">{% trans %}Folders{% endtrans %}</a></li>
+    <li><a href="/settings#schedule">{% trans %}Schedule{% endtrans %}</a></li>
+    <li><a href="/settings#ollama">{% trans %}AI, speech and faces{% endtrans %}</a></li>
+    <li><a href="/settings#map">{% trans %}Map{% endtrans %}</a></li>
+    <li><a href="/settings#sidecars">{% trans %}Other photo programs{% endtrans %}</a></li>
+    <li><a href="/settings#tours">{% trans %}Tours{% endtrans %}</a></li>
+    <li><a href="/settings#cleanup">{% trans %}Cleanup{% endtrans %}</a></li>
+    <li><a href="/settings#browsing">{% trans %}Browsing{% endtrans %}</a></li>
+    <li><a href="/settings#address">{% trans %}Address and HTTPS{% endtrans %}</a></li>
+    <li><a href="/settings#updates">{% trans %}Updates{% endtrans %}</a></li>
+    <li><a href="/settings#backup">{% trans %}Backup{% endtrans %}</a></li>
+    <li><a href="/settings#devices">{% trans %}Photo frames{% endtrans %}</a></li>
   </ul>
-  <p class="nav-group" id="settings-nav-accounts">Family accounts</p>
+  <p class="nav-group" id="settings-nav-accounts">{% trans %}Family accounts{% endtrans %}</p>
   <ul aria-labelledby="settings-nav-accounts">
-    <li><a href="/accounts"{% if request.url.path == "/accounts" %} aria-current="page"{% endif %}>Accounts and sign-in
-      <small>{{ "on" if cfg.accounts_enabled else "off" }}</small></a></li>
-    <li><a href="/settings/codes"{% if request.url.path == "/settings/codes" %} aria-current="page"{% endif %}>Codes for
-      signing in at home</a></li>
+    <li><a href="/accounts"{% if request.url.path == "/accounts" %} aria-current="page"{% endif %}>{% trans %}Accounts and sign-in{% endtrans %}
+      <small>{{ _("on") if cfg.accounts_enabled else _("off") }}</small></a></li>
+    <li><a href="/settings/codes"{% if request.url.path == "/settings/codes" %} aria-current="page"{% endif %}>{% trans %}Codes for
+      signing in at home{% endtrans %}</a></li>
   </ul>
 </nav>

@@ -1,0 +1,152 @@
+{#- People → Name faces: the card of one face, or one group of faces, to name (name_faces.html; routes/naming.py).
+    app.js swaps it for the next card after each answer (data-answer: posted to data-url, then what comes next is
+    loaded; data-again after No). one: a card about one face on a page of its own (a face tapped on its photo),
+    without the queue around it. Skip is also a link, to the next card, for when the script can't run. -#}
+{%- import "_macros.html" as m %}
+{%- macro skip_control(face=none, group=none) %}
+{%- if one %}
+  <button type="button" data-answer="skip" data-key="s" data-key-label="{{ _('Skip it') }}">{% trans %}Skip{% endtrans %}</button>
+{%- else %}
+  {%- set query = {"only": only, "skip": (skip + ([face] if face else []))|join(","),
+                   "skip_groups": (skip_groups + ([group] if group else []))|join(",")} %}
+  <a class="button" href="/people/name?{{ query|urlencode }}" data-answer="skip"
+     {%- if face %} data-skip-face="{{ face }}"{% endif %}{% if group %} data-skip-group="{{ group }}"{% endif %}
+     data-key="s" data-key-label="{{ _('Skip it for now (→ too)') }}">{% trans %}Skip{% endtrans %}</a>
+{%- endif %}
+{%- endmacro %}
+{%- macro framed(card) %}
+{%- set f, p = card.face, card.photo %}
+  <div class="naming-photo">
+    {#- sized by the photo's shape when it is known, so the outline is on the face whichever side limits it #}
+    {%- set sized = p.width and p.height %}
+    <a class="naming-framed{% if sized %} sized{% endif %}" href="/image/{{ f.image_id }}" title="{{ _('Open the photo') }}"
+       {%- if sized %} style="--across: {{ '%.4f'|format(p.width / p.height) }}"{% endif %}>
+      <img src="{{ p.src }}" alt="{{ _('The whole photo, with the face outlined') }}"
+           {%- if p.width and p.height %} width="{{ p.width }}" height="{{ p.height }}"{% endif %}
+           {%- if p.thumb %} style="background-image: url({{ p.thumb }})"{% endif %}>
+      <span class="naming-box" style="left: {{ '%.2f'|format(f.box[0] * 100) }}%; top: {{ '%.2f'|format(f.box[1] * 100) }}%;
+            width: {{ '%.2f'|format((f.box[2] - f.box[0]) * 100) }}%; height: {{ '%.2f'|format((f.box[3] - f.box[1]) * 100) }}%"></span></a>
+  </div>
+{%- endmacro %}
+
+{%- if card is none %}
+<section class="naming-card naming-done">
+  <div class="naming-ask">
+    <h2 class="naming-question" tabindex="-1" data-naming-focus>
+      {%- if skip or skip_groups %}{% trans %}That's all, but for the ones you skipped{% endtrans %}{% else %}{% trans %}No faces waiting{% endtrans %}{% if only %} {% trans %}here{% endtrans %}{% endif %}{% endif %}</h2>
+    <p>{% if skip or skip_groups %}<a class="button primary" href="/people/name{% if only %}?only={{ only }}{% endif %}">{% trans %}Go through the skipped ones{% endtrans %}</a>{% endif %}
+      {%- if only %} <a class="button" href="/people/name">{% trans %}All faces to name{% endtrans %}</a>{% endif %}</p>
+    <p class="hint">{% trans %}New photos bring new faces: they are found, and recognised where they clearly match, as the
+      photos come in. <a href="/people">Back to People</a>{% endtrans %}{% if viewer.admin %} · {% trans %}<a href="/cleanup/faces">Cleanup → Confirm faces</a> lists them all at once{% endtrans %}{% endif %}</p>
+  </div>
+</section>
+
+{%- elif card.kind == "group" %}
+{%- set shown = "face=" ~ card.faces|map(attribute="id")|join("&face=") %}
+<article class="naming-card naming-group" data-group="{{ card.cluster_id }}">
+  {{ framed(card) }}
+  <div class="naming-ask">
+    {%- set alike = card.looks_like %}
+    {%- if alike %}
+    <h2 class="naming-question" tabindex="-1" data-naming-focus>{% trans %}Are these{% endtrans %}
+      {%- if alike.face %} <img class="naming-who" src="/face/{{ alike.face }}" alt="" width="44" height="44">{% endif %}
+      <a href="/person/{{ alike.id }}">{{ alike.name }}</a>?</h2>
+    {%- else %}
+    <h2 class="naming-question" tabindex="-1" data-naming-focus>{% trans %}Who is this?{% endtrans %}</h2>
+    {%- endif %}
+    <p class="hint">{% trans count=card.size, size=card.size|number %}{{ size }} face{% pluralize %}{{ size }} faces{% endtrans %}
+      {% trans count=card.photos, photos=card.photos|number %}in {{ photos }} photo that look like one person nobody has
+      named yet, the clearest first.{% pluralize %}in {{ photos }} photos that look like one person nobody has
+      named yet, the clearest first.{% endtrans %} {% trans %}× (not them) takes out one that isn't the same person.{% endtrans %}
+      {%- if alike %} {% trans name=alike.name %}Together they look like {{ name }}{% endtrans %}{% if alike.born_after %}{% trans name=alike.name %}, though some of the photos are
+      dated before {{ name }} was born: the camera's date may be wrong{% endtrans %}{% endif %}.{% endif %}</p>
+    {{ m.review_faces(card.faces, _("Not them: not the same person as the others")) }}
+    {%- if alike %}
+    <div class="naming-answers">
+      <button type="button" class="primary" data-answer="named" data-url="/api/clusters/{{ card.cluster_id }}/name?{{ shown }}"
+              data-body='{{ {"name": alike.name, "name_id": alike.id}|tojson }}' data-said="{{ _('Named %(name)s.', name=alike.name) }}"
+              data-key="y" data-key-label="{{ _('Yes, they are %(name)s', name=alike.name) }}">{% trans %}Yes{% endtrans %}</button>
+    </div>
+    {%- endif %}
+    <form class="naming-name" data-answer="named" data-url="/api/clusters/{{ card.cluster_id }}/name?{{ shown }}">
+      <input name="name" data-names autocomplete="off" required maxlength="80" placeholder="{{ _('Someone else? Their name') if alike else _('Their name') }}"
+             value="{{ '' if alike else card.suggestion or '' }}" aria-label="{{ _('Who they are') }}" data-key="n" data-key-label="{{ _('Type who they are') }}">
+      <button type="submit"{% if not alike %} class="primary"{% endif %}>{% trans %}Name them{% endtrans %}</button>
+    </form>
+    {%- if card.suggestion and not alike %}<p class="hint">{% trans %}The name is suggested by the folders the photos are in.{% endtrans %}</p>{% endif %}
+    <div class="naming-answers">
+      <button type="button" data-answer="done" data-url="/api/clusters/{{ card.cluster_id }}/ignore?{{ shown }}"
+              data-said="{{ _('Set aside: nobody is asked about those faces again.') }}" data-key="d" data-key-label="{{ _("Don't know them: set them aside") }}"
+              title="{{ _('Nobody in the family knows them: set these faces aside, for everyone') }}">{% trans %}Don't know them{% endtrans %}</button>
+      {{ skip_control(group=card.cluster_id) }}
+    </div>
+  </div>
+</article>
+
+{%- else %}
+{%- set f, p, who = card.face, card.photo, card.person %}
+<article class="naming-card" data-face="{{ f.id }}">
+  {{ framed(card) }}
+  <div class="naming-ask">
+    <div class="naming-face">
+      <img class="naming-crop" src="/face/{{ f.id }}" alt="{{ _('The face') }}" width="160" height="160">
+      <div>
+        {%- if card.how == "outside" %}
+        <h2 class="naming-question" tabindex="-1" data-naming-focus>{% trans %}Named already{% endtrans %}</h2>
+        <p class="hint">{% trans %}As someone outside your part of the family: only an admin can change it.{% endtrans %}</p>
+        {%- elif who %}
+        <h2 class="naming-question" tabindex="-1" data-naming-focus>{% trans %}Is this{% endtrans %}
+          {%- if who.face %} <img class="naming-who" src="/face/{{ who.face }}" alt="" width="44" height="44">{% endif %}
+          <a href="/person/{{ who.id }}">{{ who.name }}</a>?</h2>
+        <p class="hint">
+          {%- if card.asked %}{% trans asker=card.asked.asker or _("Someone") %}{{ asker }} asked who this is.{% endtrans %} {% endif %}
+          {%- if card.how == "recognised" %}{% trans %}Recognised automatically; nobody has said yet whether it's right.{% endtrans %}
+          {%- elif card.how == "named" %}{% trans name=who.name %}Named {{ name }} by hand.{% endtrans %}
+          {%- else %}{% trans name=who.name %}Looks like {{ name }}{% endtrans %}{% if card.with %}{% trans %}, who isn't named in this photo yet{% endtrans %}{% endif %}.{% endif %}</p>
+        {%- else %}
+        <h2 class="naming-question" tabindex="-1" data-naming-focus>{% trans %}Who is this?{% endtrans %}</h2>
+        <p class="hint">
+          {%- if card.asked %}{% trans asker=card.asked.asker or _("Someone"), asked_at=card.asked.asked_at|date(false) %}{{ asker }} asked {{ asked_at }}{% endtrans %}
+          {%- else %}{% trans %}Nobody looks enough like them to suggest{% endtrans %}{% endif %}{% trans %}: if you know them, type their name.{% endtrans %}</p>
+        {%- endif %}
+      </div>
+    </div>
+    {%- if card.how == "outside" %}
+    <div class="naming-answers">{{ skip_control(f.id) }}</div>
+    {%- elif who %}
+    {%- set about = {"person_id": who.id}|tojson %}
+    <div class="naming-answers">
+      <button type="button" class="primary" data-answer="yes" data-url="/api/faces/{{ f.id }}/yes" data-body='{{ about }}'
+              data-key="y" data-key-label="{{ _("Yes, it's them") }}">{% trans %}Yes{% endtrans %}</button>
+      <button type="button" data-answer="no" data-url="/api/faces/{{ f.id }}/no" data-body='{{ about }}'
+              data-again="/people/name/face/{{ f.id }}" data-key="n" data-key-label="{{ _("Not them: it isn't %(name)s", name=who.name) }}">{% trans %}Not them{% endtrans %}</button>
+      {{ skip_control(f.id) }}
+    </div>
+    {%- else %}
+    <form class="naming-name" data-answer="named" data-url="/api/faces/{{ f.id }}/name">
+      <input name="name" data-names autocomplete="off" required maxlength="80" placeholder="{{ _('Their name') }}"
+             aria-label="{{ _('Who is this?') }}" data-key="n" data-key-label="{{ _('Type who it is') }}">
+      <button type="submit" class="primary">{% trans %}Name{% endtrans %}</button>
+    </form>
+    <div class="naming-answers">
+      <button type="button" data-answer="skip" data-url="/api/faces/{{ f.id }}/skip" data-skip-face="{{ f.id }}"
+              data-key="d" data-key-label="{{ _("Don't know who it is") }}" title="{{ _("Don't know them: you aren't asked about this face again") }}">{% trans %}Don't know{% endtrans %}</button>
+      {{ skip_control(f.id) }}
+    </div>
+    {%- endif %}
+    <p class="naming-about">
+      {%- if p.taken_at %}<span>{{ p.taken_at|date(false) }}{% if p.video %}{% trans %}, in a video{% endtrans %}{% endif %}</span>{% endif %}
+      {%- if card.with %}<span>{% trans with_=card.with|join(", ") %}With {{ with_ }}{% endtrans %}</span>{% endif %}
+      <a href="/image/{{ f.image_id }}">{% trans %}Open the photo{% endtrans %}</a>
+      {%- if card.how != "outside" %}
+      <button type="button" class="quiet" data-answer="done" data-url="/api/faces/{{ f.id }}/not-a-face"
+              data-said="{{ _('Hidden: not a face.') }}" title="{{ _('Not a face (a pattern, a statue, a poster): hide it') }}">{% trans %}Not a face{% endtrans %}</button>
+      {%- if card.how == "open" and not card.asked %}
+      <button type="button" class="quiet" data-answer="skip" data-url="/api/faces/{{ f.id }}/ask" data-skip-face="{{ f.id }}"
+              title="{{ _("Don't know them? Ask the family: the face goes on Home for everyone who sees this photo") }}">{% trans %}Ask the family{% endtrans %}</button>
+      {%- endif %}
+      {%- endif %}
+    </p>
+  </div>
+</article>
+{%- endif %}

@@ -52,4 +52,34 @@ def group(con: sqlite3.Connection) -> tuple[int, int]:
     con.executemany("UPDATE image SET dup_group_id = ? WHERE id = ?",
                     ((int(ids[rep]), int(ids[i])) for i, rep in rep_of.items()))
     con.commit()
+    share_dates(con)
     return len(set(rep_of.values())), len(rep_of)
+
+
+# Dates a copy takes from its group: a file's time or a folder's year, or the one it took before ('copy'), which
+# follows the camera's date when that is put right (camera_clock.py). Never a date set by hand, a camera's own, nor
+# one from the file name.
+TAKES_DATE = ("mtime", "folder", "copy")
+
+
+def share_dates(con: sqlite3.Connection) -> int:
+    """Copies of a photo dated only by their file's time (when the copy was made) or a folder take the camera's date
+    of their near-duplicate group (edited, resized or scanned-again copies that lost theirs), as an automatic date
+    ('copy'): the representative's when the camera dated it, else the group's earliest camera date. Commits. Returns
+    how many photos took a date; the search finds them by it on the worker's next pass (search_stale)."""
+    dated: dict[int, str] = {}
+    for group_id, rep, taken in con.execute(f"""
+            SELECT i.dup_group_id, i.id = i.dup_group_id, i.taken_at FROM image i
+            WHERE i.dup_group_id IS NOT NULL AND i.taken_at_source IN ('exif', 'camera') AND {VISIBLE}
+            ORDER BY i.dup_group_id, i.id = i.dup_group_id, i.taken_at DESC"""):
+        dated[group_id] = taken  # ordered so the representative's, else the earliest, comes last and stays
+    changed = [(dated[r["dup_group_id"]], r["id"]) for r in con.execute(f"""
+        SELECT i.id, i.dup_group_id, i.taken_at, i.taken_at_source FROM image i
+        WHERE i.dup_group_id IS NOT NULL AND i.taken_at_source IN ({",".join("?" * len(TAKES_DATE))}) AND {VISIBLE}""",
+                                                                   TAKES_DATE)
+               if r["dup_group_id"] in dated and (r["taken_at"], r["taken_at_source"]) != (dated[r["dup_group_id"]],
+                                                                                          "copy")]
+    con.executemany("UPDATE image SET taken_at = ?, taken_at_source = 'copy' WHERE id = ?", changed)
+    con.executemany("INSERT OR IGNORE INTO search_stale(image_id) VALUES (?)", ((i,) for _, i in changed))
+    con.commit()
+    return len(changed)

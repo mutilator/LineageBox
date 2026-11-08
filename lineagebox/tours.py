@@ -12,7 +12,7 @@ import sqlite3
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
-from lineagebox import dates, errors, events, family
+from lineagebox import comments, dates, errors, events, family, favourites
 from lineagebox.catalog import VISIBLE
 
 SEASONS = dates.SEASONS
@@ -265,6 +265,8 @@ def photos(con: sqlite3.Connection, spec: dict, blurry_below: float | None = Non
     if spec["media"] != "both":
         where.append("i.media = ?")
         args.append("photo" if spec["media"] == "photos" else "video")
+    else:  # a sound recording has no picture for a slide
+        where.append("i.media != 'audio'")
     if (span := date_range(spec, dates.south(con))) or spec["when"]["mode"] in AROUND:
         where.append("i.taken_at_source != 'mtime'")  # file times say when a copy was made
     if spec["when"]["mode"] in AROUND:  # around a day: not a photo dated by hand only to a season or a year
@@ -304,9 +306,13 @@ def photos(con: sqlite3.Connection, spec: dict, blurry_below: float | None = Non
         found = _around_birthday(con, found, spec)
     elif spec["when"]["mode"] in ("anniversary", "events"):
         found = _around_events(con, found, spec)
+    hearts = favourites.counts(con, found)  # the viewer's own on a member's connection, everyone's on an admin's
     for p in found.values():
         faces = p["faces"] if targets is None else {k: q for k, q in p["faces"].items() if k in targets}
-        p["score"] = sum(sorted(faces.values())[-3:]) + min(max(p["sharpness"], 0), 300) / 30
+        p["hearts"] = hearts.get(p["id"], 0)
+        # a favourite before any photo without a heart: of near-duplicates, in each year or month, in a spread
+        p["score"] = (sum(sorted(faces.values())[-3:]) + min(max(p["sharpness"], 0), 300) / 30
+                      + favourites.WEIGHT * p["hearts"])
     best: dict[int, dict] = {}
     for p in found.values():  # near-duplicates: the best of each group
         if p["group"] not in best or p["score"] > best[p["group"]]["score"]:
@@ -413,24 +419,94 @@ def _best(found: list[dict], n: int) -> list[dict]:
     return chosen
 
 
-def slides(con: sqlite3.Connection, chosen: list[dict]) -> list[dict]:
-    """What the player shows for each photo: the picture, its date, and who is in it (with their age then)."""
+def slides(con: sqlite3.Connection, chosen: list[dict], captions: dict[int, str] | None = None) -> list[dict]:
+    """What the player shows for each photo: the picture, its date as exactly as it is known (when_words), who is in
+    it (with their age then), and the family's caption for it, if someone wrote one. captions: words that go before
+    the family's (an album's own, albums.py), where there are some."""
     people = dict(con.execute("SELECT id, name FROM person"))
+    words = comments.captions(con, [p["id"] for p in chosen])
+    words.update({k: v for k, v in (captions or {}).items() if v})
     births = dict(con.execute("SELECT person_id, sort_date FROM event WHERE tag = 'BIRT' AND sort_date IS NOT NULL"))
-    dated = {r["id"]: r for r in con.execute("""SELECT id, taken_at, taken_at_source, date_from, date_to FROM image
-                                                WHERE id IN (SELECT value FROM json_each(?))""",
+    dated = {r["id"]: r for r in con.execute("""SELECT id, taken_at, taken_at_source, date_text, date_from, date_to
+                                                FROM image WHERE id IN (SELECT value FROM json_each(?))""",
                                              (json.dumps([p["id"] for p in chosen]),))}
     out = []
     for p in chosen:
-        taken = datetime.fromisoformat(p["taken"])
         order = [pid for pid in sorted(p["faces"], key=lambda k: -p["faces"][k]) if pid in people]
         ages = events.ages(con, dated[p["id"]], order, births) if p["id"] in dated else {}
         names = [f"{people[pid]} ({ages[pid]})" if pid in ages else people[pid] for pid in order]
         video = p["media"] == "video" and p["playable"] in ("original", "copy")
         out.append({"id": p["id"], "src": f"/play/{p['id']}" if video else f"/p/{p['sha']}",
-                    "poster": f"/p/{p['sha']}", "video": video, "when": f"{taken:%B} {taken.day}, {taken.year}",
-                    "people": ", ".join(names)})
+                    "poster": f"/p/{p['sha']}", "video": video, "sha": p["sha"], "duration": p.get("duration"),
+                    "when": when_words(dated[p["id"]]) if p["id"] in dated else "",
+                    "people": ", ".join(names), "caption": words.get(p["id"], "")})
     return out
+
+
+def when_words(row) -> str:
+    """When a photo was taken, as exactly as it is known: a date set by hand as it was said ("Summer 1987", "About
+    1950"), the year or month a folder's name gave ("1987", "June 1987"), else the day ("June 3, 1987"). row: the
+    image's taken_at, taken_at_source, date_text, date_from and date_to."""
+    if not row["taken_at"]:
+        return ""
+    if row["taken_at_source"] == "user" and row["date_text"] and row["date_from"] != row["date_to"]:
+        return row["date_text"][:1].upper() + row["date_text"][1:]
+    taken = datetime.fromisoformat(row["taken_at"])
+    if row["taken_at_source"] == "folder" and (taken.hour, taken.minute, taken.second) == (0, 0, 0):
+        if (taken.month, taken.day) == (1, 1):  # folders.date_from_folders: the first of January for a year alone
+            return str(taken.year)
+        if taken.day == 1:
+            return f"{taken:%B} {taken.year}"
+    return f"{taken:%B} {taken.day}, {taken.year}"
+
+
+def span_words(taken) -> str:
+    """The time photos span, for a title card: "June 3, 1987", "June 3 to 5, 1987", "June to August 1987",
+    "1985 to 1992". taken: their taken_at (None for one with no date)."""
+    days = sorted(t[:10] for t in taken if t)
+    if not days:
+        return ""
+    a, b = date.fromisoformat(days[0]), date.fromisoformat(days[-1])
+    if a == b:
+        return f"{a:%B} {a.day}, {a.year}"
+    if (a.year, a.month) == (b.year, b.month):
+        return f"{a:%B} {a.day} to {b.day}, {a.year}"
+    if (b - a).days <= 62:
+        return (f"{a:%B} {a.day} to {b:%B} {b.day}, {a.year}" if a.year == b.year
+                else f"{a:%B} {a.day}, {a.year} to {b:%B} {b.day}, {b.year}")
+    if a.year == b.year:
+        return f"{a:%B} to {b:%B} {a.year}"
+    return f"{a.year} to {b.year}"
+
+
+def title_card(name: str, chosen: list[dict], about: str = "") -> dict:
+    """The slideshow's first slide: its name, the time its photos span, a few words about it (an album's), and how
+    many photos and videos it has."""
+    videos = sum(p["media"] == "video" for p in chosen)
+    parts = [(len(chosen) - videos, "photo"), (videos, "video")]
+    count = " and ".join(f"{n:,} {word}{'' if n == 1 else 's'}" for n, word in parts if n)
+    return {"title": name, "span": span_words(p["taken"] for p in chosen), "about": about, "count": count}
+
+
+def picked(con: sqlite3.Connection, image_ids: list[int]) -> list[dict]:
+    """Photos chosen by hand (an album's), as photos() gives a tour's, in the order given, for slides: those the
+    connection sees and that are still in the library."""
+    if not image_ids:
+        return []
+    rows = con.execute(f"""
+        SELECT i.id, i.sha256, i.taken_at, i.media, i.duration, i.playable, i.sharpness, f.person_id, f.quality
+        FROM image i LEFT JOIN face f ON f.image_id = i.id AND f.person_id IS NOT NULL
+                                        AND f.assigned_by IN ('user', 'auto')
+        WHERE i.id IN (SELECT value FROM json_each(?)) AND {VISIBLE}
+          AND i.media != 'audio'  -- a sound recording has no picture for a slide""", (json.dumps(image_ids),)).fetchall()
+    found: dict[int, dict] = {}
+    for r in rows:
+        p = found.setdefault(r["id"], {"id": r["id"], "sha": r["sha256"], "taken": r["taken_at"], "media": r["media"],
+                                       "duration": r["duration"], "playable": r["playable"],
+                                       "sharpness": r["sharpness"] or 0, "faces": {}, "score": 0})
+        if r["person_id"]:
+            p["faces"][r["person_id"]] = max(p["faces"].get(r["person_id"], 0), r["quality"] or 0)
+    return [found[i] for i in image_ids if i in found]
 
 
 # ---- stored types and tours ----------------------------------------------------------------------------------------

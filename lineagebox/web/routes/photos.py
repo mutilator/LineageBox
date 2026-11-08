@@ -69,9 +69,10 @@ def add_tag(image_id: int, body: TagBody, v=Depends(viewer), c=Depends(con), w=D
 @router.post("/api/images/{image_id}/tags/remove", dependencies=[Depends(_from_app)])
 def remove_tag(image_id: int, body: TagBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     _image_or_404(c, image_id)
-    with changes.tracking(w, v, "tags", f"Took the tag “{body.tag}” off a photo", _tags_spec([image_id], body.tag)):
+    with changes.tracking(w, v, "tags", f"Took the tag “{body.tag}” off a photo",
+                          _tags_spec([image_id], body.tag)) as kept:
         tagging.remove(w, [image_id], body.tag)
-    return {}
+    return {"message": f"“{body.tag}” is off this photo for good.", "undo": kept.id}
 
 
 @router.post("/api/images/{image_id}/people", dependencies=[Depends(_from_app)])
@@ -89,9 +90,10 @@ def remove_photo_person(image_id: int, person_id: int, v=Depends(viewer), c=Depe
     _images_or_404(c, v, [image_id])
     if not v.sees_person(person_id):
         raise HTTPException(403, "Someone from outside your part of the family: only an admin can change that.")
-    with changes.tracking(w, v, "photo people", "Took someone off a photo", _photo_people_spec(v, [image_id])):
+    with changes.tracking(w, v, "photo people", "Took someone off a photo",
+                          _photo_people_spec(v, [image_id])) as kept:
         tagging.remove_person(w, image_id, person_id)
-    return {}
+    return {"undo": kept.id}
 
 
 @router.post("/api/selection/tag", dependencies=[Depends(_from_app)])
@@ -128,9 +130,9 @@ def untag_selection(body: Selection, tag: str = Query(min_length=1, max_length=8
                     c=Depends(con), w=Depends(writer)):
     _images_or_404(c, v, body.image_ids)
     with changes.tracking(w, v, "tags", f"Took the tag “{tag}” off {_photos(len(body.image_ids))}",
-                          _tags_spec(body.image_ids, tag)):
+                          _tags_spec(body.image_ids, tag)) as kept:
         tagging.remove(w, body.image_ids, tag)
-    return {}
+    return {"message": f"“{tag}” is off {_photos(len(body.image_ids))} for good.", "undo": kept.id}
 
 
 @router.post("/api/selection/person", dependencies=[Depends(_from_app)])

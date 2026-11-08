@@ -7,6 +7,10 @@ the photo again leaves it off, and a similar shot's description no longer gives 
 People are found by their faces; image_person holds those added by hand, for photos where their face was not found.
 
 A date set by hand replaces the automatic one (camera, file name, folder name or file time) as taken_at_source 'user'.
+
+An admin can rename a tag across the library, merge it into another, or take it off every photo (rename,
+remove_everywhere). What the AI says is then read through tag_alias: the old name gives the tag it is now, and a tag
+taken off everywhere is not given again, to new photos either.
 """
 import json
 import sqlite3
@@ -148,3 +152,108 @@ def _reindex(con: sqlite3.Connection, ids: list[int]) -> None:
     folders = FolderIndex(con)
     for i in ids:
         search.index_image(con, i, folders)
+
+
+# ---- tags across the library ----------------------------------------------------------------------------------------
+
+REINDEX_AT_ONCE = 500  # photos searched again at once after a tag changed; more wait for the worker's next pass
+
+
+class NeedsMerge(Problem):
+    """The new name is another tag's already: renaming would merge the two, which is asked first."""
+    status = 409
+
+    def __init__(self, message: str, into: str):
+        super().__init__(message)
+        self.into = into
+
+
+def aliases(con: sqlite3.Connection) -> dict[str, str | None]:
+    """The AI's words that mean another tag now (renamed or merged into it), or none (taken off every photo)."""
+    return dict(con.execute("SELECT a.name, t.name FROM tag_alias a LEFT JOIN tag t ON t.id = a.tag_id"))
+
+
+def aliased(con: sqlite3.Connection, names) -> list[str]:
+    """The AI's tags as they are called now: renamed and merged ones by their new name, those taken off every photo
+    left out, each once."""
+    now = aliases(con)
+    out = []
+    for name in names:
+        name = now.get(name, name) if name in now else name
+        if name and name not in out:
+            out.append(name)
+    return out
+
+
+def tag_photos(con: sqlite3.Connection, name: str) -> int:
+    """How many photos (one of each group of similar shots counts) have a tag, as the Tags page counts."""
+    return len(catalog.tag_images(con, tag_name(name)))
+
+
+def rename(con: sqlite3.Connection, name: str, to: str, merge: bool = False) -> tuple[str, list[int]]:
+    """Give a tag a new name on every photo. When the new name is another tag's, raises NeedsMerge unless merge: then
+    its photos go under that tag, which keeps the strongest say each photo had (taken off by hand, then given by
+    hand, then the AI's). Either way the AI's old word gives the tag under its new name from now on. Doesn't commit
+    (changes.tracking does). Returns (the tag's name now, the photos whose tags changed)."""
+    old, new = tag_name(name), tag_name(to)
+    if not new:
+        raise Problem("Type the tag's new name")
+    row = con.execute("SELECT id FROM tag WHERE name = ?", (old,)).fetchone()
+    if row is None:
+        raise Problem(f"There is no tag “{old}”: it was renamed or merged since. Reload the page.")
+    if new == old:
+        raise Problem(f"“{old}” is its name already")
+    a = row[0]
+    ids = [r[0] for r in con.execute("SELECT image_id FROM image_tag WHERE tag_id = ?", (a,))]
+    into = con.execute("SELECT id FROM tag WHERE name = ?", (new,)).fetchone()
+    if into is None:
+        con.execute("UPDATE tag SET name = ? WHERE id = ?", (new, a))
+        target = a
+    else:
+        if not merge:
+            raise NeedsMerge(f"“{new}” is a tag already, on {tag_photos(con, new):,} photos. Put the "
+                             f"{tag_photos(con, old):,} photos tagged “{old}” under it too, as one tag?", new)
+        target = into[0]
+        args = {"a": a, "b": target}
+        ids += [r[0] for r in con.execute("SELECT image_id FROM image_tag WHERE tag_id = :b", args)]
+        # where a photo has both: given by hand counts over the AI's, and taken off by hand over both
+        con.execute("""UPDATE image_tag SET source = 'user' WHERE tag_id = :b AND source = 'ai'
+                       AND image_id IN (SELECT image_id FROM image_tag WHERE tag_id = :a AND source = 'user')""", args)
+        con.execute("""UPDATE image_tag SET source = 'not' WHERE tag_id = :b AND source != 'not'
+                       AND image_id IN (SELECT image_id FROM image_tag WHERE tag_id = :a AND source = 'not')""", args)
+        con.execute("""UPDATE image_tag SET tag_id = :b WHERE tag_id = :a
+                       AND image_id NOT IN (SELECT image_id FROM image_tag WHERE tag_id = :b)""", args)
+        con.execute("DELETE FROM image_tag WHERE tag_id = :a", args)
+        con.execute("UPDATE tag_alias SET tag_id = :b WHERE tag_id = :a", args)  # merged before into this one
+        con.execute("DELETE FROM tag WHERE id = :a", args)
+    con.execute("DELETE FROM tag_alias WHERE name = ?", (new,))  # wanted again, if it was taken off everywhere
+    con.execute("INSERT OR REPLACE INTO tag_alias(name, tag_id) VALUES (?, ?)", (old, target))
+    ids = sorted(set(ids))
+    reindex_many(con, ids)
+    return new, ids
+
+
+def remove_everywhere(con: sqlite3.Connection, name: str) -> list[int]:
+    """Take a tag off every photo, for good, as taking it off one photo does (source 'not'): describing them again
+    doesn't bring it back, and the AI no longer gives it to new photos. Given by hand again later, it is there.
+    Doesn't commit. Returns the photos it was on."""
+    old = tag_name(name)
+    row = con.execute("SELECT id FROM tag WHERE name = ?", (old,)).fetchone()
+    if row is None:
+        raise Problem(f"There is no tag “{old}”: it was renamed or merged since. Reload the page.")
+    ids = [r[0] for r in con.execute("SELECT image_id FROM image_tag WHERE tag_id = ? AND source != 'not'", (row[0],))]
+    con.execute("UPDATE image_tag SET source = 'not' WHERE tag_id = ? AND source != 'not'", (row[0],))
+    con.execute("UPDATE tag_alias SET tag_id = NULL WHERE tag_id = ?", (row[0],))  # words merged into it, too
+    con.execute("INSERT OR REPLACE INTO tag_alias(name, tag_id) VALUES (?, NULL)", (old,))
+    reindex_many(con, ids)
+    return ids
+
+
+def reindex_many(con: sqlite3.Connection, ids: list[int]) -> bool:
+    """Search these photos again: at once for up to REINDEX_AT_ONCE (a short write), else on the worker's next pass
+    (search_stale), searched as they were meanwhile. True if it was left to the worker."""
+    if len(ids) > REINDEX_AT_ONCE:
+        con.executemany("INSERT OR IGNORE INTO search_stale VALUES (?)", ((i,) for i in ids))
+        return True
+    _reindex(con, ids)
+    return False

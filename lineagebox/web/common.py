@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-from lineagebox import access, catalog, cleanup, errors, faces, family, https, sharing, tours
+from lineagebox import access, albums, catalog, cleanup, errors, faces, family, https, sharing, tours
 from lineagebox.config import Config
 
 HERE = Path(__file__).resolve().parent
@@ -28,7 +28,8 @@ IN_DOCKER = Path("/.dockerenv").exists()  # for the Status page's update steps
 EVERYTHING = 1_000_000_000  # "all" as a page size: more than any list holds
 LAN_ONLY = (".lan", ".local", ".home", ".home.arpa", ".internal", ".localdomain", ".localhost")  # never public names
 DATE_SOURCE_LABEL = {"exif": None, "camera": None, "filename": "date from file name", "folder": "date from folder",
-                     "mtime": "date from file time", "user": None}
+                     "mtime": "date from file time", "user": None, "copy": "camera date of a copy",
+                     "import": "date from another app"}  # imports.py
 
 
 def fmt_date(iso: str | None, with_time: bool = True) -> str:
@@ -82,14 +83,16 @@ SIGNING_IN = "lineagebox_signin"  # cookie: the Google sign-in this browser star
 PASSKEY_STARTED = "lineagebox_passkey"  # cookie: the passkey this browser was asked to make or use
 PUBLIC, MEMBER, ADMIN = "public", "member", "admin"
 
-_NOT_PAGES = ("/api/", "/t/", "/p/", "/frame/", "/face/", "/play/", "/original/", "/download/", "/status/live",
-              "/tours/suggested")
+_NOT_PAGES = ("/api/", "/t/", "/t2/", "/p/", "/frame/", "/face/", "/play/", "/original/", "/download/",
+              "/status/live", "/tours/suggested")
 
 
 def _public_path(path: str) -> bool:
     """What anyone may reach before signing in: the sign-in page and Google's way back, the stylesheet and script,
-    and the health check."""
-    return path in ("/signin", "/healthz") or path.startswith(("/auth/", "/static/"))
+    and the health check; and what a phone installing the site asks for on its own, without its cookie (the web
+    manifest and the service worker, routes/phone.py)."""
+    return (path in ("/signin", "/healthz", "/manifest.webmanifest", "/sw.js")
+            or path.startswith(("/auth/", "/static/")))
 
 
 def _is_page(path: str) -> bool:
@@ -123,13 +126,16 @@ def _redirect_uri(request: Request, now: Config) -> str:
     return base.rstrip("/") + "/auth/google/callback"
 
 
-def _content_policy(tiles: str) -> str:
+def _content_policy(tiles: str, framed: bool = False) -> str:
     """Scripts only from this site's own files (pages have no inline scripts), pictures from it and the map's tile
     server, no plugins, frames or forms elsewhere: a name or caption that ever slipped through escaping could not run
-    as script with an admin's session."""
+    as script with an admin's session. The service worker (routes/phone.py) and the web manifest are this site's own
+    files too. framed: a photo frame's device link (web/frames.py), which another page (a Home Assistant dashboard) may
+    show inside it: it changes nothing, and has no buttons that could be clicked through a page laid over it."""
+    ancestors = "*" if framed else "'none'"
     return ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
             f"img-src 'self' data: {_tile_source(tiles)}; connect-src 'self'; object-src 'none'; base-uri 'none'; "
-            "form-action 'self'; frame-ancestors 'none'")
+            f"form-action 'self'; frame-ancestors {ancestors}")
 
 
 def _tile_source(tiles: str) -> str:
@@ -242,10 +248,10 @@ def _share_panel(w, v: access.Viewer, kind: str, item_id: int) -> dict:
 
 
 def _shared_with_me(w, c, v: access.Viewer) -> dict:
-    """What others share with a member, newest first, as they may see it: folders and tours (each with its count and
-    cover, a tour's from the photos it shares) and single photos, each with who shared it. Nothing for an admin, who
-    sees everything anyway."""
-    out = {"folders": [], "tours": [], "photos": []}
+    """What others share with a member, newest first, as they may see it: folders, tours and albums (each with its
+    count and cover, a tour's from the photos it shares) and single photos, each with who shared it. Nothing for an
+    admin, who sees everything anyway."""
+    out = {"folders": [], "tours": [], "photos": [], "albums": []}
     if not v.limited:
         return out
     tree, seen = None, set()
@@ -267,6 +273,10 @@ def _shared_with_me(w, c, v: access.Viewer) -> dict:
                          if v.sees_image(i)]
                 out["tours"].append({"tour": t, "by": s["by_name"], "photos": len(shown),
                                      "cover": shown[0][1] if shown else None})
+        elif s["kind"] == "album":  # albums.py: of its photos, those they see, in its order
+            if a := albums.get(c, s["item_id"]):
+                out["albums"].append({"album": a, "by": s["by_name"], "photos": len(albums.photo_ids(c, a["id"])),
+                                      "cover": albums.cover(c, a)})
         elif row := c.execute(f"""SELECT i.id, i.sha256, i.taken_at, i.taken_at_source, i.media, i.duration FROM image i
                                    WHERE i.id = ? AND {catalog.VISIBLE}""", (s["item_id"],)).fetchone():
             out["photos"].append(row)
@@ -299,7 +309,7 @@ def _faces_spec(v: access.Viewer, face_ids):
                                WHERE id IN (SELECT value FROM json_each(?)) AND frame IS NOT NULL)"""
     return lambda new: [("face", f"id IN (SELECT value FROM json_each(?)) OR {in_video}", (ids, ids)),
                         ("face_not_person", "face_id IN (SELECT value FROM json_each(?))", (ids,)),
-                        ("person", "id > ? AND added_by = ?", (new["person"], v.account_id))]
+                        ("person", "id > ? AND added_by IS ?", (new["person"], _by(v)))]
 
 
 def _tags_spec(image_ids, tag: str):
@@ -317,20 +327,51 @@ def _dates_spec(image_ids):
 def _photo_people_spec(v: access.Viewer, image_ids):
     ids = _ids(image_ids)
     return lambda new: [("image_person", "image_id IN (SELECT value FROM json_each(?))", (ids,)),
-                        ("person", "id > ? AND added_by = ?", (new["person"], v.account_id))]
+                        ("person", "id > ? AND added_by IS ?", (new["person"], _by(v)))]
 
 
 def _family_spec(v: access.Viewer, *person_ids):
-    """Everything about these people a family change can touch, and anyone the member added with it."""
+    """Everything about these people a family change can touch, and anyone the member added with it: with what
+    their life events' removal takes along (documents' and written sources' citations of them), and the written
+    sources cited for them (one nothing cites any more goes)."""
     ids = _ids(person_ids)
     among = "IN (SELECT value FROM json_each(?))"
+    cites = f"""person_id {among} OR event_id IN (SELECT id FROM main.event
+                                                 WHERE person_id {among} OR couple_a {among} OR couple_b {among})"""
     return lambda new: [
-        ("person", f"id {among} OR (id > ? AND added_by = ?)", (ids, new["person"], v.account_id)),
+        ("person", f"id {among} OR (id > ? AND added_by IS ?)", (ids, new["person"], _by(v))),
         ("parent", f"child_id {among} OR parent_id {among}", (ids, ids)),
         ("sibling", f"a {among} OR b {among}", (ids, ids)), ("partner", f"a {among} OR b {among}", (ids, ids)),
         ("relation", f"person_id {among} OR of_id {among}", (ids, ids)),
         ("event", f"person_id {among} OR couple_a {among} OR couple_b {among}", (ids, ids, ids)),
-        ("person_name", f"person_id {among}", (ids,)), ("person_group", f"person_id {among}", (ids,))]
+        ("person_name", f"person_id {among}", (ids,)), ("person_group", f"person_id {among}", (ids,)),
+        ("citation", cites, (ids,) * 4), ("source_citation", cites, (ids,) * 4),
+        ("source", f"id > ? OR id IN (SELECT source_id FROM main.source_citation WHERE {cites})",
+         (new["source"], *(ids,) * 4)),
+        ("tree_media", f"person_id {among}", (ids,))]
+
+
+def _merge_spec(w, v: access.Viewer, *person_ids):
+    """Everything merging or removing these people can touch, for its undo: their family (as _family_spec), every
+    face and photo named as them, their "not them" marks and citations, other trees' ids for them, accounts and access
+    exceptions that point at them, the tours that pick them and "This is me". The faces and tours are picked now,
+    before the change: a removal takes the name off the faces, which then could no longer be found by it."""
+    ids = _ids(person_ids)
+    among = "IN (SELECT value FROM json_each(?))"
+    face_ids = _ids(r[0] for r in w.execute(f"SELECT id FROM main.face WHERE person_id {among}", (ids,)))
+    tours = {t: _ids(r[0] for r in w.execute(f"""SELECT id FROM main.{t} WHERE EXISTS
+                                                 (SELECT 1 FROM json_each(spec, '$.who.person_ids') WHERE value {among})""",
+                                             (ids,))) for t in ("tour", "tour_type")}
+    family = _family_spec(v, *person_ids)
+    events = f"SELECT id FROM main.event WHERE person_id {among} OR couple_a {among} OR couple_b {among}"
+    return lambda new: [*family(new), ("face", f"id {among}", (face_ids,)),
+                        ("image_person", f"person_id {among}", (ids,)),
+                        ("face_not_person", f"person_id {among}", (ids,)),
+                        ("citation", f"person_id {among} OR event_id IN ({events})", (ids, ids, ids, ids)),
+                        ("external_id", f"person_id {among}", (ids,)), ("access_rule", f"person_id {among}", (ids,)),
+                        ("account", f"person_id {among}", (ids,)), ("settings", "key = 'me'", ()),
+                        ("tour", f"id {among}", (tours["tour"],)), ("tour_type", f"id {among}", (tours["tour_type"],)),
+                        ("story", f"person_id {among}", (ids,))]  # recorded stories about them (stories.py)
 
 
 def _document_spec(image_id: int):
@@ -517,6 +558,10 @@ class NameBody(BaseModel):
     name_id: int | None = None  # the person picked from the name box's suggestions (two may have the same name)
 
 
+class RenameBody(NameBody):
+    merge: bool = False  # yes, make the two one person (asked first: rename_person)
+
+
 class MergeBody(BaseModel):
     into: int
 
@@ -587,6 +632,41 @@ class OtherNameBody(BaseModel):
     type: str
 
 
+class StoryBody(BaseModel):
+    """A person's life story, or their notes: only what is sent changes."""
+    biography: str | None = Field(None, max_length=20000)
+    notes: str | None = Field(None, max_length=1_000_000)  # an imported tree's notes can be long: editing must work
+
+
+class PortraitBody(BaseModel):
+    face_id: int | None = None  # None: picked as before, the clearest named face
+
+
+class SourceBody(BaseModel):
+    """A written source cited for someone or one of their events: one already here (source_id), or a new one."""
+    source_id: int | None = None
+    title: str = Field("", max_length=200)
+    author: str = Field("", max_length=120)
+    publication: str = Field("", max_length=200)
+    note: str = Field("", max_length=4000)
+    target: str = Field(min_length=3, max_length=20)  # p:<person id> or e:<event id>
+    page: str = Field("", max_length=300)
+
+
+class SourceEditBody(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    author: str = Field("", max_length=120)
+    publication: str = Field("", max_length=200)
+    note: str = Field("", max_length=4000)
+
+
+class PediBody(BaseModel):
+    """How a child belongs to a parent: birth, adopted or foster."""
+    child: int
+    parent: int
+    kind: str
+
+
 class UnlinkBody(BaseModel):
     kind: str = ""
     a: int
@@ -653,10 +733,11 @@ class HiddenBody(BaseModel):
 
 
 class ShareBody(BaseModel):
-    """One folder, photo or tour (only one of the ids), and whom with: an account's id, or "everyone"."""
+    """One folder, photo, tour or album (only one of the ids), and whom with: an account's id, or "everyone"."""
     folder_id: int | None = None
     image_id: int | None = None
     tour_id: int | None = None
+    album_id: int | None = None
     to: str = Field(min_length=1, max_length=20)
 
 

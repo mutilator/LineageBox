@@ -8,9 +8,10 @@ For a member who is person P (docs/access-control.md, "Who a member sees"):
   not shown). Friends, pets and other relationships are outside it.
 - photos: those someone they can see is in (a face named by hand or recognised, or added to the photo by hand), and
   their own uploads. A photo an admin hid, or one in a hidden folder, is left out unless they uploaded it.
-- and what another account shared with them, or with everyone (sharing.py): a folder, a photo, or a tour with the photos
-  it shows its maker. Only shares that still hold count: from an account not switched off, of what is still theirs to
-  share (a member's own uploads and tours), and never a photo an admin hid.
+- and what another account shared with them, or with everyone (sharing.py): a folder, a photo, a tour with the photos
+  it shows its maker, or an album with the photos its maker may pass on (albums.py). Only shares that still hold count:
+  from an account not switched off, of what is still theirs to share (a member's own uploads, tours and albums), and
+  never a photo an admin hid.
 Admins see everything; so does everyone while accounts are off.
 
 The web app keeps a member to that in two ways: every route says who may use it, and a member's connection only
@@ -41,6 +42,10 @@ SCOPED = {
     "video_frame": "image_id IN temp.seen_image",
     "transcript": "image_id IN temp.seen_image",
     "document": "image_id IN temp.seen_image",
+    "comment": "image_id IN temp.seen_image",
+    "video_chapters": "image_id IN temp.seen_image",
+    "image_place": "image_id IN temp.seen_image",  # placed on the map by hand (places.py)
+    "folder_place": "folder_id IN temp.seen_folder",
     "folder": "id IN temp.seen_folder",
     "person": "id IN temp.seen_person",
     "person_name": "person_id IN temp.seen_person",
@@ -49,12 +54,25 @@ SCOPED = {
     "face_not_person": "person_id IN temp.seen_person",
     "event": "person_id IN temp.seen_person OR (couple_a IN temp.seen_person AND couple_b IN temp.seen_person)",
     "citation": "image_id IN temp.seen_image AND (person_id IN temp.seen_person OR event_id IN (SELECT id FROM temp.event))",
+    # recorded stories (stories.py): a photo's with the photo; a person's with them, and an event's with the event
+    "story": "image_id IN temp.seen_image OR (person_id IN temp.seen_person AND (event_id IS NULL OR event_id IN "
+             "(SELECT id FROM temp.event)))",
+    # written sources: those cited for people and events they see, and those they added themselves
+    "source_citation": "person_id IN temp.seen_person OR event_id IN (SELECT id FROM temp.event)",
+    "source": "id IN (SELECT source_id FROM temp.source_citation) OR added_by = {account}",
+    "tree_media": "person_id IN temp.seen_person OR source_id IN (SELECT id FROM temp.source)",
     "parent": "child_id IN temp.seen_person AND parent_id IN temp.seen_person",
     "sibling": "a IN temp.seen_person AND b IN temp.seen_person",
     "partner": "a IN temp.seen_person AND b IN temp.seen_person",
     "relation": "person_id IN temp.seen_person AND of_id IN temp.seen_person",
     "tour": "account_id = {account} OR id IN temp.seen_tour",
     "tour_photo": "0",
+    # albums (albums.py): their own and those shared with them; of an album's photos, those they see
+    "album": "account_id = {account} OR id IN temp.seen_album",
+    "album_photo": "album_id IN (SELECT id FROM temp.album) AND image_id IN temp.seen_image",
+    "album_passed": "0",
+    "favourite": "account_id = {account}",
+    "slideshow_video": "account_id = {account}",
     "share": "account_id = {account}",
     "upload": "account_id = {account}",
     "account": "id = {account}",
@@ -66,6 +84,17 @@ SCOPED = {
     "gedcom_import": "0",
     "activity": "0",
     "kept_copies": "0",
+    # New for you (outbox.py): events for them or everyone, of photos they see, not their own doing; each is checked
+    # again as it is shown. Alerts are admins'; device links too, and a connection of no account (0) has none.
+    "outbox": "{account} != 0 AND NOT admins AND (to_account IS NULL OR to_account = {account})"
+              " AND coalesce(by_account, 0) != {account} AND (image_id IS NULL OR image_id IN temp.seen_image)",
+    "outbox_seen": "account_id = {account}",
+    "device_link": "0",
+    # Search by meaning, describing again and tags across the library (embeddings.py, describe.py, tagging.py): the
+    # meaning of the photos they see, their own asks, and none of the tags' renames (an admin's, about every photo)
+    "embedding": "image_id IN temp.seen_image",
+    "describe_request": "account_id = {account}",
+    "tag_alias": "0",
 }
 WITH_ROWID = {"image_tag"}  # read by rowid (the order tags were given in): a view has none unless it says so
 
@@ -81,9 +110,13 @@ class Viewer:
     folders: frozenset[int] = frozenset()
     granted: frozenset[int] = frozenset()  # of the photos, those they see only because they were shared with them
     tours: frozenset[int] = frozenset()  # tours others shared with them
+    albums: frozenset[int] = frozenset()  # albums others shared with them
     shared_folders: frozenset[str] = frozenset()  # paths of the folders shared with them, to browse
     seeing_as: bool = False  # an admin looking through this member's eyes: changes are refused
     lists: dict = field(default_factory=dict, compare=False, repr=False)  # the sets as JSON lists, for scope()
+    # a photo frame's device link (devices.py), which sees only the photos of its one view and opens only the frame
+    # (web/frames.py ROUTES); None for everyone else
+    device: dict | None = field(default=None, compare=False, repr=False)
 
     @property
     def limited(self) -> bool:
@@ -106,11 +139,19 @@ class Viewer:
 
 EVERYONE = Viewer()
 NOBODY = Viewer(admin=False,  # accounts on, not signed in
-                lists={"person": "[]", "image": "[]", "folder": "[]", "tour": "[]"})
+                lists={"person": "[]", "image": "[]", "folder": "[]", "tour": "[]", "album": "[]"})
 
 
 def admin(account: dict) -> Viewer:
     return Viewer(account=account, admin=True)
+
+
+def device(link: dict, images, shas) -> Viewer:
+    """A photo frame's device link (devices.py): nobody's account, nobody's names, only the photos and videos its one
+    view shows. web/frames.py works those out and says which pages it may open."""
+    return Viewer(account=None, admin=False, images=frozenset(images), shas=frozenset(shas), device=link,
+                  lists={"person": "[]", "image": json.dumps(sorted(images)), "folder": "[]", "tour": "[]",
+                         "album": "[]"})
 
 
 # ---- the rules -----------------------------------------------------------------------------------------------------
@@ -208,6 +249,7 @@ class Shared:
     images: frozenset[int] = frozenset()
     tours: frozenset[int] = frozenset()
     folders: frozenset[str] = frozenset()
+    albums: frozenset[int] = frozenset()
 
 
 def within(path: str | None, folder: str | None) -> bool:
@@ -222,9 +264,10 @@ def active_shares(con: sqlite3.Connection, account_id: int) -> list[sqlite3.Row]
     into the library, shares no more than it may."""
     rows = con.execute("""
         SELECT s.*, a.role AS by_role, a.upload_folder AS by_uploads, f.path AS folder_path,
-               t.account_id AS tour_maker
+               t.account_id AS tour_maker, al.account_id AS album_maker
         FROM main.share s JOIN main.account a ON a.id = s.account_id
         LEFT JOIN main.folder f ON f.id = s.folder_id LEFT JOIN main.tour t ON t.id = s.tour_id
+        LEFT JOIN main.album al ON al.id = s.album_id
         WHERE a.disabled_at IS NULL AND s.account_id != :me AND (s.with_id = :me OR s.with_id IS NULL)
         ORDER BY s.id""", {"me": account_id}).fetchall()
     return [r for r in rows if r["by_role"] == "admin" or theirs_to_share(con, r)]
@@ -237,6 +280,8 @@ def theirs_to_share(con: sqlite3.Connection, share: sqlite3.Row) -> bool:
         return within(share["folder_path"], share["by_uploads"])
     if share["tour_id"] is not None:
         return share["tour_maker"] == share["account_id"]
+    if "album_id" in share.keys() and share["album_id"] is not None:  # their own album (what it passes on: shared_with)
+        return share["album_maker"] == share["account_id"]
     return con.execute("""SELECT 1 FROM main.upload WHERE image_id = :i AND account_id = :a
                           UNION SELECT 1 FROM main.file WHERE image_id = :i AND NOT missing
                                                           AND path LIKE :under ESCAPE '!'""",
@@ -259,10 +304,16 @@ def shared_with(con: sqlite3.Connection, account_id: int) -> Shared:
         images |= {r[0] for r in con.execute("""SELECT image_id FROM main.tour_photo
                                                 WHERE tour_id IN (SELECT value FROM json_each(?))""",
                                              (json.dumps(sorted(tours)),))}
+    # an album's photos as its maker may pass them on, kept when it was last changed, shared or opened (album_passed)
+    albums = {r["album_id"] for r in shares if r["album_id"] is not None}
+    if albums:
+        images |= {r[0] for r in con.execute("""SELECT image_id FROM main.album_passed
+                                                WHERE album_id IN (SELECT value FROM json_each(?))""",
+                                             (json.dumps(sorted(albums)),))}
     if images:
         not_shown, args = hidden(con)
         images -= {r[0] for r in con.execute(not_shown, args)}
-    return Shared(frozenset(images), frozenset(tours), frozenset(folders))
+    return Shared(frozenset(images), frozenset(tours), frozenset(folders), frozenset(albums))
 
 
 def compute(con: sqlite3.Connection, account: dict, shared: bool = True) -> Viewer:
@@ -281,14 +332,18 @@ def compute(con: sqlite3.Connection, account: dict, shared: bool = True) -> View
     others = shared_with(con, account["id"]) if shared else Shared()
     granted = others.images - images
     images |= granted
+    # the clip of each Live Photo they see, which its page plays (live.py); no page lists one
+    images |= {clip for clip, still in con.execute("SELECT id, live_of FROM image WHERE live_of IS NOT NULL"
+                                                   " AND NOT hidden") if still in images}
     shas = {r[0] for r in con.execute("SELECT sha256 FROM image WHERE id IN (SELECT value FROM json_each(?))",
                                       (json.dumps(sorted(images)),))}
     folders = folders_for(con, images, account["upload_folder"], others.folders)
     return Viewer(account=account, admin=False, people=frozenset(people), images=frozenset(images),
                   shas=frozenset(shas), folders=frozenset(folders), granted=frozenset(granted), tours=others.tours,
-                  shared_folders=others.folders,
+                  shared_folders=others.folders, albums=others.albums,
                   lists={"person": json.dumps(sorted(people)), "image": json.dumps(sorted(images)),
-                         "folder": json.dumps(sorted(folders)), "tour": json.dumps(sorted(others.tours))})
+                         "folder": json.dumps(sorted(folders)), "tour": json.dumps(sorted(others.tours)),
+                         "album": json.dumps(sorted(others.albums))})
 
 
 class Viewers:
@@ -342,9 +397,9 @@ def scope(con: sqlite3.Connection, viewer: Viewer) -> sqlite3.Connection:
     con.me = viewer.me
     if viewer.admin:
         return con
-    for name in ("person", "image", "folder", "tour"):
+    for name in ("person", "image", "folder", "tour", "album"):
         con.execute(f"CREATE TEMP TABLE seen_{name}(id INTEGER PRIMARY KEY)")
-        con.execute(f"INSERT INTO temp.seen_{name} SELECT value FROM json_each(?)", (viewer.lists[name],))
+        con.execute(f"INSERT INTO temp.seen_{name} SELECT value FROM json_each(?)", (viewer.lists.get(name, "[]"),))
     for table, where in SCOPED.items():
         columns = "rowid AS rowid, *" if table in WITH_ROWID else "*"
         con.execute(f"CREATE TEMP VIEW {table} AS SELECT {columns} FROM main.{table} WHERE {where}".replace(

@@ -4,7 +4,7 @@ Everything LineageBox does is also a command, `python -m lineagebox <command>`. 
 you only need these to debug, to run one stage by hand, or to manage accounts and HTTPS.
 
 - **In Docker:** `docker compose exec worker python -m lineagebox <command>`. Use `web` instead of `worker` for
-  `accounts` and `https`.
+  `accounts` and `https`. With LineageBox stopped, `docker compose run --rm --no-deps worker <command>`.
 - **From source:** `.venv/bin/python -m lineagebox <command>`, or `.\.venv\Scripts\python.exe -m lineagebox <command>`
   on Windows.
 
@@ -34,7 +34,7 @@ failures are recorded per photo without stopping the run.
 | `sharpness` | Measures sharpness, for the Blank and blurry list. |
 | `check-files [--all]` | Reads every file whole for damage, and has missing previews made again. `--all` checks files already checked. |
 | `index` | Rebuilds the search index. |
-| `transcribe [--limit N]` | Transcribes videos with the Whisper service. |
+| `transcribe [--limit N]` | Transcribes recorded stories, then videos and sound recordings, with the Whisper service. |
 | `describe [--folder F] [--limit N] [--videos]` | Describes photos with Ollama. `--folder "Photos/2012/Zoo trip"` does one album. |
 
 ## Looking and managing
@@ -51,6 +51,9 @@ failures are recorded per photo without stopping the run.
 | `accounts invite <email>` | Makes a link for making the account's passkey (one use; 7 days, a day for an admin). |
 | `accounts passkeys <email>` | Lists the account's passkeys. |
 | `accounts on\|off` | Turns family accounts on or off. |
+| `backup` | Copies the catalog now, checks the copy and keeps it with the nightly ones (Settings → Backup's folder). |
+| `backup --check <file>` | Reads a copy of the catalog whole and says what it holds: its catalog version, and how many photos, people and named faces. It needs no config or catalog, so it works before a copy is [put back](install.md#backups). |
+| `export <file>` | Writes the family tree and what the family said about every photo as one zip, for other programs ([the export format](export.md)). Given a folder, it writes `lineagebox-export-<date>.zip` in it. |
 
 ## Running stages by hand, from source
 

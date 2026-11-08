@@ -1,16 +1,16 @@
 {#- An admin's new link for making a passkey, shown once (Settings → Family accounts). -#}
 <div class="new-code">
-  <div class="qr" role="img" aria-label="QR code of the link, for the phone's camera">{{ qr|safe }}</div>
+  <div class="qr" role="img" aria-label="{{ _("QR code of the link, for the phone's camera") }}">{{ qr|safe }}</div>
   <div>
-    <p>Send this link to {{ email }}, by text or email, or have them point their phone's camera at the code:</p>
-    <p><code class="code">{{ link }}</code> <button type="button" class="quiet" data-copy="{{ link }}">Copy</button></p>
+    <p>{% trans %}Send this link to {{ email }}, by text or email, or have them point their phone's camera at the code:{% endtrans %}</p>
+    <p><code class="code">{{ link }}</code> <button type="button" class="quiet" data-copy="{{ link }}">{% trans %}Copy{% endtrans %}</button></p>
     <ol>
-      <li>They open it on their own phone or computer and press <b>Make my passkey</b>.</li>
-      <li>The phone or computer asks them to unlock it, and keeps the passkey. They are then signed in.</li>
-      <li>Next time they press <b>Sign in with a passkey</b> on the sign-in page.</li>
+      <li>{% trans %}They open it on their own phone or computer and press <b>Make my passkey</b>.{% endtrans %}</li>
+      <li>{% trans %}The phone or computer asks them to unlock it, and keeps the passkey. They are then signed in.{% endtrans %}</li>
+      <li>{% trans %}Next time they press <b>Sign in with a passkey</b> on the sign-in page.{% endtrans %}</li>
     </ol>
-    <p class="hint">It works once, until {{ until.isoformat()|date }}{% if admin %} (a day: this is an admin's
-      account, which opens everything){% endif %}. Whoever has it can make a passkey for this account, so send it to
-      them alone. It is shown only now: making another stops this one working.</p>
+    <p class="hint">{% trans until=until.isoformat()|date %}It works once, until {{ until }}{% endtrans %}{% if admin %} {% trans %}(a day: this is an admin's
+      account, which opens everything){% endtrans %}{% endif %}{% trans %}. Whoever has it can make a passkey for this account, so send it to
+      them alone. It is shown only now: making another stops this one working.{% endtrans %}</p>
   </div>
 </div>

@@ -27,6 +27,12 @@ A few rules shape most of the code ([details](docs/development.md#conventions)):
 - the photo folders are only read, except by Cleanup, uploads, 720p copies and confirmed rotations;
 - UI text is written for non-technical family members.
 
+## Translations
+
+LineageBox ships in English only, and is ready for translations: [docs/translating.md](docs/translating.md) says
+how to make one (extract the text with pybabel, translate the `.po` files, compile them) and try it. Send the `.po` and
+`.mo` files of your language as a pull request, like code.
+
 ## Licence
 
 LineageBox is under the [GNU Affero General Public License, version 3](LICENSE). By opening a pull request, you agree

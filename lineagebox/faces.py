@@ -15,6 +15,7 @@ import zipfile
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 import httpx
@@ -269,8 +270,36 @@ def look_again(con: sqlite3.Connection, cfg: Config, image_id: int) -> tuple[lis
                                            embedding, frame) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                        f).lastrowid for f in found]
     con.executemany("UPDATE face SET assigned_by = NULL WHERE id = ?", ((i,) for i in back))
+    con.execute("UPDATE image SET faces_again = ? WHERE id = ?",  # off the list of photos with faces missed (missed)
+                (datetime.now().isoformat(timespec="seconds"), image_id))
     con.commit()
     return new, sorted(back)
+
+
+# Photos with faces missed (Cleanup → Confirm faces → Faces missed): the AI's description counts the people it sees
+# (analysis.people_count), and where it counts MISSED_GROUP or more and MISSED_MORE more than the faces found, looking
+# again (look_again, at twice the size and a lower bar) may find the small faces of a group photo. On the library
+# LineageBox was developed on, 3,495 of 36,969 described photos were like that, 882 of them with someone named in them:
+# those come first, as photos of the family; crowds and people seen from behind are among the rest.
+MISSED_GROUP = 3
+MISSED_MORE = 2
+
+
+def missed(con: sqlite3.Connection, offset: int = 0, limit: int = 25) -> tuple[list[sqlite3.Row], int]:
+    """Photos where the AI counted more people than faces were found (see MISSED_GROUP), not yet looked at again,
+    those with someone named in them first, then the most missed: (the page, how many there are)."""
+    rows = con.execute(f"""
+        WITH counted AS (SELECT image_id, max(people_count) AS people FROM analysis GROUP BY image_id)
+        SELECT i.id, i.sha256, i.taken_at, i.taken_at_source, i.media, n.people,
+               (SELECT count(*) FROM face f WHERE f.image_id = i.id
+                AND (f.assigned_by IS NULL OR f.assigned_by != 'not_a_face')) AS found,
+               EXISTS (SELECT 1 FROM face f WHERE f.image_id = i.id AND f.person_id IS NOT NULL) AS named
+        FROM image i JOIN counted n ON n.image_id = i.id
+        WHERE i.media = 'photo' AND i.faces_again IS NULL AND n.people >= {MISSED_GROUP} AND {VISIBLE}
+          AND n.people - (SELECT count(*) FROM face f WHERE f.image_id = i.id
+                          AND (f.assigned_by IS NULL OR f.assigned_by != 'not_a_face')) >= {MISSED_MORE}
+        ORDER BY named DESC, n.people - found DESC, i.taken_at DESC, i.id""").fetchall()
+    return rows[offset:offset + limit], len(rows)
 
 
 def _overlap(box: tuple, face) -> float:

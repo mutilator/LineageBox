@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% from "_news_list.html" import news_list %}
+{% block title %}{% trans %}New for you{% endtrans %}{% endblock %}
+{% block main %}
+<h1>{% trans %}New for you{% endtrans %}</h1>
+<p class="meta">{% trans %}What happened lately that you may want to see: things shared with you, faces someone asked about, new
+photos of your family and words written on your photos. Only what you can see is here, and nothing is sent anywhere:
+it is all on this page. Opening it marks it all as seen.{% endtrans %}</p>
+{% if alerts %}
+<section class="panel" id="alerts">
+  <h2>{% trans %}For admins{% endtrans %}</h2>
+  {{ news_list(alerts) }}
+</section>
+{% endif %}
+{% if events %}
+{{ news_list(events) }}
+{% elif not alerts %}
+<p class="note">{% trans %}Nothing new just now. When someone shares something with you, asks who is in a photo you can see,
+or new photos of your family come in, it is here.{% endtrans %}</p>
+{% endif %}
+{% endblock %}

@@ -1,13 +1,27 @@
-{% macro grid(images, ctx) %}
-<div class="grid">
+{#- A tile's picture: the thumbnail, and for sharp screens one twice its size (made from the preview the first time one
+    asks for it: web/tiles.py). Its alt text says who is in the photo (only people the viewer sees) and when. #}
+{% macro tile_img(im, alts) -%}
+<img src="/t/{{ im.sha256 }}" srcset="/t/{{ im.sha256 }} 300w, /t2/{{ im.sha256 }} 600w" sizes="(max-width: 760px) 34vw, 170px" loading="lazy" alt="{{ alts[im.id] }}">
+{%- endmacro %}
+
+{#- part: the grid is one part of a page loaded in pieces (_pieces.html): its tiles can be jumped to (id) and say their
+    month (data-ym), for the scrubber. #}
+{% macro grid(images, ctx, part=none) %}
+{%- set ns = namespace(guessed=false) %}
+{%- set alts = tile_alts(images) %}
+<div class="grid"{% if part %} data-grid-part="{{ part }}"{% endif %}>
 {%- for im in images %}
-  <a class="tile" href="/image/{{ im.id }}?ctx={{ ctx|urlencode }}" title="{{ im.taken_at|date }}">
-    <img src="/t/{{ im.sha256 }}" loading="lazy" alt="{{ 'Video' if im.media == 'video' else 'Photo' }} from {{ im.taken_at|date(false) }}">
-    {%- if im.media == "video" %}<span class="badge video" title="Video">▶ {{ im.duration|duration }}</span>{% endif %}
-    {%- if date_source_label[im.taken_at_source] %}<span class="badge" title="{{ date_source_label[im.taken_at_source] }}">≈</span>{% endif %}
+  <a class="tile" href="/image/{{ im.id }}?ctx={{ ctx|urlencode }}" title="{{ im.taken_at|date }}"{% if part %} id="t{{ im.id }}" data-ym="{{ (im.taken_at or '')[:7] }}"{% endif %}>
+    {{ tile_img(im, alts) }}
+    {%- if im.media == "video" %}<span class="badge video" title="{{ _('Video') }}">▶ {{ im.duration|duration }}</span>{% elif im.media == "audio" %}<span class="badge video sound" title="{{ _('Sound recording') }}">🎙 {{ im.duration|duration }}</span>{% endif %}
+    {%- if date_source_label[im.taken_at_source] %}{% set ns.guessed = true %}<span class="badge" title="{{ date_source_label[im.taken_at_source] }}">≈</span>{% endif %}
   </a>
 {%- endfor %}
 </div>
+{%- if ns.guessed %}
+<p class="hint legend" data-once="legend">{% trans %}≈ on a photo: its date is a guess, from its folder's or file's name or from when the file was
+  copied. Open the photo to set it.{% endtrans %}</p>
+{%- endif %}
 {% endmacro %}
 
 {# Face crops that open their photo, each with × to take it away from this person or group and leave it out from now on. #}
@@ -23,14 +37,16 @@
 </div>
 {% endmacro %}
 
-{# A grid to pick photos from: clicking a photo ticks it, ↗ opens it. Wrap it in select_form. #}
-{% macro select_grid(images, ctx) %}
-<div class="grid selectable">
+{# A grid to pick photos from: clicking a photo ticks it (Shift and a click ticks every photo from the last one ticked),
+   ↗ opens it. Wrap it in select_form. part: as for grid. #}
+{% macro select_grid(images, ctx, part=none) %}
+{%- set alts = tile_alts(images) %}
+<div class="grid selectable"{% if part %} data-grid-part="{{ part }}"{% endif %}>
 {%- for im in images %}
-  <label class="tile pick" title="{{ im.caption or (im.taken_at|date) }}">
-    <input type="checkbox" name="image" value="{{ im.id }}">
-    <img src="/t/{{ im.sha256 }}" loading="lazy" alt="Photo from {{ im.taken_at|date(false) }}">
-    <a class="open" href="/image/{{ im.id }}?ctx={{ ctx|urlencode }}" target="_blank" title="Open in a new tab">↗</a>
+  <label class="tile pick" title="{{ im.caption or (im.taken_at|date) }}"{% if part %} id="t{{ im.id }}" data-ym="{{ (im.taken_at or '')[:7] }}"{% endif %}>
+    <input type="checkbox" name="image" value="{{ im.id }}" aria-label="{{ alts[im.id] }}">
+    {{ tile_img(im, alts) }}
+    <a class="open" href="/image/{{ im.id }}?ctx={{ ctx|urlencode }}" target="_blank" title="{{ _('Open in a new tab') }}" aria-label="{{ _('Open in a new tab') }}">↗</a>
     {%- if im.matched %}<span class="badge wide">{{ im.matched }}</span>{% endif %}
   </label>
 {%- endfor %}
@@ -38,46 +54,84 @@
 {% endmacro %}
 
 {# keep: also offer "Keep" for the ticked photos, which takes them off every cleanup list #}
-{% macro select_bar(keep=false) %}
+{% macro select_bar(keep=false, admin=true) %}
 <div class="select-bar">
-  <button type="button" data-select="all" data-key="a">Select all</button>
-  <button type="button" data-select="none" data-key="n">Select none</button>
-  <button type="submit" class="primary" data-label="Move {n} to Removed" disabled>Move 0 to Removed</button>
+  <button type="button" data-select="all" data-key="a">{% trans %}Select all{% endtrans %}</button>
+  <button type="button" data-select="none" data-key="n">{% trans %}Select none{% endtrans %}</button>
+  <button type="submit" class="primary" data-label="{{ _('Move {n} to Removed') }}" disabled>{% trans %}Move 0 to Removed{% endtrans %}</button>
   {%- if keep %}
-  <button type="submit" data-api="/api/images/keep" data-label="Keep {n}, don't suggest again" disabled>Keep 0</button>
+  <button type="submit" data-api="/api/images/keep" data-label="{{ _("Keep {n}, don't suggest again") }}" disabled>{% trans %}Keep 0{% endtrans %}</button>
   {%- endif %}
-  <span class="hint inline">Moved photos can be restored from <a href="/cleanup/removed">Removed</a>{% if keep %}, kept ones
-  from <a href="/cleanup/kept">Kept</a>{% endif %}.</span>
+  {%- if admin %}
+  <span class="hint inline">{% trans %}Moved photos can be restored from{% endtrans %} <a href="/cleanup/removed">{% trans %}Removed{% endtrans %}</a>{% if keep %}{% trans %}, kept ones
+  from <a href="/cleanup/kept">Kept</a>{% endtrans %}{% endif %}.</span>
+  {%- else %}
+  <span class="hint inline">{% trans %}Moved photos go to the Removed folder, from which an admin can put them back.{% endtrans %}</span>
+  {%- endif %}
 </div>
 {% endmacro %}
 
+{# Describe again (routes/ai.py): the worker has the AI look at a photo again and write a new description; the
+   caption and the tags people gave or took off stay. Anyone who sees it may ask; an admin may name another of
+   Ollama's models (models: true), picked from those it has. describe_again: on a photo's page;
+   describe_again_field: in the tick-photos bar. #}
+{% macro describe_again(img, models=false) %}
+<form class="describe-again" data-api="/api/images/{{ img.id }}/describe-again">
+  {%- if models %}
+  <input name="ai_model" list="ai-models" maxlength="100" placeholder="{{ _('the usual model') }}" aria-label="{{ _('Model to describe it with') }}" data-suggest="/api/ai/models" title="{{ _("Another of Ollama's models that can look at pictures; empty for the one on the Settings page") }}">
+  <datalist id="ai-models"></datalist>
+  {%- endif %}
+  <button type="submit" title="{{ _('The AI looks at this photo again and writes a new description. The caption, and the tags people gave or took off, stay as they are.') }}">{% trans %}Describe again{% endtrans %}</button>
+</form>
+{% endmacro %}
+{% macro describe_again_field(models=false) %}
+  <span class="bulk-field">
+    {%- if models %}
+    <input name="ai_model" list="ai-models" maxlength="100" placeholder="{{ _('the usual AI model') }}" aria-label="{{ _('Model to describe them with') }}" data-suggest="/api/ai/models" data-enter="#bulk-again" title="{{ _("Another of Ollama's models that can look at pictures; empty for the one on the Settings page") }}">
+    <datalist id="ai-models"></datalist>
+    {%- endif %}
+    <button type="submit" id="bulk-again" data-api="/api/selection/describe-again" data-keep data-label="{{ _('Describe {n} again') }}" disabled title="{{ _('The AI looks at the ticked photos again and writes new descriptions; the captions, and the tags people gave or took off, stay') }}">{% trans %}Describe 0 again{% endtrans %}</button>
+  </span>
+{%- endmacro %}
+
 {# What can be done to the photos ticked in a select_grid on a browsing page (a folder, a tag, a search, a status
    category): tag them, add someone to them, date them, take the page's tag off them, or move them to Removed
-   (remove: the title of that button, or none for a folder someone else shared). #}
-{% macro bulk_bar(tag=none, remove="Move the ticked photos' files to the Removed folder; they can be put back from Removed") %}
+   (remove: the title of that button, or none for a folder someone else shared). Ticks are kept in this tab for the
+   list (app.js), as more of it loads and on its other pages; everything: the ids of the whole list, which Select all
+   ticks (a list loaded in pieces), else Select all ticks those on the page. #}
+{% macro bulk_bar(tag=none, remove=_("Move the ticked photos' files to the Removed folder; an admin can put them back from there"), models=false, everything=none) %}
 <div class="select-bar bulk">
-  <button type="button" data-select="all" data-key="a">Select all</button>
-  <button type="button" data-select="none" data-key="n">Select none</button>
+  <button type="button" data-select="all" data-key="a" data-key-label="{{ _('Select all') }}">{% trans %}Select all{% endtrans %}{% if everything %} {{ everything|length|number }}{% endif %}</button>
+  <button type="button" data-select="none" data-key="n" data-key-label="{{ _('Clear the ticks') }}" title="{{ _('Untick every photo, also those ticked further down or on other pages') }}">{% trans %}Clear{% endtrans %}</button>
+  <span class="ticked-count hint inline" data-ticked aria-live="polite"></span>
+  {%- if everything %}<script type="application/json" data-everything>{{ everything|tojson }}</script>{% endif %}
   <span class="bulk-field">
-    <input name="add_tag" list="tag-names" maxlength="40" placeholder="a tag" aria-label="Tag to give them" data-suggest="/api/tags/names" data-enter="#bulk-tag" data-key="t" data-key-label="Tag the ticked photos">
+    <input name="add_tag" list="tag-names" maxlength="40" placeholder="{{ _('a tag') }}" aria-label="{{ _('Tag to give them') }}" data-suggest="/api/tags/names" data-enter="#bulk-tag" data-key="t" data-key-label="{{ _('Tag the ticked photos') }}">
     <datalist id="tag-names"></datalist>
-    <button type="submit" id="bulk-tag" data-api="/api/selection/tag" data-keep data-label="Tag {n}" disabled title="Give the ticked photos this tag">Tag 0</button>
+    <button type="submit" id="bulk-tag" data-api="/api/selection/tag" data-keep data-label="{{ _('Tag {n}') }}" disabled title="{{ _('Give the ticked photos this tag') }}">{% trans %}Tag 0{% endtrans %}</button>
   </span>
   <span class="bulk-field">
-    <input name="person" data-names autocomplete="off" maxlength="80" placeholder="a person" aria-label="Person to add to them" data-enter="#bulk-person" data-key="p" data-key-label="Add someone to the ticked photos">
-    <button type="submit" id="bulk-person" data-api="/api/selection/person" data-keep data-label="Add to {n}" disabled title="Say this person is in the ticked photos, for photos where their face wasn't found">Add to 0</button>
+    <input name="person" data-names autocomplete="off" maxlength="80" placeholder="{{ _('a person') }}" aria-label="{{ _('Person to add to them') }}" data-enter="#bulk-person" data-key="p" data-key-label="{{ _('Add someone to the ticked photos') }}">
+    <button type="submit" id="bulk-person" data-api="/api/selection/person" data-keep data-label="{{ _('Add to {n}') }}" disabled title="{{ _("Say this person is in the ticked photos, for photos where their face wasn't found") }}">{% trans %}Add to 0{% endtrans %}</button>
   </span>
   <span class="bulk-field">
-    <input name="date" maxlength="80" placeholder="a date" aria-label="When they were taken" data-enter="#bulk-date" data-key="w" data-key-label="Date the ticked photos" title="When the ticked photos were taken, as exactly as you know it: 1987-08-14, June 1987, summer 1987, 1987, the 1980s, about 1987, between 1986 and 1988">
-    <button type="submit" id="bulk-date" data-api="/api/selection/date" data-keep data-label="Date {n}" disabled title="Give the ticked photos this date">Date 0</button>
+    <input name="date" maxlength="80" placeholder="{{ _('a date, like summer 1987') }}" aria-label="{{ _('When they were taken') }}" data-enter="#bulk-date" data-key="w" data-key-label="{{ _('Date the ticked photos') }}" title="{{ _('When the ticked photos were taken, as exactly as you know it: 1987-08-14, June 1987, summer 1987, 1987, the 1980s, about 1987, between 1986 and 1988') }}">
+    <button type="submit" id="bulk-date" data-api="/api/selection/date" data-keep data-label="{{ _('Date {n}') }}" disabled title="{{ _('Give the ticked photos this date') }}">{% trans %}Date 0{% endtrans %}</button>
+  </span>
+  {#- Albums (albums.py): an album of the viewer's by its name, or a new one of that name #}
+  <span class="bulk-field">
+    <input name="album" list="album-names" maxlength="120" placeholder="{{ _('an album') }}" aria-label="{{ _('Album to add them to') }}" data-suggest="/api/albums/names" data-enter="#bulk-album" title="{{ _("An album of yours, or a new album's name") }}">
+    <datalist id="album-names"></datalist>
+    <button type="submit" id="bulk-album" data-api="/api/albums/add" data-keep data-label="{{ _('Add {n} to the album') }}" disabled title="{{ _('Put the ticked photos at the end of this album (a new album, if you have none of that name)') }}">{% trans %}Add 0 to the album{% endtrans %}</button>
   </span>
   {%- if tag %}
-  <button type="submit" data-api="/api/selection/untag?{{ {'tag': tag}|urlencode }}" data-label="Take “{{ tag }}” off {n}" disabled title="Take this tag off the ticked photos; describing them again won't bring it back">Take “{{ tag }}” off 0</button>
+  <button type="submit" data-api="/api/selection/untag?{{ {'tag': tag}|urlencode }}" data-label="{{ _('Take “%(tag)s” off {n}', tag=tag) }}" disabled title="{{ _("Take this tag off the ticked photos; describing them again won't bring it back") }}">{% trans %}Take “{{ tag }}” off 0{% endtrans %}</button>
   {%- endif %}
+  {{- describe_again_field(models) }}
   {%- if remove %}
-  <button type="submit" data-label="Move {n} to Removed" disabled title="{{ remove }}">Move 0 to Removed</button>
+  <button type="submit" data-label="{{ _('Move {n} to Removed') }}" disabled title="{{ remove }}">{% trans %}Move 0 to Removed{% endtrans %}</button>
   {%- endif %}
-  <button type="button" data-download title="The ticked photos' originals, as a zip">Download</button>
+  <button type="button" data-download data-most="{{ zip_most }}" title="{{ _("The ticked photos' originals, as a zip") }}">{% trans %}Download{% endtrans %}</button>
   <span class="done hint inline" role="status"></span>
 </div>
 {% endmacro %}
@@ -85,26 +139,33 @@
 {# What others shared with a member (common._shared_with_me), as on a folder's page: a card with a cover for each
    folder and tour, then the photos shared one by one. most: how many of each to show (Home shows a few). #}
 {% macro shared_with_you(shared, most=100000) %}
-{%- if shared.folders or shared.tours %}
+{%- if shared.folders or shared.tours or shared.albums %}
 <div class="folders">
 {%- for x in shared.folders[:most] %}
   <a class="folder-card" href="/folder/{{ x.folder.id }}">
     {% if x.folder.cover %}<img src="/t/{{ x.folder.cover }}" loading="lazy" alt="">{% else %}<span class="ph"></span>{% endif %}
-    <span class="label"><span class="name">{{ x.label }}</span><span class="count">{{ "{:,}".format(x.folder.total) }}</span></span>
-    <span class="label from">folder, from {{ x.by }}</span>
+    <span class="label"><span class="name">{{ x.label }}</span><span class="count">{{ x.folder.total|number }}</span></span>
+    <span class="label from">{% trans by=x.by %}folder, from {{ by }}{% endtrans %}</span>
   </a>
 {%- endfor %}
 {%- for x in shared.tours[:most] %}
   <a class="folder-card" href="/tour/{{ x.tour.id }}">
     {% if x.cover %}<img src="/t/{{ x.cover }}" loading="lazy" alt="">{% else %}<span class="ph"></span>{% endif %}
-    <span class="label"><span class="name">{{ x.tour.name }}</span>{% if x.photos %}<span class="count">{{ "{:,}".format(x.photos) }}</span>{% endif %}</span>
-    <span class="label from">▶ tour, from {{ x.by }}</span>
+    <span class="label"><span class="name">{{ x.tour.name }}</span>{% if x.photos %}<span class="count">{{ x.photos|number }}</span>{% endif %}</span>
+    <span class="label from">{% trans by=x.by %}▶ tour, from {{ by }}{% endtrans %}</span>
+  </a>
+{%- endfor %}
+{%- for x in (shared.albums or [])[:most] %}
+  <a class="folder-card" href="/album/{{ x.album.id }}">
+    {% if x.cover %}<img src="/t/{{ x.cover }}" loading="lazy" alt="">{% else %}<span class="ph"></span>{% endif %}
+    <span class="label"><span class="name">{{ x.album.name }}</span>{% if x.photos %}<span class="count">{{ x.photos|number }}</span>{% endif %}</span>
+    <span class="label from">{% trans by=x.by %}album, from {{ by }}{% endtrans %}</span>
   </a>
 {%- endfor %}
 </div>
 {%- endif %}
 {%- if shared.photos %}
-<h3>Photos shared one by one</h3>
+<h3>{% trans %}Photos shared one by one{% endtrans %}</h3>
 {{ grid(shared.photos[:most], "") }}
 {%- endif %}
 {% endmacro %}
@@ -116,29 +177,31 @@
   {%- if p.shares %}
   <ul class="share-list">
     {%- for s in p.shares %}
-    <li>Shared with <b>{{ s.with }}</b>{% if s.by %} <span class="hint inline">by {{ s.by }}</span>{% endif %}
-      <button type="button" class="quiet" data-api="/api/shares/{{ s.id }}/delete" data-reload>Stop sharing</button></li>
+    <li>{% trans %}Shared with{% endtrans %} <b>{{ s.with }}</b>{% if s.by %} <span class="hint inline">{% trans by=s.by %}by {{ by }}{% endtrans %}</span>{% endif %}
+      <button type="button" class="quiet" data-api="/api/shares/{{ s.id }}/delete" data-reload>{% trans %}Stop sharing{% endtrans %}</button></li>
     {%- endfor %}
   </ul>
   {%- else %}
-  <p class="hint">Not shared with anyone yet.{% if not p.admin %} You, the admins and whoever is in its photos see it.{% endif %}</p>
+  <p class="hint">{% trans %}Not shared with anyone yet.{% endtrans %}{% if not p.admin %} {% trans %}You, the admins and whoever is in its photos see it.{% endtrans %}{% endif %}</p>
   {%- endif %}
   <form class="share-form" data-api="/api/shares" data-reload>
     <input type="hidden" name="{{ p.kind }}_id" value="{{ p.item_id }}">
-    <label>Share {{ what }} with <select name="to">
-      <option value="everyone">everyone with an account</option>
+    <label>{% trans %}Share {{ what }} with{% endtrans %} <select name="to">
+      <option value="everyone">{% trans %}everyone with an account{% endtrans %}</option>
       {%- for r in p.recipients %}
       <option value="{{ r.id }}">{{ r.name }}</option>
       {%- endfor %}
     </select></label>
-    <button type="submit">Share</button>
+    <button type="submit">{% trans %}Share{% endtrans %}</button>
   </form>
   <p class="hint">
-    {%- if p.kind == "folder" %}They see the photos in it, and those added to it later.
-    {%- elif p.kind == "image" %}They see this photo.
-    {%- elif p.admin %}They see the photos it picks, as whoever made it sees them.
-    {%- else %}They see the photos it picks from your family's photos and your uploads (not what others shared with you).
-    {%- endif %} Anyone in them from outside their part of the family is named without a link.</p>
+    {%- if p.kind == "folder" %}{% trans %}They see the photos in it, and those added to it later.{% endtrans %}
+    {%- elif p.kind == "image" %}{% trans %}They see this photo.{% endtrans %}
+    {%- elif p.kind == "album" and p.admin %}{% trans %}They see its photos, in its order, with its captions.{% endtrans %}
+    {%- elif p.kind == "album" %}{% trans %}They see its photos of your family's and your uploads (not what others shared with you), in its order, with its captions.{% endtrans %}
+    {%- elif p.admin %}{% trans %}They see the photos it picks, as whoever made it sees them.{% endtrans %}
+    {%- else %}{% trans %}They see the photos it picks from your family's photos and your uploads (not what others shared with you).{% endtrans %}
+    {%- endif %} {% trans %}Anyone in them from outside their part of the family is named without a link.{% endtrans %}</p>
 </div>
 {% endmacro %}
 
@@ -146,16 +209,16 @@
 {% macro storage_meter(disks) %}
 <div class="storage-meters">
   {%- for d in disks %}
-  <a class="storage-meter{% if d.low %} low{% endif %}" href="/status#storage" title="{% if d.low %}Running low on space. {% endif %}{{ d.free|size }} free. See what takes the room on the Status page">
-    <span class="label">{% if disks|length > 1 %}{{ storage_name(d) }}{% else %}Storage{% endif %}</span>
+  <a class="storage-meter{% if d.low %} low{% endif %}" href="/status#storage" title="{% if d.low %}{{ _('Running low on space.') }} {% endif %}{{ _('%(free)s free. See what takes the room on the Status page', free=d.free|size) }}">
+    <span class="label">{% if disks|length > 1 %}{{ storage_name(d) }}{% else %}{% trans %}Storage{% endtrans %}{% endif %}</span>
     <span class="meter" role="progressbar" aria-valuenow="{{ (d.share * 100)|round|int }}" aria-valuemin="0" aria-valuemax="100"><i style="width: {{ (d.share * 100)|round(1) }}%"></i></span>
-    <span class="hint">{{ d.used|size }} of {{ d.total|size }} used</span>
+    <span class="hint">{% trans used=d.used|size, total=d.total|size %}{{ used }} of {{ total }} used{% endtrans %}</span>
   </a>
   {%- endfor %}
 </div>
 {% endmacro %}
 
-{% macro storage_name(d) %}{% if d.folders %}{{ d.folders|join(", ") }}{% if d.data %} and LineageBox's files{% endif %}{% else %}LineageBox's files{% endif %}{% endmacro %}
+{% macro storage_name(d) %}{% if d.folders %}{{ d.folders|join(", ") }}{% if d.data %} {% trans %}and LineageBox's files{% endtrans %}{% endif %}{% else %}{% trans %}LineageBox's files{% endtrans %}{% endif %}{% endmacro %}
 
 {# Storage on the Status page: each disk's bar in parts (photos and videos, LineageBox's own files, other files), and
    how much each part is. #}
@@ -163,19 +226,32 @@
 {%- for d in disks %}
 <div class="disk{% if d.low %} low{% endif %}">
   {%- if disks|length > 1 %}<h3>{{ storage_name(d) }}</h3>{% endif %}
-  <div class="meter parts" role="img" aria-label="{{ d.used|size }} of {{ d.total|size }} used">
+  <div class="meter parts" role="img" aria-label="{{ _('%(used)s of %(total)s used', used=d.used|size, total=d.total|size) }}">
     {%- for key, share in d.parts %}{% if share > 0 %}<i class="{{ key }}" style="width: {{ (share * 100)|round(2) }}%"></i>{% endif %}{% endfor -%}
   </div>
-  <p>{{ d.used|size }} of {{ d.total|size }} used, {{ d.free|size }} free.
-    {%- if d.low %} <strong>Space is running low:</strong> uploads stop when less than 2 GB is left, and new photos
-    get no previews.{% endif %}</p>
+  <p>{% trans used=d.used|size, total=d.total|size, free=d.free|size %}{{ used }} of {{ total }} used, {{ free }} free.{% endtrans %}
+    {%- if d.low %} {% trans %}<strong>Space is running low:</strong> uploads stop when less than 2 GB is left, and new photos
+    get no previews.{% endtrans %}{% endif %}</p>
   <dl class="legend">
-    {%- if d.folders %}<dt><i></i>Photos and videos</dt><dd>{{ d.photos|size }}</dd>
-    <dt><i class="removed"></i>Removed files, until the Removed folder is emptied</dt><dd>{% if d.removed %}<a href="/cleanup/removed" title="Cleanup → Removed: restore them, or empty it for good">{{ d.removed|size }}</a>{% else %}none{% endif %}</dd>{% endif %}
-    {%- if d.data %}<dt><i class="ours"></i>LineageBox's previews, thumbnails and catalog</dt><dd>{% if d.ours is not none %}{{ d.ours|size }}{% else %}measured once a day by the worker{% endif %}</dd>{% endif %}
-    <dt><i class="other"></i>Other files</dt><dd>{{ d.other|size }}</dd>
-    <dt><i class="free"></i>Free</dt><dd>{{ d.free|size }}</dd>
+    {%- if d.folders %}<dt><i></i>{% trans %}Photos and videos{% endtrans %}</dt><dd>{{ d.photos|size }}</dd>
+    <dt><i class="removed"></i>{% trans %}Removed files, until the Removed folder is emptied{% endtrans %}</dt><dd>{% if d.removed %}<a href="/cleanup/removed" title="{{ _('Cleanup → Removed: restore them, or empty it for good') }}">{{ d.removed|size }}</a>{% else %}{% trans %}none{% endtrans %}{% endif %}</dd>{% endif %}
+    {%- if d.data %}<dt><i class="ours"></i>{% trans %}LineageBox's previews, thumbnails and catalog{% endtrans %}</dt><dd>{% if d.ours is not none %}{{ d.ours|size }}{% else %}{% trans %}measured once a day by the worker{% endtrans %}{% endif %}</dd>{% endif %}
+    <dt><i class="other"></i>{% trans %}Other files{% endtrans %}</dt><dd>{{ d.other|size }}</dd>
+    <dt><i class="free"></i>{% trans %}Free{% endtrans %}</dt><dd>{{ d.free|size }}</dd>
   </dl>
 </div>
 {%- endfor %}
+{% endmacro %}
+
+{# Albums (albums.py) as cards with their covers: on Albums and on the Tours page. #}
+{% macro album_cards(albums) %}
+<div class="folders albums">
+{%- for a in albums %}
+  <a class="folder-card" href="/album/{{ a.id }}">
+    {% if a.cover %}<img src="/t/{{ a.cover }}" loading="lazy" alt="">{% else %}<span class="ph"></span>{% endif %}
+    <span class="label"><span class="name">{{ a.name }}</span><span class="count">{{ a.count|number }}</span></span>
+    {%- if a.from %}<span class="label from">{% trans from_=a.from %}album, from {{ from_ }}{% endtrans %}</span>{% elif a.shared %}<span class="label from">{% trans %}shared{% endtrans %}</span>{% endif %}
+  </a>
+{%- endfor %}
+</div>
 {% endmacro %}

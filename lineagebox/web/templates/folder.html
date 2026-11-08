@@ -1,38 +1,65 @@
 {% extends "base.html" %}
 {% set nav = "folders" %}
 {% import "_macros.html" as m %}
-{% set title = labels.get(folder.path) or folder.name or "All folders" %}
+{% import "_pieces.html" as pc %}
+{% set title = labels.get(folder.path) or folder.name or _("All folders") %}
 {% block title %}{{ title }}{% endblock %}
 {% block main %}
 <nav class="crumbs">
-{%- if viewer.limited %}<a href="/folders">Folders</a><span class="sep">/</span>{% endif %}
+{%- if viewer.limited %}<a href="/folders">{% trans %}Folders{% endtrans %}</a><span class="sep">/</span>{% endif %}
 {%- for f in crumbs %}
-  {%- if not loop.last %}<a href="/folder/{{ f.id }}">{{ labels.get(f.path) or f.name or "All folders" }}</a><span class="sep">/</span>
+  {%- if not loop.last %}<a href="/folder/{{ f.id }}">{{ labels.get(f.path) or f.name or _("All folders") }}</a><span class="sep">/</span>
   {%- else %}<h1>{{ title }}</h1>{% endif %}
 {%- endfor %}
 </nav>
 <p class="meta">
-  {{ "{:,}".format(folder.total) }} photo{{ "" if folder.total == 1 else "s" }}
-  {%- if folder.children and folder.own != folder.total %} here and in subfolders{% if folder.own %} · {{ "{:,}".format(folder.own) }} directly in this folder{% endif %}{% endif %}
-  {%- if images %} · {% if select %}<a href="/folder/{{ folder.id }}" data-key="s">Done selecting</a>{% else %}<a href="/folder/{{ folder.id }}?select=1" data-key="s" title="Tick photos to date them, tag them, add someone to them{% if own %} or move them to Removed{% endif %}">Select photos</a>{% endif %}{% endif %}
-  {%- if viewer.admin and signed_in %} · <button type="button" class="quiet" data-api="/api/folders/{{ folder.id }}/hidden" data-body='{{ {"hidden": not folder_hidden}|tojson }}' title="Family members never see what is in this folder or below it (except whoever uploaded it)">{{ "Show to family members again" if folder_hidden else "Hide from family members" }}</button>
-  · <a href="/folders" title="Everything family members and admins share">What is shared</a>{% endif %}
+  {% trans count=folder.total, total=folder.total|number %}{{ total }} photo{% pluralize %}{{ total }} photos{% endtrans %}
+  {%- if folder.children and folder.own != folder.total %} {% trans %}here and in subfolders{% endtrans %}{% if folder.own %} · {% trans own=folder.own|number %}{{ own }} directly in this folder{% endtrans %}{% endif %}{% endif %}
+  {%- if images %} · {% if select %}<a href="/folder/{{ folder.id }}" data-key="s">{% trans %}Done selecting{% endtrans %}</a>{% else %}<a href="/folder/{{ folder.id }}?select=1" data-key="s" title="{{ _('Tick photos to date them, tag them, add someone to them') }}{% if own %} {{ _('or move them to Removed') }}{% endif %}">{% trans %}Select photos{% endtrans %}</a>{% endif %}{% endif %}
+  {%- if viewer.admin and signed_in %} · <button type="button" class="quiet" data-api="/api/folders/{{ folder.id }}/hidden" data-body='{{ {"hidden": not folder_hidden}|tojson }}' title="{{ _('Family members never see what is in this folder or below it (except whoever uploaded it)') }}">{{ _("Show to family members again") if folder_hidden else _("Hide from family members") }}</button>
+  · <a href="/folders" title="{{ _('Everything family members and admins share') }}">{% trans %}What is shared{% endtrans %}</a>{% endif %}
+  {%- if viewer.admin and folder.path %} · <a href="/map?place=folder:{{ folder.id }}" title="{{ _('Where its photos were taken, for those without a place of their own (and those in the folders in it)') }}">{% trans %}Put it on the map{% endtrans %}</a>{% endif %}
 </p>
-{% if from_whom %}<p class="note">{{ from_whom }} shared this folder with you.</p>{% endif %}
-{% if folder_hidden %}<p class="note">Hidden from family members: they don't see the photos in this folder or below it.</p>{% endif %}
+{% if from_whom %}<p class="note">{% trans %}{{ from_whom }} shared this folder with you.{% endtrans %}</p>{% endif %}
+{% if folder_hidden %}<p class="note">{% trans %}Hidden from family members: they don't see the photos in this folder or below it.{% endtrans %}</p>{% endif %}
 {% if folder.ignored %}
-<p class="note">This folder is ignored by the scan settings (it holds thumbnail or preview copies), so its files are not shown.</p>
+<p class="note">{% trans %}This folder is ignored by the scan settings (it holds thumbnail or preview copies), so its files are not shown.{% endtrans %}</p>
 {% endif %}
 {% if sharing or removable %}
 <details class="info-panel folder-tools"{% if sharing and sharing.shares %} open{% endif %}>
-  <summary><h2>Sharing and removing</h2> <span class="hint inline">
-    {%- if sharing and sharing.shares %}shared with {{ sharing.shares|map(attribute="with")|join(", ") }}{% elif sharing %}not shared{% endif %}</span></summary>
-  {% if sharing %}{{ m.share_panel(sharing, "this folder") }}{% endif %}
+  <summary><h2>{% trans %}Sharing and removing{% endtrans %}</h2> <span class="hint inline">
+    {%- if sharing and sharing.shares %}{% trans shares=sharing.shares|map(attribute="with")|join(", ") %}shared with {{ shares }}{% endtrans %}{% elif sharing %}{% trans %}not shared{% endtrans %}{% endif %}</span></summary>
+  {% if sharing %}{{ m.share_panel(sharing, _("this folder")) }}{% endif %}
   {% if removable %}
-  <p><button type="button" class="quiet" data-api="/api/folders/{{ folder.id }}/remove" data-busy="Moving…"
-             data-confirm="Move {{ title }}{% if folder.total %} and its {{ '{:,}'.format(folder.total) }} photo{{ '' if folder.total == 1 else 's' }}{% endif %}{% if folder.children %}, with the folders in it,{% endif %} to the Removed folder? {% if viewer.admin %}It can be put back from Cleanup → Removed.{% else %}An admin can put it back.{% endif %}">Move this folder to Removed…</button>
-    <span class="hint inline">Everything in it goes, {% if viewer.admin %}even photos with no other copy{% else %}and it is no longer shared{% endif %}.</span></p>
+  <p><button type="button" class="quiet" data-api="/api/folders/{{ folder.id }}/remove" data-busy="{{ _('Moving…') }}"
+             data-confirm="{{ _('Move %(title)s', title=title) }}{% if folder.total %} {{ ngettext('and its %(n)s photo', 'and its %(n)s photos', folder.total, n=folder.total|number) }}{% endif %}{% if folder.children %}{{ _(', with the folders in it,') }}{% endif %} {{ _('to the Removed folder?') }} {% if viewer.admin %}{{ _('It can be put back from Cleanup → Removed.') }}{% else %}{{ _('An admin can put it back.') }}{% endif %}">{% trans %}Move this folder to Removed…{% endtrans %}</button>
+    <span class="hint inline">{% trans %}Everything in it goes,{% endtrans %} {% if viewer.admin %}{% trans %}even photos with no other copy{% endtrans %}{% else %}{% trans %}and it is no longer shared{% endtrans %}{% endif %}.</span></p>
   {% endif %}
+</details>
+{% endif %}
+{% if meaning %}
+{#- What the folder's name was read as: its place, occasion, date and names, which every photo in it and below takes
+    on (search, the map, memories, dates). An admin corrects it here; it is then theirs, and never read again. #}
+<details class="info-panel folder-meaning">
+  <summary><h2>{% trans %}What this folder means{% endtrans %}</h2> <span class="hint inline">
+    {%- set said = [meaning.place, meaning.event, meaning.when]|select|list %}
+    {%- if said %}{{ said|join(" · ") }}{% elif meaning.read %}{% trans %}nothing{% endtrans %}{% else %}{% trans %}not read yet{% endtrans %}{% endif %}
+    {%- if meaning.source == "user" %} {% trans %}(set by hand){% endtrans %}{% elif meaning.read %} {% trans %}(read from its name by the AI){% endtrans %}{% endif %}</span></summary>
+  <p class="hint">{% trans %}Every photo in {{ title }} and the folders in it takes this on: search finds them by it, the map
+    puts them there, and memories and their dates use it. Fix it if the name was misread; leave a box empty for
+    nothing.{% endtrans %}</p>
+  <form class="meaning-form" data-api="/api/folders/{{ folder.id }}/meaning" data-settings>
+    <label>{% trans %}Place{% endtrans %} <input name="place" value="{{ meaning.place }}" maxlength="120" placeholder="{{ _('Grand Canyon, Arizona') }}"></label>
+    <label>{% trans %}Occasion{% endtrans %} <input name="event" value="{{ meaning.event }}" maxlength="120" placeholder="{{ _("Emma's 5th birthday") }}"></label>
+    <label>{% trans %}When{% endtrans %} <input name="when" value="{{ meaning.when }}" maxlength="80" placeholder="{{ _('1987, June 1987 or 1987-06-14') }}" aria-describedby="meaning-when"></label>
+    <span class="hint" id="meaning-when">{% trans %}A year, a month or a day. Photos dated only by their file get it.{% endtrans %}</span>
+    <label>{% trans %}Names in it{% endtrans %} <input name="people" value="{{ meaning.people }}" maxlength="600" placeholder="{{ _('Emma, Jack') }}" aria-describedby="meaning-people"></label>
+    <span class="hint" id="meaning-people">{% trans %}Hints for the AI, with commas between; faces are named on the photos.{% endtrans %}</span>
+    <p><button type="submit" class="primary" data-busy="{{ _('Saving…') }}">{% trans %}Save{% endtrans %}</button>
+      {%- if meaning.source == "user" %}
+      <button type="button" class="quiet" data-api="/api/folders/{{ folder.id }}/meaning/again" title="{{ _("Forget what was set here: the AI reads the folder's name again on its next pass") }}">{% trans %}Read the name again{% endtrans %}</button>
+      {%- endif %}</p>
+  </form>
 </details>
 {% endif %}
 {% if subfolders %}
@@ -40,21 +67,23 @@
 {%- for f in subfolders %}
   <a class="folder-card{% if f.ignored %} ignored{% endif %}" href="/folder/{{ f.id }}">
     {% if f.cover %}<img src="/t/{{ f.cover }}" loading="lazy" alt="">{% else %}<span class="ph"></span>{% endif %}
-    <span class="label"><span class="name">{{ labels.get(f.path) or f.name }}</span><span class="count">{% if f.ignored %}ignored{% else %}{{ "{:,}".format(f.total) }}{% endif %}</span></span>
+    <span class="label"><span class="name">{{ labels.get(f.path) or f.name }}</span><span class="count">{% if f.ignored %}{% trans %}ignored{% endtrans %}{% else %}{{ f.total|number }}{% endif %}</span></span>
   </a>
 {%- endfor %}
 </div>
 {% endif %}
 {% if images %}
-{% if subfolders %}<h2>In this folder</h2>{% endif %}
+{% if subfolders %}<h2>{% trans %}In this folder{% endtrans %}</h2>{% endif %}
 {% if select %}
 <form class="select-form"{% if own %} data-select-api="/api/folders/{{ folder.id }}/remove-files"{% endif %} data-reason="folder: {{ folder.name }}" data-show=".select-bar .done">
-  {{ m.select_grid(images, ctx) }}
-  {{ m.bulk_bar(remove="Move the ticked photos' files in this folder to the Removed folder (their copies elsewhere stay); they can be put back from Removed" if own else none) }}
+  {{ pc.pieced(photos) }}
+  {{ m.bulk_bar(remove=(_("Move the ticked photos' files in this folder to the Removed folder (their copies elsewhere stay); they can be put back from Removed") if viewer.admin
+                        else _("Move the ticked photos' files in this folder to the Removed folder (their copies elsewhere stay); an admin can put them back")) if own else none,
+                models=viewer.admin, everything=everything) }}
 </form>
 {% else %}
-{{ m.grid(images, ctx) }}
+{{ pc.pieced(photos) }}
 {% endif %}
 {% endif %}
-{% if not images and not subfolders and own %}<p class="note">Nothing in this folder any more.</p>{% endif %}
+{% if not images and not subfolders and own %}<p class="note">{% trans %}Nothing in this folder any more.{% endtrans %}</p>{% endif %}
 {% endblock %}

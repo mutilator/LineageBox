@@ -1,0 +1,9 @@
+{#- More like this, on a photo's page (routes/ai.py like_this, loaded after the page with data-later): the photos
+    whose descriptions are closest to this one's. Nothing at all when there are none. -#}
+{%- if like %}
+<h2>{% trans %}More like this{% endtrans %}</h2>
+<p class="hint">{% trans %}Photos whose descriptions are closest to this one's, from other days as much as there are.{% endtrans %}</p>
+<div class="like-this">
+  {%- for p in like %}<a href="/image/{{ p.id }}" title="{{ p.taken_at|date(false) }}"><img src="/t/{{ p.sha256 }}" loading="lazy" alt="{{ _('A photo like this one, from %(taken_at)s', taken_at=p.taken_at|date(false)) }}"></a>{% endfor %}
+</div>
+{%- endif %}

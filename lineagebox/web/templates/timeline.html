@@ -1,10 +1,11 @@
 {% extends "base.html" %}
 {% set nav = "timeline" %}
-{% block title %}Timeline{% endblock %}
+{% block title %}{% trans %}Timeline{% endtrans %}{% endblock %}
 {% block main %}
-<h1>Timeline</h1>
-<p class="meta">Photos by capture date. Bars show each month, January to December (square-root scale, so quiet months stay visible).
-  Under each year are its events: the two latest years show theirs, and pointing at another year shows its own.</p>
+<h1>{% trans %}Timeline{% endtrans %}</h1>
+<p class="meta">{% trans %}Photos by capture date. Bars show each month, January to December (square-root scale, so quiet months stay visible).
+  Under each year are its events: the two latest years show theirs, and pointing at another year, or Events beside it,
+  shows its own.{% endtrans %}</p>
 <div class="years">
 {%- for y, months in years|dictsort|reverse %}
   {#- each year folds out its events (data-glance: pointing at the year shows them; the year itself opens its page) #}
@@ -14,13 +15,14 @@
       <span class="bars" aria-hidden="true">
         {%- for mo in range(1, 13) %}{% set n = months.get(mo, 0) %}<i{% if not n %} class="z"{% endif %} style="--h: {{ ((n / peak) ** 0.5 * 100)|round(1) }}%" title="{{ month_names[mo] }}: {{ n }}"></i>{% endfor -%}
       </span>
-      <span class="n">{{ "{:,}".format(months.values()|sum) }}</span>
-    </a></summary>
+      <span class="n">{{ months.values()|sum|number }}</span>
+    </a><span class="events-toggle" aria-hidden="true">{% trans %}Events{% endtrans %}</span></summary>
     <div class="year-events" {% if loop.index <= 2 %}data-later{% else %}data-on-open{% endif %}="/timeline/{{ y }}/events"
-      aria-label="Events in {{ y }}"><p class="hint loading">Looking for events in {{ y }}…</p></div>
+      aria-label="{{ _('Events in %(y)s', y=y) }}"><p class="hint loading">{% trans %}Looking for events in {{ y }}…{% endtrans %}</p></div>
   </details>
 {%- else %}
-  <p class="note">No dated photos yet. Run <code>python -m lineagebox ingest</code>.</p>
+  <p class="note">{% trans %}No dated photos yet. Photos show here as they are read{% endtrans %}{% if viewer.admin %}{% trans %}: watch the folder they are in on
+    <a href="/settings#folders">Settings → Folders</a>, and <a href="/status">Status</a> shows how far reading it is{% endtrans %}{% endif %}.</p>
 {%- endfor %}
 </div>
 {% endblock %}

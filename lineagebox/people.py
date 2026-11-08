@@ -14,7 +14,9 @@ from lineagebox.folders import FolderIndex
 
 # Recognition: a face is labelled automatically only when its best person clearly beats the runner-up.
 # Measured on the library LineageBox was developed on: the same adult across decades scores 0.6-0.75; two young
-# brothers score ~0.5.
+# brothers score ~0.5. Their ages don't tell them apart either: the face's estimated age (face_ages.py) put the older
+# brother as the older one in 49% of the 1,357 photos with both, so it is no part of recognition. Their birth dates do
+# where they can: nobody is recognised in a photo taken before they were born (_before_birth).
 TOP_K = 3
 AUTO_SIMILARITY = 0.5
 AUTO_MARGIN = 0.1
@@ -45,7 +47,7 @@ def _embeddings(rows) -> np.ndarray:
 
 def cluster(con: sqlite3.Connection) -> tuple[int, int]:
     """Re-cluster faces that nobody has named or set aside. Returns (clusters, faces in clusters)."""
-    rows = con.execute(f"""SELECT f.id, f.embedding FROM face f JOIN image i ON i.id = f.image_id
+    rows = con.execute(f"""SELECT f.id, f.image_id, f.embedding FROM face f JOIN image i ON i.id = f.image_id
                            WHERE f.person_id IS NULL AND f.assigned_by IS NULL AND {usable_faces_sql()} AND {VISIBLE}""").fetchall()
     labels = np.full(len(rows), -1)
     if len(rows) >= 4:
@@ -57,6 +59,8 @@ def cluster(con: sqlite3.Connection) -> tuple[int, int]:
             X = PCA(n_components=128, random_state=0).fit_transform(X)
             X /= np.linalg.norm(X, axis=1, keepdims=True)
         labels = HDBSCAN(min_cluster_size=4, min_samples=2, copy=True).fit_predict(X)
+    if len(rows) >= 2:
+        labels = _small_groups(rows, labels)
     # Written only once the (minute-long) clustering is done, so the database is not locked meanwhile. A face named
     # in the web app during that minute keeps its name and stays out of the groups.
     con.execute("UPDATE face SET cluster_id = NULL WHERE person_id IS NULL")
@@ -65,6 +69,50 @@ def cluster(con: sqlite3.Connection) -> tuple[int, int]:
     con.commit()
     clustered = int((labels >= 0).sum())
     return len(set(labels[labels >= 0].tolist())), clustered
+
+
+# Groups of 2 or 3: HDBSCAN groups 4 faces or more (smaller made it split people's groups up: at 2, 1,649 groups of
+# that library's 7,716 hand-named faces instead of 347), so someone in only two or three photos was never grouped.
+# Among the faces it leaves out, each is linked to its closest other (never one of its own photo: nobody is in a photo
+# twice) when they score SMALL_GROUP_SIMILARITY, and what those links join, if 2 or 3 faces, is a group. Measured on
+# those hand-named faces (1,354 left out by HDBSCAN): at 0.5, 135 pairs were one person 99.3% of the time and 72
+# threes 100% (joined fours and more were 92%, so they are left out); at 0.45, 99.2% and 98.6%.
+SMALL_GROUP_SIMILARITY = 0.5
+SMALL_GROUP_MOST = 3
+
+
+def _small_groups(rows, labels: np.ndarray) -> np.ndarray:
+    """labels with the faces HDBSCAN left out (-1) grouped in twos and threes where they are plainly one person."""
+    left = np.nonzero(labels < 0)[0]
+    if len(left) < 2:
+        return labels
+    X = _embeddings([rows[i] for i in left])
+    photo = np.array([rows[i]["image_id"] for i in left])
+    closest, score = np.empty(len(left), dtype=int), np.empty(len(left), dtype=np.float32)
+    for start in range(0, len(left), 1024):  # 1,024 rows at a time: a big library leaves out thousands
+        sims = X[start:start + 1024] @ X.T
+        sims[photo[start:start + 1024, None] == photo[None, :]] = -1.0  # itself, and its photo's other faces
+        closest[start:start + 1024], score[start:start + 1024] = sims.argmax(axis=1), sims.max(axis=1)
+    parent = list(range(len(left)))
+
+    def root(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    for i in range(len(left)):
+        if score[i] >= SMALL_GROUP_SIMILARITY:
+            parent[root(i)] = root(int(closest[i]))
+    joined = defaultdict(list)
+    for i in range(len(left)):
+        joined[root(i)].append(i)
+    out, label = labels.copy(), int(labels.max()) + 1
+    for members in sorted(joined.values(), key=min):
+        if 2 <= len(members) <= SMALL_GROUP_MOST:
+            out[left[members]] = label
+            label += 1
+    return out
 
 
 def existing_person_id(con: sqlite3.Connection, name: str, pid: int | None = None,
@@ -108,11 +156,19 @@ def person_id(con: sqlite3.Connection, name: str, pid: int | None = None, among:
 
 def name_faces(con: sqlite3.Connection, face_ids: list[int], name: str, pid: int | None = None,
                among: set[int] | None = None, by: int | None = None) -> int:
-    """Name faces by hand (see person_id for name, pid and among); by is the account naming them, if any. A face that
+    """Name faces by hand (see person_id for name, pid and among, and name_as for what naming does); by is the account
+    naming them, if any."""
+    return name_as(con, face_ids, person_id(con, name, pid, among, by), by)
+
+
+def name_as(con: sqlite3.Connection, face_ids: list[int], pid: int, by: int | None = None) -> int:
+    """Name faces as someone already chosen, by hand: a name typed, or yes to "Is this them?" (is_them). A face that
     had someone else's name (put right with Fix on its photo) is noted as not them, so it is never suggested or
-    recognised as them again; one noted as not this person before is them after all."""
-    pid = person_id(con, name, pid, among, by)
+    recognised as them again; one noted as not this person before is them after all. A face recognised as them that
+    is now named by hand counts for recognition, which learns only from faces named by hand. Returns pid."""
     ids = json.dumps(face_ids)
+    renamed = [r[0] for r in con.execute("""SELECT id FROM face WHERE id IN (SELECT value FROM json_each(?))
+                                            AND person_id IS NOT ?""", (ids, pid))]
     con.execute("""INSERT OR IGNORE INTO face_not_person(face_id, person_id)
                    SELECT id, person_id FROM face WHERE id IN (SELECT value FROM json_each(?))
                      AND person_id IS NOT NULL AND person_id != ?""", (ids, pid))
@@ -120,8 +176,8 @@ def name_faces(con: sqlite3.Connection, face_ids: list[int], name: str, pid: int
                 (ids, pid))
     con.executemany("""UPDATE face SET person_id = ?, assigned_by = 'user', assign_score = NULL, cluster_id = NULL,
                                        named_by = ? WHERE id = ?""", ((pid, by, f) for f in face_ids))
-    _reindex_faces(con, face_ids)
-    name_in_videos(con, _videos_of(con, face_ids))
+    _reindex_faces(con, renamed)  # only photos whose names changed: the search doesn't tell by hand from recognised
+    name_in_videos(con, _videos_of(con, renamed))
     return pid
 
 
@@ -155,16 +211,24 @@ def rename(con: sqlite3.Connection, pid: int, new_name: str, merge_same: bool = 
     new_name = " ".join(new_name.split())
     if not new_name:
         raise Problem("Type a name.")
-    others = [r[0] for r in con.execute("SELECT id FROM person WHERE lower(name) = lower(?) AND id != ?",
-                                        (new_name, pid))]
-    # but a relative with the same name (John Smith and his grandson John Smith) is someone else
-    if merge_same and len(others) == 1 and family.load(con).blood(pid, others[0]) is None:
-        return merge(con, pid, others[0])
+    if merge_same and (into := same_name(con, pid, new_name)) is not None:
+        return merge(con, pid, into)
     given, surname = events.split_name(new_name)  # the parts follow, to be checked again
     con.execute("UPDATE person SET name = ?, given_name = ?, surname = ?, names_checked = 0 WHERE id = ?",
                 (new_name, given, surname, pid))  # kept in place, so tours still find them
     _reindex_faces(con, [r[0] for r in con.execute("SELECT id FROM face WHERE person_id = ?", (pid,))])
+    _reindex_images(con, _added_to(con, pid))  # and photos they were added to by hand, found by the name too
     return pid
+
+
+def same_name(con: sqlite3.Connection, pid: int, new_name: str) -> int | None:
+    """Whom renaming pid to new_name would merge them into (rename's merge_same): the one other person with that
+    name, unless they are a relative (John Smith and his grandson John Smith are two people). None: nobody."""
+    others = [r[0] for r in con.execute("SELECT id FROM person WHERE lower(name) = lower(?) AND id != ?",
+                                        (" ".join(new_name.split()), pid))]
+    if len(others) == 1 and family.load(con).blood(pid, others[0]) is None:
+        return others[0]
+    return None
 
 
 def merge(con: sqlite3.Connection, pid: int, into: int) -> int:
@@ -173,9 +237,13 @@ def merge(con: sqlite3.Connection, pid: int, into: int) -> int:
     if pid == into:
         return into
     moved = [r[0] for r in con.execute("SELECT id FROM face WHERE person_id = ?", (pid,))]
+    added = _added_to(con, pid)  # photos pid was added to by hand: found by the name kept, after
     con.execute("UPDATE face SET person_id = ? WHERE person_id = ?", (into, pid))
     con.execute("""UPDATE person SET sex = coalesce(sex, (SELECT sex FROM person WHERE id = :old)),
-                                     notes = coalesce(notes, (SELECT notes FROM person WHERE id = :old))
+                                     notes = coalesce(notes, (SELECT notes FROM person WHERE id = :old)),
+                                     biography = coalesce(biography, (SELECT biography FROM person WHERE id = :old)),
+                                     cover_face_id = coalesce(cover_face_id,
+                                                              (SELECT cover_face_id FROM person WHERE id = :old))
                    WHERE id = :new""", {"old": pid, "new": into})
     events.move(con, pid, into)  # births, deaths and the like; also person.birth_date and deceased
     # A group a member put pid in no longer counts as theirs: whether they go on seeing into is the admin's choice
@@ -184,7 +252,7 @@ def merge(con: sqlite3.Connection, pid: int, into: int) -> int:
     # Every other row that refers to a person comes along: deleting pid would drop it (ON DELETE CASCADE) or unlink it
     # (an account's person, ON DELETE SET NULL). family.merge and tours.merge do the family links and tours.
     for table in ("person_name", "person_group", "image_person", "face_not_person", "external_id", "citation",
-                  "access_rule", "account"):
+                  "source_citation", "tree_media", "access_rule", "account", "story", "imported"):
         con.execute(f"UPDATE OR IGNORE {table} SET person_id = ? WHERE person_id = ?", (into, pid))
     con.execute("DELETE FROM image_person WHERE person_id = ?", (pid,))  # photos into was already added to
     try:
@@ -194,38 +262,52 @@ def merge(con: sqlite3.Connection, pid: int, into: int) -> int:
     tours.merge(con, pid, into)
     con.execute("DELETE FROM person WHERE id = ?", (pid,))
     _reindex_faces(con, moved)
+    _reindex_images(con, added)
     return into
 
 
 def why_kept(con: sqlite3.Connection, pid: int) -> str | None:
-    """Why someone can't be removed (remove), or None when they can. Someone named in photos stays: removing them
-    would take their name off every face quietly (Check faces, or merging them, does that knowingly). So does
-    someone with an account, which shows the family from them."""
+    """Why someone can't be removed (remove), or None when they can: someone with an account stays, as the account
+    shows the family from them."""
     name = (con.execute("SELECT name FROM person WHERE id = ?", (pid,)).fetchone() or ["They"])[0]
-    if con.execute("""SELECT EXISTS (SELECT 1 FROM face WHERE person_id = :p)
-                             OR EXISTS (SELECT 1 FROM image_person WHERE person_id = :p)""", {"p": pid}).fetchone()[0]:
-        return (f"{name} is named in photos, so stays: take their name off those faces first (Check faces on their "
-                f"page), or merge them into whoever they are.")
     account = con.execute("SELECT email FROM account WHERE person_id = ?", (pid,)).fetchone()
     if account:
         return f"{name} has an account ({account[0]}): remove it first (Settings, Accounts)."
+    told = con.execute("SELECT count(*) FROM story WHERE person_id = ? AND removed_at IS NULL", (pid,)).fetchone()[0]
+    if told:  # the family's own voices: never lost with a person removed by mistake
+        return (f"{name} has {told} recorded stor{'y' if told == 1 else 'ies'}: take "
+                f"{'it' if told == 1 else 'them'} away first, or merge {name} into whoever it really is.")
     return None
 
 
-def remove(con: sqlite3.Connection, pid: int) -> str:
-    """Take someone added by mistake (by a reading, an import or by hand) out of the catalog. Their family links,
-    life events, other names, groups and citations go with them (ON DELETE CASCADE); tours that picked them leave
-    them out, and "This is me" is cleared if it was them. Returns their name. Commits."""
+def in_photos(con: sqlite3.Connection, pid: int) -> bool:
+    """Whether someone is named in any photo, by a face or added by hand: removing them takes their name off those."""
+    return con.execute("""SELECT EXISTS (SELECT 1 FROM face WHERE person_id = :p)
+                                 OR EXISTS (SELECT 1 FROM image_person WHERE person_id = :p)""",
+                       {"p": pid}).fetchone()[0]
+
+
+def remove(con: sqlite3.Connection, pid: int) -> tuple[str, int]:
+    """Take someone out of the catalog: added by mistake (by a reading, an import or by hand), or a name nobody wants
+    any more. Every face named as them, by hand or recognised, loses the name and is unnamed again, as if it had never
+    been named: it is grouped with the other unnamed faces, recognised as whoever it clearly is, or named by hand.
+    Photos they were added to by hand leave them out. Their family links, life events, other names, groups,
+    citations and "not them" marks go with them (ON DELETE CASCADE); tours that picked them leave them out, and
+    "This is me" is cleared if it was them. Returns (their name, how many faces lost it). Commits."""
     row = con.execute("SELECT name FROM person WHERE id = ?", (pid,)).fetchone()
     if row is None:
         raise Problem("They were removed already.")
     if why := why_kept(con, pid):
         raise Problem(why)
+    photos = [r[0] for r in con.execute("""SELECT image_id FROM face WHERE person_id = :p
+                                           UNION SELECT image_id FROM image_person WHERE person_id = :p""", {"p": pid})]
     tours.forget(con, pid)
     con.execute("DELETE FROM settings WHERE key = 'me' AND value = ?", (str(pid),))
-    con.execute("DELETE FROM person WHERE id = ?", (pid,))
-    con.commit()
-    return row[0]
+    unnamed = con.execute("""UPDATE face SET person_id = NULL, assigned_by = NULL, assign_score = NULL,
+                                             cluster_id = NULL, named_by = NULL WHERE person_id = ?""", (pid,)).rowcount
+    con.execute("DELETE FROM person WHERE id = ?", (pid,))  # face.person_id has no ON DELETE: the faces go first
+    _reindex_images(con, photos)  # commits the removal first: their name is no longer found in those photos
+    return row[0], unnamed
 
 
 # ---- groups: people who aren't family, by what they are ------------------------------------------------------------
@@ -578,6 +660,123 @@ def confirm(con: sqlite3.Connection, pid: int, yes: list[int], no: list[int], by
     return named + name_in_videos(con, _videos_of(con, yes))
 
 
+# ---- one face at a time (People → Name faces, Check faces, a face tapped on its photo) -----------------------------
+
+def is_them(con: sqlite3.Connection, pid: int, face_ids: list[int], by: int | None = None) -> list[int]:
+    """Yes to "Is this them?": the faces are named as them by hand (name_as), whether they were unnamed, recognised
+    automatically (as them, or wrongly as someone else) or set aside as a stranger. A face someone named by hand as
+    someone else, or said isn't a face, keeps that: an answer from a page opened before never undoes it (Fix, on the
+    photo, renames it); one named by hand as them already stays as it is. Returns the faces that are them now."""
+    rows = con.execute("SELECT id, person_id, assigned_by FROM face WHERE id IN (SELECT value FROM json_each(?))",
+                       (json.dumps(face_ids),)).fetchall()
+    change = [r["id"] for r in rows if r["assigned_by"] in (None, "auto", "rejected")]
+    if change:
+        name_as(con, change, pid, by)
+    return change + [r["id"] for r in rows if r["assigned_by"] == "user" and r["person_id"] == pid]
+
+
+def not_this_person(con: sqlite3.Connection, pid: int, face_ids: list[int]) -> list[int]:
+    """No to "Is this them?": noted, so the faces are neither suggested nor recognised as them again, and the next
+    likeliest person can be suggested instead. One named as them, recognised or by hand, loses the name and waits to
+    be named as whoever it is; one named as someone else keeps that name. Returns the faces that lost the name."""
+    ids = json.dumps(face_ids)
+    con.execute("""INSERT OR IGNORE INTO face_not_person(face_id, person_id)
+                   SELECT id, ? FROM face WHERE id IN (SELECT value FROM json_each(?))""", (pid, ids))
+    theirs = [r[0] for r in con.execute("""SELECT id FROM face WHERE id IN (SELECT value FROM json_each(?))
+                                           AND person_id = ?""", (ids, pid))]
+    con.executemany("""UPDATE face SET person_id = NULL, assigned_by = NULL, assign_score = NULL, cluster_id = NULL,
+                                       named_by = NULL WHERE id = ?""", ((f,) for f in theirs))
+    _reindex_faces(con, theirs)
+    return theirs
+
+
+def suggest_for_face(con: sqlite3.Connection, face_id: int) -> tuple[int, float] | None:
+    """Who one unnamed face most likely is, worked out as for its photo's page (suggest_for_photo): (person, score),
+    or None when nobody is close enough, or clearly ahead of the next."""
+    row = con.execute("SELECT image_id FROM face WHERE id = ?", (face_id,)).fetchone()
+    return suggest_for_photo(con, row[0]).get(face_id) if row else None
+
+
+def recognised_to_check(con: sqlite3.Connection) -> list[tuple[int, int]]:
+    """Faces recognised automatically that nobody has said yes or no to, as (face, person), the least certain first:
+    the likeliest to be wrong, and those that teach recognition the most once confirmed (it learns only from faces
+    named by hand). On a member's connection, those in photos they see, of people they see."""
+    return [(r[0], r[1]) for r in con.execute(f"""
+        SELECT f.id, f.person_id FROM face f JOIN image i ON i.id = f.image_id
+        WHERE f.assigned_by = 'auto' AND {VISIBLE} AND f.person_id IN (SELECT id FROM person)
+        ORDER BY f.assign_score, f.id""")]
+
+
+def unnamed_groups(con: sqlite3.Connection) -> list[int]:
+    """The groups of faces nobody has named (cluster), the largest first."""
+    return [r[0] for r in con.execute("""SELECT cluster_id FROM face WHERE cluster_id IS NOT NULL AND person_id IS NULL
+                                         GROUP BY cluster_id ORDER BY count(*) DESC, cluster_id""")]
+
+
+def group_faces(con: sqlite3.Connection, cluster_id: int) -> list[sqlite3.Row]:
+    """A group's unnamed faces (id, image_id), the clearest first."""
+    return con.execute("""SELECT id, image_id FROM face WHERE cluster_id = ? AND person_id IS NULL
+                          ORDER BY quality DESC, id""", (cluster_id,)).fetchall()
+
+
+# "Looks like …" on a group nobody has named (Cleanup → Confirm faces → Unnamed groups, People → Name faces). Its faces
+# fell short of recognition one by one, but together they may still plainly be someone. Measured on that library by
+# taking each person's hand-named faces of one day as a group (1,299 groups) against everyone's faces of other days:
+# the person its faces scored best for on average was right 97.7% of the time. Scoring GROUP_SIMILARITY and
+# GROUP_MARGIN ahead of the next, 92% of the groups had a name and 99.9% of those were right; of the 369 groups most of
+# whose faces recognition would not have named alone, 71% had one and 99.6% were right, and the young brothers'
+# groups, which recognition can't tell apart face by face, were all right. Faces set aside as strangers, grouped the
+# same way, were taken for someone in 36 of 554 groups, so it is a suggestion that a person says yes to.
+GROUP_SIMILARITY = 0.4
+GROUP_MARGIN = 0.05
+GROUP_FACES = 12  # a group's clearest faces, compared
+
+
+def looks_like(con: sqlite3.Connection, cluster_ids) -> dict[int, tuple[int, float, int]]:
+    """cluster -> (person, score, how many of its faces are in photos taken before they were born) for unnamed groups
+    that, their faces taken together, look like someone named by hand (see GROUP_SIMILARITY). Someone counts for a face
+    only if they can be it, as for one face (_likeliest): not named in its photo already, not said not to be it, not
+    born after it; and for a group only if they can be at least half of its faces. Worked out against everyone: show a
+    member only the people they see."""
+    if not cluster_ids:
+        return {}
+    rows = con.execute("""SELECT f.id, f.image_id, f.cluster_id, f.embedding, i.taken_at, i.taken_at_source, i.date_to
+                          FROM face f JOIN image i ON i.id = f.image_id
+                          WHERE f.cluster_id IN (SELECT value FROM json_each(?)) AND f.person_id IS NULL
+                          ORDER BY f.cluster_id, f.quality DESC, f.id""", (json.dumps(list(cluster_ids)),)).fetchall()
+    groups = defaultdict(list)
+    for r in rows:
+        if len(groups[r["cluster_id"]]) < GROUP_FACES:
+            groups[r["cluster_id"]].append(r)
+    faces = [f for g in groups.values() for f in g]
+    people, scores = _person_scores(con, faces)
+    if len(people) < 1 or not faces:
+        return {}
+    column = {p: n for n, p in enumerate(people)}
+    named_in, not_them, births = _named_in(con), _not_them(con), _births(con)
+    able = np.ones(scores.shape, dtype=bool)
+    unborn = np.zeros(scores.shape, dtype=bool)
+    for n, f in enumerate(faces):
+        before = {p for p, b in births.items() if p in column and _before_birth(f, b)}
+        for pid in before:
+            unborn[n, column[pid]] = True
+        for pid in named_in[f["image_id"]] | not_them[f["id"]] | before:
+            if pid in column:
+                able[n, column[pid]] = False
+    out, start = {}, 0
+    for cid, group in groups.items():
+        s, ok = scores[start:start + len(group)], able[start:start + len(group)]
+        start += len(group)
+        counts = ok.sum(axis=0)
+        mean = np.where(counts * 2 >= len(group), (s * ok).sum(axis=0) / np.maximum(counts, 1), -1.0)
+        order = np.argsort(-mean)
+        best = float(mean[order[0]])
+        runner_up = float(mean[order[1]]) if len(order) > 1 else -1.0
+        if best >= GROUP_SIMILARITY and best - runner_up >= GROUP_MARGIN:
+            out[cid] = (people[order[0]], best, int(unborn[start - len(group):start, order[0]].sum()))
+    return out
+
+
 def _before_birth(face, born: str | None) -> bool:
     """Whether the photo was taken before the person was born (by its camera date, or by the last day the date set by
     hand allows): then it isn't them."""
@@ -585,7 +784,7 @@ def _before_birth(face, born: str | None) -> bool:
         return False
     if face["taken_at_source"] == "user":
         latest = face["date_to"]
-    elif face["taken_at_source"] in ("exif", "camera", "filename"):
+    elif face["taken_at_source"] in ("exif", "camera", "filename", "copy"):
         latest = face["taken_at"]
     else:
         return False
@@ -593,15 +792,27 @@ def _before_birth(face, born: str | None) -> bool:
 
 
 def _reindex_faces(con: sqlite3.Connection, face_ids: list[int]) -> None:
-    con.commit()  # the names first; then the search, a few photos per write so nobody waits on it
+    con.commit()  # the names first
     if not face_ids:
         return
-    folders = FolderIndex(con)
     image_ids = set()
     for start in range(0, len(face_ids), 900):  # stay under SQLite's bound-parameter limit
         chunk = face_ids[start:start + 900]
         image_ids |= {r[0] for r in con.execute(
             f"SELECT image_id FROM face WHERE id IN ({','.join('?' * len(chunk))})", chunk)}
+    _reindex_images(con, image_ids)
+
+
+def _added_to(con: sqlite3.Connection, pid: int) -> list[int]:
+    """The photos someone was added to by hand (their face wasn't found): search finds those by their name too."""
+    return [r[0] for r in con.execute("SELECT image_id FROM image_person WHERE person_id = ?", (pid,))]
+
+
+def _reindex_images(con: sqlite3.Connection, image_ids) -> None:
+    """The search index of photos whose names changed, after committing that change: a few photos per write, so
+    nobody waits on it."""
+    con.commit()
+    folders = FolderIndex(con)
     for n, image_id in enumerate(image_ids, 1):
         search.index_image(con, image_id, folders)
         if n % search.COMMIT_EVERY == 0:
@@ -643,15 +854,95 @@ def maybe_same(con: sqlite3.Connection, different: set[str] = frozenset()) -> li
                         pairs.add((a, b))
     births = {pid: when[:4] for pid, when in con.execute(
         "SELECT person_id, sort_date FROM event WHERE tag = 'BIRT' AND sort_date IS NOT NULL")}
-    looks = {}
-    for pid in {p for pair in pairs for p in pair}:
-        rows = con.execute("SELECT embedding FROM face WHERE person_id = ? AND assigned_by = 'user'", (pid,)).fetchall()
-        if rows:
-            v = _embeddings(rows).mean(axis=0)
-            looks[pid] = v / np.linalg.norm(v)
+    faces = _hand_named(con)
+    by_name = {frozenset(pair) for pair in pairs}
+    found = [("name", a, b, _alike(faces, a, b) if a in faces and b in faces else None) for a, b in pairs]
+    found += [("face", small, big, alike) for small, big, alike in same_by_face(con, faces)
+              if frozenset((small, big)) not in by_name and f"{min(small, big)}-{max(small, big)}" not in different]
     out = []
-    for a, b in pairs:
-        alike = float(looks[a] @ looks[b]) if a in looks and b in looks else None
+    for why, a, b, alike in found:
         out.append({"added": a, "other": b, "added_name": persons[a]["name"], "other_name": persons[b]["name"],
-                    "added_by": persons[a]["added_by"], "born": (births.get(a), births.get(b)), "alike": alike})
-    return sorted(out, key=lambda m: (-(m["alike"] or 0), m["added_name"].lower()))
+                    "added_by": persons[a]["added_by"], "born": (births.get(a), births.get(b)), "alike": alike,
+                    "look_alike": alike is not None and alike >= DUPLICATE_SIMILARITY, "why": why})
+    return sorted(out, key=lambda m: (m["why"] != "name", -(m["alike"] or 0), m["added_name"].lower()))
+
+
+# The same person named twice, found by their faces (Cleanup → Same person?), whoever added them. Two people are
+# compared from the one with fewer faces named by hand: for each of their faces, its 3 closest of the other's, the
+# median of that over their faces. Measured on that library: one person's faces of one day against their other faces
+# (as if named again on that day) scored 0.4 or more 94% of the time, while of 5,836 pairs of different people never
+# in one photo together, the closest scored 0.35. Two people in one photo, or related in the family tree, are two
+# people and never compared. Comparing everyone's every face would take too long for a page, so a first look compares
+# DUPLICATE_SAMPLE faces of each, spread over the years, and only pairs scoring DUPLICATE_FIRST_LOOK (which kept 99.2%
+# of those found) are compared face by face.
+DUPLICATE_SIMILARITY = 0.4
+DUPLICATE_FIRST_LOOK = 0.2
+DUPLICATE_SAMPLE = 12
+
+
+def _hand_named(con: sqlite3.Connection) -> dict[int, np.ndarray]:
+    """person -> their faces named by hand (embeddings), oldest photo first."""
+    rows = con.execute("""SELECT f.person_id, f.embedding FROM face f JOIN image i ON i.id = f.image_id
+                          WHERE f.assigned_by = 'user' ORDER BY f.person_id, i.taken_at, f.id""").fetchall()
+    out = defaultdict(list)
+    for r in rows:
+        out[r["person_id"]].append(r)
+    return {pid: _embeddings(rs) for pid, rs in out.items()}
+
+
+def _alike(faces: dict[int, np.ndarray], a: int, b: int) -> float:
+    """How alike two people's faces are (see DUPLICATE_SIMILARITY), from the one with fewer faces."""
+    small, big = (faces[a], faces[b]) if len(faces[a]) <= len(faces[b]) else (faces[b], faces[a])
+    sims = small @ big.T
+    k = min(TOP_K, sims.shape[1])
+    return float(np.median(np.sort(sims, axis=1)[:, -k:].mean(axis=1)))
+
+
+def same_by_face(con: sqlite3.Connection, faces: dict[int, np.ndarray] | None = None) -> list[tuple[int, int, float]]:
+    """Pairs of people whose faces named by hand look like one person (DUPLICATE_SIMILARITY), as (the one with fewer
+    faces, the other, how alike), the most alike first. Two people seen in one photo, or related in the family tree,
+    are left out."""
+    faces = {p: f for p, f in (faces if faces is not None else _hand_named(con)).items() if len(f) >= 2}
+    if len(faces) < 2:
+        return []
+    together = set()
+    for (image_id,), people_there in _groupby(con.execute(
+            """SELECT image_id, person_id FROM face WHERE person_id IS NOT NULL
+               UNION SELECT image_id, person_id FROM image_person ORDER BY 1""")):
+        for a in people_there:
+            for b in people_there:
+                if a < b:
+                    together.add((a, b))
+    g = family.load(con)
+    pids = sorted(faces)
+    # the first look: DUPLICATE_SAMPLE faces of each, spread over their photos, all at once
+    spread = {p: faces[p][np.unique(np.linspace(0, len(faces[p]) - 1, DUPLICATE_SAMPLE).round().astype(int))]
+              for p in pids}
+    have = np.array([len(spread[p]) for p in pids])
+    sample = np.zeros((len(pids), DUPLICATE_SAMPLE, faces[pids[0]].shape[1]), dtype=np.float32)
+    for n, p in enumerate(pids):
+        sample[n, :have[n]] = spread[p]
+    k, flat = np.minimum(TOP_K, have), sample.reshape(-1, sample.shape[2])
+    found = []
+    for n, a in enumerate(pids):
+        sims = (spread[a] @ flat.T).reshape(len(spread[a]), len(pids), DUPLICATE_SAMPLE)  # a's x everyone's
+        sims[:, np.arange(DUPLICATE_SAMPLE)[None, :] >= have[:, None]] = -2.0  # rows past their faces
+        top = -np.sort(-sims, axis=2).cumsum(axis=2)[:, np.arange(len(pids)), k - 1] / k
+        first_look = np.median(top, axis=0)
+        for m in np.nonzero(first_look >= DUPLICATE_FIRST_LOOK)[0]:
+            b = pids[m]
+            small, big = (a, b) if (len(faces[a]), a) < (len(faces[b]), b) else (b, a)
+            if b == a or small != a or (min(a, b), max(a, b)) in together:
+                continue
+            if g.blood(a, b) is not None or b in g.partners.get(a, {}):
+                continue
+            if (alike := _alike(faces, a, b)) >= DUPLICATE_SIMILARITY:
+                found.append((a, b, alike))
+    return sorted(found, key=lambda x: -x[2])
+
+
+def _groupby(rows):
+    """(key,), [values] for rows of (key, value) ordered by key."""
+    from itertools import groupby
+    for key, items in groupby(rows, key=lambda r: r[0]):
+        yield (key,), {r[1] for r in items}

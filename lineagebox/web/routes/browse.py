@@ -1,17 +1,27 @@
 """Pages to look around by: folders, years, search, a photo, tags, people, a person, the family."""
+import dataclasses
 import json
+from calendar import month_name
 from datetime import date
 from urllib.parse import quote, urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from lineagebox import (access, catalog, copies, documents, events, family, family_reader, memories, people, search,
-                        sharing, tagging, tours, writeback)
+from lineagebox import (access, catalog, comments, copies, documents, events, family, family_reader, life, memories,
+                        people, search, sharing, tagging, tours, writeback)
+from lineagebox import places as map_places, sidecars  # places: a list's name in search_page
+from lineagebox import chapters, speech, stories  # long videos' chapters, transcripts, recorded stories
+from lineagebox import embeddings  # search by meaning
+from lineagebox import albums, favourites  # the albums a photo is in, the viewer's heart on it
 from lineagebox.folders import FolderIndex
-from lineagebox.web.common import (ADMIN, MEMBER, _covers, _kin_labels, _others_by_whose, _share_panel, _upload_labels,
-                                   _within)
+from lineagebox.web.common import (ADMIN, MEMBER, _covers, _kin_labels, _name_choices, _others_by_whose, _share_panel,
+                                   _upload_labels, _within)
 from lineagebox.web.deps import con, page, paging, site, viewer, writer
+from lineagebox.web import pieces  # big pages a piece at a time, with a scrubber
+from lineagebox import date_hints, face_ages  # date help for scans; a birth year from the faces
+from lineagebox import first_run  # the first steps, on the start page of a new LineageBox
+from lineagebox.web.routes import face_checks  # Confirm faces' Ages to check and Faces missed, groups' look-alikes
 from lineagebox.web.routes.home import home_page
 from lineagebox.web.routes.reading import readings as reading_list
 from lineagebox.web.routes.tours import shown as tour_shown
@@ -25,6 +35,7 @@ ACCESS = {
     "/timeline/{year}": MEMBER,
     "/timeline/{year}/events": MEMBER,
     "/search": MEMBER,
+    "/api/search/suggest": MEMBER,
     "/image/{image_id}": MEMBER,
     "/tags": MEMBER,
     "/tag/{name:path}": MEMBER,
@@ -35,6 +46,8 @@ ACCESS = {
     "/cleanup/faces": MEMBER,
     "/person/{person_id}": MEMBER,
     "/person/{person_id}/faces": MEMBER,
+    "/person/{person_id}/life/{key}": MEMBER,
+    "/person/{person_id}/portraits": MEMBER,
     "/family": MEMBER,
     "/family/tree": MEMBER,
 }
@@ -45,8 +58,8 @@ def home(request: Request, v=Depends(viewer), c=Depends(con), s: Site = Depends(
     if v.limited:  # members start on Home: their Folders hold only their uploads and what is shared with them
         return home_page(request, v, c)
     root = catalog.root_folder_id(c)
-    if root is None:
-        return page(request, "empty.html")
+    if root is None:  # a new LineageBox: the first steps, from watching a folder on
+        return page(request, "empty.html", first_run=first_run.checklist(c, s.live(c)))
     tree = catalog.folder_tree(c)
     folder = tree[root]
     while not folder.own and len(shown := [f for f in folder.children if f.total]) == 1:
@@ -68,6 +81,10 @@ def folder_page(request: Request, folder_id: int, select: bool = False, v=Depend
                     if _within(folder.path, p)), None)
     if folder is None or v.limited and top is None:
         raise HTTPException(404, "No such folder")
+    images = catalog.folder_images(c, folder_id)
+    photos = pieces.part(request, images, f"folder:{folder_id}", select)  # a piece at a time (pieces.py)
+    if photos["w"].piece:
+        return page(request, "_piece.html", p=photos)
     crumbs = []
     node = folder
     while node is not None and (v.admin or _within(node.path, top)):
@@ -83,12 +100,37 @@ def folder_page(request: Request, folder_id: int, select: bool = False, v=Depend
         from_whom = next((x["by_name"] for x in sharing.with_me(w, v.account_id)
                           if x["kind"] == "folder" and x["item_id"] == crumbs[0].id), None)
     return page(request, "folder.html", folder=folder, crumbs=crumbs, labels=labels, subfolders=subfolders,
-                images=catalog.folder_images(c, folder_id), ctx=f"folder:{folder_id}", select=select, own=own,
+                images=images, photos=photos, everything=[r["id"] for r in images] if select else None,
+                ctx=f"folder:{folder_id}", select=select, own=own,
                 from_whom=from_whom, removable=own and folder.path != "" and not any(_within(p, folder.path)
                                                                                     for p in watched),
                 sharing=_share_panel(w, v, "folder", folder_id) if own and folder.path and getattr(
                     request.state, "account", None) else None,
-                folder_hidden=bool(c.execute("SELECT hidden FROM folder WHERE id = ?", (folder_id,)).fetchone()[0]))
+                folder_hidden=bool(c.execute("SELECT hidden FROM folder WHERE id = ?", (folder_id,)).fetchone()[0]),
+                meaning=_meaning(c, folder_id) if v.admin and folder.path else None)
+
+
+def _words(w, v, image_id: int) -> dict:
+    """The photo's caption and comments. A member sees who wrote each only if that is someone in their part of the
+    family (or themselves); anyone else is "a family member"."""
+    words = comments.for_image(w, image_id)
+    if v.limited:
+        for item in [words["caption"], *words["comments"]]:
+            if item and item["account_id"] != v.account_id and item["person_id"] not in v.people:
+                item["by"] = "a family member"
+    return words
+
+
+def _meaning(c, folder_id: int) -> dict:
+    """What the folder's name was read as (or set to by hand), for the folder page's panel that corrects it."""
+    r = c.execute("SELECT * FROM folder WHERE id = ?", (folder_id,)).fetchone()
+    when = ""
+    if r["year"]:
+        when = (f"{r['year']:04d}-{r['month']:02d}-{r['day']:02d}" if r["month"] and r["day"]
+                else f"{month_name[r['month']]} {r['year']}" if r["month"] else str(r["year"]))
+    return {"place": r["place"] or "", "event": r["event"] or "", "when": when, "kind": r["kind"],
+            "people": ", ".join(json.loads(r["people_hint"] or "[]")), "source": r["source"],
+            "read": r["kind"] is not None}
 
 
 @router.get("/timeline", response_class=HTMLResponse)
@@ -109,35 +151,117 @@ def year_events(request: Request, year: int, v=Depends(viewer), c=Depends(con), 
 
 
 @router.get("/timeline/{year}", response_class=HTMLResponse)
-def year_page(request: Request, year: int, c=Depends(con)):
-    months: dict[int, list] = {}
-    for row in catalog.year_images(c, year):
-        months.setdefault(int(row["taken_at"][5:7]), []).append(row)
+def year_page(request: Request, year: int, select: bool = False, c=Depends(con)):
+    """A year's photos month by month, a piece at a time (pieces.py), with its months at the side."""
+    images = catalog.year_images(c, year)
+    photos = pieces.part(request, images, f"year:{year}", select, by_month=True)
+    if photos["w"].piece:
+        return page(request, "_piece.html", p=photos)
     years = sorted(catalog.timeline(c))
     i = years.index(year) if year in years else -1
-    return page(request, "year.html", year=year, months=months, ctx=f"year:{year}",
+    return page(request, "year.html", year=year, images=images, photos=photos, ctx=f"year:{year}", select=select,
+                everything=[r["id"] for r in images] if select else None,
                 prev_year=years[i - 1] if i > 0 else None,
                 next_year=years[i + 1] if 0 <= i < len(years) - 1 else None)
 
 
+def _search_href(text: str, f: search.Filters) -> str:
+    params = f.params(text)
+    return "/search?" + urlencode(params) if params else "/search"
+
+
+def _search_chips(text: str, f: search.Filters, names: dict[int, str]) -> list[dict]:
+    """The filters a search has, each a chip that takes it off: [{'label', 'off' (the search without it), 'without'
+    (its Filters)}]."""
+    chips = []
+
+    def chip(label, without):
+        chips.append({"label": label, "without": without, "off": _search_href(text, without)})
+
+    for pid in f.people:
+        chip(names.get(pid, "Someone"), dataclasses.replace(f, people=tuple(p for p in f.people if p != pid)))
+    if f.year_from or f.year_to:
+        a, b = f.year_from, f.year_to
+        chip(str(a) if a == b else f"{a} to {b}" if a and b else f"From {a}" if a else f"Up to {b}",
+             dataclasses.replace(f, year_from=None, year_to=None))
+    if f.place:
+        chip(f.place, dataclasses.replace(f, place=""))
+    if f.media:
+        chip({"photos": "Photos only", "recordings": "Recordings only"}.get(f.media, "Videos only"),
+             dataclasses.replace(f, media=""))
+    if f.unnamed:
+        chip("Faces to name", dataclasses.replace(f, unnamed=False))
+    if f.undated:
+        chip("No date", dataclasses.replace(f, undated=False))
+    return chips
+
+
 @router.get("/search", response_class=HTMLResponse)
 def search_page(request: Request, q: str = "", select: bool = False, pg: int = Query(1, alias="page", ge=1),
-                per: str | None = None, c=Depends(con)):
-    """The people a search is about, then its photos, a page at a time."""
-    limit = 5000
-    s = catalog.stats(c) if q else {"described": 0, "to_describe": 0}
-    results = search.query(c, q, limit) if q else []
+                per: str | None = None, v=Depends(viewer), c=Depends(con), s: Site = Depends(site)):
+    """The people a search is about, then its photos, a page at a time; the filters it has as chips that take them
+    off, and the ones to add. The address holds the words and filters (search.Filters.params), so a search can be
+    kept, shared, and walked through with ←/→ on the photos' pages (search.context). Nothing found: what to try."""
+    if q.startswith("?") and (back := search.from_context(q)) and (back[0] or back[1].narrowed):
+        # the photo page's way back from a search with filters (its context, as words): the search itself
+        return RedirectResponse(_search_href(back[0], back[1]), 303)
+    q = q.strip()[:300]
+    f = search.checked(c, search.Filters.from_params(request.query_params))
+    asked = bool(q) or f.narrowed
+    results = search.query(c, q, search.RESULTS, f, meaning=embeddings.asker(s.live(c))) if asked else []
     p = paging(request, "search", pg, per, "100")
     p.total = len(results)
-    found = search.people_matching(c, q) if q else []
-    named = {r["id"]: r for r in catalog.people(c)}
+    st = _stats(s, v, c) if q else {"described": 0, "to_describe": 0}
     names = dict(c.execute("SELECT id, name FROM person"))
+    found = search.people_matching(c, q) if q else []
+    named = {r["id"]: r for r in s.keep(v, ("people",), COUNTS_FOR, lambda: catalog.people(c))} if found else {}
     cards = [{"id": pid, "name": names[pid], "cover_face": named[pid]["cover_face"] if pid in named else None,
               "photos": named[pid]["photos"] if pid in named else 0} for pid in found]
-    return page(request, "search.html", q=q, results=results[p.offset:p.offset + p.size], total=len(results),
-                limit=limit, ctx=f"search:{q}", described=s["described"], to_describe=s["to_describe"],
-                select=select, paging=p, page_query={"q": q, **({"select": 1} if select else {})},
-                people_found=cards, kin=_kin_labels(c))
+    chips = _search_chips(q, f, names)
+    href = lambda **change: _search_href(q, dataclasses.replace(f, **change))  # noqa: E731
+    places = s.keep(v, ("search places",), COUNTS_FOR, lambda: search.places(c))
+    ideas = []
+    if asked and not results:  # what would find something: a word spelt as a name here, a word or a filter less
+        tags = s.keep(v, ("tags", "count"), COUNTS_FOR, lambda: catalog.tags(c, "", "count", limit=None)[0])
+        vocabulary = [t["name"] for t in tags] + list(names.values()) + [name for name, _ in places]
+        ideas = [{**i, "href": _search_href(i["q"], f)} for i in search.ideas(c, q, f, vocabulary)]
+        for chip in chips:
+            if n := search.count(c, q, chip["without"]):
+                ideas.append({"label": f"Without “{chip['label']}”", "href": chip["off"], "count": n})
+    return page(request, "search.html", q=q, f=f, results=results[p.offset:p.offset + p.size], total=len(results),
+                limit=search.RESULTS, ctx=search.context(q, f), described=st["described"],
+                to_describe=st["to_describe"], select=select, paging=p,
+                page_query={**f.params(q), **({"select": 1} if select else {})}, here_query=f.params(q),
+                people_found=cards,
+                kin=_kin_labels(c), asked=asked, chips=chips, kept=f.params(), ideas=ideas[:8],
+                heading=f"“{q}”" if q else ", ".join(chip["label"] for chip in chips) or "Search",
+                media=[("Photos and videos", href(media=""), not f.media), ("Photos", href(media="photos"),
+                        f.media == "photos"), ("Videos", href(media="videos"), f.media == "videos"),
+                       *([("Recordings", href(media="recordings"), True)] if f.media == "recordings" else [])],
+                toggles=[("Faces to name", href(unnamed=not f.unnamed), f.unnamed,
+                          "Photos with a face nobody has named yet"),
+                         ("No date", href(undated=not f.undated), f.undated,
+                          "Photos without a date of their own: the camera didn't record one, and nobody has set it")],
+                sorts=[(label, href(sort=key), f.sort == key or (key == "oldest" and f.sort == "best" and not q))
+                       for key, label in (("best", "Best match"), ("newest", "Newest first"),
+                                          ("oldest", "Oldest first")) if q or key != "best"],
+                years=sorted(s.keep(v, ("search years",), COUNTS_FOR, lambda: search.years(c)), reverse=True),
+                place_names=[name for name, _ in places[:400]])
+
+
+@router.get("/api/search/suggest")
+def search_suggest(q: str = "", people: str = "", v=Depends(viewer), c=Depends(con), s: Site = Depends(site)):
+    """What to offer as a search is typed (app.js, data-search-suggest): people, family words, places, tags and
+    years for the end of what is typed, from what the viewer sees (search.suggest). Each list is kept a minute for
+    the viewer: this is asked again with each letter. people: those already asked for, not offered again."""
+    keep = lambda name, work: s.keep(v, name, COUNTS_FOR, work)  # noqa: E731
+    chosen = {int(x) for x in people.split(",") if x.strip().isdecimal()}
+    items = search.suggest(q[:200], keep(("people names", v.me), lambda: _name_choices(c)),
+                           keep(("family words", v.me), lambda: search.family_words(c)),
+                           keep(("search places",), lambda: search.places(c)),
+                           keep(("tags", "count"), lambda: catalog.tags(c, "", "count", limit=None)[0]),
+                           keep(("search years",), lambda: search.years(c)), chosen)
+    return {"items": items}
 
 
 @router.get("/image/{image_id}", response_class=HTMLResponse)
@@ -154,7 +278,7 @@ def image_page(request: Request, image_id: int, ctx: str = "", v=Depends(viewer)
     if tour:
         ids = [p["id"] for p in tour_shown(s, v, c, w, tour)[0]]
     else:
-        ids = search.context_ids(c, ctx) if ctx else []
+        ids = search.context_ids(c, ctx, embeddings.asker(s.live(c))) if ctx else []
     pos = ids.index(image_id) if image_id in ids else -1
     back = "/"
     if tour:
@@ -163,17 +287,27 @@ def image_page(request: Request, image_id: int, ctx: str = "", v=Depends(viewer)
         back = f"/folder/{ctx[7:]}"
     elif ctx.startswith("year:"):
         back = f"/timeline/{ctx[5:]}#m{int(img['taken_at'][5:7]) if img['taken_at'] else ''}"
+    elif ctx.startswith("search:?"):  # words with filters or a sort (search.context)
+        back = "/search" + ctx[7:]
     elif ctx.startswith("search:"):
         back = "/search?" + urlencode({"q": ctx[7:]})
+    elif ctx.startswith("album:") and ctx[6:].isdecimal():  # albums.py: back to the album, ← → in its order
+        back = f"/album/{ctx[6:]}"
     elif ctx.startswith("tag:"):
         back = "/tag/" + quote(ctx[4:])
     elif ctx.startswith("photos:"):
         back = "/photos/" + quote(ctx[7:])
+    elif ctx.startswith("person:") and ctx[7:].isdecimal() and (v.admin or v.sees_person(int(ctx[7:]))):
+        back = f"/person/{ctx[7:]}"
     elif files:
         back = f"/folder/{files[0]['folder_id']}"
+    if pos >= pieces.PIECE and ctx.startswith(("tour:", "folder:", "year:", "tag:")):  # pages loaded in pieces:
+        back = f"{back.split('#')[0]}?skip={pos - pos % pieces.PIECE}#t{image_id}"   # from the piece with this photo
     next_id = ids[pos + 1] if 0 <= pos < len(ids) - 1 else None
     analysis = catalog.analysis_for(c, image_id)
     is_video = img["media"] == "video"
+    is_audio = img["media"] == "audio"  # a sound recording: played, transcribed, with no picture but its wave
+    transcript = speech.for_page(c, image_id) if is_video or is_audio else None
     faces = [dict(f) for f in catalog.image_faces(c, image_id)]
     linked = [dict(p) for p in tagging.linked_people(c, image_id)]
     if v.limited:  # people from outside their part of the family are named, without a link
@@ -191,19 +325,28 @@ def image_page(request: Request, image_id: int, ctx: str = "", v=Depends(viewer)
                  if pid in names}
     return page(request, "image.html", img=img, files=files, ctx=ctx, back=back, is_video=is_video,
                 frames=catalog.video_frames(c, image_id) if is_video else [],
-                copy=copies.find_copy(c, s.cfg, image_id) if is_video and img["playable"] == "copy" else None,
-                transcript=catalog.transcript(c, image_id) if is_video else None,
+                copy=copies.find_copy(c, s.cfg, image_id) if (is_video or is_audio) and img["playable"] == "copy"
+                else None, transcript=transcript, is_audio=is_audio,
+                chapters=chapters.for_page(c, image_id, transcript) if is_video else [],
+                stories=stories.named(stories.for_image(c, image_id), v), about={"kind": "image", "id": image_id},
+                most_minutes=stories.MOST_SECONDS // 60,
                 position=(pos + 1, len(ids)) if pos >= 0 else None,
                 prev_id=ids[pos - 1] if pos > 0 else None, next_id=next_id,
                 next_sha=catalog.image(c, next_id)["sha256"] if next_id else None,
                 ai=analysis, ai_raw=json.loads(analysis["raw_json"]) if analysis else {},
                 folder_ctx=FolderIndex(c).context(image_id), similar=catalog.group_members(c, image_id),
+                date_hint=date_hints.suggest(c, image_id),  # a photo dated only by file time or folder: a year
                 faces=faces, kin=_kin_labels(c), tags=tagging.for_image(c, image_id), linked=linked,
                 ages=events.ages(c, img, [f["person_id"] for f in faces] + [p["id"] for p in linked]),
                 doc=doc, doc_kinds=documents.KINDS, citations=documents.citations(c, image_id) if doc else [],
                 cite_targets=documents.targets(c) if doc else [], suggested=suggested,
                 turn_problem=writeback.why_not(img), mine=v.admin or any(not f["missing"] for f in files),
-                download=download,
+                download=download, words=_words(w, v, image_id),
+                # the face each person in it is shown by (People, Family, the tree), so this one can be made it
+                portraits={pid: life.portrait(c, pid) for pid in {f["person_id"] for f in faces if f["person_id"]}},
+                place=map_places.photo_place(c, image_id, img), xmp=sidecars.packet(c, image_id) is not None,
+                live=catalog.live_clip(c, image_id) if not is_video else None,
+                favourite=favourites.has(w, v, image_id), in_albums=albums.containing(c, image_id),
                 sharing=_share_panel(w, v, "image", image_id) if getattr(request.state, "account", None) and (
                     v.admin or any(not f["missing"] for f in files)) else None)
 
@@ -237,8 +380,12 @@ def tag_page(request: Request, name: str, select: bool = False, c=Depends(con)):
     images = catalog.tag_images(c, name)
     if not images:
         raise HTTPException(404, "No photos have this tag")
-    return page(request, "tag.html", nav="tags", tag=name, images=images, ctx=f"tag:{name}",
-                related=catalog.related_tags(c, name), select=select)
+    photos = pieces.part(request, images, f"tag:{name}", select)  # a piece at a time (pieces.py)
+    if photos["w"].piece:
+        return page(request, "_piece.html", p=photos)
+    return page(request, "tag.html", nav="tags", tag=name, images=images, photos=photos, ctx=f"tag:{name}",
+                related=catalog.related_tags(c, name), select=select,
+                everything=[r["id"] for r in images] if select else None)
 
 
 @router.get("/photos/undecodable", response_class=HTMLResponse)
@@ -315,11 +462,15 @@ def cleanup_faces_page(request: Request, show: str | None = None, pg: int = Quer
     kept = lambda name, work: s.keep(v, name, COUNTS_FOR, work, through_changes=True)
     total_groups = lambda: kept(("face groups",), lambda: catalog.clusters(c, 0, 0)[1])
     finish = None if show == "finish" else kept(("to finish",), lambda: people.to_finish(c, 0, 0)[1])
-    show = (show if show in ("together", "finish", "groups") else
+    show = (show if show in ("together", "finish", "groups", *face_checks.TABS) else
             "together" if beside else "finish" if finish else "groups")
     context = {"show": show, "beside": beside, "finish": finish, "page_query": {"show": show},
-               "s": kept(("stats", ()), lambda: catalog.stats(c))}
-    if show == "finish":
+               "s": kept(("stats", ()), lambda: catalog.stats(c)),
+               "check_tabs": face_checks.TABS, "check_counts": face_checks.counts(s, v, c)}
+    if show in face_checks.TABS:
+        context.update(face_checks.tab(request, show, pg, per, c), total_groups=total_groups())
+        p = context.pop("paging")
+    elif show == "finish":
         p = paging(request, "finish", pg, per, "25")
         photos, p.total = people.to_finish(c, p.offset, p.size)
         outside = access.names_of(w, {pid for ph in photos for pid, name in ph["named"] if name is None})
@@ -336,35 +487,69 @@ def cleanup_faces_page(request: Request, show: str | None = None, pg: int = Quer
         groups, p.total = catalog.clusters(c, p.offset, p.size)
         folders = FolderIndex(c)
         taken = {r["name"].lower() for r in catalog.people(c)}
+        alike = face_checks.looks_like(v, c, w, [g["id"] for g in groups])
         for g in groups:
             g["suggestion"] = people.suggest_name(folders, g["images"], taken)
+            g["looks_like"] = alike.get(g["id"])
         context.update(groups=groups, total_groups=p.total)
     return page(request, "cleanup_faces.html", nav="cleanup", paging=p, **context)
 
 
 @router.get("/person/{person_id}", response_class=HTMLResponse)
-def person_page(request: Request, person_id: int, v=Depends(viewer), c=Depends(con)):
+def person_page(request: Request, person_id: int, select: bool = False, v=Depends(viewer), c=Depends(con)):
+    """Someone's page: who they are and their family, their life story, and their life by age (life.py), whose
+    photos load a group at a time (person_photos). select: their photos can be ticked, to work on together."""
     p = catalog.person(c, person_id)
     if p is None:
         raise HTTPException(404, "No such person")
     g = family.load(c)
     ego = family.me(c)
-    return page(request, "person.html", nav="people", person=p, images=catalog.person_images(c, person_id),
-                removable=v.admin and people.why_kept(c, person_id) is None,
+    timeline = life.life(c, person_id)
+    found = events.for_person(c, person_id)
+    return page(request, "person.html", nav="people", person=p, timeline=timeline, select=select,
+                everything=[r["id"] for r in catalog.person_images(c, person_id)] if select else None,
+                photo_count=sum(x.photos for x in timeline.periods), portrait=life.portrait(c, person_id),
+                kept=people.why_kept(c, person_id) if v.admin else None,
                 ctx=f"person:{person_id}", auto_count=len(catalog.person_faces(c, person_id, "auto")),
                 confirmed_count=len(catalog.person_faces(c, person_id, "user")),
                 g=g, fam=family.links(g, person_id), theirs=family.worked_out(g, person_id), ego=ego,
                 tree_root=family.tree_root(g, person_id),
                 kin=family.relations_to(g, ego).get(person_id) if ego else None,
                 suggested_sex=None if p["sex"] else family.suggested_sex(c, person_id),
+                born_hint=face_ages.birth_hint(c, person_id),  # no birth date: when the faces say they were born
                 others=c.execute("SELECT id, name FROM person WHERE id != ? ORDER BY name COLLATE NOCASE",
                                  (person_id,)).fetchall(),
                 family_words=family.FAMILY_WORDS, other_words=family.OTHER_WORDS,
-                life=events.for_person(c, person_id), other_names=events.other_names(c, person_id),
+                life=found, other_names=events.other_names(c, person_id),
                 person_events=events.PERSON_EVENTS, couple_events=events.COUPLE_EVENTS,
-                name_types=events.NAME_TYPES, circles=people.person_groups(c, person_id),
-                docs=documents.for_person(c, person_id),
+                attributes=events.ATTRIBUTES, name_types=events.NAME_TYPES, circles=people.person_groups(c, person_id),
+                docs=documents.for_person(c, person_id), sources=documents.sources_for(c, person_id),
+                source_choices=documents.source_choices(c),
+                tree_media=c.execute("SELECT * FROM tree_media WHERE person_id = ? ORDER BY title, file",
+                                     (person_id,)).fetchall(),
                 circle_names=sorted({*people.groups(c), *people.GROUP_SUGGESTIONS}, key=str.lower))
+
+
+@router.get("/person/{person_id}/life/{key}", response_class=HTMLResponse)
+def person_photos(request: Request, person_id: int, key: str, skip: int = Query(0, ge=0), select: bool = False,
+                  c=Depends(con)):
+    """One group of someone's life by age (life.periods): its photos, PER_LOAD at a time, loaded when it is opened."""
+    if catalog.person(c, person_id) is None:
+        raise HTTPException(404, "No such person")
+    images, total = life.photos(c, person_id, key, skip)
+    return page(request, "_life_photos.html", images=images, total=total, skip=skip, key=key, person_id=person_id,
+                ctx=f"person:{person_id}", per=life.PER_LOAD, select=select)
+
+
+@router.get("/person/{person_id}/portraits", response_class=HTMLResponse)
+def portrait_choices(request: Request, person_id: int, year: str = Query("", max_length=4), c=Depends(con)):
+    """The faces their portrait can be chosen from: named as them, by hand first, clearest first; a year's only, with
+    the years to pick from."""
+    p = catalog.person(c, person_id)
+    if p is None:
+        raise HTTPException(404, "No such person")
+    return page(request, "_portraits.html", person=p, faces=life.portrait_choices(c, person_id, year=year),
+                years=life.portrait_years(c, person_id), year=year, portrait=life.portrait(c, person_id))
 
 
 @router.get("/person/{person_id}/faces", response_class=HTMLResponse)

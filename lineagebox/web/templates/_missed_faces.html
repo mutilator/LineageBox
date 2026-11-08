@@ -1,0 +1,24 @@
+{#- Cleanup → Confirm faces → Faces missed (cleanup_faces.html; faces.missed, routes/face_checks.py): photos where the
+    AI's description counts more people than faces were found, to look for faces again. -#}
+<p class="meta">{% trans %}Group photos where the description counts more people than faces were found: small faces at the back,
+or faces turned a little. <b>Look for faces again</b> looks more closely (about 20 seconds each); the faces it finds are
+recognised where they clearly match, and the photo leaves this list. Photos with family named in them come first.{% endtrans %}</p>
+{% include "_pager.html" %}
+<div class="missed-faces">
+  {%- for im in missed_photos %}
+  <div class="missed-photo" id="mf{{ im.id }}">
+    <a href="/image/{{ im.id }}"><img src="/t/{{ im.sha256 }}" alt="{{ _('Photo from %(taken_at)s', taken_at=im.taken_at|date(false)) }}" loading="lazy"></a>
+    <span>{% trans count=im.found, people=im.people|number, found=im.found|number %}{{ people }} people, {{ found }} face found{% pluralize %}{{ people }} people, {{ found }} faces found{% endtrans %}</span>
+    <button type="button" data-api="/api/images/{{ im.id }}/faces" data-busy="{{ _('Looking closely…') }}"
+            title="{{ _('Look for faces in it again, more closely') }}">{% trans %}Look for faces again{% endtrans %}</button>
+    {%- if viewer.admin %}
+    <button type="button" class="quiet" data-api="/api/images/{{ im.id }}/faces-found" data-remove="#mf{{ im.id }}"
+            title="{{ _('Every face is found already (people seen from behind, a crowd far off): take it off this list') }}">{% trans %}All found{% endtrans %}</button>
+    {%- endif %}
+  </div>
+  {%- else %}
+  <p class="note">{% trans %}No photos where the description counts more people than faces were found{% endtrans %}{% if not s.described %}
+    {% trans %}(the descriptions are still to come){% endtrans %}{% endif %}.</p>
+  {%- endfor %}
+</div>
+{% include "_pager.html" %}

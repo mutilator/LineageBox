@@ -6,7 +6,7 @@ from datetime import date, datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
-from lineagebox import access, catalog, family, memories, storage, tours
+from lineagebox import access, catalog, family, first_run, memories, outbox, storage, tours
 from lineagebox.web.common import MEMBER, _from_app, _people_or_404, _shared_with_me
 from lineagebox.web.deps import con, page, site, viewer, writer
 from lineagebox.web.routes.tours import suggestions
@@ -63,7 +63,7 @@ def home_page(request: Request, v: access.Viewer, c) -> HTMLResponse:
                 ours=by_day(ours, today), ours_older=ours_older, kin=[p["name"] for p in family_of],
                 family_of=family_of, kin_words=_kin_words(c, v.me, [p["id"] for p in family_of]) if kin else {},
                 questions=who_is_this(c, v), first_name=you[0].split()[0] if you else None, shared=shared,
-                disks=disks)
+                disks=disks, first_run=first_run.checklist(c, s.live(c)) if v.admin and not v.seeing_as else None)
 
 
 def faces_of(c, people: list[int]) -> list[dict]:
@@ -232,8 +232,10 @@ def ask_who(face_id: int, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
         raise HTTPException(404, "No such face")
     if f["person_id"] is not None:
         raise HTTPException(400, "This face already has a name.")
-    w.execute("INSERT OR IGNORE INTO face_question(face_id, account_id, asked_at) VALUES (?, ?, ?)",
-              (face_id, v.account_id, datetime.now().isoformat(timespec="seconds")))
+    asked = w.execute("INSERT OR IGNORE INTO face_question(face_id, account_id, asked_at) VALUES (?, ?, ?)",
+                      (face_id, v.account_id, datetime.now().isoformat(timespec="seconds"))).rowcount
+    if asked:  # and on New for you, for everyone who sees the photo (outbox.py)
+        outbox.asked(w, face_id, v.account_id)
     w.commit()
     return {"message": "Asked: it is on Home for everyone who sees this photo."}
 

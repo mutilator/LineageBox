@@ -1,10 +1,10 @@
-"""The Status page, updates, and starting a worker pass."""
+"""The Status page, updates, the copies of the catalog, and starting a worker pass."""
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
-from lineagebox import __version__, catalog, progress, settings, storage, updates
+from lineagebox import __version__, backup, catalog, progress, settings, storage, updates
 from lineagebox.web.common import ADMIN, IN_DOCKER, _from_app
 from lineagebox.web.deps import con, page, site, viewer
 from lineagebox.web.site import SLOW_PAGE, Site
@@ -38,7 +38,7 @@ def status_page(request: Request, v=Depends(viewer), c=Depends(con), s: Site = D
                 cfg=now, p=_snapshot(s, v, c, now), whisper=s.whisper_health(now), date_labels=catalog.DATE_SOURCES,
                 date_help=catalog.DATE_HELP, release=updates.available(c), last_check=settings.get(c, updates.KEY),
                 updater=updates.updater_state(s.cfg), in_docker=IN_DOCKER, slow=list(s.slow), slow_after=SLOW_PAGE,
-                disks=s.keep(v, ("storage",), 60, lambda: storage.disks(c, now)))
+                disks=s.keep(v, ("storage",), 60, lambda: storage.disks(c, now)), backups=backup.summary(c, now))
 
 
 @router.get("/api/update")

@@ -6,7 +6,8 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-from lineagebox import events, family, people, settings, tour_suggestions, tours
+from lineagebox import (access, events, family, favourites, memories, people, settings, slideshow,
+                        tour_suggestions, tours, video)
 from lineagebox.ingest import ingest
 from lineagebox.scan import scan
 from lineagebox.web import app as webapp
@@ -102,7 +103,10 @@ def test_tour_pages(con, cfg, tlib):
     tour_url = r.json()["go"]
     tour_page = client.get(tour_url).text
     assert "<h1>Winter 2023</h1>" in tour_page and "data-play" in tour_page
-    slides = json.loads(re.search(r'<script type="application/json" id="slides">(.*?)</script>', tour_page, re.S)[1])
+    title, *slides = json.loads(re.search(r'<script type="application/json" id="slides">(.*?)</script>', tour_page,
+                                          re.S)[1])
+    assert title == {"title": "Winter 2023", "span": "December 25, 2023 to January 10, 2024", "about": "",
+                     "count": "2 photos"}  # the title card comes first
     assert [s["when"] for s in slides] == ["December 25, 2023", "January 10, 2024"]
     tour_id = int(tour_url.rpartition("/")[2])
     photo = client.get(f"/image/{slides[0]['id']}?ctx=tour:{tour_id}").text
@@ -194,3 +198,102 @@ def test_suggested_tours_on_the_tours_page(con, cfg, tlib, monkeypatch):
     tour_url = client.post("/api/tours", json={"spec": spec}, headers=APP).json()["go"]  # an occasion: no kind asks
     assert "<h1>Christmas morning through the years</h1>" in client.get(tour_url).text
     assert "only its name can change" in client.get(f"{tour_url}/edit").text
+
+
+def _image(con, name):
+    return con.execute("SELECT image_id FROM file WHERE path = ?", (rel("Tours", name),)).fetchone()[0]
+
+
+def test_dates_on_slides_are_as_exact_as_they_are_known(con, tlib):
+    """A date set by hand as a season shows as it was said, a folder's year as the year; a camera's, the day."""
+    owen = tours.clean({"title": "", "who": {"mode": "person", "person_ids": [tlib["Owen"]]}})
+    con.execute("""UPDATE image SET taken_at = '1987-07-16T12:00:00', taken_at_source = 'user', date_text = 'summer 1987',
+                   date_from = '1987-06-01', date_to = '1987-08-31' WHERE id = ?""", (_image(con, "dec22.jpg"),))
+    con.execute("UPDATE image SET taken_at = '1990-01-01T00:00:00', taken_at_source = 'folder' WHERE id = ?",
+                (_image(con, "mar22.jpg"),))
+    con.execute("UPDATE image SET taken_at = '1991-06-01T00:00:00', taken_at_source = 'folder' WHERE id = ?",
+                (_image(con, "xmas23.jpg"),))
+    con.commit()
+    chosen = tours.photos(con, owen)
+    assert [s["when"] for s in tours.slides(con, chosen)] == ["Summer 1987", "1990", "June 1991", "January 10, 2024"]
+    card = tours.title_card("Owen", chosen)
+    assert card["span"] == "1987 to 2024" and card["count"] == "4 photos"
+    assert tours.span_words(["2024-06-01T10:00", "2024-08-20T10:00"]) == "June to August 2024"
+    assert tours.span_words(["2023-12-25T10:00", "2024-01-10T10:00"]) == "December 25, 2023 to January 10, 2024"
+    assert tours.span_words([None]) == ""
+
+
+def test_favourites_come_first(con, cfg, tlib):
+    """A heart wins a photo its place in a year, and a memory's cover. Each account has its own hearts."""
+    years = tours.answer(kind(con, "Throughout the years")["spec"], {"person": tlib["Owen"]})
+    years["pick"]["count"] = 1
+    in_2022 = lambda: [p["id"] for p in tours.photos(con, years) if p["taken"][:4] == "2022"]  # noqa: E731
+    first = in_2022()
+    loved = ({_image(con, "dec22.jpg"), _image(con, "mar22.jpg")} - set(first)).pop()  # the one not picked
+    name = "dec22.jpg" if loved == _image(con, "dec22.jpg") else "mar22.jpg"
+    client = TestClient(webapp.create_app(cfg), client=LAN)  # at home: one set of hearts, of nobody in particular
+    r = client.post(f"/api/images/{loved}/favourite", json={"on": True}, headers=APP)
+    assert r.json() == {"on": True}
+    assert in_2022() == [loved]
+    picked = tours.photos(con, years)
+    assert memories.cover(picked, date(2026, 1, 1)) == next(p["sha"] for p in picked if p["hearts"])
+    assert 'aria-pressed="true"' in client.get(f"/image/{loved}").text
+    assert favourites.mine(con, access.EVERYONE) == [loved]
+    assert "Your favourites" in client.get("/albums").text and _sha(con, name) in client.get("/favourites").text
+    client.post(f"/api/images/{loved}/favourite", json={"on": False}, headers=APP)
+    assert favourites.mine(con, access.EVERYONE) == [] and in_2022() == first
+    # an account's heart is its own
+    a, b = [access.Viewer(account={"id": con.execute("INSERT INTO account(email, role, created_at) VALUES (?, 'member',"
+                                                     " 'x')", (f"{n}@example.com",)).lastrowid,
+                                   "person_id": None, "role": "member"}, admin=False) for n in ("a", "b")]
+    favourites.put(con, a, _image(con, "jun24.jpg"), True)
+    assert favourites.has(con, a, _image(con, "jun24.jpg")) and not favourites.has(con, b, _image(con, "jun24.jpg"))
+
+
+def _sha(con, name):
+    return con.execute("SELECT sha256 FROM image WHERE id = ?", (_image(con, name),)).fetchone()[0]
+
+
+def test_save_as_a_video(con, cfg, tlib):
+    """Asking keeps the slides as the viewer sees them and wakes the worker; the worker makes an MP4 in the data folder
+    with a title card, and the page offers it for download."""
+    client = TestClient(webapp.create_app(cfg), client=LAN)
+    owen = tours.answer(kind(con, "Throughout the years")["spec"], {"person": tlib["Owen"]})
+    owen["seconds"] = 1
+    tour_id = tours.save_tour(con, None, None, owen, "Owen's years")
+    assert "Save as a video" in client.get(f"/tour/{tour_id}").text
+    assert client.get(f"/download/tour/{tour_id}/video").status_code == 404
+    assert client.post(f"/api/tours/{tour_id}/video", headers=APP).json()["reload"]
+    asked = con.execute("SELECT * FROM slideshow_video").fetchone()
+    shown = json.loads(asked["slides"])
+    assert shown[0]["title"] == "Owen's years" and len(shown) == 5 and asked["state"] == "waiting"
+    assert settings.get(con, slideshow.WAKE)  # the worker starts a pass for it
+    page = client.get(f"/tour/{tour_id}").text
+    assert "waiting its turn" in page and f'data-live="/tour/{tour_id}/video"' in page
+    client.post(f"/api/tours/{tour_id}/video", headers=APP)  # asking again replaces it
+    assert con.execute("SELECT count(*) FROM slideshow_video").fetchone()[0] == 1
+    if not video.available():
+        pytest.skip("ffmpeg isn't installed")
+    assert slideshow.make_waiting(con, cfg) == 1
+    made = slideshow.latest(con, None, "tour", tour_id)
+    assert made["state"] == "done" and made["bytes"] > 1000
+    assert "data-reload-page" in client.get(f"/tour/{tour_id}/video").text  # the page loads again to offer it
+    r = client.get(f"/download/tour/{tour_id}/video")
+    assert r.status_code == 200 and r.headers["content-type"] == "video/mp4" and r.content[4:8] == b"ftyp"
+    assert "Owen" in r.headers["content-disposition"]
+    probe = video.probe(slideshow.folder(cfg) / made["file"])
+    assert (probe.width, probe.height) == (slideshow.WIDTH, slideshow.HEIGHT)
+    # a title card of 4 s, 4 photos of 1 s, and 4 crossfades
+    assert abs(probe.duration - (slideshow.TITLE_SECONDS + 4 + 4 * slideshow.FADE)) < 0.5
+    # deleting the tour takes its video with it, and the worker's tidying its file
+    client.post(f"/api/tours/{tour_id}/delete", headers=APP)
+    assert slideshow.tidy(con, cfg) == 1 and not list(slideshow.folder(cfg).iterdir())
+
+
+def test_a_video_too_long_is_refused(con, cfg, tlib, monkeypatch):
+    client = TestClient(webapp.create_app(cfg), client=LAN)
+    tour_id = tours.save_tour(con, None, None, tours.clean({"title": "All", "seconds": 60}), "All")
+    monkeypatch.setattr(slideshow, "MOST_MINUTES", 1)
+    r = client.post(f"/api/tours/{tour_id}/video", headers=APP)
+    assert r.status_code == 400 and "minutes" in r.json()["detail"]
+    assert not con.execute("SELECT 1 FROM slideshow_video").fetchone()

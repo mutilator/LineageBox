@@ -1,0 +1,43 @@
+{#- Cleanup → Confirm faces → Ages to check (cleanup_faces.html; face_ages.age_checks, routes/face_checks.py): faces
+    named as someone who can't be in that photo by their age, by person. -#}
+<p class="meta">{% trans %}Faces named as someone who can't be them by their age: the photo is dated before they were born, or
+the face looks like a young child's while they were grown up then. Often the name is right and the photo's date is
+wrong, a camera with its clock set wrong for a while: put the date right on the photo's page{% endtrans %}{% if viewer.admin %}{% trans %}, or
+a whole camera's dates at once under <a href="/cleanup/camera-clock">Camera clocks</a>{% endtrans %}{% endif %}{% trans %}. If it isn't them,
+<b>Not them</b> takes the name off.{% endtrans %}</p>
+{%- if viewer.admin and clock_cameras %}
+<ul class="age-cameras">
+  {%- for camera, n in clock_cameras[:5] %}
+  <li>{% trans n=n|number, camera2={'camera': camera}|urlencode %}{{ n }} of these are from <b>{{ camera }}</b>:
+    <a href="/cleanup/camera-clock?{{ camera2 }}">was its clock wrong?</a>{% endtrans %}</li>
+  {%- endfor %}
+</ul>
+{%- endif %}
+{% include "_pager.html" %}
+{%- for p in aged %}
+<section class="age-person">
+  <h2><a href="/person/{{ p.id }}">{{ p.name }}</a> <span class="hint inline">{% trans value=p.born|date(false) if p.born|length == 10 else p.born %}born {{ value }}{% endtrans %}</span></h2>
+  <div class="age-faces">
+    {%- for f in p.faces %}
+    <div class="age-face" id="age{{ f.face_id }}">
+      <a href="/image/{{ f.image_id }}" title="{{ _('Open the photo') }}"><img src="/face/{{ f.face_id }}" alt="{{ _('The face') }}" width="80" height="80" loading="lazy"></a>
+      <span>{{ f.taken_at|date(false) }}
+        <span class="hint">{% if f.why == "born after" %}{% trans %}before they were born{% endtrans %}{% else %}{% trans %}looks like a young child's{% endtrans %}{% endif %}
+          · {{ _("named by hand") if f.by == "user" else _("recognised") }}{% if f.camera and viewer.admin %} · {{ f.camera }}{% endif %}</span></span>
+      <span class="age-answers">
+        <button type="button" class="quiet" data-api="/api/faces/{{ f.face_id }}/not" data-remove="#age{{ f.face_id }}"
+                title="{{ _("It isn't %(name)s: take the name off", name=p.name) }}">{% trans %}Not them{% endtrans %}</button>
+        {%- if viewer.admin %}
+        <button type="button" class="quiet" data-api="/api/faces/{{ f.face_id }}/age-ok" data-remove="#age{{ f.face_id }}"
+                title="{{ _('It is %(name)s: stop listing it', name=p.name) }}">{% trans %}Right as it is{% endtrans %}</button>
+        {%- endif %}
+      </span>
+    </div>
+    {%- endfor %}
+  </div>
+</section>
+{%- else %}
+<p class="note">{% trans %}Every named face fits the ages of the people it's named as{% endtrans %}{% if not aged_total %}{% trans %}, as far as their
+birth dates and the photos' dates tell{% endtrans %}{% endif %}.</p>
+{%- endfor %}
+{% include "_pager.html" %}

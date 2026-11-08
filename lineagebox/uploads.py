@@ -28,7 +28,16 @@ _RESERVED = {"con", "prn", "aux", "nul", *(f"com{i}" for i in range(1, 10)), *(f
 # what the first bytes of each kind of file look like: (offset, bytes) any of which will do
 _SIGNATURES = {
     ".jpg": [(0, b"\xff\xd8\xff")], ".jpeg": [(0, b"\xff\xd8\xff")], ".png": [(0, b"\x89PNG\r\n\x1a\n")],
-    ".nef": [(0, b"II*\x00"), (0, b"MM\x00*")],
+    # TIFF, and BigTIFF (over 4 GB: big scans)
+    **{ext: [(0, b"II*\x00"), (0, b"MM\x00*"), (0, b"II+\x00"), (0, b"MM\x00+")] for ext in (".tif", ".tiff")},
+    ".heic": [(4, b"ftyp")], ".heif": [(4, b"ftyp")], ".hif": [(4, b"ftyp")], ".cr3": [(4, b"ftyp")],
+    ".orf": [(0, b"IIRO"), (0, b"IIRS"), (0, b"MMOR")], ".rw2": [(0, b"IIU\x00")], ".rwl": [(0, b"IIU\x00")],
+    ".raf": [(0, b"FUJIFILM")], ".mrw": [(0, b"\x00MRM")], ".crw": [(6, b"HEAPCCDR")],
+    ".iiq": [(0, b"II*\x00"), (0, b"MM\x00*"), (0, b"IIII")],
+    # the other raw files are TIFF files
+    **{ext: [(0, b"II*\x00"), (0, b"MM\x00*")] for ext in (".nef", ".nrw", ".cr2", ".arw", ".srf", ".sr2", ".dng",
+                                                         ".pef", ".srw", ".3fr", ".mos", ".mef", ".erf", ".kdc",
+                                                         ".dcr")},
     ".mp4": [(4, b"ftyp")], ".m4v": [(4, b"ftyp")], ".mov": [(4, b"ftyp"), (4, b"moov"), (4, b"wide"), (4, b"mdat"),
                                                              (4, b"free"), (4, b"skip"), (4, b"pnot")],
     ".3gp": [(4, b"ftyp")], ".3g2": [(4, b"ftyp")], ".mts": [(4, b"\x47")], ".m2ts": [(4, b"\x47")],
@@ -173,13 +182,18 @@ class _Pipe:
 def zip_stream(files, first: tuple[str, bytes] | None = None, zip64: bool = True):
     """A zip of (path, name in the zip) made as it is sent: stored, not compressed (photos and videos are already),
     ZIP64 so that videos over 4 GB fit (zip64 False: for genealogy programs, which may not read it). first: a file
-    made in memory, (name, contents), put before the others. Files gone meanwhile are left out."""
+    made in memory, (name, contents), put before the others. Files gone meanwhile are left out. A path that is bytes is
+    a file made in memory too (a photo's XMP sidecar, beside it)."""
     pipe = _Pipe()
     with zipfile.ZipFile(pipe, "w", zipfile.ZIP_STORED, allowZip64=True) as z:
         if first:
             z.writestr(first[0], first[1])
             yield pipe.take()
         for path, name in files:
+            if isinstance(path, (bytes, bytearray)):
+                z.writestr(zipfile.ZipInfo(name, date_time=time.localtime()[:6]), path)
+                yield pipe.take()
+                continue
             try:
                 src = open(path, "rb")
             except OSError:

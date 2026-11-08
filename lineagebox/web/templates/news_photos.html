@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}{% trans %}New photos{% endtrans %}{% endblock %}
+{% block main %}
+<p class="meta"><a href="/news">{% trans %}← New for you{% endtrans %}</a></p>
+<h1>{{ event.text[:1]|upper }}{{ event.text[1:] }}</h1>
+<p class="meta">{% trans at=event.at|date(false) %}Added on {{ at }}, newest first by the day they were taken.{% endtrans %}</p>
+{{ m.grid(images, "") }}
+{% endblock %}

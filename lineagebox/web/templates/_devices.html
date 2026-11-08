@@ -1,0 +1,81 @@
+{#- Settings → Photo frames (routes/frame.py): the device links made so far, a new one shown once, and the form for
+    another. Loaded after the Settings page; the answers to its forms and buttons put it in again (data-html). -#}
+{%- if made %}
+<div class="new-code device-made">
+  <div class="qr" role="img" aria-label="{{ _("QR code of the link, for the tablet's camera") }}">{{ made.qr|safe }}</div>
+  <div>
+    <p><b>{{ made.name }}</b>{% trans %}: open this link on the frame, the TV or the dashboard, or point a tablet's camera at the
+      code.{% endtrans %}</p>
+    <p><code class="code">{{ made.url }}</code> <button type="button" class="quiet" data-copy="{{ made.url }}">{% trans %}Copy{% endtrans %}</button></p>
+    <p class="hint">{% trans %}It is shown only now: LineageBox keeps only a fingerprint of it. Whoever has the link sees what it
+      shows, without signing in, so keep it on the frame alone. Turn it off below if the frame is lost or given away.
+      In Home Assistant, add a Webpage card with this link.{% endtrans %}</p>
+  </div>
+</div>
+{%- endif %}
+
+{%- if links %}
+<ul class="device-links">
+  {%- for d in links %}
+  <li{% if d.revoked_at %} class="off"{% endif %}>
+    <b>{{ d.name }}</b> {% trans shows=d.shows %}shows {{ shows }}{% endtrans %}{% if d.home_only %}{% trans %}, on the home network only{% endtrans %}{% endif %}{% trans seconds=d.seconds %}, a photo every
+    {{ seconds }} seconds.{% endtrans %}
+    <span class="hint inline">{% trans made_at=d.made_at|date(false) %}Made {{ made_at }}{% endtrans %}{% if d.made_by_name or d.made_by_email %} {% trans made_by_email=d.made_by_name or d.made_by_email %}by {{ made_by_email }}{% endtrans %}{% endif %}
+      {%- if d.revoked_at %} · {% trans revoked_at=d.revoked_at|date(false) %}turned off {{ revoked_at }}{% endtrans %}
+      {%- elif d.last_seen_at %} · {% trans last_seen_at=d.last_seen_at|date %}last used {{ last_seen_at }}{% endtrans %}{% if d.last_seen_ip %} {% trans last_seen_ip=d.last_seen_ip %}from {{ last_seen_ip }}{% endtrans %}{% endif %}
+      {%- else %} · {% trans %}not used yet{% endtrans %}{% endif %}
+      {%- if d.account_off and not d.revoked_at %} · {% trans %}shows nothing while that account is switched off{% endtrans %}{% endif %}</span>
+    {%- if not d.revoked_at %}
+    <button type="button" class="quiet" data-api="/api/devices/{{ d.id }}/revoke" data-html="#devices-panel"
+            data-confirm="{{ _('Turn off the link of %(name)s? The frame stops showing photos, and a new link is needed to start it again.', name=d.name) }}">{% trans %}Turn off{% endtrans %}</button>
+    {%- else %}
+    <button type="button" class="quiet" data-api="/api/devices/{{ d.id }}/delete" data-html="#devices-panel">{% trans %}Remove from the list{% endtrans %}</button>
+    {%- endif %}
+  </li>
+  {%- endfor %}
+</ul>
+{%- else %}
+<p class="note">{% trans %}No photo frames yet.{% endtrans %}</p>
+{%- endif %}
+
+<h3 id="new-device">{% trans %}Make a link for a frame{% endtrans %}</h3>
+<form data-api="/api/devices" data-settings data-html="#devices-panel" class="device-form">
+  <p><label>{% trans %}Name{% endtrans %} <input name="name" maxlength="80" required placeholder="{{ _('Kitchen tablet') }}"></label>
+    <span class="hint">{% trans %}So you know which link is which: where the frame is, or whose it is.{% endtrans %}</span></p>
+  <p><label>{% trans %}Shows{% endtrans %} <select name="view">
+      {%- for key, label in views.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+    </select></label></p>
+  <p><label>{% trans %}Memories as{% endtrans %} <select name="account_id">
+      <option value="all">{% trans %}the whole library sees them (everything){% endtrans %}</option>
+      {%- for a in accounts if not a.disabled_at %}
+      <option value="{{ a.id }}">{% trans email=a.person_name or a.email %}{{ email }} sees them{% endtrans %}{% if a.role == "admin" %} {% trans %}(an admin: everything){% endtrans %}{% endif %}</option>
+      {%- endfor %}
+    </select></label>
+    <span class="hint">{% trans %}Photos from this week in earlier years, then the best of every year. A member's are only of
+      their own part of the family, as on their Home page.{% endtrans %}</span></p>
+  {%- if tours %}
+  <p><label>{% trans %}Or the tour{% endtrans %} <select name="tour_id">
+      <option value="">{% trans %}(pick one when it shows a tour){% endtrans %}</option>
+      {%- for t in tours %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+    </select></label>
+    <span class="hint">{% trans %}A tour shows its photos as whoever made it sees them.{% endtrans %}</span></p>
+  {%- endif %}
+  {%- if albums %}
+  <p><label>{% trans %}Or the album{% endtrans %} <select name="album_id">
+      <option value="">{% trans %}(pick one when it shows an album){% endtrans %}</option>
+      {%- for a in albums %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}
+    </select></label>
+    <span class="hint">{% trans %}An album shows its photos in its order, with its own captions, as whoever made it may pass
+      them on.{% endtrans %}</span></p>
+  {%- endif %}
+  <p><label>{% trans %}Each photo for{% endtrans %} <select name="seconds">
+      {%- for n in seconds %}<option value="{{ n }}"{% if n == 20 %} selected{% endif %}>{% trans %}{{ n }} seconds{% endtrans %}</option>{% endfor %}
+    </select></label></p>
+  <p><label class="choice"><input type="checkbox" name="home_only" checked> {% trans %}Only on the home network{% endtrans %}</label>
+    <span class="hint">{% trans %}Untick it for a frame in another house: the link then works from anywhere{% endtrans %}{% if accounts_on %}{% trans %},
+      at the address from outside{% endtrans %}{% endif %}.</span></p>
+  <p><button type="submit" class="primary">{% trans %}Make the link{% endtrans %}</button></p>
+</form>
+<p class="hint">{% trans %}To try the frame here first, open <a href="{{ frame_here }}" target="_blank" rel="noopener">your own
+  memories as a frame</a>. On a TV or tablet, set its screen never to turn off; over HTTPS, the frame keeps the screen
+  on by itself where the browser lets it.{% endtrans %}</p>

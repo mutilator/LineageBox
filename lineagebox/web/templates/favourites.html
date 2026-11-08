@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{#- The viewer's favourites (favourites.py): the photos they gave a heart, the latest first. #}
+{% block title %}{% trans %}Your favourites{% endtrans %}{% endblock %}
+{% block main %}
+<nav class="crumbs"><a href="/albums">{% trans %}Albums{% endtrans %}</a><span class="sep">/</span><h1>{% trans %}Your favourites{% endtrans %}</h1></nav>
+<p class="meta">{% trans count=images|length, images=images|length|number %}{{ images }} photo you gave a heart, the
+  latest first. Tours and memories show favourites before other photos like them.{% pluralize %}{{ images }} photos you gave a heart, the
+  latest first. Tours and memories show favourites before other photos like them.{% endtrans %}</p>
+<p class="tour-actions">
+  {%- if slides %}<button type="button" class="primary" data-play="#slides" data-seconds="{{ seconds }}" data-key="p" data-key-label="{{ _('Play the slideshow') }}">{% trans %}▶ Play{% endtrans %}</button>{% endif %}
+  {%- if images %}<button type="button" data-api="/api/albums" data-body='{{ {"name": _("Favourites"), "image_ids": ids}|tojson }}' data-busy="{{ _('Making the album…') }}" title="{{ _('An album of these photos, to put in order, caption and share') }}">{% trans %}Make an album of them{% endtrans %}</button>{% endif %}
+</p>
+{% if images %}{{ m.grid(images, "") }}{% else %}<p class="note">{% trans %}None yet. Press ♡ on a photo's page to make it one of
+  your favourites.{% endtrans %}</p>{% endif %}
+<script type="application/json" id="slides">{{ slides|tojson }}</script>
+{% endblock %}
