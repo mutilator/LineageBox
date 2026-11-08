@@ -47,6 +47,9 @@ docker compose exec worker python -m lineagebox status
 - **"… can't look at pictures"**: the model isn't a vision model. Pick one from [the list](ollama.md#which-model).
 - **"Describing failed: Ollama answered 500"**: most often the model doesn't fit in memory. Pick a smaller one, or send
   fewer photos at a time.
+- **"llama-server process has terminated: signal: killed"**: the model was stopped as it loaded, nearly always by a
+  memory limit (a container's, or the machine's). On a processor, Ollama needs the download's size and at least 1.5 GB
+  more free ([which model](ollama.md#which-model)).
 - **Nothing happens during the day**: check **Settings → Schedule → When the AI may describe**.
 - Whisper: see [when something is wrong](whisper.md#when-something-is-wrong).
 

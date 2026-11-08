@@ -66,8 +66,8 @@ def route_gate(request: Request, v: access.Viewer = Depends(viewer)) -> None:
         raise HTTPException(500, "This page has no access rule yet (ACCESS in its module in web/routes/).")
     if v.device is not None and route.path not in frames.ROUTES:
         raise HTTPException(404)  # a photo frame's link opens its frame and the pictures on it, nothing else
-    if route.path in demo.CLOSED and request.app.state.site.cfg.demo_enabled:
-        raise HTTPException(403, demo.OFF)  # other ways in, sharing, recordings (demo.py)
+    if demo.closed(request.app.state.site.cfg, route.path, request.method):
+        raise HTTPException(403, demo.OFF)  # other ways in, sharing, recordings, changing how it runs (demo.py)
     if kind != PUBLIC and v is access.NOBODY:
         raise HTTPException(401, "Sign in first.")
     if kind == ADMIN and not v.admin:

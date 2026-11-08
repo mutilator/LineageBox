@@ -100,7 +100,7 @@ def export_family(version: str = "7.0", photos: bool = False, private: bool = Fa
     """The family tree as GEDCOM, for genealogy programs; with photos, a GEDZIP sent as it is made."""
     if version not in gedcom.VERSIONS:
         raise HTTPException(400, "Unknown GEDCOM version")
-    if photos and v.limited and not s.zip_tries.allow(str(v.account_id)):
+    if photos and s.limits(v) and not s.zip_tries.allow(str(v.account_id)):
         raise HTTPException(429, "That's a lot of downloads in one hour. Wait a while, then try again.")
     data, media, name = gedcom.export_parts(c, s.cfg, version, photos=photos, private_living=private)
     headers = {"Content-Disposition": _attachment(name), **PRIVATE}

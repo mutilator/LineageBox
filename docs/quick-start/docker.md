@@ -84,7 +84,8 @@ On the **Settings** page:
    You can watch more than one folder.
 2. **AI (Ollama):** press **Download ministral-3 to Ollama**. That model is about 6 GB and wants a graphics card with
    8 GB of memory. On a processor alone, set **Model** to `gemma3:4b` first, then download that. It is smaller and
-   much faster, and wrong a little more often. [Which model](../ollama.md#which-model) compares them.
+   much faster, and wrong a little more often. It needs about 5 GB of the machine's memory free: with less, Ollama's
+   model is stopped as it loads. [Which model](../ollama.md#which-model) compares them.
 3. Optional: **Whose photos**, e.g. "a family in Oregon, USA". This helps the AI read place names in folder names.
 
 ## 7. Let it work

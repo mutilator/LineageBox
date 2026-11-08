@@ -23,6 +23,8 @@ ACCESS = {
     "/api/images/{image_id}/hidden": ADMIN,
     "/api/folders/{folder_id}/hidden": ADMIN,
 }
+ADMIN_NO_UPLOADS = ("In the demo, uploading is for those who sign in as a family member: an admin sees everyone's "
+                    "uploads, so here admins don't add their own.")
 
 
 @router.get("/upload", response_class=HTMLResponse)
@@ -49,8 +51,10 @@ def upload_page(request: Request, c=Depends(con), w=Depends(writer), s: Site = D
         folder_id = row[0] if row else None
     most = now.demo_upload_max_mb * 2**20 if now.demo_enabled else now.upload_max_gb * 2**30
     left = demo.uploads_left(w, _client_ip(request), now.demo_uploads) if now.demo_enabled else None
+    no_uploads = ADMIN_NO_UPLOADS if now.demo_enabled and account and account["role"] == "admin" else ""
     return page(request, "upload.html", nav="upload", account=account, counts=counts, mine=mine,
                 folder_id=folder_id, max_size=uploads.size_text(most), demo_left=left, demo_most=now.demo_uploads,
+                no_uploads=no_uploads,
                 extensions=sorted({*now.image_extensions, *now.video_extensions, *now.audio_extensions}))
 
 
@@ -64,6 +68,8 @@ async def upload_file(request: Request, path: str = Query(min_length=1, max_leng
     if not s.upload_tries.allow(str(account["id"])):
         raise HTTPException(429, "That's a lot of files at once: wait an hour, then go on.")
     now = s.shared_cfg()
+    if now.demo_enabled and account["role"] == "admin":  # an admin there sees every visitor's uploads (demo.py)
+        raise HTTPException(403, ADMIN_NO_UPLOADS)
     most = now.demo_upload_max_mb * 2**20 if now.demo_enabled else now.upload_max_gb * 2**30
     counted = ""  # a demo's: the address this upload was counted against, until it is taken (demo.take_upload)
     if now.demo_enabled:
@@ -147,7 +153,7 @@ def zipped(s: Site, c, image_ids, name: str) -> StreamingResponse:
 @router.post("/download")
 async def download_ticked(request: Request, v=Depends(viewer), s: Site = Depends(site)):
     """The ticked photos of a page as a zip: a plain form post of image=<id> fields (it changes nothing)."""
-    if v.limited and not s.zip_tries.allow(str(v.account_id)):
+    if s.limits(v) and not s.zip_tries.allow(str(v.account_id)):
         raise HTTPException(429, "That's a lot of downloads in one hour. Wait a while, then try again.")
     fields = parse_qs((await request.body()).decode("utf-8", "replace"))
     ids = list(dict.fromkeys(int(i) for i in fields.get("image", []) if i.isdecimal()))
@@ -166,7 +172,7 @@ async def download_ticked(request: Request, v=Depends(viewer), s: Site = Depends
 
 @router.get("/download/tour/{tour_id}")
 def download_tour(tour_id: int, v=Depends(viewer), c=Depends(con), w=Depends(writer), s: Site = Depends(site)):
-    if v.limited and not s.zip_tries.allow(str(v.account_id)):
+    if s.limits(v) and not s.zip_tries.allow(str(v.account_id)):
         raise HTTPException(429, "That's a lot of downloads in one hour. Wait a while, then try again.")
     t = tours.tour(c, tour_id)
     if t is None:

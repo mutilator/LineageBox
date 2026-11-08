@@ -18,6 +18,21 @@
 <link rel="icon" href="/static/icons/icon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
 <meta name="theme-color" content="#2f62c9">
+{%- if demo_resets %}
+{#- a demo's address shared in a chat app or on a social site: its preview (demo.py) #}
+<meta name="description" content="{{ _('A family archive to try out: the photos, papers and family tree of a family that never existed.') }}">
+<meta property="og:site_name" content="LineageBox">
+<meta property="og:type" content="website">
+<meta property="og:title" content="{{ _('LineageBox demo') }}">
+<meta property="og:description" content="{{ _('A family archive to try out: the photos, papers and family tree of a family that never existed. Name the faces, fix the dates, add to the tree.') }}">
+{%- if demo_url %}
+<meta property="og:url" content="{{ demo_url }}/">
+{%- if demo_preview %}
+<meta property="og:image" content="{{ demo_url }}/demo-preview.jpg">
+<meta name="twitter:card" content="summary_large_image">
+{%- endif %}
+{%- endif %}
+{%- endif %}
 {% block head %}{% endblock %}
 </head>
 <body class="{% block body_class %}{% endblock %}" data-hover-preview="{{ hover_preview_ms|default(500) }}">
@@ -117,14 +132,14 @@
     <div class="profile-menu" id="profile">
       {%- if demo_resets %}
       <p class="who"><strong>{{ signed_in.person_name }}</strong>
-        <span class="hint">{% trans %}Trying the demo as a family member{% endtrans %}</span></p>
+        <span class="hint">{{ _("Trying the demo as an admin: changes no settings") if signed_in.role == "admin" else _("Trying the demo as a family member") }}</span></p>
       {%- else %}
       <p class="who"><strong>{{ signed_in.person_name or signed_in.email }}</strong>
         {%- if signed_in.person_name %}<span>{{ signed_in.email }}</span>{% endif %}
         <span class="hint">{{ _("Admin: sees and changes everything") if signed_in.role == "admin" else _("Family member") }}</span></p>
       <a href="/passkeys">{% trans %}Passkeys{% endtrans %}</a>
       {%- endif %}
-      {%- if signed_in.role == "admin" %}
+      {%- if signed_in.role == "admin" and not demo_resets %}
       <a href="/settings/codes">{% trans %}Code for signing in at home{% endtrans %}</a>
       {%- endif %}
       <button type="button" data-api="/auth/signout" title="{{ _('Sign out of this browser') }}">{% trans %}Sign out{% endtrans %}</button>

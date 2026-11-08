@@ -24,6 +24,12 @@ The model must be able to look at pictures (a "vision" model). LineageBox checks
 | `ministral-3:3b` | about 3 GB | Apache-2.0 | For smaller graphics cards, or a processor without one. Faster, and wrong more often. |
 | `gemma3:4b` | about 3.5 GB | [Gemma Terms of Use](https://ai.google.dev/gemma/terms) | The same, from Google. |
 
+On a processor alone, the model is held in the machine's own memory, with room to work beside it: plan on the
+download's size and at least 1.5 GB more free. When that was tested, `qwen3-vl:2b`, a 1.9 GB download, didn't fit in a
+container limited to 2.4 GB: Ollama turns part of the model into a larger form as it loads, and the limit stopped it
+part way. Status then says the model was killed and most likely ran out of memory. On a machine that runs other things
+too, a memory limit on Ollama's container (`mem_limit` in a compose override) keeps that from stopping them instead.
+
 Each model comes with its own licence, which applies to how you use it. The model's page on [ollama.com](https://ollama.com/library) names it.
 
 You set the model on the Settings page (**AI (Ollama)**, **Model**). Changing it describes every photo again with the new one. Descriptions are kept per model, so going back to the old model doesn't redo them. A photo someone had described again with another model (below) keeps that description.

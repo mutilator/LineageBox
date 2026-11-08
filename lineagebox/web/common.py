@@ -90,8 +90,8 @@ _NOT_PAGES = ("/api/", "/t/", "/t2/", "/p/", "/frame/", "/face/", "/play/", "/or
 def _public_path(path: str) -> bool:
     """What anyone may reach before signing in: the sign-in page and Google's way back, the stylesheet and script,
     and the health check; and what a phone installing the site asks for on its own, without its cookie (the web
-    manifest and the service worker, routes/phone.py)."""
-    return (path in ("/signin", "/healthz", "/manifest.webmanifest", "/sw.js")
+    manifest and the service worker, routes/phone.py); and a demo's photo for link previews (demo.py)."""
+    return (path in ("/signin", "/healthz", "/manifest.webmanifest", "/sw.js", "/demo-preview.jpg")
             or path.startswith(("/auth/", "/static/")))
 
 
@@ -686,6 +686,7 @@ class LocalBody(BaseModel):
 
 class DemoBody(BaseModel):
     next: str = Field("/", max_length=500)
+    admin: bool = False  # Sign in as an admin (a locked-down one, demo.py)
 
 
 class CodeBody(BaseModel):

@@ -10,6 +10,12 @@ those without a Google account. A member sees their own part of the family: thei
 blood relative, the partners of those and their children, and their own partner's side; the photos those people are
 in; what they upload; and what others share with them. An admin sees and changes everything.
 <a href="/folders">What is shared</a> lists everything shared, by whom and with whom.{% endtrans %}</p>
+{%- if demo_resets %}
+{#- a demo's admins look, and change nothing (demo.LOCKED); each visitor's account is listed by its made-up email #}
+<p class="note">{% trans %}This is the demo: each visitor gets an account of their own, listed below by a made-up email.
+Nothing here can be changed.{% endtrans %}</p>
+<fieldset class="demo-locked" disabled>
+{%- endif %}
 
 <div class="settings">
 <section class="panel" id="sign-in">
@@ -142,6 +148,9 @@ in; what they upload; and what others share with them. An admin sees and changes
   {%- endfor %}
 </section>
 </div>
+{%- if demo_resets %}
+</fieldset>
+{%- endif %}
 </div>
 </div>
 {% endblock %}

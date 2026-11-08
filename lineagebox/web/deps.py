@@ -5,7 +5,8 @@ import dataclasses
 from fastapi import Depends, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 
-from lineagebox import access, accounts, db, outbox
+from lineagebox import access, accounts, db, demo, outbox
+from lineagebox.config import Config
 from lineagebox.web import frames, tiles
 from lineagebox.web.common import PAGE_SIZES, SEE_AS, Paging
 from lineagebox.web.site import Site
@@ -73,8 +74,20 @@ def page(request: Request, name: str, **context) -> HTMLResponse:
     context.setdefault("signed_in", getattr(request.state, "account", None))
     context.setdefault("signed_out", s.shared_cfg().accounts_enabled and context["signed_in"] is None)
     context.setdefault("hover_preview_ms", s.shared_cfg().hover_preview_ms)  # for app.js, on <body>
-    # a demo (demo.py): the note at the top of every page says so, and when it all goes back as it was
+    # a demo (demo.py): the note at the top of every page says so, and when it all goes back as it was; its admins
+    # see Settings and Status without the addresses of other machines, proxies and networks, and Settings can't be
+    # changed (its panels are drawn disabled)
     context.setdefault("demo_resets", (s.cfg.demo_resets.strip() or "every day") if s.cfg.demo_enabled else "")
+    if s.cfg.demo_enabled:
+        if isinstance(context.get("cfg"), Config):
+            context["cfg"] = demo.masked(context["cfg"])
+        for part in ("p", "slow"):
+            if part in context:
+                context[part] = demo.redact(context[part])
+        if context.get("slow"):  # another visitor's searches are theirs
+            context["slow"] = [{**r, "path": r["path"].split("?")[0]} for r in context["slow"]]
+        context.setdefault("demo_preview", bool(s.cfg.demo_preview))
+        context.setdefault("demo_url", (s.cfg.public_url or "").rstrip("/"))
     if context["viewer"].admin:
         context.setdefault("update_ready", s.update_ready())
     if not context["signed_out"] and context["viewer"].device is None:  # the count by New for you, at the top

@@ -21,7 +21,9 @@
   <ul aria-labelledby="settings-nav-accounts">
     <li><a href="/accounts"{% if request.url.path == "/accounts" %} aria-current="page"{% endif %}>{% trans %}Accounts and sign-in{% endtrans %}
       <small>{{ _("on") if cfg.accounts_enabled else _("off") }}</small></a></li>
+    {%- if not demo_resets %}{#- no codes in a demo (demo.CLOSED) #}
     <li><a href="/settings/codes"{% if request.url.path == "/settings/codes" %} aria-current="page"{% endif %}>{% trans %}Codes for
       signing in at home{% endtrans %}</a></li>
+    {%- endif %}
   </ul>
 </nav>

@@ -4,7 +4,7 @@ import hmac
 import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 
 from lineagebox import accounts, activity, demo, passkeys
 from lineagebox.web.common import (MEMBER, PUBLIC, SEE_AS, SIGNING_IN, DemoBody, LocalBody, _client_ip, _from_app,
@@ -19,6 +19,7 @@ ACCESS = {
     "/auth/google/callback": PUBLIC,
     "/auth/local": PUBLIC,
     "/auth/demo": PUBLIC,
+    "/demo-preview.jpg": PUBLIC,
     "/auth/signout": MEMBER,
     "/auth/signout-everywhere": MEMBER,
 }
@@ -128,15 +129,26 @@ def local_sign_in(request: Request, body: LocalBody, s: Site = Depends(site)):
 
 @router.post("/auth/demo", dependencies=[Depends(_from_app)])
 def demo_sign_in(request: Request, body: DemoBody, s: Site = Depends(site)):
-    """Sign in to a demo: an account of the visitor's own, made as they click (demo.visitor)."""
+    """Sign in to a demo: an account of the visitor's own, made as they click (demo.visitor), a member's or (Sign in
+    as an admin) a locked-down admin's."""
     now = s.shared_cfg()
     if not now.demo_enabled:
         raise HTTPException(404)
     if not s.sign_ins.allow(_client_ip(request)):
         raise HTTPException(429, "Too many sign-ins from here just now. Wait a few minutes, then try again.")
     with s.own_con() as c:
-        account_id = demo.visitor(c, now)
+        account_id = demo.visitor(c, now, admin=body.admin)
         return start_session(s, request, c, account_id, JSONResponse({"go": _local_path(body.next)}))
+
+
+@router.get("/demo-preview.jpg")
+def demo_preview(s: Site = Depends(site)):
+    """The photo chat apps and social sites show when the demo's address is shared ([demo] preview)."""
+    with s.own_con() as c:
+        path = demo.preview_image(c, s.shared_cfg())
+    if path is None:
+        raise HTTPException(404)
+    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
 
 
 def signed_out(response: Response) -> Response:

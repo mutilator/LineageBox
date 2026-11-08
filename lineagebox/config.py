@@ -126,6 +126,7 @@ class Config:
     demo_uploads: int = 5                             # uploads from each address until the next reset (0: none)
     demo_upload_max_mb: int = 10                      # the most one of them may be
     demo_resets: str = "every day"                    # when, for the note on every page: "every day at 4:00 UTC"
+    demo_preview: str = ""                            # the photo link previews show: its path, e.g. "local/a.jpg"
 
     @property
     def db_path(self) -> Path:
@@ -211,6 +212,7 @@ KEYS = {
     ("backups", "keep_daily"): "backup_keep_daily", ("backups", "keep_weekly"): "backup_keep_weekly",
     ("demo", "enabled"): "demo_enabled", ("demo", "person"): "demo_person", ("demo", "uploads"): "demo_uploads",
     ("demo", "upload_max_mb"): "demo_upload_max_mb", ("demo", "resets"): "demo_resets",
+    ("demo", "preview"): "demo_preview",
 }
 _SECTIONS = {s for s, _ in KEYS if s}
 _TYPES = {f.name: f.type for f in dataclasses.fields(Config)}

@@ -5,12 +5,17 @@
   <h1>{{ _("LineageBox demo") if demo else _("Family photos") }}</h1>
   {% if error %}<p class="note problem" role="alert">{{ error }}</p>{% endif %}
   {% if demo %}
-  {#- a demo (demo.py): an account of their own, made as they click; no other way in #}
+  {#- a demo (demo.py): an account of their own, made as they click, a member's or a locked-down admin's; no other
+      way in #}
   <p class="meta">{% trans %}A family archive to try out: the photos, papers and family tree of a family that never existed.
     Name the faces, fix the dates, add to the tree, upload a few photos of your own.{% endtrans %}</p>
   <p><button type="button" class="primary" data-api="/auth/demo" data-body='{{ {"next": next}|tojson }}' data-busy="{{ _('Signing in…') }}">{% trans %}Sign in to demo{% endtrans %}</button></p>
-  <p class="hint">{% trans %}No account or email needed. What you change is seen by everyone trying it, until it all goes
-    back as it was; what you upload is seen by you alone, and deleted then too.{% endtrans %}</p>
+  <p class="hint">{% trans %}As someone in the family, seeing their part of it. No account or email needed. What you change is
+    seen by everyone trying it, until it all goes back as it was; what you upload is seen by you alone, and deleted then
+    too.{% endtrans %}</p>
+  <p class="demo-admin"><button type="button" data-api="/auth/demo" data-body='{{ {"next": "/", "admin": true}|tojson }}' data-busy="{{ _('Signing in…') }}">{% trans %}Sign in as an admin{% endtrans %}</button></p>
+  <p class="hint">{% trans %}As whoever looks after the photos: the whole library, Cleanup, Status, and Settings to look at
+    (not to change). Admins can't upload here.{% endtrans %}</p>
   {% elif google %}
   {# As Google's branding guidelines draw it: the standard-colour G, in the light theme, on light and dark pages #}
   <p><a class="google-signin" href="/auth/google?next={{ next|urlencode }}">

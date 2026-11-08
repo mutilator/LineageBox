@@ -54,7 +54,11 @@ def current(con: sqlite3.Connection, cfg: Config) -> Config:
 
 
 def save(con: sqlite3.Connection, cfg: Config, changes: dict) -> Config:
-    """Check and store changed settings. Raises Invalid, storing nothing, if any of them cannot be used."""
+    """Check and store changed settings. Raises Invalid, storing nothing, if any of them cannot be used, or in a demo
+    (demo.py), whose settings nobody changes: its routes are refused before they get here (demo.LOCKED), and this
+    holds should one be missed."""
+    if cfg.demo_enabled:
+        raise Invalid(demo.OFF)
     now = current(con, cfg)
     clean = {}
     for key, value in changes.items():

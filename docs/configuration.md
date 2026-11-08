@@ -159,9 +159,10 @@ Settings page.
 | `[demo] uploads` | 5 | - | Uploads from each address until the next reset (0 to 1000; 0 for none). |
 | `[demo] upload_max_mb` | 10 | - | The most one of them may be, in MB (1 to 4096). |
 | `[demo] resets` | every day | - | When it goes back as it was, in words, for the note at the top of every page: "every day at 4:00 UTC". |
+| `[demo] preview` | "" | - | The photo link previews show (chat apps, social sites), by its path in the catalog: `local/Holidays/2014/beach.jpg`. Served to anyone at `/demo-preview.jpg`. Needs `[accounts] public_url`, as previews need whole addresses. |
 
 Environment variables: `LINEAGEBOX_DEMO_ENABLED`, `LINEAGEBOX_DEMO_PERSON`, `LINEAGEBOX_DEMO_UPLOADS`,
-`LINEAGEBOX_DEMO_UPLOAD_MAX_MB`, `LINEAGEBOX_DEMO_RESETS`.
+`LINEAGEBOX_DEMO_UPLOAD_MAX_MB`, `LINEAGEBOX_DEMO_RESETS`, `LINEAGEBOX_DEMO_PREVIEW`.
 
 ### Other environment variables
 

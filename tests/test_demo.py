@@ -78,10 +78,95 @@ def test_one_button_and_no_other_way_in(demo_cfg, con, fam):
     assert a.post("/api/stories", headers=APP).status_code == 403
 
 
+def test_the_admin_button_is_locked_down(demo_cfg, con, fam):
+    """An admin sees Settings, accounts and Status, changes no setting, sees no other machine's address, and may not
+    upload (an admin there sees every visitor's uploads)."""
+    from lineagebox import activity
+    private = dataclasses.replace(demo_cfg, ollama_url="http://10.9.8.7:11434", trusted_proxies=("172.31.240.1",))
+    app = webapp.create_app(private)
+    anon = TestClient(app, client=LAN, follow_redirects=False)
+    assert "Sign in as an admin" in anon.get("/signin").text
+    a = TestClient(app, client=LAN, follow_redirects=False)
+    assert a.post("/auth/demo", json={"next": "/", "admin": True}, headers=APP).status_code == 200
+    assert visitors(con)[0][2] == "admin"
+    activity.log(con, "worker started: watching Family archive; Ollama http://10.1.2.149:11434")
+    for path in ("/settings", "/accounts", "/status", "/status/live"):
+        r = a.get(path)
+        assert r.status_code == 200, path
+        assert not any(secret in r.text for secret in ("10.9.8.7", "172.31.240.1", "10.1.2.149")), path
+    assert 'class="demo-locked" disabled' in a.get("/settings").text
+    assert 'class="demo-locked" disabled' in a.get("/accounts").text
+    assert "/settings/codes" not in a.get("/settings").text and a.get("/settings/codes").status_code == 403
+    for path, body in (("/api/settings", {"blurry_below": 10}), ("/api/settings/address", {}),
+                       ("/api/accounts", {"email": "x@example.com"}), ("/api/ollama/check", None),
+                       ("/api/backup", None), ("/api/folders/watch", {"folder": "x"}), ("/api/update", None)):
+        assert a.post(path, json=body, headers=APP).status_code == 403, path
+    assert settings.current(con, demo_cfg).blurry_below != 10
+    up = upload(a, "mine.jpg", jpeg())
+    assert up.status_code == 403 and "family member" in up.json()["detail"]
+    assert "family member" in a.get("/upload").text
+    assert a.post("/api/people/identify", headers=APP).status_code == 200  # the admins' tools work
+
+
+def _stored_settings(con) -> list:
+    return con.execute(f"SELECT key, value FROM settings WHERE key IN ({','.join('?' * len(settings.EDITABLE))}) "
+                       "ORDER BY key", settings.EDITABLE).fetchall()
+
+
+def test_every_route_that_changes_settings_is_locked():
+    """A route that stores settings (or watched folders) must be on demo.LOCKED, and every path there must be a real
+    route: a misspelt one would leave its route open without anyone noticing."""
+    import inspect
+    every = set(webapp.ROUTES)
+    assert demo.LOCKED <= every and demo.CLOSED <= every, sorted((demo.LOCKED | demo.CLOSED) - every)
+    for module in webapp.routes.MODULES:
+        for route in module.router.routes:
+            source = inspect.getsource(route.endpoint)
+            if any(call in source for call in ("settings.save(", "settings.watch(", "settings.unwatch(")):
+                assert route.path in demo.LOCKED | demo.CLOSED, f"{route.path} changes settings and isn't locked"
+
+
+def test_forged_requests_change_no_setting(demo_cfg, cfg, con, fam):
+    """Whatever an admin's browser sends, with the site's own header or as a plain form, no setting changes: refused
+    before the route runs (demo.LOCKED), and by settings.save itself should a route be missed."""
+    app = webapp.create_app(demo_cfg)
+    a = TestClient(app, client=LAN, follow_redirects=False)
+    assert a.post("/auth/demo", json={"next": "/", "admin": True}, headers=APP).status_code == 200
+    before = _stored_settings(con)
+    forged = {"ollama_url": "http://203.0.113.5:11434", "trusted_proxies": "0.0.0.0/0", "folders": ["/"],
+              "allowed_hosts": "evil.example", "accounts_enabled": False, "path": "/", "email": "x@example.com"}
+    for path in sorted(demo.LOCKED):
+        url = path.replace("{account_id}", "1").replace("{device_id}", "1")
+        assert a.post(url, json=forged, headers=APP).status_code == 403, url
+        assert a.post(url, data=forged).status_code in (400, 403), url  # as a plain form, without the site's header
+        assert a.put(url, json=forged, headers=APP).status_code in (403, 405), url
+    assert _stored_settings(con) == before
+    with pytest.raises(settings.Invalid, match="switched off in this demo"):
+        settings.save(con, demo_cfg, {"blurry_below": 5})
+    settings.save(con, cfg, {"blurry_below": 5})  # not a demo: as ever
+
+
+def test_link_previews(demo_cfg, con, fam):
+    shown = next(path for path, sha in con.execute("SELECT f.path, i.sha256 FROM file f JOIN image i "
+                                                   "ON i.id = f.image_id ORDER BY f.id")
+                 if demo_cfg.preview_path(sha).is_file())
+    app = webapp.create_app(dataclasses.replace(demo_cfg, demo_preview=shown, public_url="https://demo.example.com"))
+    anon = TestClient(app, client=LAN, follow_redirects=False)
+    page = anon.get("/signin").text
+    assert '<meta property="og:image" content="https://demo.example.com/demo-preview.jpg">' in page
+    assert 'og:title' in page and "twitter:card" in page
+    picture = anon.get("/demo-preview.jpg")  # without signing in: a chat app's preview asks for it
+    assert picture.status_code == 200 and picture.headers["content-type"] == "image/jpeg"
+    assert TestClient(webapp.create_app(demo_cfg), client=LAN).get("/demo-preview.jpg").status_code == 404  # none set
+
+
 def test_not_a_demo(cfg, con, fam):
     anon = TestClient(webapp.create_app(cfg), client=LAN, follow_redirects=False)
     assert anon.post("/auth/demo", json={"next": "/"}, headers=APP).status_code == 404
-    assert "This is a demo" not in anon.get("/").text
+    page = anon.get("/").text
+    assert "This is a demo" not in page and "og:title" not in page
+    assert anon.get("/demo-preview.jpg").status_code == 404
+    assert anon.post("/api/settings", json={"blurry_below": 12}, headers=APP).status_code == 200  # not locked
 
 
 def test_the_demo_person_must_be_in_the_tree(demo_cfg, con, fam):
@@ -190,3 +275,13 @@ def test_reset_only_in_a_demo_with_a_seed(demo_cfg, cfg, con):
         demo.reset(cfg)  # it would delete every photo added since a save
     with pytest.raises(demo.Problem, match="nothing to put back"):
         demo.reset(demo_cfg)
+
+
+def test_reset_puts_back_all_or_nothing(demo_cfg, cfg, con, fam, library, monkeypatch):
+    """Where the photos are read-only (Docker's worker), nothing is put back: not the catalog without the files."""
+    demo.save(con, demo_cfg)
+    visitor(webapp.create_app(demo_cfg))
+    monkeypatch.setattr(demo.os, "access", lambda path, mode: path != library)
+    with pytest.raises(demo.Problem, match="can't be written here, so nothing was put back"):
+        demo.reset(demo_cfg)
+    assert len(visitors(con)) == 1  # the catalog as it was

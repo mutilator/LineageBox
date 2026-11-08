@@ -190,7 +190,7 @@ def album_video_part(request: Request, album_id: int, v=Depends(viewer), c=Depen
 @router.get("/download/album/{album_id}")
 def download_album(album_id: int, v=Depends(viewer), c=Depends(con), s: Site = Depends(site)):
     """The album's photos that the viewer sees, as a zip."""
-    if v.limited and not s.zip_tries.allow(str(v.account_id)):
+    if s.limits(v) and not s.zip_tries.allow(str(v.account_id)):
         raise HTTPException(429, "That's a lot of downloads in one hour. Wait a while, then try again.")
     a = _album_or_404(c, album_id)
     return zipped(s, c, albums.photo_ids(c, album_id), a["name"])

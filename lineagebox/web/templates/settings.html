@@ -7,6 +7,12 @@
 <div class="settings-body">
 <p class="meta">{% trans %}Changes apply on the worker's next pass. Saving starts one right away, so a newly watched folder is
 scanned within a minute. Progress is on the <a href="/status">Status</a> page.{% endtrans %}</p>
+{%- if demo_resets %}
+{#- a demo's admins look, and change nothing (demo.LOCKED refuses it too); its other machines' addresses are masked #}
+<p class="note">{% trans %}This is the demo: the settings are here to look at, and can't be changed. The addresses of other
+machines and networks are hidden.{% endtrans %}</p>
+<fieldset class="demo-locked" disabled>
+{%- endif %}
 
 {#- Each part (data-part) is one link of the menu at the side, which names its first panel; app.js shows one at a
     time. Other pages link to the panels and headings by their ids, so keep those. #}
@@ -504,6 +510,9 @@ scanned within a minute. Progress is on the <a href="/status">Status</a> page.{%
   <div id="devices-panel" data-later="/settings/devices"><p class="loading">{% trans %}Loading…{% endtrans %}</p></div>
 </section>
 </div>
+{%- if demo_resets %}
+</fieldset>
+{%- endif %}
 </div>
 </div>
 {% endblock %}

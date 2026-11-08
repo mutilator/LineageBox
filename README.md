@@ -2,6 +2,15 @@
 
 **Your family's history, photos and home videos in one private place, shared with the family.**
 
+<br>
+
+<h2 align="center"><a href="https://linbox.g-tech.dev">▶&nbsp;&nbsp;Try the live demo: linbox.g-tech.dev</a></h2>
+
+<p align="center">A made-up family's photos, papers and family tree to look around in and change.<br>
+Sign in with one click, as a family member or as an admin. It all goes back as it was twice a day.</p>
+
+<br>
+
 LineageBox is a self-hosted family archive. It joins two things that usually live apart:
 
 - **the family tree:** who everyone is, how they are related, the events of their lives, and the documents that prove

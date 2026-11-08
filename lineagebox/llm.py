@@ -201,6 +201,18 @@ def pull(cfg: Config, con: sqlite3.Connection, model: str | None = None) -> None
 
 def _error_text(r: httpx.Response) -> str:
     try:
-        return str(r.json().get("error") or r.text)[:300]
+        text = str(r.json().get("error") or r.text)[:300]
     except ValueError:
-        return r.text[:300] or r.reason_phrase
+        text = r.text[:300] or r.reason_phrase
+    if any(words in text.lower() for words in KILLED):
+        return f"{text}. {OUT_OF_MEMORY}"
+    return text
+
+
+# What Ollama says when the program running the model was stopped, nearly always because memory ran out as it loaded
+# it: a container's memory limit, or the machine's. Ollama checks the memory first and says "requires more system
+# memory" when it can tell, but a limit it can't see stops the model part way (measured: qwen3-vl:2b, a 1.9 GB
+# download, in a container limited to 2.4 GB, as it turned its vision weights into F32).
+KILLED = ("signal: killed", "out of memory")
+OUT_OF_MEMORY = ("The model most likely ran out of memory: pick a smaller one, or give Ollama more memory "
+                 "(docs/ollama.md, Which model)")

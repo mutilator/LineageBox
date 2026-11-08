@@ -11,6 +11,9 @@ services:
       OLLAMA_NUM_PARALLEL: ${OLLAMA_NUM_PARALLEL:-1}   # photos at once; each one more needs more memory
     volumes:
       - ollama:/root/.ollama   # the models: several GB each
+    # On a machine that runs other things too, a memory limit makes running out stop Ollama rather than them. Leave
+    # the model's download size and at least 1.5 GB more (docs/ollama.md, Which model):
+    #   mem_limit: 5g
     # Not published on the network: only LineageBox's containers reach it. To use it from other machines too, add
     #   ports: ["11434:11434"]
   web:

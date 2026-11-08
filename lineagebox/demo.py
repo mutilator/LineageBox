@@ -2,11 +2,18 @@
 
 It is turned on in config.toml ([demo] enabled = true) or with LINEAGEBOX_DEMO_ENABLED, never on the Settings page:
 it is how a copy is run, not something its visitors could switch off. With it on:
-- The sign-in page has one button, Sign in to demo. It makes a member account for whoever clicks it, as the person
-  [demo] person names, and signs them in. Google, passkeys and codes are off (CLOSED), and so are sharing and
-  recording stories: what a stranger made would be shown to every other visitor.
+- The sign-in page has two buttons. Sign in to demo makes a member account for whoever clicks it, as the person
+  [demo] person names; Sign in as an admin makes an admin's. Google, passkeys and codes are off (CLOSED), and so are
+  sharing and recording stories: what a stranger made would be shown to every other visitor.
+- An admin here is locked down: Settings, Status, accounts and Cleanup are shown, but nothing that changes how this
+  copy runs or reaches other machines can be done (LOCKED), and the addresses of other machines, proxies and networks
+  are not shown (masked, redact). An admin sees everything, other visitors' uploads too (the user's choice,
+  2026-11-08), so an admin may not upload; the limits members have on costly asks (zips, looking for faces again)
+  hold for them too.
 - Uploads are at most [demo] upload_max_mb each, and [demo] uploads from each address until the next reset. What a
-  visitor uploads is seen by them alone (access.images_for, `alone`), however its faces are named.
+  member uploads is seen by them alone among members (access.images_for, `alone`), however its faces are named.
+- Link previews (chat apps, social sites) get the sign-in page's preview tags and [demo] preview, one photo of the
+  library, at /demo-preview.jpg.
 - The AI (Ollama), transcripts (Whisper), looking places up, imports from other programs' metadata, sidecars, backups
   and asking GitHub for updates are off, whatever the catalog's settings say (FORCED): the demo's photos are
   described and transcribed before it opens, and it reaches nothing on the network it runs in.
@@ -14,8 +21,10 @@ it is how a copy is run, not something its visitors could switch off. With it on
   <data>/demo-seed), and `lineagebox demo reset`, with the web app and the worker stopped, puts them back: every
   change, account and upload made since is gone (docs/demo.md).
 """
+import dataclasses
 import json
 import os
+import re
 import secrets
 import shutil
 import sqlite3
@@ -41,8 +50,23 @@ CLOSED = frozenset({
     "/auth/invite/finish", "/passkeys", "/api/passkeys/start", "/api/passkeys/finish",
     "/api/passkeys/{passkey_id}/rename", "/api/passkeys/{passkey_id}/remove",
     "/api/accounts/{account_id}/invite", "/api/accounts/{account_id}/invite/cancel",
-    "/api/shares", "/api/stories",
+    "/api/shares", "/api/stories", "/settings/codes", "/api/ai/models",
 })
+# what an admin is told is off here, but for looking (GET): changing how this copy runs (settings, accounts, HTTPS,
+# updates, backups, photo frames, watched folders), asking the AI services, and reading papers with the AI
+LOCKED = frozenset({
+    "/api/settings", "/api/settings/accounts", "/api/settings/address", "/api/settings/network-paths",
+    "/api/accounts", "/api/accounts/{account_id}", "/api/accounts/{account_id}/delete",
+    "/api/accounts/{account_id}/local-code", "/api/accounts/{account_id}/local-code/check",
+    "/api/accounts/{account_id}/local-code/remove", "/api/accounts/{account_id}/rules",
+    "/api/accounts/{account_id}/rules/remove", "/api/accounts/{account_id}/signout", "/api/see-as",
+    "/api/https", "/api/https/off", "/api/https/upload", "/api/update", "/api/update/check", "/api/backup",
+    "/api/devices", "/api/devices/{device_id}/delete", "/api/devices/{device_id}/revoke",
+    "/api/folders/watch", "/api/folders/unwatch", "/api/ollama/pull", "/api/ollama/check", "/api/whisper/check",
+    "/api/family/read",
+})
+HIDDEN = "(hidden in the demo)"
+_ADDRESS = re.compile(r"\bhttps?://[^\s;,)<>\"']+|\b\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?\b")
 # what a reset leaves alone in the data folder: the seed itself, the catalog (put back on its own), its own backups,
 # the updater's folder, HTTPS certificates, the face models, work files and the data folder's own settings
 KEEP_OUT = frozenset({SEED, "lineagebox.db", "lineagebox.db-wal", "lineagebox.db-shm", "backups", "update", "certs",
@@ -56,6 +80,45 @@ class Problem(errors.Problem):
 def forced(cfg: Config) -> dict:
     """The settings the demo holds to (settings.current applies them over the catalog's)."""
     return FORCED if cfg.demo_enabled else {}
+
+
+def closed(cfg: Config, path: str, method: str) -> bool:
+    """Whether a route is off for this request (app.route_gate): CLOSED always, LOCKED but for looking."""
+    return cfg.demo_enabled and (path in CLOSED or (path in LOCKED and method not in ("GET", "HEAD")))
+
+
+# ---- what an admin is shown ----------------------------------------------------------------------------------------
+
+def masked(cfg: Config) -> Config:
+    """The settings as the demo's admins see them: without the addresses of other machines (Ollama, Whisper), the
+    proxy and networks, the network paths and the certificate's files."""
+    return dataclasses.replace(cfg, ollama_url=HIDDEN, whisper_url=HIDDEN, trusted_proxies=(HIDDEN,),
+                               allowed_networks=(HIDDEN,), network_paths=(), share_path="", tls_cert="", tls_key="",
+                               google_client_id="", google_client_secret="", places_contact="")
+
+
+def redact(value):
+    """value with every web address and IP address in its words taken out, through lists, tuples and dicts (Status's
+    activity and problems: "worker started ... Ollama http://10.1.2.3:11434")."""
+    if isinstance(value, str):
+        return _ADDRESS.sub(HIDDEN, value)
+    if isinstance(value, sqlite3.Row):  # an activity line: read by name in the page, as a dict is
+        return {k: redact(value[k]) for k in value.keys()}
+    if isinstance(value, dict):
+        return {k: redact(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return type(value)(redact(v) for v in value)
+    return value
+
+
+def preview_image(con: sqlite3.Connection, cfg: Config) -> Path | None:
+    """The photo link previews show ([demo] preview, a file of the library), as its preview; None without one."""
+    if not (cfg.demo_enabled and cfg.demo_preview):
+        return None
+    row = con.execute("SELECT i.sha256 FROM file f JOIN image i ON i.id = f.image_id WHERE f.path = ?",
+                      (cfg.demo_preview.strip("/"),)).fetchone()
+    path = cfg.preview_path(row[0]) if row else None
+    return path if path is not None and path.is_file() else None
 
 
 # ---- visitors ------------------------------------------------------------------------------------------------------
@@ -72,14 +135,15 @@ def person(con: sqlite3.Connection, cfg: Config) -> int:
     return row[0]
 
 
-def visitor(con: sqlite3.Connection, cfg: Config) -> int:
-    """A member account of their own for someone who clicked Sign in to demo: its uploads, ticks and undo are theirs.
-    Its email is made up (.invalid is never anyone's)."""
+def visitor(con: sqlite3.Connection, cfg: Config, admin: bool = False) -> int:
+    """An account of their own for someone who clicked Sign in to demo (a member's) or Sign in as an admin: its
+    uploads, ticks and undo are theirs. Its email is made up (.invalid is never anyone's)."""
     pid = person(con, cfg)
     made = con.execute("SELECT count(*) FROM account WHERE email LIKE 'visitor-%@demo.invalid'").fetchone()[0]
     if made >= MOST_VISITORS:
         raise Problem("The demo has had too many visitors today. It starts again soon: try again later.")
-    account_id = accounts.add(con, f"visitor-{secrets.token_hex(6)}@demo.invalid", pid)
+    account_id = accounts.add(con, f"visitor-{secrets.token_hex(6)}@demo.invalid", pid,
+                              "admin" if admin else "member")
     con.commit()
     return account_id
 
@@ -181,6 +245,11 @@ def reset(cfg: Config) -> dict:
     except (OSError, ValueError):
         raise Problem(f"There is nothing to put back: no seed in {seed}. Make one with `lineagebox demo save`.") \
             from None
+    # all of it or nothing: a catalog put back beside uploads that couldn't be deleted would list files it doesn't know
+    for folder in [cfg.data_dir, *(cfg.share_root / f for f in about.get("folders", []))]:
+        if not os.access(folder, os.W_OK):
+            raise Problem(f"{folder} can't be written here, so nothing was put back. In Docker, run the reset in the "
+                          "web service, which may write the photos (the worker only reads them).")
     kept = sqlite3.connect(seed / "lineagebox.db")
     live = sqlite3.connect(cfg.db_path)
     try:

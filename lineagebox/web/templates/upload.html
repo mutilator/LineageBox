@@ -6,6 +6,8 @@
 {% if not account %}
 <p class="note">{% trans %}Uploading is for family accounts: each has a folder of its own. Turn them on under Settings → Family
 accounts.{% endtrans %}</p>
+{% elif no_uploads %}
+<p class="note">{{ no_uploads }}</p>
 {% else %}
 <section class="upload" data-upload>
   {%- if demo_left is not none %}

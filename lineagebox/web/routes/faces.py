@@ -126,7 +126,7 @@ def look_again(image_id: int, v=Depends(viewer), c=Depends(con), w=Depends(write
     """Look for faces in the photo again, more closely; new ones are recognised where they clearly match."""
     if catalog.image(c, image_id) is None:
         raise HTTPException(404, "No such photo")
-    if v.limited and not s.look_tries.allow(str(v.account_id)):
+    if s.limits(v) and not s.look_tries.allow(str(v.account_id)):
         raise HTTPException(429, "That's a lot of looking for one hour: try again later.")
     try:
         new, back = faces.look_again(w, s.cfg, image_id)

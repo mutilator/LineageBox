@@ -148,6 +148,11 @@ class Site:
         self.kept.put(key, dict(row), generation)
         return dict(row)
 
+    def limits(self, v: access.Viewer) -> bool:
+        """Whether the limits on costly asks (zips, looking for faces again) hold for the viewer: a member's, and in a
+        demo everyone's, its admins being anyone who clicked (demo.py)."""
+        return v.limited or self.cfg.demo_enabled
+
     def keep(self, v: access.Viewer, name: tuple, seconds: float, work, through_changes: bool = False):
         """kept.get, under a key of the viewer's: an admin's answers are everyone's, a member's their own."""
         return self.kept.get(("all" if v.admin else ("member", v.account_id), *name), seconds, work, through_changes)

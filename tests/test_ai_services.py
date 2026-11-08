@@ -87,6 +87,15 @@ def test_ollama_errors_say_what_ollama_said(cfg):
         raise AssertionError("no error")
 
 
+def test_a_model_killed_as_it_loads_is_said_to_need_memory(cfg):
+    """A container's memory limit stops Ollama's model part way through loading, and Ollama says only that it was
+    killed: the message says what that most likely means."""
+    killed = mock_ollama(cfg, lambda request: httpx.Response(
+        500, json={"error": "llama-server process has terminated: signal: killed"}))
+    with pytest.raises(llm.OllamaError, match="signal: killed. The model most likely ran out of memory"):
+        killed.chat_json("system", "Catalog this photo.", {}, images=[b"jpeg"])
+
+
 def test_a_model_that_cant_see_is_shown_and_nothing_is_described(con, cfg, library, monkeypatch):
     class Blind(FakeOllama):
         def reachable(self):
