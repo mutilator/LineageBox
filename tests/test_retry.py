@@ -12,10 +12,12 @@ from lineagebox.scan import scan
 
 
 def a_video(con, cfg) -> int:
-    """One of the sample photos, made out to be a video that has sound and needs a 720p copy."""
+    """One of the sample photos, made out to be a video that has sound and needs a 720p copy. One that can be read:
+    the library's broken one can be catalogued first (on Linux the folder may list it first), and no copy is tried
+    for it."""
     scan(con, cfg)
     ingest.ingest(con, cfg, show_progress=False)
-    image_id = con.execute("SELECT id FROM image ORDER BY id LIMIT 1").fetchone()[0]
+    image_id = con.execute("SELECT id FROM image WHERE error IS NULL ORDER BY id LIMIT 1").fetchone()[0]
     con.execute("UPDATE image SET media = 'video', codecs = 'h264/aac', playable = 'needed' WHERE id = ?", (image_id,))
     con.commit()
     return image_id

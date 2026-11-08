@@ -360,7 +360,7 @@ def test_looking_for_faces_again(lib, cfg, monkeypatch):
 def test_people_page_shows_30_at_a_time(con, cfg):
     scan(con, cfg)
     ingest(con, cfg)
-    image_id = con.execute("SELECT id FROM image ORDER BY id LIMIT 1").fetchone()[0]
+    image_id = con.execute("SELECT id FROM image WHERE error IS NULL ORDER BY id LIMIT 1").fetchone()[0]
     for i in range(35):
         con.execute("INSERT INTO image_person(image_id, person_id, added_at) VALUES (?, ?, '2026-11-02')",
                     (image_id, people.person_id(con, f"Person {i:02d}")))
@@ -428,7 +428,7 @@ def test_a_rename_or_merge_reindexes_photos_they_were_added_to(cfg, con, library
     from lineagebox import scan as scan_mod, ingest as ingest_mod, search as search_mod
     scan_mod.scan(con, cfg)
     ingest_mod.ingest(con, cfg)
-    image_id = con.execute("SELECT id FROM image ORDER BY id LIMIT 1").fetchone()[0]
+    image_id = con.execute("SELECT id FROM image WHERE error IS NULL ORDER BY id LIMIT 1").fetchone()[0]
     pid = people.person_id(con, "Wilbur Miller")
     con.execute("INSERT INTO image_person(image_id, person_id, added_at) VALUES (?, ?, '2026-11-07')", (image_id, pid))
     con.commit()
@@ -447,7 +447,7 @@ def test_a_face_crop_without_its_preview_is_not_found(cfg, con, library):
     from tests.conftest import LAN
     scan_mod.scan(con, cfg)
     ingest_mod.ingest(con, cfg)
-    image = con.execute("SELECT id, sha256 FROM image ORDER BY id LIMIT 1").fetchone()
+    image = con.execute("SELECT id, sha256 FROM image WHERE error IS NULL ORDER BY id LIMIT 1").fetchone()
     face = con.execute("""INSERT INTO face(image_id, x1, y1, x2, y2, det_score, quality, embedding)
                           VALUES (?, 0.1, 0.1, 0.5, 0.5, 0.9, 25, zeroblob(2048))""", (image["id"],)).lastrowid
     con.commit()
