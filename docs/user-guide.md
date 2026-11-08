@@ -314,7 +314,11 @@ else, finds only the photos they can see, and suggests only the people, places a
   others shared with you, then the newest photos by the day they were taken (Yesterday, Tuesday, then by month),
   older photos added lately, and your own uploads. A relative with a family account sees the newest photos of
   themselves and their closest family (parents, partner, brothers and sisters, children) first, however long ago they
-  were taken, with **Show older photos of your family** to go further back, and then the rest. Their memories start
+  were taken, with **Show older photos of your family** to go further back, and then the rest. A row of buttons
+  above them opens the memories and newest photos of one person: the first is their own, with only photos of them,
+  then one for each of their closest family. Anyone who is someone in the tree has these buttons, admins too
+  (without family accounts, the person marked with **This is me**), though an admin's Home doesn't put their
+  family's photos first. Their memories start
   with their family's biggest days of photos and the latest, each named by a life event on those days, the event
   its folder is named for, or what its photos show (a wedding, Christmas). Admins also see how full the disk is, and
   on a new LineageBox, [the first steps](#the-first-steps) until they are done.

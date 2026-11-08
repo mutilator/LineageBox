@@ -58,10 +58,12 @@ def home_page(request: Request, v: access.Viewer, c) -> HTMLResponse:
     with site(request).own_con() as w:
         shared = _shared_with_me(w, c, v)
     disks = s.keep(v, ("storage",), 60, lambda: storage.disks(c, s.live(c))) if v.admin else []
-    family_of = faces_of(c, [p for p in kin if p != v.me])
+    me = own_person(v, c)
+    buttons = faces_of(c, kin or closest(c, me))  # theirs first, then their family's: an admin's too
+    family_of = [p for p in buttons if p["id"] != me]
     return page(request, "home.html", nav="home", days=by_day(stream, today), older=older, added=added, mine=mine,
-                ours=by_day(ours, today), ours_older=ours_older, kin=[p["name"] for p in family_of],
-                family_of=family_of, kin_words=_kin_words(c, v.me, [p["id"] for p in family_of]) if kin else {},
+                ours=by_day(ours, today), ours_older=ours_older, kin=[p["name"] for p in family_of], me=me,
+                buttons=buttons, kin_words=_kin_words(c, me, [p["id"] for p in family_of]) if family_of else {},
                 questions=who_is_this(c, v), first_name=you[0].split()[0] if you else None, shared=shared,
                 disks=disks, first_run=first_run.checklist(c, s.live(c)) if v.admin and not v.seeing_as else None)
 
@@ -82,6 +84,22 @@ def _kin_words(c, me: int | None, people: list[int]) -> dict[int, str]:
         return {}
     kin = family.relations_to(family.load(c), me)
     return {p: kin[p].label for p in people if p in kin}
+
+
+def own_person(v: access.Viewer, c) -> int | None:
+    """Who the viewer is in the tree, whose own Home (/home/person) their You button on Home opens: the person their
+    account is for, or with accounts off the one marked as "me" (This is me). None for an account that isn't anyone:
+    the "me" setting is whoever keeps the catalog, not necessarily them."""
+    return family.me(c) if v.account is None or v.me is not None else None
+
+
+def closest(c, me: int | None) -> list[int]:
+    """Whose buttons Home shows: this person first, then their immediate family (family.immediate); only them if
+    they have none in the tree, nobody if me is None."""
+    if me is None:
+        return []
+    g = family.load(c)
+    return family.immediate(g, me) if me in g.people else [me]
 
 
 def kin_of(v: access.Viewer, c) -> list[int]:
@@ -161,14 +179,14 @@ def home_family(request: Request, before: date, month: str = "", person: int | N
 
 @router.get("/home/person/{person_id}", response_class=HTMLResponse)
 def person_home(request: Request, person_id: int, v=Depends(viewer), c=Depends(con)):
-    """Home as it would be of one person (a button on Home, for each of the viewer's closest family): their memories
-    and their newest photos, however long ago, then older ones."""
+    """Home as it would be of one person (a button on Home, for the viewer and each of their closest family): their
+    memories and their newest photos, however long ago, then older ones."""
     _people_or_404(c, person_id)
     today = date.today()
     theirs, older = latest(c, today, [person_id], FAMILY, FAMILY_MOST)
-    who = faces_of(c, [person_id])[0]
+    who, me = faces_of(c, [person_id])[0], own_person(v, c)
     return page(request, "home_person.html", nav="home", who=who, days=by_day(theirs, today), older=older,
-                kin_word=_kin_words(c, v.me, [person_id]).get(person_id), you=person_id == v.me)
+                kin_word=_kin_words(c, me, [person_id]).get(person_id), you=person_id == me)
 
 
 @router.get("/home/person/{person_id}/memories", response_class=HTMLResponse)

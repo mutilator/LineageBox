@@ -73,22 +73,26 @@ PAGES = {
         N_("Below them, the folders, tours and photos others shared with you, then the newest photos by the day they "
            "were taken, older photos added lately, and your own latest uploads."),
         N_("With a family account, the newest photos of you and your closest family (parents, partner, brothers and "
-           "sisters, children) come first, under Recent photos of your family, however long ago they were taken; a "
-           "button above them for each of them opens their memories and photos. Show older photos of your family goes "
-           "further back. Most recent photos has the rest. Your memories start with your family's biggest days of "
-           "photos and their latest, named by what they were (a wedding, a birthday)."),
+           "sisters, children) come first, under Recent photos of your family, however long ago they were taken. The "
+           "buttons above them open the memories and photos of one person: yours first (only photos of you), then one "
+           "for each of them. Show older photos of your family goes further back. Most recent photos has the rest. "
+           "Your memories start with your family's biggest days of photos and their latest, named by what they were "
+           "(a wedding, a birthday)."),
+        N_("Anyone who is someone in the family tree has these buttons, admins too (through their account, or "
+           "without family accounts the person marked with This is me): theirs, then one for each of their closest "
+           "family. An admin's Home doesn't put their family's photos first."),
         N_("For admins of a new LineageBox, Getting started at the top: watch your photos folder, check the AI, name "
            "yourself and press This is me, name the largest groups of faces, start the family tree, and invite someone "
            "(or turn on family accounts when you're ready). Each step ticks itself off once it is done, and the list "
            "goes when they all are; Put this list away hides it for good."),
         N_("For admins, Storage at the top shows how full the disk is; it opens the Status page, which says what takes "
            "the room."))),
-    "home_person": Page(N_("One of your family"), (
+    "home_person": Page(N_("You or one of your family"), (
         N_("Home as it would be of one person: their memories (their biggest days of photos, named by what they were, "
            "and this week in earlier years), then their newest photos, however long ago they were taken. Show older "
            "photos goes further back."),
-        N_("The buttons above Recent photos of your family on Home open this page for each of your closest family. "
-           "Their page has their family, life events and every photo of them."))),
+        N_("The buttons near the top of Home open this page: one for you, with only photos of you, and one for each "
+           "of your closest family. Their page has their family, life events and every photo of them."))),
     "folders": Page(N_("Folders"), (
         N_("Your uploads: open one of your folders to see its photos, share it, or move it to the Removed folder. "
            "Select photos in a folder to move only those."),

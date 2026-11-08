@@ -101,8 +101,9 @@ def test_a_button_for_each_of_her_family_opens_their_own_home(site, cfg, con):
     page = cora.get("/home").text
     buttons = page.split('class="kin-buttons"')[1].split("</nav>")[0]
     assert page.index('class="kin-buttons"') < page.index('id="family-latest"')
-    assert re.findall(r'href="/home/person/(\d+)"', buttons) == [str(p[n]) for n in ("Nell", "Rex", "Milo", "Bart",
-                                                                                    "Sam")]
+    assert re.findall(r'href="/home/person/(\d+)"', buttons) == [str(p[n]) for n in ("Cora", "Nell", "Rex", "Milo",
+                                                                                    "Bart", "Sam")]
+    assert "<b>Cora</b><small>you</small>" in buttons  # her own first: only photos of her
     assert "<b>Bart</b><small>your sibling</small>" in buttons  # no sex entered: sibling, not brother
     assert f'<img src="/face/{site["faces"]["cora_bart.jpg"][1]}"' in buttons  # his face; none for those with none
     bart = cora.get(f"/home/person/{p['Bart']}").text
@@ -116,6 +117,33 @@ def test_a_button_for_each_of_her_family_opens_their_own_home(site, cfg, con):
         assert cora.get(f"/home/person/{hidden}").status_code == 404
         assert cora.get(f"/home/family?before=2030-01-01&person={hidden}").status_code == 404
     assert "Recent photos of you" in cora.get(f"/home/person/{p['Cora']}").text
+
+
+def test_everyone_in_the_tree_has_a_button_for_their_own_photos(site, cfg, con):
+    """An admin's Home doesn't put their family's photos first, but has the buttons: their own, then their immediate
+    family's. An account that isn't anyone has none (the "me" setting is whoever keeps the catalog), and with
+    accounts off the person marked with This is me has them."""
+    p = site["people"]
+    con.execute("INSERT OR REPLACE INTO settings(key, value) VALUES ('me', ?)", (str(p["Rex"]),))
+    con.commit()
+    buttons = lambda page: re.findall(r'class="kin-button" href="/home/person/(\d+)"', page)
+    closest = lambda who: [str(x) for x in family.immediate(family.load(con), p[who])]
+    sam = signed_in(cfg, con, site["who"]["Sam"])
+    page = sam.get("/home").text
+    assert buttons(page) == closest("Sam") and closest("Sam")[0] == str(p["Sam"]) and len(closest("Sam")) > 3
+    assert "<b>Sam</b><small>you</small>" in page and "<b>Cora</b><small>your sibling</small>" in page
+    assert 'id="family-latest"' not in page
+    assert "Recent photos of you" in sam.get(f"/home/person/{p['Sam']}").text
+    assert "Recent photos of Rex" in sam.get(f"/home/person/{p['Rex']}").text  # the "me" setting isn't Sam
+    con.execute("UPDATE account SET person_id = NULL WHERE id = ?", (site["who"]["Sam"]["id"],))
+    con.commit()
+    assert buttons(signed_in(cfg, con, site["who"]["Sam"]).get("/home").text) == []
+    con.execute("DELETE FROM settings WHERE key = 'accounts_enabled'")
+    con.commit()
+    home_alone = TestClient(webapp.create_app(cfg), client=LAN)
+    page = home_alone.get("/home").text
+    assert buttons(page) == closest("Rex") and "<b>Rex</b><small>you</small>" in page
+    assert "Recent photos of you" in home_alone.get(f"/home/person/{p['Rex']}").text
 
 
 def test_older_photos_of_her_family_however_long_ago(site, cfg, con, monkeypatch):

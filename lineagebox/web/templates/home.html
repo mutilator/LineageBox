@@ -41,12 +41,12 @@
 {% endif %}
 
 
-{% if family_of %}
-<nav class="kin-buttons" aria-label="{{ _('The memories and photos of one of your family') }}">
-  {%- for p in family_of %}
+{% if buttons %}
+<nav class="kin-buttons" aria-label="{{ _('The memories and photos of you, or of one of your family') }}">
+  {%- for p in buttons %}
   <a class="kin-button" href="/home/person/{{ p.id }}">
     {%- if p.face %}<img src="/face/{{ p.face }}" alt="" width="48" height="48" loading="lazy">{% else %}<span class="ph">{{ p.name[:1] }}</span>{% endif %}
-    <span><b>{{ p.name }}</b>{% if kin_words.get(p.id) %}<small>{% trans p_id=kin_words[p.id] %}your {{ p_id }}{% endtrans %}</small>{% endif %}</span></a>
+    <span><b>{{ p.name }}</b>{% if p.id == me %}<small>{% trans %}you{% endtrans %}</small>{% elif kin_words.get(p.id) %}<small>{% trans p_id=kin_words[p.id] %}your {{ p_id }}{% endtrans %}</small>{% endif %}</span></a>
   {%- endfor %}
 </nav>
 {% endif %}
