@@ -270,6 +270,47 @@ def test_the_name_someone_goes_by_here_makes_the_text_s_their_full_name(con):
     assert "Full name: Henry L. Smith" in texts and not any(t.startswith("Also known as") for t in texts)
 
 
+def test_names_as_the_text_has_them():
+    """What the model is told is read as written, but it 'corrects' a surname (bakker to Baker) and makes each middle
+    name someone of their own: the text puts both right."""
+    text = ("Ellen bakker has siblings from the parents Grace bakker and walter bakker; Henry Thomas bakker, Oscar "
+            "Walter bakker, Ruth Ann bakker.")
+    def p(x, given, sex, word="brother"):
+        return {"id": x, "given": given, "surname": "Baker", "sex": sex, "living": "unknown",
+                **({"is": word, "of": "p1"} if x != "p1" else {})}
+    answer = {"kind": "family record", "people": [
+        p("p1", "Ellen", "female"), p("p2", "Grace", "female", "mother"), p("p3", "Walter", "male", "father"),
+        p("p4", "Henry", "male"), p("p5", "Thomas", "male"), p("p6", "Oscar", "male"), p("p7", "Walter", "male"),
+        p("p8", "Ruth", "female", "sister"), p("p9", "Ann", "female", "sister")]}
+    found = fr.tidy(answer, text=text)
+    assert [x["name"] for x in found["people"]] == [
+        "Ellen Bakker", "Grace Bakker", "Walter Bakker", "Henry Thomas Bakker", "Oscar Walter Bakker",
+        "Ruth Ann Bakker"]  # their father Walter stays himself
+    assert {(a, w) for a, w, b in found["relatives"] if b == "p1"} == {
+        ("p2", "mother"), ("p3", "father"), ("p4", "brother"), ("p6", "brother"), ("p8", "sister")}
+    # two people, as the text has them: not a middle name
+    two = {"kind": "obituary", "people": [p("p1", "Ellen", "female"), p("p2", "Henry", "male"),
+                                          p("p3", "Thomas", "male")]}
+    found = fr.tidy(two, text="Ellen Baker is survived by her brothers Henry and Thomas Baker.")
+    assert [x["name"] for x in found["people"]] == ["Ellen Baker", "Henry Baker", "Thomas Baker"]
+
+
+def test_a_birth_name_kept_without_its_surname(con):
+    """A birth name can be kept whole, with no surname apart (one typed in, or from a GEDCOM without SURN): reading a
+    text that spells the surname another way used to fail on it, and the page answered 500."""
+    ann = person(con, "Ann Smyth", "female", "Ann", "Smyth")
+    # marked married, though the birth name shows she was born Smyth: the text's Smith is then a married name
+    con.execute("UPDATE person SET name_type = 'married' WHERE id = ?", (ann,))
+    con.execute("INSERT INTO person_name(person_id, name, type) VALUES (?, 'Ann Smyth', 'birth')", (ann,))
+    con.commit()
+    answer = {"kind": "obituary", "people": [
+        {"id": "p1", "given": "Ann", "surname": "Smith", "sex": "female", "living": "deceased"}]}
+    found, choices = read(con, answer)
+    choices["p1"]["choice"] = ann
+    texts = [c.text for c in fr.propose(con, found, choices).changes]
+    assert "Married name: Ann Smith" in texts
+
+
 def test_dates_and_places_as_the_tree_keeps_them():
     assert fr.tidy_date("Saturday, January 30, 2021").gedcom == "30 JAN 2021"
     assert fr.tidy_date("the 5th of July, 1955").gedcom == "5 JUL 1955"

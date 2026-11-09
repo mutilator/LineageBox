@@ -569,6 +569,8 @@ def tidy(answer: dict, day_first: bool = False, text: str = "") -> dict:
         relate(_s(r.get("person")), _s(r.get("is")), _s(r.get("of")))
     text = clean_text(text)
     obituary = answer.get("kind") in ("obituary", "death notice", "funeral notice")
+    _as_written(people, text)
+    people, relatives = _middle_names(people, relatives, text, about)
     people, relatives = _from_text(people, relatives, text, about)
     relatives = _told_relationships(people, relatives, text, about, answer.get("marriages") or [])
     by_id = {p["id"]: p for p in people}
@@ -684,6 +686,76 @@ def tidy(answer: dict, day_first: bool = False, text: str = "") -> dict:
 _LIST_WORD = re.compile(r"\b(?:friends?|sons?|daughters?|children|child|sisters?|brothers?|siblings|grand\w+|"
                         r"great[- ]?\w+|wife|husband|spouse|partner|parents|mother|father|nieces?|nephews?|cousins?|"
                         r"aunts?|uncles?|in-laws?|step\w+)\b", re.I)
+_WORD = re.compile(r"[^\W\d_][\w'’-]*")
+
+
+def _as_written(people: list, text: str) -> None:
+    """Names spelled as the text spells them, which a small model 'corrects' however it is told ("bakker" read as
+    Baker): a word of a name that the text doesn't have, where the text has a word a letter or two from it, beginning
+    with the same letter, is that word; capitalised like a name when the text has it all in one case."""
+    if not text:
+        return
+    written = Counter(_WORD.findall(text))
+    lower = {w.lower() for w in written}
+
+    def spelled(word: str) -> str:
+        bare = word.rstrip(".")
+        if len(bare) < 3 or bare.lower() in lower:
+            return word
+        ratio, _, best = max(((SequenceMatcher(None, bare.lower(), w.lower()).ratio(), n, w)
+                              for w, n in written.items()
+                              if w[0].lower() == bare[0].lower() and abs(len(w) - len(bare)) <= 2), default=(0, 0, ""))
+        if ratio < 0.8:
+            return word
+        if best.islower() or best.isupper():  # typed in lower case, or a heading in capitals: O'Brien, Smith-Jones
+            best = re.sub(r"(^|['’-])(\w)", lambda m: m[1] + m[2].upper(), best.lower())
+        return best + word[len(bare):]
+
+    for p in people:
+        was = shown_name(p)
+        for key in ("given", "surname", "birth_surname", "nickname"):
+            p[key] = " ".join(spelled(w) for w in p[key].split())
+        if p["name"] == was:
+            p["name"] = shown_name(p)
+
+
+def _middle_names(people: list, relatives: list, text: str, about: str | None) -> tuple[list, list]:
+    """Middle names a small model makes into people of their own ("Wayne Thomas Baker, Karen Ann Baker" read as
+    Wayne, Thomas, Karen and Ann): someone the AI lists just after another of the same surname, related to no one
+    the other isn't, whose given name follows the other's in the text with the surname after, is the other's middle
+    name. Unless the text names someone else by it as well: "Frederick Walter Baker" beside his father "Walter Baker"
+    makes one Walter a middle name, not both."""
+    if not text:
+        return people, relatives
+    norm = gedcom_import._norm
+    first = lambda p: norm((p["given"].split() or [""])[0])
+
+    def ties(x: str, besides: str) -> set:
+        return ({(KIN[w][0], b, 0) for a, w, b in relatives if a == x and b != besides}
+                | {(KIN[w][0], a, 1) for a, w, b in relatives if b == x and a != besides})
+
+    out, gone = [], set()
+    for p in people:
+        q = out[-1] if out else None
+        if (q and p["id"] != about and p["given"] and p["surname"] and norm(p["surname"]) == norm(q["surname"])
+                and ties(p["id"], q["id"]) <= ties(q["id"], p["id"])):
+            run = r"\s+".join(map(re.escape, q["given"].split() + p["given"].split()))
+            if re.search(rf"\b{run}(?:\s+(?!and\b|or\b)[^\W\d_][\w.'’-]*){{0,2}}\s+{re.escape(p['surname'])}\b",
+                         text, re.I):
+                named = len(re.findall(rf"\b{re.escape(p['given'].split()[0])}\b", text, re.I))
+                within = len(re.findall(rf"\b{run}\b", text, re.I))
+                others = sum(1 for o in people if o is not p and o["id"] not in gone and first(o) == first(p))
+                if others <= named - within:
+                    was = shown_name(q)
+                    q["given"] = f"{q['given']} {p['given']}"
+                    for key in ("nickname", "birth_surname", "suffix"):
+                        q[key] = q[key] or p[key]
+                    if q["name"] == was:
+                        q["name"] = shown_name(q)
+                    gone.add(p["id"])
+                    continue
+        out.append(p)
+    return out, [r for r in relatives if r[0] not in gone and r[2] not in gone]
 
 
 def _from_text(people: list, relatives: list, text: str, about: str | None) -> tuple[list, list]:
@@ -1446,8 +1518,9 @@ def _name_changes(con, tree: Tree, x: str, p: dict, pid: int, name: str) -> list
     theirs_surname = norm(p["surname"])
     if theirs_surname and surname_here and "surname" not in p["guessed"] and theirs_surname not in {
             norm(surname_here), norm(p["birth_surname"])}:
-        was_born = any(norm(r[0]) == norm(surname_here) for r in con.execute(
-            "SELECT surname FROM person_name WHERE person_id = ? AND type = 'birth'", (pid,)))
+        # a birth name can be kept whole, with no surname apart (typed in, or from a GEDCOM without SURN)
+        was_born = any(norm(r[0] or events.split_name(r[1])[1] or "") == norm(surname_here) for r in con.execute(
+            "SELECT surname, name FROM person_name WHERE person_id = ? AND type = 'birth'", (pid,)))
         married = p["sex"] == "female" and norm(p["birth_surname"] or surname_here) == norm(surname_here) and (
             row["name_type"] != "married" or was_born)
         other = " ".join(f"{given_here} {p['surname']}".split())
