@@ -27,6 +27,8 @@ MAX_FULL_PIXELS = 64_000_000
 # apart from its EXIF: libheif turns the picture upright itself, and pillow-heif then gives the EXIF orientation as 1,
 # so decode() never turns one twice. The small thumbnails, depth maps and other pictures inside aren't needed.
 pillow_heif.register_heif_opener(thumbnails=False, depth_images=False, aux_images=False)
+# JPEG's names: .jfif is what Windows and browsers give many pictures saved from the web, .jpe an old short one
+JPEG_EXTENSIONS = {".jpg", ".jpeg", ".jpe", ".jfif"}
 HEIF_EXTENSIONS = {".heic", ".heif", ".hif"}
 # TIFF: what scanners and photo editors save. Browsers can't show it, so like every kind read here it is shown
 # through the JPEG preview and thumbnail ingest makes; a file of several pages is shown by its first.

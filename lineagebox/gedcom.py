@@ -50,8 +50,8 @@ ROLES = {"friend": "FRIEND", "best friend": "FRIEND", "family friend": "FRIEND",
 NAME_TYPES = {"birth": "BIRTH", "married": "MARRIED", "aka": "AKA"}
 PEDI = {"birth": "BIRTH", "adopted": "ADOPTED", "foster": "FOSTER"}
 SEX = {"male": "M", "female": "F"}
-MEDIA_TYPES = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "gif": "image/gif", "tif": "image/tiff",
-               "tiff": "image/tiff", "bmp": "image/bmp", "pdf": "application/pdf", "heic": "image/heic",
+MEDIA_TYPES = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "jpe": "image/jpeg", "jfif": "image/jpeg", "png": "image/png",
+               "gif": "image/gif", "tif": "image/tiff", "tiff": "image/tiff", "bmp": "image/bmp", "pdf": "application/pdf", "heic": "image/heic",
                "mp4": "video/mp4", "mov": "video/quicktime", "mp3": "audio/mpeg", "wav": "audio/wav",
                "txt": "text/plain", "htm": "text/html", "html": "text/html"}
 LIVING_YEARS = 110  # someone born less long ago, with no death, may be alive

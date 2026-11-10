@@ -150,7 +150,7 @@ def test_a_heic_isnt_turned_in_its_file():
 
 def test_every_kind_catalogued_is_one_media_reads():
     defaults = set(Config.__dataclass_fields__["image_extensions"].default)
-    assert defaults == {".jpg", ".jpeg", ".png"} | media.TIFF_EXTENSIONS | media.HEIF_EXTENSIONS | media.RAW_EXTENSIONS
+    assert defaults == media.JPEG_EXTENSIONS | {".png"} | media.TIFF_EXTENSIONS | media.HEIF_EXTENSIONS | media.RAW_EXTENSIONS
     assert all(e == e.lower() for e in defaults)  # the scan and uploads match them case-insensitively
     assert defaults <= set(uploads._SIGNATURES)  # an upload's first bytes are checked against its kind
     assert uploads.looks_like("IMG_0001.HEIC", heic()[:64])
@@ -332,6 +332,25 @@ def test_a_tiff_is_catalogued_with_jpeg_preview_and_thumbnail(cfg, con, library)
     assert r.status_code == 200 and r.headers["content-type"] == "image/webp"
     assert f'src="/p/{row["sha256"]}"' in client.get(f"/image/{row['id']}").text
     assert writeback.why_not(dict(row)) is None  # it can be turned, in its file too
+
+
+def test_a_jfif_is_catalogued_as_a_jpeg(cfg, con, library):
+    """Windows and browsers save many pictures from the web as .jfif: a JPEG by another name."""
+    from fastapi.testclient import TestClient
+    from lineagebox.ingest import ingest
+    from lineagebox.scan import scan
+    from lineagebox.web import app as webapp
+    from tests.conftest import LAN
+    (library / "Saved").mkdir()
+    Image.new("RGB", (300, 200), (40, 120, 200)).save(library / "Saved" / "reunion.JFIF", "JPEG")
+    scan(con, cfg)
+    ingest(con, cfg)
+    row = con.execute("""SELECT i.*, f.id AS file_id FROM image i JOIN file f ON f.image_id = i.id
+                         WHERE f.path LIKE '%reunion.JFIF'""").fetchone()
+    assert row is not None and row["format"] == "jpeg" and (row["width"], row["height"]) == (300, 200)
+    r = TestClient(webapp.create_app(cfg), client=LAN).get(f"/original/{row['file_id']}")
+    assert r.status_code == 200 and r.headers["content-type"] == "image/jpeg"  # shown, not a download of no kind
+    assert uploads.looks_like("reunion.jfif", b"\xff\xd8\xff\xe0") and not uploads.looks_like("x.jfif", b"<html>")
 
 
 def test_a_tiff_upload_is_checked_by_its_first_bytes():

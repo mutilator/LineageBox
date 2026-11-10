@@ -43,10 +43,10 @@ class Config:
     data_dir: Path
     folders: tuple[str, ...] = ()                     # watched folders, relative to share_root, '/' separated
     # JPEG, PNG, TIFF, HEIC (iPhones) and cameras' raw files: every kind media.py reads (tests/test_media.py checks)
-    image_extensions: tuple[str, ...] = (".jpg", ".jpeg", ".png", ".tif", ".tiff", ".heic", ".heif", ".hif", ".nef",
-                                         ".nrw", ".cr2", ".cr3", ".crw", ".arw", ".srf", ".sr2", ".dng", ".raf",
-                                         ".orf", ".rw2", ".rwl", ".pef", ".srw", ".3fr", ".iiq", ".mos", ".mef",
-                                         ".mrw", ".erf", ".kdc", ".dcr")
+    image_extensions: tuple[str, ...] = (".jpg", ".jpeg", ".jpe", ".jfif", ".png", ".tif", ".tiff", ".heic", ".heif",
+                                         ".hif", ".nef", ".nrw", ".cr2", ".cr3", ".crw", ".arw", ".srf", ".sr2",
+                                         ".dng", ".raf", ".orf", ".rw2", ".rwl", ".pef", ".srw", ".3fr", ".iiq",
+                                         ".mos", ".mef", ".mrw", ".erf", ".kdc", ".dcr")
     video_extensions: tuple[str, ...] = (".mts", ".m2ts", ".mp4", ".m4v", ".mov", ".3gp", ".3g2", ".avi", ".wmv",
                                          ".mpg", ".mpeg", ".mkv")
     # Sound alone: digitised cassettes, voice memos, recorders' files (media 'audio'; a "video" file with no picture,

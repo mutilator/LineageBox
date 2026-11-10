@@ -31,7 +31,8 @@ STAGE_INGEST = 1
 MAX_PHOTO_BYTES = 500 << 20  # a photo is read whole into memory, several at a time; no camera makes one this big
 SAVE_EVERY, SAVE_SECONDS = 200, 3  # read files are recorded together, at most this many or this often
 # image.format of a photo that can't be read, by its extension; raw files' are their extensions (media.RAW_FORMATS)
-_FORMATS = {".jpg": "jpeg", ".jpeg": "jpeg", ".png": "png", **{ext: "heic" for ext in media.HEIF_EXTENSIONS}}
+_FORMATS = {**{ext: "jpeg" for ext in media.JPEG_EXTENSIONS}, ".png": "png",
+            **{ext: "heic" for ext in media.HEIF_EXTENSIONS}}
 NOTHING_TO_SEE = 2 | 4  # faces.STAGE_FACES | describe.STAGE_LLM: a recording has no picture for them (they import this)
 SONG = "song: tagged as a song from an album (its artist, album and track), so left out as music"
 BLANK_FRAME = 5.0  # sharpness below this: a black, white or completely blurred frame (see quality.py)

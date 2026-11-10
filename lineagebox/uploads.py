@@ -27,7 +27,7 @@ _BAD = re.compile(r'[\x00-\x1f<>:"/\\|?*]')
 _RESERVED = {"con", "prn", "aux", "nul", *(f"com{i}" for i in range(1, 10)), *(f"lpt{i}" for i in range(1, 10))}
 # what the first bytes of each kind of file look like: (offset, bytes) any of which will do
 _SIGNATURES = {
-    ".jpg": [(0, b"\xff\xd8\xff")], ".jpeg": [(0, b"\xff\xd8\xff")], ".png": [(0, b"\x89PNG\r\n\x1a\n")],
+    **{ext: [(0, b"\xff\xd8\xff")] for ext in (".jpg", ".jpeg", ".jpe", ".jfif")}, ".png": [(0, b"\x89PNG\r\n\x1a\n")],
     # TIFF, and BigTIFF (over 4 GB: big scans)
     **{ext: [(0, b"II*\x00"), (0, b"MM\x00*"), (0, b"II+\x00"), (0, b"MM\x00+")] for ext in (".tif", ".tiff")},
     ".heic": [(4, b"ftyp")], ".heif": [(4, b"ftyp")], ".hif": [(4, b"ftyp")], ".cr3": [(4, b"ftyp")],

@@ -12,6 +12,9 @@ from lineagebox.web import tiles
 from lineagebox.web.site import Site
 
 router = APIRouter()
+# Python's own list has no .jfif (Windows adds it from the registry, Linux only with a mime.types file): without it
+# a .jfif original would be sent as a download of unknown kind rather than shown
+mimetypes.add_type("image/jpeg", ".jfif")
 ACCESS = {
     "/healthz": PUBLIC,
     "/t/{sha}": MEMBER,
