@@ -90,6 +90,16 @@
           <button type="button" data-theme-choice="light" aria-pressed="false">{% trans %}Light{% endtrans %}</button>
           <button type="button" data-theme-choice="dark" aria-pressed="false">{% trans %}Dark{% endtrans %}</button>
         </div>
+        {#- how grids of photos look, kept in this browser too (app.js, theme.js) #}
+        <div class="theme-pick" role="group" aria-labelledby="tiles-pick-label">
+          <span id="tiles-pick-label">{% trans %}Photo tiles{% endtrans %}</span>
+          <button type="button" data-look="tiles" data-look-value="" aria-pressed="false" title="{{ _('Every photo in a square, cropped around the faces in it') }}">{% trans %}Squares{% endtrans %}</button>
+          <button type="button" data-look="tiles" data-look-value="whole" aria-pressed="false" title="{{ _('Every photo in its own shape, in rows') }}">{% trans %}Whole photos{% endtrans %}</button>
+          <span class="look-break" aria-hidden="true"></span>
+          <button type="button" data-look="tileSize" data-look-value="s" aria-pressed="false">{% trans %}Small{% endtrans %}</button>
+          <button type="button" data-look="tileSize" data-look-value="" aria-pressed="false">{% trans %}Medium{% endtrans %}</button>
+          <button type="button" data-look="tileSize" data-look-value="l" aria-pressed="false" title="{{ _('On a phone or tablet, pinch over the photos to make them larger or smaller') }}">{% trans %}Large{% endtrans %}</button>
+        </div>
         {%- if languages()|length > 1 %}
         {#- once a translation is installed (i18n.py): the pages' language in this browser, kept in a cookie
             (routes/language.py); Automatic is the first the browser asks for that is here #}

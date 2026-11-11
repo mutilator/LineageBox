@@ -6,3 +6,12 @@ try {
   const theme = localStorage.getItem("lineagebox-theme");
   if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
 } catch {}
+
+// Photo tiles (More → Photo tiles, app.js), the same way: Whole photos rather than squares, and Small or Large rather
+// than Medium. app.css sizes and lays out the grids by them.
+try {
+  const root = document.documentElement;
+  if (localStorage.getItem("lineagebox-tiles") === "whole") root.dataset.tiles = "whole";
+  const size = localStorage.getItem("lineagebox-tile-size");
+  if (size === "s" || size === "l") root.dataset.tileSize = size;
+} catch {}

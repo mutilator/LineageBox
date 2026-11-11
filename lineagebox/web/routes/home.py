@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 from lineagebox import access, catalog, family, first_run, memories, outbox, storage, tours
-from lineagebox.web.common import MEMBER, _from_app, _people_or_404, _shared_with_me
+from lineagebox.web.common import MEMBER, _from_app, _people_or_404, _shared_with_me, years_of
 from lineagebox.web.deps import con, page, site, viewer, writer
 from lineagebox.web.routes.tours import suggestions
 from lineagebox.web.site import Site
@@ -19,6 +19,7 @@ ACCESS = {
     "/home/family": MEMBER,
     "/home/person/{person_id}": MEMBER,
     "/home/person/{person_id}/memories": MEMBER,
+    "/home/person/{person_id}/years": MEMBER,
     "/api/faces/{face_id}/ask": MEMBER,
     "/api/faces/{face_id}/skip": MEMBER,
 }
@@ -201,6 +202,15 @@ def person_memories(request: Request, person_id: int, v=Depends(viewer), c=Depen
         return memories.row(memories.years_ago(c, today, blurry, [person_id]), [], [],
                             memories.family_occasions(c, [person_id], today, blurry))
     return page(request, "_memories.html", memories=s.keep(v, ("memories", person_id, today.isoformat()), 600, work))
+
+
+@router.get("/home/person/{person_id}/years", response_class=HTMLResponse)
+def person_years_panel(request: Request, person_id: int, v=Depends(viewer), c=Depends(con), s: Site = Depends(site)):
+    """Through the years as a panel on their Home, loaded after the page: their face a year, playing on its own, which
+    opens the whole of it (/person/{id}/years). Nothing for someone with fewer than two years to show."""
+    _people_or_404(c, person_id)
+    found = years_of(s, v, c, person_id)
+    return page(request, "_years_panel.html", who=catalog.person(c, person_id), years=found if len(found) > 1 else [])
 
 
 @router.get("/home/memories", response_class=HTMLResponse)

@@ -231,6 +231,7 @@ class Site:
         g = templates.env.globals
         g["date_source_label"] = DATE_SOURCE_LABEL
         g["tile_alts"] = tiles.tile_alts  # the grids' alt text: who is in each photo (tiles.py)
+        g["tile_shapes"] = tiles.tile_shapes  # and each photo's shape, and where its square crop is aimed
         g["network_path"] = lambda rel: locate(self.shared_cfg(), rel)
         g["media_path"] = lambda rel="": media_path(self.cfg, rel)
         g["on_network"] = lambda rel: on_network(self.shared_cfg(), rel)

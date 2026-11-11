@@ -10,6 +10,8 @@
   events and every photo.{% endtrans %}{% endif %}</p>
 
 <div id="memories" data-later="/home/person/{{ who.id }}/memories"><p class="hint loading">{% trans %}Looking for memories…{% endtrans %}</p></div>
+{#- their face a year at a time, as a panel that opens Through the years (_years_panel.html); nothing when too few #}
+<div id="through-years" data-later="/home/person/{{ who.id }}/years"></div>
 
 <section class="home-feed" id="person-latest">
   <h2>{% if you %}{% trans %}Recent photos of you{% endtrans %}{% else %}{% trans name=who.name.split()[0] %}Recent photos of {{ name }}{% endtrans %}{% endif %}</h2>

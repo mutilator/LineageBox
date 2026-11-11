@@ -13,6 +13,11 @@ whole library at once, which would take a long time on a small router and room t
 made again when the preview is newer (a photo turned, a preview made again). A photo with no preview gets its
 thumbnail instead, so a tile is never left empty, and so does every photo while the disk is nearly full, or while
 others wait their turn too long (WAIT); the browser asks again for those the next time it shows them.
+
+Shapes. A square tile shows the middle of a photo, which cuts the heads off people standing in a tall one and the
+people at the ends off a wide one. tile_shapes() aims each tile's crop at the photo's faces instead (focus()), and
+gives each photo's shape, for those who choose Whole photos (More → Photo tiles): rows of photos in their own shapes,
+as Home's days are.
 """
 import contextlib
 import contextvars
@@ -111,6 +116,73 @@ def tile_alts(images) -> dict[int, str]:
         except sqlite3.Error:  # a page is still shown with dates alone (a connection already closed, a busy catalog)
             found = {}
     return {im["id"]: alt(im, found.get(im["id"], [])) for im in images}
+
+
+# A face less than this share of the largest one's width is someone in the background: it doesn't move the crop
+BACKGROUND = 0.4
+# Whole photos: shapes kept in bounds, as Home's days (routes/home.py), so a panorama or a sliver never takes a row
+WIDEST, NARROWEST = 2.5, 0.4
+
+
+def focus(width: int | None, height: int | None, boxes) -> str | None:
+    """Where a square tile's crop of a photo is aimed (CSS object-position): the middle of the faces that matter (the
+    largest, and those at least BACKGROUND of its width), as near the tile's middle as the photo's edges allow; when
+    they don't all fit, the stretch that shows the most of them (larger faces counting for more), rather than the
+    empty middle between two people at the ends of a wide photo. None when the middle will do: no faces, a square
+    photo, a shape not known. boxes: (x1, y1, x2, y2) as shares of the upright photo, as faces keep them.
+
+    A tile of another shape shows more of the photo than a square, around the same place, so the same aim keeps the
+    faces in it too (a Whole photos tile, a panorama kept in bounds)."""
+    boxes = [b for b in boxes if b[2] > b[0] and b[3] > b[1]]
+    if not width or not height or width == height or not boxes:
+        return None
+    largest = max(x2 - x1 for x1, _, x2, _ in boxes)
+    near = [b for b in boxes if b[2] - b[0] >= BACKGROUND * largest]
+    if width > height:  # a square shows height/width of its width
+        return f"{_aim([(b[0], b[2]) for b in near], height / width):.0f}% 50%"
+    return f"50% {_aim([(b[1], b[3]) for b in near], width / height):.0f}%"
+
+
+def _aim(spans: list[tuple[float, float]], shown: float) -> float:
+    """The object-position, in percent, of a crop that shows `shown` of a photo's side, for faces that span `spans`
+    of that side: their middle, as near the crop's middle as the photo's edges allow, or, when they don't all fit,
+    the crop that holds the most of them whole (by their size), the nearest to their middle of those."""
+    first, last = min(a for a, _ in spans), max(b for _, b in spans)
+    middle = (first + last) / 2
+    if last - first > shown:
+        starts = [a for a, _ in spans] + [b - shown for _, b in spans]
+        held = lambda s: sum(b - a for a, b in spans if a >= s - 1e-9 and b <= s + shown + 1e-9)
+        best = max(starts, key=lambda s: (round(held(s), 6), -abs(s + shown / 2 - middle)))
+        middle = best + shown / 2
+    start = min(max(middle - shown / 2, 0.0), 1 - shown)
+    return start / (1 - shown) * 100
+
+
+def shape(width: int | None, height: int | None) -> float:
+    """A photo's width over its height, kept in bounds; 1 for a shape not known (a recording)."""
+    return round(min(WIDEST, max(NARROWEST, width / height)), 3) if width and height else 1.0
+
+
+def tile_shapes(images) -> dict[int, dict]:
+    """For the grid macros: {image id: {"ratio": its shape, "focus": where a square crop is aimed, or None}} for the
+    photos of one grid, in two queries. Faces on a video's frames don't aim its tile (its thumbnail is another frame),
+    and nor do boxes someone said aren't a face."""
+    ids = sorted({int(im["id"]) for im in images or []})
+    con = READING.get()
+    if con is None or not ids:
+        return {}
+    try:
+        sizes = {r[0]: (r[1], r[2]) for r in con.execute(
+            "SELECT id, width, height FROM image WHERE id IN (SELECT value FROM json_each(?))", (json.dumps(ids),))}
+        boxes: dict[int, list] = defaultdict(list)
+        for r in con.execute("""SELECT image_id, x1, y1, x2, y2 FROM face
+                                WHERE image_id IN (SELECT value FROM json_each(?)) AND frame IS NULL
+                                  AND x1 IS NOT NULL AND assigned_by IS NOT 'not_a_face'""", (json.dumps(ids),)):
+            boxes[r[0]].append(tuple(r[1:]))
+    except sqlite3.Error:  # the page is still shown, with its tiles cropped in the middle
+        return {}
+    return {i: {"ratio": shape(*sizes.get(i, (None, None))), "focus": focus(*sizes.get(i, (None, None)), boxes[i])}
+            for i in ids}
 
 
 def sharp(cfg: Config, sha: str) -> Path | None:

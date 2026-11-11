@@ -1,0 +1,18 @@
+{#- Through the years as a panel on someone's Home (routes/home.py, loaded after the page): their face a year, lined up
+    on the eyes, each fading into the next on its own (app.js data-years-panel), opening the whole of it. faces: each
+    year's best faces, so the one chosen there with Another from this year is the one shown here. Nothing without two
+    years to show. #}
+{%- if years %}
+{%- set name = who.name.split()[0] %}
+{%- set ns = namespace(frames=[]) %}
+{%- for y in years %}{% set ns.frames = ns.frames + [{"year": y.year, "faces": y.faces|map(attribute="id")|list}] %}{% endfor %}
+<a class="years-panel" href="/person/{{ who.id }}/years" data-years-panel data-person="{{ who.id }}" data-frames='{{ ns.frames|tojson }}'>
+  <span class="years-panel-stage"><img class="years-face on" src="/face/{{ years[0].faces[0].id }}/eyes" alt="" width="400" height="500"></span>
+  <span class="years-panel-text">
+    <b>{% trans %}Through the years{% endtrans %}</b>
+    <span>{% trans first=years[0].year, last=years[-1].year %}{{ name }} from {{ first }} to {{ last }}, a face a year, lined up on the eyes{% endtrans %}</span>
+    <span class="years-panel-year" data-years-year aria-hidden="true">{{ years[0].year }}</span>
+    <span class="button primary">{% trans %}▶ Watch{% endtrans %}</span>
+  </span>
+</a>
+{%- endif %}

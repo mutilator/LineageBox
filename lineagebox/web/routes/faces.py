@@ -1,11 +1,13 @@
 """Faces: crops, naming groups and single faces, not them, not a face, looking again, renaming and merging people,
 confirming suggestions."""
+import threading
+
 import httpx
 from PIL import Image
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 
-from lineagebox import access, catalog, changes, faces, media, people
+from lineagebox import access, catalog, changes, face_years, faces, media, people
 from lineagebox.web.common import (ADMIN, MEMBER, FacesBody, MergeBody, NameBody, RenameBody, _among, _by,
                                    _face_to_change, _faces_spec, _family_spec, _from_app, _merge_spec, _people_or_404,
                                    _same_group)
@@ -13,8 +15,14 @@ from lineagebox.web.deps import con, site, viewer, writer
 from lineagebox.web.site import Site
 
 router = APIRouter()
+# Faces lined up on their eyes made at the same time (each reads a 2,048 px preview), and the seconds a request waits
+# for its turn: a player asks for one picture and the next, so more at once is someone else, or a page reloaded
+LINING_UP = threading.Semaphore(2)
+LINE_UP_WAIT = 10
+
 ACCESS = {
     "/face/{face_id}": MEMBER,
+    "/face/{face_id}/eyes": MEMBER,
     "/api/faces/{face_id}/photo": MEMBER,
     "/api/clusters/{cluster_id}/name": MEMBER,
     "/api/clusters/{cluster_id}/ignore": MEMBER,
@@ -57,6 +65,30 @@ def face_crop(face_id: int, v=Depends(viewer), s: Site = Depends(site)):
         half = max((f["x2"] - f["x1"]) * w, (f["y2"] - f["y1"]) * h) * 0.75
         crop = im.convert("RGB").crop((cx - half, cy - half, cx + half, cy + half))
         media._atomic_save(crop.resize((160, 160), Image.Resampling.LANCZOS), path, "JPEG", quality=88)
+    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
+
+
+@router.get("/face/{face_id}/eyes")
+def face_lined_up(face_id: int, v=Depends(viewer), s: Site = Depends(site)):
+    """The face lined up on its eyes, for Through the years (face_years.aligned): made from its photo's preview the
+    first time it is asked for, then kept with its crops. A face on a video's frame isn't lined up."""
+    f, _ = _face_seen(s, v, face_id)
+    if f is None or f["frame"] is not None or not f["landmarks"]:
+        raise HTTPException(404)
+    path = s.cfg.aligned_face_path(face_id, f["x1"], f["y1"])
+    if not path.is_file():
+        picture = s.cfg.preview_path(f["sha256"])
+        if not picture.is_file():
+            raise HTTPException(404, "This face's picture isn't there yet")
+        if not LINING_UP.acquire(timeout=LINE_UP_WAIT):
+            raise HTTPException(503, "Busy making other pictures: try again in a moment")
+        try:
+            if not path.is_file():  # made while this waited
+                media._atomic_save(face_years.aligned(picture, f["landmarks"]), path, "JPEG", quality=86)
+        except ValueError as e:
+            raise HTTPException(404, str(e))
+        finally:
+            LINING_UP.release()
     return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
 
 

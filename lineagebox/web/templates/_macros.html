@@ -1,18 +1,22 @@
 {#- A tile's picture: the thumbnail, and for sharp screens one twice its size (made from the preview the first time one
-    asks for it: web/tiles.py). Its alt text says who is in the photo (only people the viewer sees) and when. #}
-{% macro tile_img(im, alts) -%}
-<img src="/t/{{ im.sha256 }}" srcset="/t/{{ im.sha256 }} 300w, /t2/{{ im.sha256 }} 600w" sizes="(max-width: 760px) 34vw, 170px" loading="lazy" alt="{{ alts[im.id] }}">
+    asks for it: web/tiles.py). Its alt text says who is in the photo (only people the viewer sees) and when. shape
+    (tiles.tile_shapes): its crop aimed at the faces in it. sizes "auto": the browser picks by the tile's size as it is
+    laid out (Small, Medium or Large tiles); one that can't uses the sizes after it. #}
+{% macro tile_img(im, alts, shape=none) -%}
+<img src="/t/{{ im.sha256 }}" srcset="/t/{{ im.sha256 }} 300w, /t2/{{ im.sha256 }} 600w" sizes="auto, (max-width: 760px) 34vw, 170px" loading="lazy" alt="{{ alts[im.id] }}"{% if shape and shape.focus %} style="object-position: {{ shape.focus }}"{% endif %}>
 {%- endmacro %}
 
 {#- part: the grid is one part of a page loaded in pieces (_pieces.html): its tiles can be jumped to (id) and say their
-    month (data-ym), for the scrubber. #}
+    month (data-ym), for the scrubber. --r: the photo's shape, for Whole photos (More → Photo tiles). #}
 {% macro grid(images, ctx, part=none) %}
 {%- set ns = namespace(guessed=false) %}
 {%- set alts = tile_alts(images) %}
+{%- set shapes = tile_shapes(images) %}
 <div class="grid"{% if part %} data-grid-part="{{ part }}"{% endif %}>
 {%- for im in images %}
-  <a class="tile" href="/image/{{ im.id }}?ctx={{ ctx|urlencode }}" title="{{ im.taken_at|date }}"{% if part %} id="t{{ im.id }}" data-ym="{{ (im.taken_at or '')[:7] }}"{% endif %}>
-    {{ tile_img(im, alts) }}
+  {%- set shape = shapes.get(im.id) %}
+  <a class="tile" href="/image/{{ im.id }}?ctx={{ ctx|urlencode }}" title="{{ im.taken_at|date }}"{% if part %} id="t{{ im.id }}" data-ym="{{ (im.taken_at or '')[:7] }}"{% endif %}{% if shape %} style="--r: {{ shape.ratio }}"{% endif %}>
+    {{ tile_img(im, alts, shape) }}
     {%- if im.media == "video" %}<span class="badge video" title="{{ _('Video') }}">▶ {{ im.duration|duration }}</span>{% elif im.media == "audio" %}<span class="badge video sound" title="{{ _('Sound recording') }}">🎙 {{ im.duration|duration }}</span>{% endif %}
     {%- if date_source_label[im.taken_at_source] %}{% set ns.guessed = true %}<span class="badge" title="{{ date_source_label[im.taken_at_source] }}">≈</span>{% endif %}
   </a>
@@ -41,11 +45,13 @@
    ↗ opens it. Wrap it in select_form. part: as for grid. #}
 {% macro select_grid(images, ctx, part=none) %}
 {%- set alts = tile_alts(images) %}
+{%- set shapes = tile_shapes(images) %}
 <div class="grid selectable"{% if part %} data-grid-part="{{ part }}"{% endif %}>
 {%- for im in images %}
-  <label class="tile pick" title="{{ im.caption or (im.taken_at|date) }}"{% if part %} id="t{{ im.id }}" data-ym="{{ (im.taken_at or '')[:7] }}"{% endif %}>
+  {%- set shape = shapes.get(im.id) %}
+  <label class="tile pick" title="{{ im.caption or (im.taken_at|date) }}"{% if part %} id="t{{ im.id }}" data-ym="{{ (im.taken_at or '')[:7] }}"{% endif %}{% if shape %} style="--r: {{ shape.ratio }}"{% endif %}>
     <input type="checkbox" name="image" value="{{ im.id }}" aria-label="{{ alts[im.id] }}">
-    {{ tile_img(im, alts) }}
+    {{ tile_img(im, alts, shape) }}
     <a class="open" href="/image/{{ im.id }}?ctx={{ ctx|urlencode }}" target="_blank" title="{{ _('Open in a new tab') }}" aria-label="{{ _('Open in a new tab') }}">↗</a>
     {%- if im.matched %}<span class="badge wide">{{ im.matched }}</span>{% endif %}
   </label>

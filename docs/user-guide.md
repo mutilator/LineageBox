@@ -42,6 +42,14 @@ logo's picture shows. The menu works from the keyboard: Tab to **More**, Enter o
 page never flashes the other colours first. The map's popups and boxes follow it too; a picture of the family tree is
 always drawn on white.
 
+**Photo tiles**, under Colours, sets how lists of photos look, in each browser the same way:
+
+- **Squares** (as it was): every photo in a square, cropped around the faces in it, so heads in a tall photo and the
+  people at the ends of a wide one stay in sight.
+- **Whole photos**: every photo in its own shape, in rows, as Home's photos by the day are.
+- **Small**, **Medium** and **Large**: how big the tiles are. On a phone or tablet, pinch two fingers apart over the
+  photos to make them larger, or together to make them smaller.
+
 **Language**, below Colours, is there only once a translation has been added ([translating](translating.md)):
 **Automatic** shows the site in the first language your browser asks for that LineageBox has, and picking one keeps it
 in this browser. Names, captions and what the family wrote stay as they were written.
@@ -184,6 +192,14 @@ Each person's page tells their life:
 - **Their portrait**, at the top: click it (or **Choose the portrait**) to pick, from the faces named as them, the one
   People, the Family page, the tree and exports show: their clearest faces, or a year's. On any photo of them, **☆
   portrait** beside their name makes that face it. Until you choose one, it is their clearest named face.
+- **Through the years**, beside the portrait: their face a year at a time, each photo lined up on the eyes and fading
+  into the next. Press **Play** (or `p`), step with ‹ › or the arrow keys (or swipe the face on a phone), or pick a
+  year in the strip under it; **Speed** sets how long each year shows, and with a birth date each year says how old
+  they were. **Every photo** takes their clearest face each year from any photo (large, facing the camera, sharp,
+  named by hand before recognised). **Portraits** takes only photos the AI described as a portrait or a selfie, or
+  tagged portrait, selfie or headshot, with nobody else as near the camera: fewer years, but one follows on from the
+  next more smoothly. **Another from this year** shows that year's next clearest face, and the browser remembers it.
+  Photos with no date of their own, or dated across more than two years, are left out.
 - **Life story**: what the family knows of their life, in your own words. Anyone in the family who can see them can
   write or change it, and an admin can undo it on Cleanup → Recent changes. **Notes**, under it, hold where things
   came from: what reading an obituary added, notes from another family tree.
@@ -316,7 +332,8 @@ else, finds only the photos they can see, and suggests only the people, places a
   themselves and their closest family (parents, partner, brothers and sisters, children) first, however long ago they
   were taken, with **Show older photos of your family** to go further back, and then the rest. A row of buttons
   above them opens the memories and newest photos of one person: the first is their own, with only photos of them,
-  then one for each of their closest family. Anyone who is someone in the tree has these buttons, admins too
+  then one for each of their closest family. There, under the memories, **Through the years** plays their face a year
+  at a time; click it to watch the whole of it (see A person's page). Anyone who is someone in the tree has these buttons, admins too
   (without family accounts, the person marked with **This is me**), though an admin's Home doesn't put their
   family's photos first. Their memories start
   with their family's biggest days of photos and the latest, each named by a life event on those days, the event
@@ -750,6 +767,7 @@ The menu at the side shows one part at a time (on a phone, it is above the setti
 - On a photo, `←` `→` step through photos and `Esc` goes back; `h` gives it your heart, or takes it off.
 - On a tour, an album or Your favourites, `p` plays the slideshow. The slideshow holds the keyboard while it plays:
   space pauses, `←` `→` step, `Esc` closes it and puts you back on **Play**; a screen reader stays in it.
+- On someone's Through the years, `p` plays or pauses and `←` `→` step a year.
 - The keys of one letter or sign (`?`, `/`, `g` and the letters on buttons) can be turned off at the foot of the help
   (**Keys of one letter or sign**), in each browser: for a screen reader or speech software of your own, or if they get
   pressed by mistake. The arrow keys, `Esc`, Tab and Enter still work, and the help opens from **?** at the top.

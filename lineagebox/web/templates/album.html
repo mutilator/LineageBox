@@ -39,10 +39,12 @@
 <p class="hint">{% trans %}Drag the photos into the order you want, or use ↑ and ↓. ★ makes a photo the album's cover. Type a
   caption under a photo for this album, then Enter (with none, the photo's own caption shows, in grey). × takes a photo
   out of the album; it stays in your photos.{% endtrans %}</p>
+{%- set shapes = tile_shapes(photos) %}{# each square aimed at the faces in it (tiles.py) #}
 <ol class="album-photos" data-album="{{ album.id }}">
   {%- for p in photos %}
+  {%- set aim = (shapes.get(p.id) or {}).focus %}
   <li class="album-photo" draggable="true" data-image="{{ p.id }}" id="ap{{ p.id }}">
-    <a class="tile" href="/image/{{ p.id }}?ctx={{ ctx|urlencode }}" draggable="false"><img src="/t/{{ p.sha256 }}" loading="lazy" draggable="false" alt="{{ p.caption or p.own or (_('Video from %(taken_at)s', taken_at=p.taken_at|date(false)) if p.media == 'video' else _('Photo from %(taken_at)s', taken_at=p.taken_at|date(false))) }}">
+    <a class="tile" href="/image/{{ p.id }}?ctx={{ ctx|urlencode }}" draggable="false"><img src="/t/{{ p.sha256 }}" loading="lazy" draggable="false"{% if aim %} style="object-position: {{ aim }}"{% endif %} alt="{{ p.caption or p.own or (_('Video from %(taken_at)s', taken_at=p.taken_at|date(false)) if p.media == 'video' else _('Photo from %(taken_at)s', taken_at=p.taken_at|date(false))) }}">
       {%- if p.media == "video" %}<span class="badge video" title="{{ _('Video') }}">▶ {{ p.duration|duration }}</span>{% endif %}</a>
     <div class="album-controls">
       <button type="button" class="quiet" data-move="-1" title="{{ _('Earlier in the album') }}" aria-label="{{ _('Move earlier') }}">↑</button>
@@ -58,11 +60,13 @@
   {%- endfor %}
 </ol>
 {% else %}
+{%- set shapes = tile_shapes(photos) %}
 <ol class="album-photos view">
   {%- for p in photos %}
   {%- set said = p.caption or p.own %}
+  {%- set aim = (shapes.get(p.id) or {}).focus %}
   <li class="album-photo">
-    <a class="tile" href="/image/{{ p.id }}?ctx={{ ctx|urlencode }}"><img src="/t/{{ p.sha256 }}" loading="lazy" alt="{{ said or (_('Video from %(taken_at)s', taken_at=p.taken_at|date(false)) if p.media == 'video' else _('Photo from %(taken_at)s', taken_at=p.taken_at|date(false))) }}">
+    <a class="tile" href="/image/{{ p.id }}?ctx={{ ctx|urlencode }}"><img src="/t/{{ p.sha256 }}" loading="lazy"{% if aim %} style="object-position: {{ aim }}"{% endif %} alt="{{ said or (_('Video from %(taken_at)s', taken_at=p.taken_at|date(false)) if p.media == 'video' else _('Photo from %(taken_at)s', taken_at=p.taken_at|date(false))) }}">
       {%- if p.media == "video" %}<span class="badge video" title="{{ _('Video') }}">▶ {{ p.duration|duration }}</span>{% endif %}</a>
     {%- if said %}<p class="said">{{ said }}</p>{% endif %}
   </li>

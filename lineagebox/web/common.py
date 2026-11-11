@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from lineagebox import access, albums, catalog, cleanup, errors, faces, family, https, passkeys, sharing, tours
+from lineagebox import face_years
 from lineagebox.config import Config
 
 HERE = Path(__file__).resolve().parent
@@ -879,3 +880,11 @@ def _derivative(path: Path | None, media_type: str) -> FileResponse:
     if path is None or not path.is_file():
         raise HTTPException(404)
     return FileResponse(path, media_type=media_type, headers=IMMUTABLE)
+
+
+def years_of(s, v: access.Viewer, c, person_id: int, portraits: bool = False) -> list:
+    """Someone's faces a year (face_years.years), kept 10 minutes for each viewer (s: the Site): half a second for
+    someone in 10,000 photos on a small router, asked for by Through the years, each way of picking, and the panel on
+    their Home. A change anywhere (a face named or taken off) works them out again."""
+    return s.keep(v, ("face years", person_id, portraits), 600,
+                  lambda: face_years.years(c, person_id, s.cfg.preview_size, portraits=portraits))

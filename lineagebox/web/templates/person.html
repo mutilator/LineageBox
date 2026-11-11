@@ -15,6 +15,8 @@
       <span class="portrait-change">{{ _("Change the portrait") if person.cover_face_id else _("Choose the portrait") }}</span></summary>
     <div data-on-open="/person/{{ person.id }}/portraits"><p class="hint loading">{% trans name=person.name %}Finding {{ name }}'s faces…{% endtrans %}</p></div>
   </details>
+  {#- their face a year at a time, lined up on the eyes (face_years.py) #}
+  <a class="button quiet years-link" href="/person/{{ person.id }}/years" title="{{ _("%(name)s's face from year to year, one photo fading into the next", name=person.name) }}">{% trans %}▶ Through the years{% endtrans %}</a>
   {%- else %}<span class="portrait ph" aria-hidden="true">{{ person.name[:1] }}</span>{% endif %}
 </div>
 <form class="name-form" data-api="/api/people/{{ person.id }}/rename" data-go="/person/">

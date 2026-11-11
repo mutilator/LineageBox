@@ -92,7 +92,9 @@ PAGES = {
            "and this week in earlier years), then their newest photos, however long ago they were taken. Show older "
            "photos goes further back."),
         N_("The buttons near the top of Home open this page: one for you, with only photos of you, and one for each "
-           "of your closest family. Their page has their family, life events and every photo of them."))),
+           "of your closest family. Their page has their family, life events and every photo of them."),
+        N_("Through the years, under the memories: their face a year at a time, lined up on the eyes and playing on "
+           "its own. Click it to watch it all, step through it, or pick another photo for a year."))),
     "folders": Page(N_("Folders"), (
         N_("Your uploads: open one of your folders to see its photos, share it, or move it to the Removed folder. "
            "Select photos in a folder to move only those."),
@@ -310,7 +312,8 @@ PAGES = {
            "about 1950, between 1950 and 1955). Press the number of an event to change it."),
         N_("After adding a life event, the Add box is ready for the next one."),
         N_("At the top, their portrait: Choose the portrait picks the face People, the Family page, the tree and "
-           "exports show for them, from the faces named as them."),
+           "exports show for them, from the faces named as them. Through the years, beside it, plays their face a "
+           "year at a time."),
         N_("Life story: what the family knows of their life, in your own words. Anyone who can see them can write it, "
            "and family tree programs get it as a note. Notes, under it, hold where things came from: what a reading "
            "added, notes from another family tree."),
@@ -332,6 +335,18 @@ PAGES = {
            "more. Faces named as them lose the name and go back to the unnamed faces, to be named as whoever they are; "
            "their family links, life events and other names go with them. Someone with an account stays until the "
            "account is removed. For someone here twice under two names, use Merge instead."))),
+    "person_years": Page(N_("Through the years"), (
+        N_("Someone's face a year at a time, each photo lined up on the eyes and fading into the next. Press Play (or "
+           "p), step with ‹ › or the arrow keys (or swipe the face on a phone), or pick a year in the strip under it. "
+           "Speed sets how long each year shows."),
+        N_("Every photo takes their clearest face each year from any photo: large, facing the camera and sharp, named "
+           "by hand before recognised. Portraits takes only photos the AI described as a portrait or a selfie, or "
+           "tagged portrait, selfie or headshot, with nobody else as near the camera: the faces follow on more "
+           "smoothly, but there are fewer years. The number beside each says how many years it finds."),
+        N_("Photos with no date of their own, or dated across more than two years (the 1960s), and faces too small "
+           "to line up are left out. With a birth date, each year shows how old they were."),
+        N_("Another from this year shows the year's next clearest face, and this browser remembers it. A face that "
+           "isn't them: open the photo and take the name off it, and it leaves here too."))),
     "person_faces": Page(N_("Checking faces"), (
         N_("The faces recognised as this person, the least certain first, and the ones you named. Click × (not them) "
            "on any face that isn't them: the name comes off, it is never recognised as them again, and it can be named "

@@ -16,7 +16,7 @@ from lineagebox import embeddings  # search by meaning
 from lineagebox import albums, favourites  # the albums a photo is in, the viewer's heart on it
 from lineagebox.folders import FolderIndex
 from lineagebox.web.common import (ADMIN, MEMBER, _covers, _kin_labels, _name_choices, _others_by_whose, _share_panel,
-                                   _upload_labels, _within)
+                                   _upload_labels, _within, years_of)
 from lineagebox.web.deps import con, page, paging, site, viewer, writer
 from lineagebox.web import pieces  # big pages a piece at a time, with a scrubber
 from lineagebox import date_hints, face_ages  # date help for scans; a birth year from the faces
@@ -48,6 +48,7 @@ ACCESS = {
     "/person/{person_id}/faces": MEMBER,
     "/person/{person_id}/life/{key}": MEMBER,
     "/person/{person_id}/portraits": MEMBER,
+    "/person/{person_id}/years": MEMBER,
     "/family": MEMBER,
     "/family/tree": MEMBER,
 }
@@ -550,6 +551,22 @@ def portrait_choices(request: Request, person_id: int, year: str = Query("", max
         raise HTTPException(404, "No such person")
     return page(request, "_portraits.html", person=p, faces=life.portrait_choices(c, person_id, year=year),
                 years=life.portrait_years(c, person_id), year=year, portrait=life.portrait(c, person_id))
+
+
+@router.get("/person/{person_id}/years", response_class=HTMLResponse)
+def person_years(request: Request, person_id: int, mode: str = Query("all", pattern="^(all|portraits)$"),
+                 v=Depends(viewer), c=Depends(con), s: Site = Depends(site)):
+    """Through the years: a face of them for each year, lined up on the eyes, to play one after another
+    (face_years.py). mode: from every photo, or from portraits only; the other's number of years is shown beside it."""
+    p = catalog.person(c, person_id)
+    if p is None:
+        raise HTTPException(404, "No such person")
+    portraits = mode == "portraits"
+    found = years_of(s, v, c, person_id, portraits)
+    other = len(years_of(s, v, c, person_id, not portraits))
+    return page(request, "person_years.html", nav="people", person=p, mode=mode, years=found,
+                counts={"all": other if portraits else len(found), "portraits": len(found) if portraits else other},
+                ctx=f"person:{person_id}")
 
 
 @router.get("/person/{person_id}/faces", response_class=HTMLResponse)

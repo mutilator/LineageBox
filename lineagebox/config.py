@@ -167,8 +167,12 @@ class Config:
         """A face's crop, named by its box as well as its id, so a face found again never shows a stale crop."""
         return self.data_dir / "faces" / f"{face_id % 100:02d}" / f"{face_id}_{x1:.4f}_{y1:.4f}.jpg"
 
+    def aligned_face_path(self, face_id: int, x1: float, y1: float) -> Path:
+        """A face lined up on its eyes (face_years.aligned), beside its crops: face_crops() finds it with them."""
+        return self.face_crop_path(face_id, x1, y1).with_name(f"{face_id}_eyes_{x1:.4f}_{y1:.4f}.jpg")
+
     def face_crops(self, face_id: int) -> list[Path]:
-        """Every crop made of a face, whatever its box was then."""
+        """Every crop made of a face, whatever its box was then (and its lined-up pictures)."""
         return list(self.face_crop_path(face_id, 0, 0).parent.glob(f"{face_id}_*.jpg"))
 
     def network_roots(self) -> list[tuple[str, str]]:

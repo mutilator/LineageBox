@@ -2779,6 +2779,231 @@ addEventListener("storage", (e) => {
   if (e.key === THEME_KEY) showTheme(e.newValue);
 });
 
+// Photo tiles, under Colours: Squares or Whole photos, and Small, Medium or Large, kept in this browser the same way
+// (theme.js puts them on each page before it is drawn; app.css lays the grids out by them). "" is the usual one, kept
+// as nothing. A change keeps the photo at the top of the screen where it was, as the rows move around it.
+const LOOKS = { tiles: { key: "lineagebox-tiles", values: ["whole"] },
+                tileSize: { key: "lineagebox-tile-size", values: ["s", "l"], steps: ["s", "", "l"] } };
+function showLook(name, value) {
+  const look = LOOKS[name];
+  if (!look) return;
+  value = look.values.includes(value) ? value : "";
+  if ((document.documentElement.dataset[name] || "") === value) return;
+  const tile = [...document.querySelectorAll(".grid > .tile")]
+    .find((t) => t.getBoundingClientRect().bottom > (parseFloat(getComputedStyle(document.documentElement)
+      .getPropertyValue("--header-h")) || 0));
+  const was = tile?.getBoundingClientRect().top;
+  if (value) document.documentElement.dataset[name] = value;
+  else delete document.documentElement.dataset[name];
+  if (tile && was !== undefined) scrollBy(0, tile.getBoundingClientRect().top - was);
+  markLooks();
+}
+function markLooks() {
+  document.querySelectorAll("[data-look]").forEach((b) => {
+    b.setAttribute("aria-pressed", String((document.documentElement.dataset[b.dataset.look] || "") === b.dataset.lookValue));
+  });
+}
+function chooseLook(name, value) {
+  try {
+    if (value) localStorage.setItem(LOOKS[name].key, value);
+    else localStorage.removeItem(LOOKS[name].key);
+  } catch {}  // a browser that keeps nothing: this page only
+  showLook(name, value);
+}
+markLooks();
+document.addEventListener("click", (e) => {
+  const button = e.target.closest("[data-look]");
+  if (!button) return;
+  e.stopPropagation();  // the menu stays open, to try the others
+  chooseLook(button.dataset.look, button.dataset.lookValue);
+}, true);
+addEventListener("storage", (e) => {
+  for (const [name, look] of Object.entries(LOOKS)) if (e.key === look.key) showLook(name, e.newValue || "");
+});
+// Two fingers over a grid of photos: pinched apart, larger tiles; together, smaller (a step each time the fingers
+// are a third further apart or closer). The grids don't let the page itself zoom (touch-action in app.css).
+let pinch = null;
+const fingersApart = (touches) => Math.hypot(touches[0].clientX - touches[1].clientX,
+                                             touches[0].clientY - touches[1].clientY);
+document.addEventListener("touchstart", (e) => {
+  pinch = e.touches.length === 2 && e.target.closest?.(".grid") ? fingersApart(e.touches) : null;
+}, { passive: true });
+document.addEventListener("touchmove", (e) => {
+  if (!pinch || e.touches.length !== 2) return;
+  const apart = fingersApart(e.touches), by = apart / pinch;
+  if (by > 0.75 && by < 1.33) return;
+  const steps = LOOKS.tileSize.steps;
+  const at = steps.indexOf(document.documentElement.dataset.tileSize || "");
+  const to = Math.min(steps.length - 1, Math.max(0, at + (by > 1 ? 1 : -1)));
+  if (to !== at) chooseLook("tileSize", steps[to]);
+  pinch = apart;
+}, { passive: true });
+document.addEventListener("touchend", () => { pinch = null; }, { passive: true });
+
+// Through the years (person_years.html): someone's face a year at a time, lined up on the eyes (face_years.py), each
+// fading into the next. ▶ plays on from the year shown (from the first, at the end), ‹ › and ← → step, a swipe on the
+// face steps, the years under it pick one, and Another from this year shows the year's next best face, remembered in
+// this browser for this person and this way of picking. Each picture is asked for as it is needed, and the next one
+// just before, so the router makes them a few at a time; a late one never covers a newer one.
+document.querySelectorAll("[data-years-player]").forEach((box) => {
+  const strip = [...box.querySelectorAll("[data-years-go]")];
+  const years = strip.map((b) => ({ year: b.dataset.year, alt: b.dataset.alt, faces: JSON.parse(b.dataset.faces) }));
+  const stage = box.querySelector("[data-years-stage]");
+  const playButton = box.querySelector("[data-years-play]");
+  const speed = box.querySelector("[data-years-speed]");
+  const other = box.querySelector("[data-years-other]");
+  const keep = `lineagebox-years-${box.dataset.person}-${box.dataset.mode}`;
+  let picks = {};
+  try { picks = JSON.parse(localStorage.getItem(keep) || "{}") || {}; } catch {}
+  let at = 0, asked = 0, playing = false, timer = null;
+  const face = (i) => years[i].faces[(picks[years[i].year] || 0) % years[i].faces.length];
+  const picture = (i) => `/face/${face(i).id}/eyes`;
+  const seconds = () => parseFloat(speed.value) || 1.3;
+  const setFade = () => box.style.setProperty("--fade", `${Math.min(1.1, seconds() * 0.7).toFixed(2)}s`);
+  strip.forEach((b, i) => { if (picks[years[i].year]) b.querySelector("img").src = `/face/${face(i).id}`; });
+
+  function label(i) {
+    const f = face(i);
+    box.querySelector("[data-years-year]").textContent = years[i].year;
+    box.querySelector("[data-years-age]").textContent = f.age || "";
+    box.querySelector("[data-years-date]").textContent = f.when;
+    box.querySelector("[data-years-open]").href = `/image/${f.image}?ctx=${encodeURIComponent(box.dataset.ctx)}`;
+    other.hidden = years[i].faces.length < 2;
+  }
+  function show(i) {
+    at = Math.max(0, Math.min(years.length - 1, i));
+    const mine = ++asked;
+    strip.forEach((b, n) => (n === at ? b.setAttribute("aria-current", "true") : b.removeAttribute("aria-current")));
+    const img = new Image();
+    img.className = "years-face";
+    img.alt = years[at].alt;
+    img.width = 400;
+    img.height = 500;
+    const done = () => {
+      if (mine !== asked) return;
+      if (playing) {
+        clearTimeout(timer);
+        timer = setTimeout(next, seconds() * 1000);
+      }
+      if (at + 1 < years.length) new Image().src = picture(at + 1);  // ready for its turn
+    };
+    img.onload = () => {
+      if (mine !== asked) return;
+      label(at);
+      stage.append(img);
+      requestAnimationFrame(() => requestAnimationFrame(() => img.classList.add("on")));
+      setTimeout(() => {  // the faces under it, once it has faded in
+        while (img.isConnected && img.previousElementSibling) img.previousElementSibling.remove();
+      }, parseFloat(getComputedStyle(box).getPropertyValue("--fade") || "1") * 1000 + 100);
+      done();
+    };
+    img.onerror = done;  // its picture couldn't be made: the year stays marked, and playing goes on
+    img.src = picture(at);
+  }
+  function next() {
+    timer = null;
+    if (!playing) return;
+    if (at >= years.length - 1) stop();
+    else show(at + 1);
+  }
+  function play() {
+    playing = true;
+    playButton.textContent = playButton.dataset.pauseLabel;
+    if (at >= years.length - 1) show(0);
+    else timer = setTimeout(next, 250);
+  }
+  function stop() {
+    playing = false;
+    clearTimeout(timer);
+    timer = null;
+    playButton.textContent = playButton.dataset.playLabel;
+  }
+  setFade();
+  speed.addEventListener("change", setFade);
+  playButton.addEventListener("click", () => (playing ? stop() : play()));
+  box.querySelectorAll("[data-years-step]").forEach((b) => b.addEventListener("click", () => {
+    stop();
+    show(at + Number(b.dataset.yearsStep));
+  }));
+  strip.forEach((b, i) => b.addEventListener("click", () => { stop(); show(i); }));
+  other.addEventListener("click", () => {
+    const y = years[at];
+    picks[y.year] = ((picks[y.year] || 0) + 1) % y.faces.length;
+    try { localStorage.setItem(keep, JSON.stringify(picks)); } catch {}
+    strip[at].querySelector("img").src = `/face/${face(at).id}`;
+    stop();
+    show(at);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.altKey || e.ctrlKey || e.metaKey || e.target.closest?.("input, select, textarea, [contenteditable]")) return;
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      e.preventDefault();
+      stop();
+      show(at + (e.key === "ArrowRight" ? 1 : -1));
+    }
+  });
+  let swipe = null;
+  stage.addEventListener("touchstart", (e) => { swipe = e.touches.length === 1 ? e.touches[0].clientX : null; },
+                         { passive: true });
+  stage.addEventListener("touchend", (e) => {
+    const dx = swipe === null ? 0 : e.changedTouches[0].clientX - swipe;
+    swipe = null;
+    if (Math.abs(dx) < 40) return;
+    stop();
+    show(at + (dx < 0 ? 1 : -1));
+  }, { passive: true });
+  if (picks[years[0].year]) show(0);  // another face chosen for the first year: it, not the page's
+});
+
+// Through the years as a panel on someone's Home (_years_panel.html, loaded after the page): their face a year, each
+// fading into the next on its own while the panel is on the screen, then from the first again; a click opens the
+// whole of it. The faces chosen there (Every photo, Another from this year) are the ones shown. Those who ask their
+// computer for less motion see the first year, still. Each picture is asked for just before its turn.
+function yearsPanel(panel) {
+  if (panel.dataset.ready !== undefined) return;
+  panel.dataset.ready = "";
+  const frames = JSON.parse(panel.dataset.frames);
+  const stage = panel.querySelector(".years-panel-stage");
+  const label = panel.querySelector("[data-years-year]");
+  let picks = {};
+  try { picks = JSON.parse(localStorage.getItem(`lineagebox-years-${panel.dataset.person}-all`) || "{}") || {}; } catch {}
+  const picture = (i) => `/face/${frames[i].faces[(picks[frames[i].year] || 0) % frames[i].faces.length]}/eyes`;
+  if (picks[frames[0].year]) stage.querySelector("img").src = picture(0);
+  if (frames.length < 2 || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  let at = 0, timer = null, seen = false;
+  const later = () => { if (!timer && seen && !document.hidden) timer = setTimeout(step, 1500); };
+  function step() {
+    timer = null;
+    if (!seen || document.hidden || !panel.isConnected) return;
+    const next = (at + 1) % frames.length;
+    const img = new Image();
+    img.className = "years-face";
+    img.alt = "";
+    img.width = 400;
+    img.height = 500;
+    img.onload = () => {
+      at = next;
+      stage.append(img);
+      requestAnimationFrame(() => requestAnimationFrame(() => img.classList.add("on")));
+      label.textContent = frames[at].year;
+      setTimeout(() => { while (img.isConnected && img.previousElementSibling) img.previousElementSibling.remove(); },
+                 1100);
+      new Image().src = picture((at + 1) % frames.length);  // ready for its turn
+      later();
+    };
+    img.onerror = () => { at = next; later(); };  // a picture that couldn't be made: the next year
+    img.src = picture(next);
+  }
+  new IntersectionObserver(([e]) => { seen = e.isIntersecting; later(); }).observe(panel);
+  document.addEventListener("visibilitychange", later);
+  new Image().src = picture(1);
+}
+document.querySelectorAll("[data-years-panel]").forEach(yearsPanel);
+document.querySelectorAll('[data-later*="/years"]').forEach((part) => {
+  new MutationObserver(() => part.querySelectorAll("[data-years-panel]").forEach(yearsPanel))
+    .observe(part, { childList: true });
+});
+
 // Printing a person's page or the Family page: the panels folded away print unfolded (the life story, family, life
 // events, sources; the family by relationship), and fold again after. Reading into the tree and family tree
 // programs are left out of the print by the stylesheet.

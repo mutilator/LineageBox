@@ -133,10 +133,23 @@ h2 small, .months small { color: var(--muted); font-weight: 400; }
 .folder-card.ignored { opacity: .5; }
 
 /* photo grid */
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px; }
+/* Photo tiles, as chosen in this browser (More → Photo tiles; theme.js puts them on <html> before the page is drawn):
+   Small, Medium or Large (data-tile-size; Medium is none), squares, or Whole photos (data-tiles="whole"): rows of
+   photos in their own shapes (--r, from tiles.tile_shapes), each row filled out, as Home's days. A square's crop is
+   aimed at the faces in it (object-position, set on each tile). Two fingers pinched over the photos on a touch screen
+   make them larger or smaller (app.js), so the page itself doesn't zoom there. */
+:root { --tile-min: 150px; --tile-row: 170px; }
+:root[data-tile-size="s"] { --tile-min: 104px; --tile-row: 120px; }
+:root[data-tile-size="l"] { --tile-min: 230px; --tile-row: 260px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--tile-min), 1fr)); gap: 4px;
+        touch-action: pan-x pan-y; }
 .tile { position: relative; display: block; aspect-ratio: 1; background: var(--tile); overflow: hidden; border-radius: 3px; }
 .tile img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform .15s; }
 .tile:hover img { transform: scale(1.03); }
+:root[data-tiles="whole"] .grid { display: flex; flex-wrap: wrap; }
+:root[data-tiles="whole"] .grid > .tile { flex: var(--r, 1) 0 auto; width: calc(var(--tile-row) * var(--r, 1));
+  max-width: 100%; height: var(--tile-row); aspect-ratio: auto; }
+:root[data-tiles="whole"] .grid::after { content: ""; flex-grow: 1000; margin-left: -4px; }  /* the last row isn't stretched */
 .badge { position: absolute; right: 4px; bottom: 4px; padding: 2px 5px; border-radius: 4px; font-size: .72rem; line-height: 1.2;
          background: rgba(0, 0, 0, .55); color: #fff; }
 .badge.video { left: 4px; right: auto; font-variant-numeric: tabular-nums; }
@@ -459,7 +472,9 @@ ul.downloads .meter { margin: 6px 0 4px; }
   .search { flex: 1 1 auto; min-width: 0; }
   .menu-button { display: grid; }
   .top nav:not(.open) { display: none; }
-  .grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+  :root { --tile-min: 100px; --tile-row: 120px; }
+  :root[data-tile-size="s"] { --tile-min: 72px; --tile-row: 84px; }
+  :root[data-tile-size="l"] { --tile-min: 160px; --tile-row: 190px; }
   .folders { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
   /* the photo fills the screen, and its details are a sheet at the foot: its handle (the caption or the date)
      shows, and a tap or a swipe up slides it up */
@@ -1379,6 +1394,45 @@ span.portrait { display: grid; place-items: center; font-size: 2rem; color: var(
 .portrait-pick > summary::-webkit-details-marker { display: none; }
 .portrait-pick > summary:hover .portrait { outline: 2px solid var(--accent); outline-offset: 2px; }
 .portrait-pick[open] > summary .portrait { outline: 2px solid var(--edge); outline-offset: 2px; }
+
+/* Through the years (person_years.html, app.js): a face a year, lined up on the eyes, each fading in over the last
+   (--fade, from the speed). The stage keeps the pictures' shape (400 x 500) and fits the screen's height. */
+.years-modes { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.years-modes small { opacity: .8; margin-left: 4px; }
+.years-player { --fade: .9s; max-width: 760px; margin: 12px auto 0; }
+.years-stage { position: relative; aspect-ratio: 4 / 5; width: min(100%, max(240px, (100dvh - var(--header-h) - 400px) * .8));
+  margin: 0 auto; background: var(--stage); border-radius: 8px; overflow: hidden; touch-action: pan-y; }
+.years-face { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0;
+  transition: opacity var(--fade) ease-in-out; }
+.years-face.on { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .years-face { transition: none; } }
+.years-when { margin: 10px 0 0; text-align: center; font-size: 1.6rem; font-variant-numeric: tabular-nums; }
+.years-when small { margin-left: 6px; font-size: 1rem; color: var(--muted); }
+.years-photo { margin: 4px 0; text-align: center; color: var(--muted); }
+.years-controls { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; margin: 10px 0 4px; }
+.years-controls [data-years-step] { min-width: 44px; font-size: 1.2rem; }
+.years-speed { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+.years-strip { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 10px 0 0; padding: 4px 2px;
+  list-style: none; }
+.years-strip button { display: grid; justify-items: center; gap: 2px; padding: 2px; border: 2px solid transparent;
+  border-radius: 6px; background: none; color: var(--muted); font-size: .75rem; font-variant-numeric: tabular-nums; }
+.years-strip button[aria-current="true"] { border-color: var(--accent); color: var(--text); }
+.years-strip img { display: block; width: 56px; height: 56px; border-radius: 4px; object-fit: cover; }
+/* and as a panel on someone's Home (_years_panel.html): their face a year playing on its own, opening the whole */
+.years-panel { display: flex; align-items: center; gap: 18px; max-width: 560px; margin: 18px 0 8px; padding: 10px;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--text); }
+.years-panel:hover { text-decoration: none; border-color: var(--accent); }
+.years-panel:hover .button.primary { filter: brightness(1.1); }
+.years-panel-stage { --fade: .9s; position: relative; flex: none; width: 136px; aspect-ratio: 4 / 5; border-radius: 8px;
+  overflow: hidden; background: var(--stage); }
+.years-panel-text { display: grid; gap: 4px; justify-items: start; min-width: 0; }
+.years-panel-text b { font-size: 1.2rem; font-weight: 600; }
+.years-panel-text > span { color: var(--muted); font-size: .9rem; }
+.years-panel-text > .years-panel-year { color: var(--text); font-size: 1.7rem; font-variant-numeric: tabular-nums;
+  line-height: 1.2; }
+.years-panel-text > .button { margin-top: 4px; background: var(--accent); border-color: var(--accent);
+  color: var(--on-accent); font-size: 1rem; }
+@media (max-width: 760px) { .years-panel-stage { width: 112px; } .years-panel { gap: 14px; } }
 .portrait-years { display: flex; flex-wrap: wrap; gap: 4px 10px; margin: 8px 0 0; color: var(--muted); }
 .portrait-years a[aria-current] { font-weight: 600; color: var(--text); }
 .portrait-mark { color: var(--accent); }
@@ -1467,6 +1521,7 @@ ul.life-events > li { margin: 2px 0; display: flex; flex-wrap: wrap; align-items
 .top .more-menu a:hover { background: var(--bg); text-decoration: none; }
 .theme-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 20px 6px; color: var(--muted); }
 .theme-pick > span { flex-basis: 100%; font-size: .9rem; }
+.theme-pick > .look-break { height: 0; }  /* Photo tiles: the sizes on a line of their own */
 .theme-pick button { padding: 2px 10px; }
 .theme-pick button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .top nav.open .more { order: 1; }  /* folded: after Status and Settings, so Colours come last */
@@ -1538,7 +1593,7 @@ ul.life-events > li { margin: 2px 0; display: flex; flex-wrap: wrap; align-items
   body:not(.book-page) .see-as, dialog.help { display: none !important; }
   body:not(.book-page) main { max-width: none; padding: 0; }
   :is(.person-page, .family-page) main :is(button:not(.chip.on), [type="submit"], .hint, .portrait-change,
-    .portrait-pick > :not(summary), .read-panel,
+    .portrait-pick > :not(summary), .read-panel, .years-link,
     #gedcom, #tree-media, audio, video, .story-record, .add-link, .fcard-open, .events-toggle, .people-filter, datalist,
     .kind-form select) { display: none !important; }
   :is(.person-page, .family-page) main :is(input, select, textarea) { border: 0; background: none; padding: 0;
