@@ -667,7 +667,7 @@ photo from its page. **Empty the Removed folder** is the only thing in LineageBo
   shots, or **Keep both** on a pair of folders. **Kept** lists them all and can put any back.
 - **Recent changes:** what was changed on the site (names given, people merged or removed, tags, dates, the family
   tree, folders' meanings), newest first, with **Undo** for each, whether or not family accounts are on. An undo never
-  overwrites a change made over it since; it says so instead.
+  overwrites a change made over it since; it says so instead. Changes are kept for 90 days, then forgotten.
 
 Any search result has **Select photos to remove**.
 

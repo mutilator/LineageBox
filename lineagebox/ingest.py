@@ -23,7 +23,7 @@ from typing import Callable
 from PIL import Image
 from tqdm import tqdm
 
-from lineagebox import camera_clock, dates, live, media, quality, video
+from lineagebox import camera_clock, dates, live, media, quality, retry, video
 from lineagebox.catalog import ON_SHARE, under
 from lineagebox.config import Config
 
@@ -62,6 +62,7 @@ class _Result:
     image: dict | None = None  # columns for a new image row; None when the content is already known
     frames: list[tuple[int, float]] = field(default_factory=list)  # a new video's frames: (idx, seconds)
     read_error: str | None = None
+    later: bool = False  # the read_error may pass (ffmpeg took too long): tried again after a while (retry.py)
 
 
 def ingest(con: sqlite3.Connection, cfg: Config, limit: int | None = None, retry_errors: bool = False,
@@ -87,6 +88,7 @@ def ingest(con: sqlite3.Connection, cfg: Config, limit: int | None = None, retry
         only = "AND f.path LIKE ? ESCAPE '!'"
     rows = con.execute(f"""SELECT f.id, f.path, f.mtime FROM file f JOIN folder d ON d.id = f.folder_id
                            WHERE f.image_id IS NULL AND f.missing = 0 AND d.ignored = 0 {only}
+                             AND {retry.waiting("ingest", "f.id")}
                            ORDER BY f.path""", (under(folder),) if folder else ()).fetchall()
     left = 0
     timed = {*cfg.video_extensions, *cfg.audio_extensions}  # videos and recordings: read through ffmpeg
@@ -222,13 +224,18 @@ def _process_video(cfg: Config, claimed: set[str], lock: threading.Lock, row) ->
         # a Live Photo's clip is shown with its still: one frame of it, from the middle, is enough
         clip = live.looks_like_clip(path, p.duration)
         frames = _video_frames(cfg, path, p, sha, [round(p.duration / 2, 3)] if clip else None)
-    except (video.Unavailable, video.TimedOut) as e:  # nothing known to be wrong with it: read again next time
+        taken_at, source = video.taken_at(p, bytes(head), os.path.basename(row["path"]))
+    except (video.Unavailable, video.TimedOut) as e:  # nothing known to be wrong with it: read again after a while
         with lock:
             claimed.discard(sha)
-        return _Result(row["id"], read_error=f"video: {e}")
+        return _Result(row["id"], read_error=f"video: {e}", later=True)
     except video.Error as e:  # damaged, or not a video ffmpeg knows: recorded on the image so it is not read again
         return _Result(row["id"], sha, {"format": ext.lstrip("."), "media": "video", "error": f"video: {e}"})
-    taken_at, source = video.taken_at(p, bytes(head), os.path.basename(row["path"]))
+    except OSError:  # the disk its frames go on (full, not writable): the run stops, as for photos
+        raise
+    except Exception as e:  # something in the file this code doesn't expect: recorded on it, never stopping a pass
+        return _Result(row["id"], sha, {"format": ext.lstrip("."), "media": "video",
+                                        "error": f"video: {type(e).__name__}: {e}"})
     if not taken_at:
         taken_at, source = dates.from_mtime(row["mtime"]), "mtime"
     return _Result(row["id"], sha, {
@@ -350,8 +357,11 @@ def _record(con: sqlite3.Connection, r: _Result, waiting: dict[str, list[int]], 
     stats.processed += 1
     if r.read_error:
         con.execute("UPDATE file SET error = ? WHERE id = ?", (r.read_error, r.file_id))
+        if r.later:  # left out of the next passes for a while: ffmpeg would take as long again
+            retry.note(con, "ingest", r.file_id, r.read_error)
         stats.read_errors += 1
         return
+    retry.done(con, "ingest", [r.file_id])
     if r.image is None:
         stats.duplicates += 1
         found = con.execute("SELECT id FROM image WHERE sha256 = ?", (r.sha256,)).fetchone()

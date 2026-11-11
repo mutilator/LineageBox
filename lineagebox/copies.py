@@ -16,7 +16,7 @@ import traceback
 from pathlib import Path
 from typing import Callable
 
-from lineagebox import retry, video
+from lineagebox import activity, retry, video
 from lineagebox.catalog import ON_SHARE
 from lineagebox.config import Config
 
@@ -89,7 +89,7 @@ def make(con: sqlite3.Connection, cfg: Config, limit: int | None = None, stop: C
         con.commit()
         made += 1
         seconds = time.monotonic() - t0
-        print(f"720p copy of {files[0]}: {seconds / 60:.1f} min"
+        print(f"720p copy of {activity.one_line(files[0])}: {seconds / 60:.1f} min"
               + (f" for {r['duration'] / 60:.1f} min of video" if r["duration"] else ""), flush=True)
     return made
 

@@ -66,6 +66,18 @@ FAMILY ={"parent", "sibling", "partner", "relation", "person"}
 WORKERS = {"cluster_id", "assign_score"}
 CHOSEN = {"user", "rejected", "not_a_face"}
 OWN_UNDO_MINUTES = 30  # how long the Undo beside a change works for the member who made it
+# Changes older than this are forgotten, once a day (the worker): Recent changes no longer lists them, and they can't
+# be undone. What is kept to undo a big change (a merge, a camera's dates) can be megabytes, and the list would only
+# grow.
+KEPT_DAYS = 90
+
+
+def prune(con: sqlite3.Connection) -> int:
+    """Forget the changes over KEPT_DAYS old, in one short write. Returns how many."""
+    cut = (datetime.now() - timedelta(days=KEPT_DAYS)).isoformat(timespec="seconds")
+    n = con.execute("DELETE FROM main.change_log WHERE at < ?", (cut,)).rowcount
+    con.commit()
+    return n
 
 
 def newest(con: sqlite3.Connection, table: str) -> int:

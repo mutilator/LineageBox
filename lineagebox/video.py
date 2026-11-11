@@ -128,9 +128,21 @@ def available() -> bool:
     return all(shutil.which(tool(n)) for n in ("ffmpeg", "ffprobe"))
 
 
+# The kinds of file (ffmpeg's demuxers) a video or recording on the share may be read as: the containers of the video
+# and sound types the scan takes, and the plain streams that are sometimes in them. Without this list, ffmpeg reads a
+# file as whatever its contents look like, and some kinds (playlists, lists of files, numbered pictures) name further
+# files to read: an uploaded file could then show another video on the server as its own.
+READS = "mov,mpegts,mpeg,mpegvideo,avi,asf,matroska,flv,dv,m4v,h264,hevc,mp3,aac,wav,w64,ogg,flac,amr,aiff"
+
+
+def source(path: Path) -> list[str]:
+    """The arguments that give ffmpeg or ffprobe a stored file to read: from the disk alone, as one of READS."""
+    return ["-protocol_whitelist", "file", "-format_whitelist", READS, "-i", str(path)]
+
+
 def probe(path: Path) -> Probe:
     out = json.loads(tools.run([tool("ffprobe"), "-v", "error", "-print_format", "json", "-show_format",
-                                "-show_streams", str(path)], timeout=120))
+                                "-show_streams", *source(path)], timeout=120))
     streams = out.get("streams", [])
     v = next((s for s in streams if s.get("codec_type") == "video" and not _is_cover(s)), None)
     a = next((s for s in streams if s.get("codec_type") == "audio"), None)
@@ -218,7 +230,8 @@ def mdpm_date(head: bytes) -> str | None:
     i = head.find(_MDPM)
     while i >= 0:
         block = head[i + len(_MDPM): i + len(_MDPM) + 300].replace(b"\x00\x00\x03", b"\x00\x00")
-        tags = {block[1 + 5 * k]: block[2 + 5 * k: 6 + 5 * k] for k in range(block[0]) if 6 + 5 * k <= len(block)}
+        count = block[0] if block else 0  # a block cut off by the end of the head says nothing
+        tags = {block[1 + 5 * k]: block[2 + 5 * k: 6 + 5 * k] for k in range(count) if 6 + 5 * k <= len(block)}
         if 0x18 in tags and 0x19 in tags:
             a, b = tags[0x18], tags[0x19]
             if iso := dates.from_parts(bcd(a[1]) * 100 + bcd(a[2]), bcd(a[3]), bcd(b[0]), bcd(b[1]), bcd(b[2]),
@@ -275,7 +288,7 @@ def keyframes(path: Path, p: Probe) -> list[tuple[float, float, bool]]:
     wide."""
     vf = (f"scale=64:-2,blackframe=amount={BLACK}:threshold=32,select='gte(scene,0)',"
           "metadata=print:file='pipe\\:1'")
-    out = tools.run([tool("ffmpeg"), "-v", "error", "-nostdin", "-skip_frame", "nokey", "-i", str(path),
+    out = tools.run([tool("ffmpeg"), "-v", "error", "-nostdin", "-skip_frame", "nokey", *source(path),
                      "-map", f"0:{p.stream}", "-an", "-sn", "-dn", "-vf", vf, "-f", "null", "-"],
                     timeout=max(1800, (p.duration or 0) * 2), nice=True)
     found, at, score, black = [], None, 0.0, False
@@ -322,7 +335,7 @@ def chapters(keys: list[tuple[float, float, bool]], duration: float | None) -> l
 def waveform(path: Path, width: int = 1600, height: int = 600) -> Image.Image:
     """A picture of a recording's sound: its wave, dark on a light ground, as the thumbnail every page shows for it.
     (Its whole sound is read: about a second a minute of it.)"""
-    out = tools.run([tool("ffmpeg"), "-v", "error", "-nostdin", "-i", str(path), "-vn", "-filter_complex",
+    out = tools.run([tool("ffmpeg"), "-v", "error", "-nostdin", *source(path), "-vn", "-filter_complex",
                      f"aformat=channel_layouts=mono,showwavespic=s={width}x{height}:colors=0x3d5a80:scale=sqrt",
                      "-frames:v", "1", "-f", "image2pipe", "-c:v", "png", "-"], timeout=1800, nice=True)
     if not out:
@@ -344,12 +357,12 @@ def frame(path: Path, at: float, max_side: int, p: Probe) -> Image.Image:
     itself; interlaced camcorder frames are deinterlaced, or every movement shows comb lines."""
     vf = ",".join([*(["yadif"] if p.interlaced else []), "scale='trunc(iw*sar/2)*2':ih", "setsar=1", _fit(max_side)])
     grab = ["-map", f"0:{p.stream}", "-frames:v", "1", "-vf", vf, "-f", "image2pipe", "-c:v", "bmp", "-"]
-    out = tools.run([tool("ffmpeg"), "-v", "error", "-nostdin", "-ss", f"{at:.3f}", "-i", str(path), *grab],
+    out = tools.run([tool("ffmpeg"), "-v", "error", "-nostdin", "-ss", f"{at:.3f}", *source(path), *grab],
                     timeout=120)
     if len(out) < 54:
         # MPEG-TS has no index: the quick seek can land past the keyframe it needed (camcorders put one every half
         # second, other recorders far fewer). Decoding from the start up to that moment always finds the frame.
-        out = tools.run([tool("ffmpeg"), "-v", "error", "-nostdin", "-i", str(path), "-ss", f"{at:.3f}", *grab],
+        out = tools.run([tool("ffmpeg"), "-v", "error", "-nostdin", *source(path), "-ss", f"{at:.3f}", *grab],
                         timeout=900)
     if len(out) < 54:
         raise Error(f"no frame at {at:.1f} s")
@@ -361,7 +374,7 @@ def frame(path: Path, at: float, max_side: int, p: Probe) -> Image.Image:
 def audio_wav(path: Path) -> bytes:
     """The sound as 16 kHz mono 16-bit WAV, what Whisper reads: its first SOUND_SECONDS (a digitised tape can be far
     longer, and the whole of it would be held in memory)."""
-    wav = bytearray(tools.run([tool("ffmpeg"), "-v", "error", "-nostdin", "-i", str(path), "-vn",
+    wav = bytearray(tools.run([tool("ffmpeg"), "-v", "error", "-nostdin", *source(path), "-vn",
                                "-t", str(SOUND_SECONDS), "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", "-f", "wav",
                                "-"], timeout=1800, nice=True))
     # Written to a pipe, ffmpeg cannot go back to fill in the sizes; some readers stop at the bogus ones.
@@ -418,7 +431,7 @@ def make_copy(original: Path, taken: str | None, threads: int = 4, target: Path 
     try:
         # as long as the video says it is, frames as they come (an MP4 made at a fixed rate would fill gaps of hours
         # with copies of the last frame), and given at most 4 times its length (a small board takes about 1x)
-        tools.run([tool("ffmpeg"), "-v", "error", "-nostdin", "-y", "-i", str(original), "-t", f"{p.duration:.3f}",
+        tools.run([tool("ffmpeg"), "-v", "error", "-nostdin", "-y", *source(original), "-t", f"{p.duration:.3f}",
                    *what, *meta, "-movflags", "+faststart", "-threads", str(threads), "-f", "mp4", str(part)],
                   timeout=min(COPY_HOURS * 3600, max(1800, 4 * p.duration)), nice=True)
         os.utime(part, (st.st_atime, st.st_mtime))

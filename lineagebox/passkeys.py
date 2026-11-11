@@ -187,12 +187,16 @@ def add(con: sqlite3.Connection, account_id: int, credential: dict, challenge: b
         raise Problem("That passkey is kept here already.") from None
 
 
-def may_add(account: dict) -> str | None:
+def may_add(account: dict, what: str | None = None) -> str | None:
     """Why someone signed in can't add a passkey just now, or None: within RECENT_MINUTES of signing in, or
-    FIRST_HOURS when that was the account's first sign-in."""
+    FIRST_HOURS when that was the account's first sign-in. what: something else that gives a lasting way in, held to
+    the same rule (common._recently_signed_in)."""
     until = add_until(account)
     if until is not None and _now() <= until:
         return None
+    if what:
+        return (f"To {what}, sign out and in again first. It can be done within {RECENT_MINUTES} minutes of signing "
+                "in, so that nobody who finds a phone or computer left signed in can make a way in of their own.")
     return (f"To add a passkey, sign out and in again first. It can be added within {RECENT_MINUTES} minutes of "
             "signing in, so that nobody who finds a phone or computer left signed in can add one of their own.")
 

@@ -10,7 +10,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // OpenStreetMap refuses tiles asked for without a Referer (osm.wiki/Blocked), and the site's pages send none to
   // other sites (Referrer-Policy: same-origin, app.py): the tiles are told this site's address, never the page's
   L.tileLayer(box.dataset.tiles, {
-    maxZoom: 18, referrerPolicy: "strict-origin-when-cross-origin", attribution: box.dataset.attribution,
+    maxZoom: 18, referrerPolicy: "strict-origin-when-cross-origin", attribution: credit(box.dataset.attribution),
   }).addTo(map);
   // what the map shows, each in its own layer that the legend ticks on and off (remembered in this browser)
   const kinds = {
@@ -275,3 +275,20 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("all-years").onclick = () => show(null);
   show(null);
 });
+
+// The credit under the map ([map] attribution in config.toml), which Leaflet shows as HTML: its words and its links
+// to http(s) addresses, nothing else, whoever wrote it. Read in a document of its own, where nothing in it runs.
+function credit(html) {
+  const out = document.createElement("span");
+  const add = (node, into) => {
+    for (const n of node.childNodes) {
+      if (n.nodeType === Node.TEXT_NODE) into.append(n.textContent);
+      else if (n.nodeName === "A" && /^https?:\/\//i.test(n.getAttribute("href") || "")) {
+        into.append(Object.assign(document.createElement("a"),
+                                  { href: n.getAttribute("href"), textContent: n.textContent }));
+      } else if (n.nodeType === Node.ELEMENT_NODE) add(n, into);
+    }
+  };
+  add(new DOMParser().parseFromString(html || "", "text/html").body, out);
+  return out.innerHTML;
+}

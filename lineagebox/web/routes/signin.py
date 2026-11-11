@@ -1,17 +1,18 @@
 """Signing in and out: Google, the code for signing in at home, a demo's one button (demo.py), sessions. Passkeys:
 routes/passkeys.py."""
 import hmac
-import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 
 from lineagebox import accounts, activity, demo, passkeys
 from lineagebox.web.common import (MEMBER, PUBLIC, SEE_AS, SIGNING_IN, DemoBody, LocalBody, _client_ip, _from_app,
-                                   _local_path, _redirect_uri)
+                                   _local_path, _redirect_uri, tries_from)
 from lineagebox.web.deps import page, site
-from lineagebox.web.site import Site
+from lineagebox.web.site import CODE_MISSES, Site
 
+GOOGLE_SECONDS = 600  # to sign in at Google and come back
+NEXT_MOST = 1000  # the longest page to go back to after signing in, kept in a cookie meanwhile (browsers allow 4 KB)
 router = APIRouter()
 ACCESS = {
     "/signin": PUBLIC,
@@ -62,31 +63,26 @@ def google_sign_in(request: Request, next: str = "/", s: Site = Depends(site)):
     now = s.shared_cfg()
     if not (now.accounts_enabled and now.google_client_id and now.google_client_secret):
         raise HTTPException(404)
-    if not s.sign_ins.allow(_client_ip(request)):
+    if not s.sign_ins.allow(tries_from(request)):
         return show_signin(s, request, next, "Too many sign-ins from here just now. Wait a few minutes, then try "
                                           "again.")
     url, keep = accounts.google_start(now.google_client_id, _redirect_uri(request, now))
-    keep["next"] = _local_path(next)
-    for state in [s for s, (_, at) in s.google_started.items() if time.monotonic() - at > 600]:
-        s.google_started.pop(state, None)
-    if len(s.google_started) > 2000:  # a family signs in a few at a time; more is someone filling the memory
-        return show_signin(s, request, next, "Too many sign-ins at once just now. Wait a few minutes, then try "
-                                          "again.")
-    s.google_started[keep["state"]] = (keep, time.monotonic())
+    keep.update(kind="google", next=_local_path(next) if len(next) <= NEXT_MOST else "/")
     response = RedirectResponse(url, 303)
-    response.set_cookie(SIGNING_IN, keep["state"], max_age=600, httponly=True, samesite="lax",
-                        secure=request.url.scheme == "https")  # this browser started it (no signing in others)
+    # what Google's answer is checked against, in this browser's own cookie (Site.seal): only the browser that
+    # started a sign-in can finish it, and nothing is kept here until then
+    response.set_cookie(SIGNING_IN, s.seal(keep), max_age=GOOGLE_SECONDS, httponly=True, samesite="lax",
+                        secure=request.url.scheme == "https")
     return response
 
 
 @router.get("/auth/google/callback")
 def google_back(request: Request, code: str = "", state: str = "", error: str = "", s: Site = Depends(site)):
     now = s.shared_cfg()
-    kept = s.google_started.pop(state, None) if state else None
-    if (error or not code or kept is None or time.monotonic() - kept[1] > 600
-            or not hmac.compare_digest(request.cookies.get(SIGNING_IN, ""), state)):
+    keep = s.unseal(request.cookies.get(SIGNING_IN), GOOGLE_SECONDS)
+    if (error or not code or not state or keep is None or keep.get("kind") != "google"
+            or not hmac.compare_digest(keep["state"].encode(), state.encode())):
         return show_signin(s, request, "/", "That sign-in didn't finish. Try again.")
-    keep = kept[0]
     with s.own_con() as c:
         try:
             email = accounts.google_finish(code, keep, now.google_client_id, now.google_client_secret,
@@ -111,17 +107,24 @@ def local_sign_in(request: Request, body: LocalBody, s: Site = Depends(site)):
         raise HTTPException(404)
     if not request.state.at_home:
         raise HTTPException(403, "Signing in with a code only works at home, on the home network.")
-    email = body.email.strip().lower()
-    if not s.code_tries.allow(f"{_client_ip(request)} {email}"):
+    email, here = body.email.strip().lower(), tries_from(request)
+    if not (s.code_tries_here.allow(here) and s.code_tries.allow(f"{here} {email}")):
         raise HTTPException(429, "Too many tries. Wait 15 minutes, then try again.")
     with s.own_con() as c:
         if not s.code_tries_each.allow(email):
             activity.log(c, f"Sign-in codes for {email[:80]} were tried too often: stopped for 15 minutes")
             raise HTTPException(429, "Too many tries for this email. Wait 15 minutes, then try again.")
+        if not s.code_misses.allow(email, count=False):  # a slow guesser, a few tries every 15 minutes
+            raise HTTPException(429, "Codes for this email were wrong too often today. Sign in another way, or try "
+                                     "again tomorrow.")
         row = accounts.by_email(c, body.email)
         if (row is None or row["disabled_at"] or row["role"] != "admin" or not row["local_secret"]
                 or not accounts.check_code(c, row["id"], row["local_secret"], body.code)):
             activity.log(c, f"A sign-in with a code was turned away ({body.email.strip()[:80]})")
+            s.code_misses.allow(email)
+            if not s.code_misses.allow(email, count=False):  # that was the last: said once, on the Status page
+                activity.log(c, f"Sign-in codes for {email[:80]} were wrong {CODE_MISSES} times today: they are "
+                                "stopped until tomorrow")
             raise HTTPException(400, "That email and code don't go together. The code changes every 30 seconds.")
         activity.log(c, f"{row['email']} signed in with a code, at home")
         return start_session(s, request, c, row["id"], JSONResponse({"go": _local_path(body.next)}))
@@ -134,7 +137,7 @@ def demo_sign_in(request: Request, body: DemoBody, s: Site = Depends(site)):
     now = s.shared_cfg()
     if not now.demo_enabled:
         raise HTTPException(404)
-    if not s.sign_ins.allow(_client_ip(request)):
+    if not s.sign_ins.allow(tries_from(request)):
         raise HTTPException(429, "Too many sign-ins from here just now. Wait a few minutes, then try again.")
     with s.own_con() as c:
         account_id = demo.visitor(c, now, admin=body.admin)
@@ -152,8 +155,11 @@ def demo_preview(s: Site = Depends(site)):
 
 
 def signed_out(response: Response) -> Response:
+    """The browser forgets the session, and what it kept of the pages and photos seen with it: on a computer the
+    family shares, Back then shows nobody's photos to whoever comes next."""
     response.delete_cookie(accounts.COOKIE)
     response.delete_cookie(SEE_AS)
+    response.headers["Clear-Site-Data"] = '"cache"'
     return response
 
 

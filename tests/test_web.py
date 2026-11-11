@@ -1,4 +1,6 @@
 import dataclasses
+import re
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -240,3 +242,32 @@ def test_a_body_of_the_wrong_kind_is_told_so(client, url, body):
     """The pages never send these, but a script might: a sentence, not an Internal Server Error."""
     r = client.post(url, json=body, headers=APP)
     assert 400 <= r.status_code < 500 and isinstance(r.json()["detail"], str), (r.status_code, r.text[:200])
+
+
+def _json_put_in(text: str):
+    """Where a template puts JSON made by tojson: each {{ }} (start, end), with tojson in it or a value set to it."""
+    for m in re.finditer(r"tojson", text):
+        start = text.rfind("{{", 0, m.start())
+        if start < text.rfind("{%", 0, m.start()):  # {% set x = ...|tojson %}: where x is put, below
+            continue
+        yield start, text.index("}}", m.end()) + 2
+    for name in re.findall(r"\{%-?\s*set\s+(\w+)\s*=[^%]*\|\s*tojson\s*-?%\}", text):
+        for m in re.finditer(r"\{\{-?\s*" + name + r"\s*-?\}\}", text):
+            yield m.start(), m.end()
+
+
+def test_json_in_pages_cannot_end_its_attribute():
+    """Jinja's tojson escapes < > & and ' but not ": its JSON is safe in an attribute in single quotes
+    (data-body='...') or in a JSON script block, and would end one in double quotes early, the rest of it then read
+    as HTML. Words anyone typed (names, tags, dates) go into these."""
+    found = 0
+    for path in (Path(webapp.__file__).parent / "templates").rglob("*.html"):
+        text = path.read_text(encoding="utf-8")
+        for start, end in _json_put_in(text):
+            found += 1
+            in_attribute = text[start - 2:start] == "='" and text[end:end + 1] == "'"
+            script = text.rfind("<script", 0, start)
+            in_json_block = script > text.rfind("</script>", 0, start) and \
+                'type="application/json"' in text[script:text.index(">", script)]
+            assert in_attribute or in_json_block, f"{path.name}, line {text.count(chr(10), 0, start) + 1}"
+    assert found > 40  # the templates' uses were found

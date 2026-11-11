@@ -45,7 +45,7 @@ it differs.
 | `data_dir` | required (Docker: `/data`) | | The catalog: database, thumbnails, previews. Must be on a local disk. |
 | `[scan] folders` | none | Page | Watched folders inside `media_root`, `/`-separated (`local/Pictures`). |
 | `[scan] image_extensions` | `.jpg .jpeg .jpe .jfif .png .tif .tiff .heic .heif .hif` and cameras' raw files (`.nef .nrw .cr2 .cr3 .crw .arw .srf .sr2 .dng .raf .orf .rw2 .rwl .pef .srw .3fr .iiq .mos .mef .mrw .erf .kdc .dcr`) | | Photo file types to catalogue: every kind LineageBox reads. Leave a kind out to skip those files. |
-| `[scan] video_extensions` | `.mts .m2ts .mp4 .m4v .mov .3gp .3g2 .avi .wmv .mpg .mpeg .mkv` | | Video file types. A video file with sound and no picture (a phone's voice note) is catalogued as a sound recording. |
+| `[scan] video_extensions` | `.mts .m2ts .mp4 .m4v .mov .3gp .3g2 .avi .wmv .mpg .mpeg .mkv` | | Video file types. A video file with sound and no picture (a phone's voice note) is catalogued as a sound recording. Whatever a file is named, it is read only as one of the usual kinds of video or sound file (MP4 and QuickTime, MPEG-TS and AVCHD, MPEG, AVI, Windows Media, Matroska and WebM, FLV, DV, MP3, AAC, WAV, Ogg, FLAC, AMR, AIFF); another kind is listed as a file that can't be read. |
 | `[scan] audio_extensions` | `.mp3 .m4a .aac .wav .wma .ogg .oga .opus .flac .amr .aif .aiff` | | Sound recordings to catalogue: digitised cassettes, voice memos. A file tagged as a song from an album (artist, album and track number) is left out as music. Set it to an empty list (`[]`) to catalogue no sound files. |
 | `[scan] ignore_dirs` | `Thumbs Previews .thumbnails` (Docker adds NAS recycle bins and thumbnail folders) | Page | Folder names (case-insensitive patterns) whose files are listed but never read. |
 
@@ -81,7 +81,7 @@ it differs.
 | `[places] url` | `https://nominatim.openstreetmap.org/search` | | The Nominatim search address. Point it at your own Nominatim, or another provider that answers the same way, if OpenStreetMap asks or you look up a lot. |
 | `[places] contact` | none | | An email address sent with each lookup (Nominatim's `email` parameter), so OpenStreetMap can reach you about this install's lookups rather than block it. |
 | `[map] tiles` | `https://tile.openstreetmap.org/{z}/{x}/{y}.png` | | The map's background tiles. The visitor's browser loads them from this server. |
-| `[map] attribution` | © OpenStreetMap contributors, linked to openstreetmap.org/copyright | | The credit shown on the map. Keep OpenStreetMap's when the tiles are drawn from its data. |
+| `[map] attribution` | © OpenStreetMap contributors, linked to openstreetmap.org/copyright | | The credit shown on the map. Keep OpenStreetMap's when the tiles are drawn from its data. It is HTML, of which only the words and links to `http://` or `https://` addresses are shown: other tags are left out. |
 
 The describing schedule (any time, certain hours and days, or paused) is set only on the Settings page. So is
 **South of the equator**, which moves the seasons six months on (summer is December to February) for dates typed

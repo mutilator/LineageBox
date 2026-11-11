@@ -94,6 +94,45 @@ def test_uploads_that_are_refused(site, cfg, con, path, data, why):
     assert not [p for p in root.rglob("*") if p.suffix in (".svg", ".html")]
 
 
+def test_recordings_can_be_uploaded(site, cfg, con):
+    cora = client(cfg, con, site["who"]["Cora"])
+    for name, start in [("tape.mp3", b"ID3\x04\x00"), ("memo.mp3", b"\xff\xfb\x90\x64"),
+                        ("tape.wav", b"RIFF\x24\x00\x00\x00WAVEfmt "), ("memo.m4a", b"\x00\x00\x00\x20ftypM4A "),
+                        ("tape.flac", b"fLaC\x00\x00\x00\x22"), ("tape.ogg", b"OggS\x00\x02"),
+                        ("note.amr", b"#!AMR\n"), ("tape.aiff", b"FORM\x00\x00\x10\x00AIFFCOMM")]:
+        r = upload(cora, name, start + bytes(400))
+        assert r.status_code == 200, (name, r.text)
+
+
+@pytest.mark.parametrize("name, start", [
+    ("tape.wav", b"RIFF\x24\x00\x00\x00AVI "), ("clip.avi", b"RIFF\x24\x00\x00\x00WAVE"), ("tape.mp3", b"#EXTM3U"),
+    ("00001.MTS", b"\x00\x00\x00\x00\x47" + bytes(300)),  # one packet's start alone
+])
+def test_videos_and_recordings_must_look_like_their_kind(site, cfg, con, name, start):
+    r = upload(client(cfg, con, site["who"]["Cora"]), name, start + bytes(400))
+    assert r.status_code == 400 and "isn't a" in r.json()["detail"]
+
+
+def test_no_huge_bodies_once_signed_in(site, cfg, con):
+    """FastAPI reads a body whole before anything checks it: only the routes that take files may be sent more than
+    common.BODY_MOST, and they read theirs in pieces, to limits of their own."""
+    from lineagebox.web import common
+    cora = client(cfg, con, site["who"]["Cora"])
+    huge = b'{"name": "' + b"x" * common.BODY_MOST + b'"}'
+    r = cora.post("/api/albums", content=huge, headers={**APP, "Content-Type": "application/json"})
+    assert r.status_code == 413 and "too large" in r.json()["detail"]
+
+    def pieces():  # sent with no length said
+        yield b'{"name": "'
+        yield b'Summer"}'
+
+    r = cora.post("/api/albums", content=pieces(), headers={**APP, "Content-Type": "application/json"})
+    assert r.status_code == 413
+    assert upload(cora, "big.jpg", jpeg() + bytes(common.BODY_MOST)).status_code == 200  # a file: as before
+    assert cora.post("/api/albums", json={"name": "Summer"}, headers=APP).status_code == 200
+    assert set(webapp.BODIES) <= set(webapp.ROUTES)  # each is a route's own path
+
+
 def test_names_are_cleaned_and_stay_inside(site, cfg, con, library):
     cora = client(cfg, con, site["who"]["Cora"])
     folder = cfg.share_root / library.name / "Family uploads" / str(site["people"]["Cora"])

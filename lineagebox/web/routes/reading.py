@@ -29,6 +29,8 @@ ACCESS = {
     "/api/family/read/{reading_id}/delete": ADMIN,
 }
 MOST_PHOTO_BYTES = 20 * 2**20  # each, as sent: the page makes them smaller first
+# over common.BODY_MOST: the photos come as text (data: URLs, a third larger), with the typed words beside them
+BODIES = {"/api/family/read": family_reader.MOST_PHOTOS * MOST_PHOTO_BYTES * 4 // 3 + 2**20}
 GIVEN_UP_AFTER = 20 * 60       # seconds: a reading still going then was stopped (the site restarted meanwhile)
 
 

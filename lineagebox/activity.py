@@ -9,9 +9,16 @@ from lineagebox import outbox, settings
 KEEP_ACTIVITY = 500  # lines
 
 
+def one_line(text) -> str:
+    """text as part of one line of the container's log: line breaks and other control characters (an email typed on
+    the sign-in page, or an address, can hold any) written as \\n, \\x1b..., so that nothing anyone sends starts a
+    line that looks like one of the app's own."""
+    return "".join(ch if ch.isprintable() else ch.encode("unicode_escape").decode("ascii") for ch in str(text))
+
+
 def log(con: sqlite3.Connection | None, message: str) -> None:
     at = datetime.now()
-    print(f"{at:%Y-%m-%d %H:%M:%S}  {message}", flush=True)
+    print(f"{at:%Y-%m-%d %H:%M:%S}  {one_line(message)}", flush=True)
     if con is not None:
         try:
             con.execute("INSERT INTO activity(at, message) VALUES (?, ?)", (at.isoformat(timespec="seconds"), message))

@@ -23,6 +23,7 @@ ACCESS = {
     "/api/images/{image_id}/hidden": ADMIN,
     "/api/folders/{folder_id}/hidden": ADMIN,
 }
+BODIES = {"/api/upload": None}  # over common.BODY_MOST: read in pieces, to the upload limit (uploads.receive)
 ADMIN_NO_UPLOADS = ("In the demo, uploading is for those who sign in as a family member: an admin sees everyone's "
                     "uploads, so here admins don't add their own.")
 

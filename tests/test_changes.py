@@ -172,6 +172,23 @@ def test_undoing_everything_since(site, cfg, con):
     assert not {"one", "two", "three"} & {t["name"] for t in __import__("lineagebox").tagging.for_image(con, photo)}
 
 
+def test_changes_are_forgotten_after_a_while(site, cfg, con):
+    """What is kept to undo a change can be megabytes: the list keeps changes.KEPT_DAYS of them, not every one."""
+    from datetime import datetime, timedelta
+    from lineagebox import changes
+    cora = client(cfg, con, site["who"]["Cora"])
+    photo = site["photos"]["cora_bart.jpg"]
+    for tag in ("old", "new"):
+        cora.post(f"/api/images/{photo}/tags", json={"tag": tag}, headers=APP)
+    old = con.execute("SELECT min(id) FROM change_log").fetchone()[0]
+    long_ago = datetime.now() - timedelta(days=changes.KEPT_DAYS, hours=1)
+    con.execute("UPDATE change_log SET at = ? WHERE id = ?", (long_ago.isoformat(timespec="seconds"), old))
+    con.commit()
+    assert changes.prune(con) == 1
+    assert [r["summary"] for r in changes.recent(con)] == [con.execute("SELECT summary FROM change_log").fetchone()[0]]
+    assert changes.prune(con) == 0
+
+
 def test_same_person(site, cfg, con):
     cora, admin = client(cfg, con, site["who"]["Cora"]), client(cfg, con, site["who"]["Sam"])
     p = site["people"]

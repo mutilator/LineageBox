@@ -22,6 +22,10 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 # A JPEG is decoded at a reduced scale (draft), so even a huge one takes little memory; other kinds are decoded whole,
 # and a small PNG can say it is 13,000 pixels square (2 GB to decode). Larger than this, they are refused.
 MAX_FULL_PIXELS = 64_000_000
+# ... except a progressive JPEG (most of those saved from the web or an editor): libjpeg keeps every coefficient of the
+# whole picture while it reads one, however small it is drawn. Measured: 250 MB beyond the file for 64 MP, where a
+# baseline JPEG took 60. Larger than this (about as much memory as the largest TIFF read), they are refused.
+MAX_PROGRESSIVE_PIXELS = 150_000_000
 
 # HEIC (iPhones' photos since 2017, and some other phones' and cameras'), read by libheif. HEIF keeps a photo's turn
 # apart from its EXIF: libheif turns the picture upright itself, and pillow-heif then gives the EXIF orientation as 1,
@@ -94,9 +98,14 @@ def decode(data: bytes, ext: str, max_side: int) -> Decoded:
         if im.format not in _JPEG_FORMATS and im.width * im.height > MAX_FULL_PIXELS:
             raise ValueError(f"{im.width} x {im.height} pixels: too large a {fmt.upper()} to read")
         full_w, full_h = im.size
-    # a big scan or PNG is decoded whole, then copied as its colours are converted (a 64 MP TIFF took 0.5-0.7 GB):
-    # only a couple at once, so a folder of them can't use up a small box's memory with ingest's threads
-    big = im.format is not None and im.format not in _JPEG_FORMATS and im.width * im.height > BIG_PIXELS
+    progressive = im.format in _JPEG_FORMATS and bool(im.info.get("progressive"))
+    if progressive and im.width * im.height > MAX_PROGRESSIVE_PIXELS:
+        raise ValueError(f"{im.width} x {im.height} pixels: too large a progressive JPEG to read")
+    # a big scan or PNG is decoded whole, then copied as its colours are converted (a 64 MP TIFF took 0.5-0.7 GB), and
+    # a big progressive JPEG nearly so: only a couple at once, so a folder of them can't use up a small box's memory
+    # with ingest's threads
+    big = (im.format is not None and (im.format not in _JPEG_FORMATS or progressive)
+           and im.width * im.height > BIG_PIXELS)
     with _BIG if big else contextlib.nullcontext():
         if im.format == "TIFF":  # Pillow turns a TIFF upright as it reads it, then drops its orientation: not twice
             im.load()

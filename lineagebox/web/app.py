@@ -33,8 +33,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from lineagebox import access, db, demo, errors, i18n
 from lineagebox.config import Config
 from lineagebox.web import frames, routes
-from lineagebox.web.common import (ADMIN, HERE, PUBLIC, LiveProxyHeaders, _allowed, _content_policy, _host_allowed,
-                                   _is_page, _plain_error, _public_path, _small_body)
+from lineagebox.web.common import (ADMIN, HERE, PUBLIC, LiveProxyHeaders, _allowed, _body_fits, _content_policy,
+                                   _host_allowed, _is_page, _plain_error, _public_path, _small_body)
 from lineagebox.web.common import SEE_AS, _local_path, locate, network_path, on_network  # as they were: tests use them
 from lineagebox.web.deps import answer, viewer
 from lineagebox.web.site import Site
@@ -45,6 +45,9 @@ from lineagebox.web.site import Site
 # routes, in ACCESS. tests/test_access_web.py fails when a route has no rule, and the app answers 500 for it rather than
 # letting anyone in.
 ROUTES = {path: rule for module in routes.MODULES for path, rule in module.ACCESS.items()}
+# Routes that take bodies over common.BODY_MOST (files): each module's BODIES, path -> its most, or None for one read
+# in pieces that its route holds to a limit of its own
+BODIES = {path: most for module in routes.MODULES for path, most in getattr(module, "BODIES", {}).items()}
 
 
 def all_routes(app: FastAPI) -> list:
@@ -117,6 +120,8 @@ def create_app(cfg: Config, google_http: httpx.Client | None = None) -> FastAPI:
                 # Signing in needs a few hundred bytes. FastAPI reads a whole body before any check runs, so anyone on
                 # the internet could otherwise fill the memory with one large request.
                 return JSONResponse({"detail": "That request is too large."}, status_code=413)
+        if request.method not in ("GET", "HEAD") and not _body_fits(request, BODIES):
+            return JSONResponse({"detail": "That request is too large."}, status_code=413)
         # every page and answer in the visitor's language (i18n.py): with English only, always English
         request.state.language = i18n.choose(request.headers.get("accept-language", ""),
                                              request.cookies.get(i18n.COOKIE), now.language)
@@ -128,6 +133,10 @@ def create_app(cfg: Config, google_http: httpx.Client | None = None) -> FastAPI:
         if request.method == "POST" and response.status_code < 400:
             s.viewers.changed()  # who sees what may follow from it: worked out again on the next page
             s.kept.changed()  # and the counts kept a while, and who is signed in (signing out, an account turned off)
+        if not request.url.path.startswith("/static/"):
+            # pages and answers are someone's own: no shared cache keeps them, and the browser asks again rather than
+            # showing what it has (pictures say otherwise: common.IMMUTABLE, PRIVATE). Signing out clears its cache.
+            response.headers.setdefault("Cache-Control", "private, no-cache")
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("Referrer-Policy", "same-origin")
         framed = request.state.device is not None  # a photo frame may be shown in a dashboard's frame: it changes nothing

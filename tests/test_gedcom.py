@@ -156,6 +156,22 @@ def test_export_gedcom_7(fam, cfg):
     assert all(r.value("UID") for r in recs if r.tag in ("INDI", "FAM"))
 
 
+@pytest.mark.parametrize("version", ["7.0", "5.5.1"])
+def test_every_line_break_in_a_note_is_a_cont_line(fam, cfg, version):
+    """A note that has a bare CR (pasted from an old Mac file, or typed through the API) is still one note: written as
+    it is, the text after it would be read as a line, and so a record, of its own."""
+    con, ids = fam
+    note = "Moved west\r0 @X1@ INDI\r1 NAME Made /Up/\r\n the end"
+    events.save(con, None, tag="RESI", person_id=ids["Owen Miller"], date_text="2015", place="Salem, Oregon, USA")
+    con.execute("UPDATE event SET note = ? WHERE tag = 'RESI'", (note,))  # as it is: saving may tidy it
+    con.commit()
+    data, _ = gedcom.export(con, cfg, version)
+    recs, by_xref, indi = _records(data)
+    assert "Made /Up/" not in indi and "@X1@" not in by_xref and len(indi) == len(PEOPLE)
+    resi = indi["Owen /Miller/"].first("RESI")
+    assert resi.value("NOTE") == "Moved west\n0 @X1@ INDI\n1 NAME Made /Up/\n\nthe end"
+
+
 def test_export_gedcom_551_and_privacy(fam, cfg):
     con, ids = fam
     data, _ = gedcom.export(con, cfg, "5.5.1", private_living=True)

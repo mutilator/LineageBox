@@ -32,6 +32,7 @@ ACCESS = {
     "/api/stories/{story_id}/remove": MEMBER,  # the same
     "/api/images/{image_id}/transcript": MEMBER,
 }
+BODIES = {"/api/stories": None}  # over common.BODY_MOST: read in pieces, to stories.MOST_BYTES
 
 
 def about_person(c, person_id: int) -> dict:

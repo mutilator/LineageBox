@@ -19,6 +19,7 @@ ACCESS = {
     "/api/family/import/{import_id}/apply": ADMIN,
     "/family/export": MEMBER,
 }
+BODIES = {"/api/family/import": None}  # over common.BODY_MOST: read in pieces, to gedcom_import.MOST
 
 
 @router.post("/api/family/import", dependencies=[Depends(_from_app)])

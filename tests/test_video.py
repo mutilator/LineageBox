@@ -180,6 +180,31 @@ def test_motion_photo_frames_come_from_the_clip(tmp_path):
 
 
 @needs_ffmpeg
+def test_stored_files_are_read_only_as_videos_and_recordings(tmp_path):
+    # ffmpeg is told which kinds of file it may read them as (video.READS): the usual ones still open...
+    picture = ["-f", "lavfi", "-i", "testsrc=size=160x120:rate=10", "-t", "1"]
+    tone = ["-f", "lavfi", "-i", "sine=frequency=440", "-t", "1"]
+    kinds = {"clip.mov": [*picture, "-c:v", "libx264", "-pix_fmt", "yuv420p"],
+             "clip.mkv": [*picture, "-c:v", "libx264", "-pix_fmt", "yuv420p"],
+             "clip.avi": [*picture, "-c:v", "mpeg4"], "clip.mpg": [*picture, "-c:v", "mpeg2video", "-f", "mpeg"],
+             "clip.wmv": [*picture, "-c:v", "wmv2"], "tape.wav": tone, "tape.flac": tone, "tape.aiff": tone,
+             "tape.ogg": [*tone, "-c:a", "flac"], "memo.m4a": [*tone, "-c:a", "aac"]}
+    for name, args in kinds.items():
+        subprocess.run([video.tool("ffmpeg"), "-v", "error", "-y", *args, str(tmp_path / name)], check=True)
+        p = video.probe(tmp_path / name)
+        assert p.sound_only == name.startswith(("tape", "memo")), name
+    assert video.audio_wav(tmp_path / "tape.flac")[:4] == b"RIFF"
+    # ...and a file that is something else is refused, though ffmpeg could read it: a picture named as a video
+    subprocess.run([video.tool("ffmpeg"), "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=160x120",
+                    "-frames:v", "1", "-f", "image2", "-c:v", "png", str(tmp_path / "still.png")], check=True)
+    (tmp_path / "still.mp4").write_bytes((tmp_path / "still.png").read_bytes())
+    with pytest.raises(video.Error):
+        video.probe(tmp_path / "still.mp4")
+    with pytest.raises(video.Error):
+        video.frame(tmp_path / "still.mp4", 0, 100, probe())
+
+
+@needs_ffmpeg
 def test_720p_copies_and_cleanup(con, cfg, videos):
     scan(con, cfg)
     ingest(con, cfg, show_progress=False)

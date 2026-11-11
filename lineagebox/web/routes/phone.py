@@ -24,6 +24,7 @@ ACCESS = {
     "/sw.js": PUBLIC,
     "/upload/shared": MEMBER,
 }
+BODIES = {"/upload/shared": None}  # what a phone shares, however big: never read, only sent on to Upload
 THEME = "#2f62c9"  # app.css --accent: the bar above the app on a phone
 BACKGROUND = "#f6f6f3"  # app.css --bg: behind the icon while it starts
 ICONS = "/static/icons"

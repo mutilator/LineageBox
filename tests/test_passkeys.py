@@ -287,6 +287,37 @@ def test_adding_a_passkey_soon_after_signing_in(setup, con):
     assert f'href="{ORIGIN}/passkeys"' in home.get("/passkeys").text
 
 
+def test_other_lasting_ways_in_need_a_recent_sign_in_too(setup, con):
+    """An admin's computer left signed in: a passkey link or a code for themselves or another admin, or a new admin,
+    would be a way back in for whoever finds it. Links for the family's members are made any time."""
+    signed_in(setup, con, setup["admin"])  # the admin's first sign-in ever, long ago
+    admin = signed_in(setup, con, setup["admin"])
+    con.execute("UPDATE session SET created_at = ? WHERE token_hash = ?",
+                ((datetime.now() - timedelta(minutes=20)).isoformat(timespec="seconds"),
+                 hashlib.sha256(admin.cookies[accounts.COOKIE].encode()).hexdigest()))
+    con.commit()
+    other_admin = accounts.add(con, "rosa.baker@example.com", None, "admin")
+    con.commit()
+    asks = [(f"/api/accounts/{setup['admin']}/invite", None), (f"/api/accounts/{other_admin}/invite", None),
+            (f"/api/accounts/{setup['admin']}/local-code", None),
+            ("/api/accounts", {"email": "new.admin@example.com", "role": "admin"}),
+            (f"/api/accounts/{setup['member']}", {"role": "admin"})]
+    for url, body in asks:
+        r = admin.post(url, json=body, headers=APP)
+        assert r.status_code == 400 and "sign out and in again" in r.json()["detail"], url
+    assert accounts.get(con, setup["member"])["role"] == "member" and accounts.by_email(con, "new.admin@example.com") \
+        is None
+    assert admin.post(f"/api/accounts/{setup['member']}/invite", headers=APP).status_code == 200
+    people.person_id(con, "Owen Miller")
+    con.commit()
+    assert admin.post("/api/accounts", json={"email": "new.member@example.com", "name": "Owen Miller"},
+                      headers=APP).status_code == 200
+    fresh = signed_in(setup, con, setup["admin"])  # signed in again just now
+    for url, body in asks:
+        assert fresh.post(url, json=body, headers=APP).status_code == 200, url
+    assert accounts.get(con, setup["member"])["role"] == "admin"
+
+
 def test_taking_a_passkey_away_signs_out_where_it_signed_in(setup, con):
     phone = katherines_phone(setup, con)
     with_it = browser(setup)

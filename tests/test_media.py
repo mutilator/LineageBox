@@ -152,7 +152,9 @@ def test_every_kind_catalogued_is_one_media_reads():
     defaults = set(Config.__dataclass_fields__["image_extensions"].default)
     assert defaults == media.JPEG_EXTENSIONS | {".png"} | media.TIFF_EXTENSIONS | media.HEIF_EXTENSIONS | media.RAW_EXTENSIONS
     assert all(e == e.lower() for e in defaults)  # the scan and uploads match them case-insensitively
-    assert defaults <= set(uploads._SIGNATURES)  # an upload's first bytes are checked against its kind
+    # an upload's first bytes are checked against its kind: photos, videos and recordings alike
+    for kind in ("image_extensions", "video_extensions", "audio_extensions"):
+        assert set(Config.__dataclass_fields__[kind].default) <= set(uploads._SIGNATURES), kind
     assert uploads.looks_like("IMG_0001.HEIC", heic()[:64])
 
 
@@ -423,3 +425,12 @@ def test_big_scans_are_decoded_a_couple_at_a_time(monkeypatch):
     Image.new("RGB", (40, 30), "red").save(small, "JPEG")
     media.decode(small.getvalue(), ".jpg", 2048)  # JPEGs are read shrunk: no place needed
     assert taken == [True]
+    # ... except a progressive one: the whole picture's coefficients are kept while it is read
+    progressive = io.BytesIO()
+    Image.new("RGB", (40, 30), "red").save(progressive, "JPEG", progressive=True)
+    media.decode(progressive.getvalue(), ".jpg", 2048)
+    assert taken == [True, True]
+    monkeypatch.setattr(media, "MAX_PROGRESSIVE_PIXELS", 40 * 30 - 1)
+    with pytest.raises(ValueError, match="too large a progressive JPEG"):
+        media.decode(progressive.getvalue(), ".jpg", 2048)
+    media.decode(small.getvalue(), ".jpg", 2048)  # a baseline one that size is still read

@@ -315,7 +315,7 @@ class _Clip:
         fit = (f"scale={WIDTH}:{HEIGHT}:force_original_aspect_ratio=decrease,"
                f"pad={WIDTH}:{HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,fps={FPS}")
         graph = f"[0:{p.stream}]{'yadif,' if p.interlaced else ''}{fit},format=rgba[v];[v][1:v]overlay=0:0,format=rgb24"
-        args = [video.tool("ffmpeg"), "-v", "error", "-nostdin", "-t", str(CLIP_MOST), "-i", str(self.path),
+        args = [video.tool("ffmpeg"), "-v", "error", "-nostdin", "-t", str(CLIP_MOST), *video.source(self.path),
                 "-i", self.band.name, "-filter_complex", graph, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]
         if hasattr(os, "nice"):
             args = ["nice", "-n", "10", *args]
@@ -341,8 +341,8 @@ class _Clip:
         """The video's sound for as many frames as were shown, silence where it has none."""
         want = 2 * RATE * frames // FPS
         try:
-            got = tools.run([video.tool("ffmpeg"), "-v", "error", "-nostdin", "-t", str(CLIP_MOST), "-i",
-                             str(self.path), "-map", "0:a:0", "-vn", "-ac", "1", "-ar", str(RATE), "-f", "s16le",
+            got = tools.run([video.tool("ffmpeg"), "-v", "error", "-nostdin", "-t", str(CLIP_MOST),
+                             *video.source(self.path), "-map", "0:a:0", "-vn", "-ac", "1", "-ar", str(RATE), "-f", "s16le",
                              "-"], timeout=600, nice=True)
         except tools.Error:
             got = b""

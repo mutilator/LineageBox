@@ -345,19 +345,23 @@ class Limiter:
         self.most, self.seconds, self.tries, self.lock = most, seconds, defaultdict(deque), threading.Lock()
         self.swept = time.monotonic()
 
-    def allow(self, key: str) -> bool:
+    def allow(self, key: str, count: bool = True) -> bool:
+        """Whether another try may be made, counting it (count False: only asking)."""
         now = time.monotonic()
         with self.lock:
             if now - self.swept > self.seconds:  # forget keys with no recent tries: addresses come and go
                 for old in [k for k, t in self.tries.items() if not t or now - t[-1] > self.seconds]:
                     del self.tries[old]
                 self.swept = now
+            if key not in self.tries and not count:
+                return True
             tries = self.tries[key]
             while tries and now - tries[0] > self.seconds:
                 tries.popleft()
             if len(tries) >= self.most:
                 return False
-            tries.append(now)
+            if count:
+                tries.append(now)
             return True
 
 

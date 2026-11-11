@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-from lineagebox import access, albums, catalog, cleanup, errors, faces, family, https, sharing, tours
+from lineagebox import access, albums, catalog, cleanup, errors, faces, family, https, passkeys, sharing, tours
 from lineagebox.config import Config
 
 HERE = Path(__file__).resolve().parent
@@ -116,8 +116,48 @@ def _small_body(request: Request) -> bool:
     return length.isdecimal() and int(length) <= SMALL_BODY and "transfer-encoding" not in request.headers
 
 
+# The most a request may send once signed in (or at home without accounts): FastAPI reads a body whole before any
+# check runs, so one very large one could use up the memory, and a demo's visitors sign in with one click. A list of
+# every photo in a big library, ticked, is well under it. Routes that take more say so in their module's BODIES.
+BODY_MOST = 4 * 2**20
+
+
+def _body_fits(request: Request, larger: dict[str, int | None]) -> bool:
+    """A body this route may take, by the length it says it has. larger: path -> its own most, or None for one the
+    route reads in pieces and holds to a limit of its own (uploads); only those may come in pieces of unsaid length."""
+    most = larger.get(request.url.path, BODY_MOST)
+    if most is None:
+        return True
+    if "transfer-encoding" in request.headers:
+        return False
+    length = request.headers.get("content-length", "0")
+    return length.isdecimal() and int(length) <= most
+
+
 def _client_ip(request: Request) -> str:
     return request.client.host if request.client else ""
+
+
+def tries_from(request: Request) -> str:
+    """Where a request comes from, for counting its tries (sign-ins, codes): its address, or an IPv6 address's /64,
+    the network one home or one server is given whole (each of its billions of addresses would count afresh)."""
+    ip = _client_ip(request)
+    try:
+        address = ipaddress.ip_address(ip)
+    except ValueError:
+        return ip
+    if address.version == 6 and address.ipv4_mapped is None:
+        return str(ipaddress.ip_network(f"{address}/64", strict=False))
+    return str(getattr(address, "ipv4_mapped", None) or address)
+
+
+def _recently_signed_in(request: Request, what: str) -> None:
+    """For what gives a lasting way in (a passkey's link or an authenticator code for oneself or an admin, a new
+    admin): only within passkeys.RECENT_MINUTES of signing in, as for adding a passkey, so that nobody who finds a
+    phone or computer left signed in can keep a way in of their own. Without family accounts nobody signs in."""
+    you = getattr(request.state, "account", None)
+    if you is not None and (wait := passkeys.may_add(you, what)):
+        raise passkeys.Problem(wait)
 
 
 def _redirect_uri(request: Request, now: Config) -> str:

@@ -17,6 +17,7 @@ STAGES = {"describe": "photos and videos to describe", "transcribe": "videos and
           "chapters": "long videos to find chapters in"}
 STAGES["meaning"] = "descriptions to read for search by meaning"  # embeddings.py
 STAGES.update(sidecars="photos to write XMP sidecars beside", metadata="photos to read other apps' names from")
+STAGES["ingest"] = "videos and recordings to read (ffmpeg took too long)"  # by file id: they have no image yet
 
 
 def waiting(stage: str, item: str = "i.id") -> str:
@@ -28,17 +29,22 @@ def waiting(stage: str, item: str = "i.id") -> str:
 
 def later(con: sqlite3.Connection, stage: str, item_id: int, error: str) -> None:
     """Try this item again after a while. Saved at once, in a write of its own: stages hold no transaction open."""
-    assert stage in STAGES
     try:
-        row = con.execute("SELECT attempts FROM retry WHERE stage = ? AND item_id = ?", (stage, item_id)).fetchone()
-        n = (row[0] if row else 0) + 1
-        con.execute("""INSERT OR REPLACE INTO retry(stage, item_id, attempts, error, failed_at, next_at)
-                       VALUES (?, ?, ?, ?, ?, ?)""",
-                    (stage, item_id, n, str(error)[:300], datetime.now().isoformat(timespec="seconds"),
-                     int(time.time()) + WAITS[min(n, len(WAITS)) - 1]))
+        note(con, stage, item_id, error)
         con.commit()
     except sqlite3.OperationalError:  # the catalog is busy: the item just comes up again on the next pass
         con.rollback()
+
+
+def note(con: sqlite3.Connection, stage: str, item_id: int, error: str) -> None:
+    """later(), as part of the caller's own write (ingest saves what it read in batches)."""
+    assert stage in STAGES
+    row = con.execute("SELECT attempts FROM retry WHERE stage = ? AND item_id = ?", (stage, item_id)).fetchone()
+    n = (row[0] if row else 0) + 1
+    con.execute("""INSERT OR REPLACE INTO retry(stage, item_id, attempts, error, failed_at, next_at)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (stage, item_id, n, str(error)[:300], datetime.now().isoformat(timespec="seconds"),
+                 int(time.time()) + WAITS[min(n, len(WAITS)) - 1]))
 
 
 def done(con: sqlite3.Connection, stage: str, item_ids) -> None:

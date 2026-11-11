@@ -27,7 +27,7 @@ from lineagebox import (accounts, backup, check, cleanup, dedup, faces, orientat
                         settings, slideshow, speech, storage, updates, video)
 from lineagebox import imports, sidecars
 from lineagebox import chapters, stories
-from lineagebox import outbox
+from lineagebox import changes, outbox
 from lineagebox import scan_dates  # the dates written on scanned documents, read by the AI
 from lineagebox.activity import log, note_problem
 from lineagebox.config import Config
@@ -149,6 +149,9 @@ def run_once(con: sqlite3.Connection, cfg: Config, stop: Stopper | None = None) 
     # once a day too: how much room LineageBox's own files take, for the storage on Home and the Status page
     if not (settings.get(con, storage.KEY) or {}).get("measured_at", "").startswith(today):
         stage("measure storage", lambda: storage.measure_data(con, cfg))
+        # changes too old to undo any more (changes.KEPT_DAYS): first, as they can keep a story's file from going
+        if n := stage("forget old changes", lambda: changes.prune(con)):
+            log(con, f"changes: forgot {n} made over {changes.KEPT_DAYS} days ago")
         # and recorded stories taken away a month ago, and sound files no story refers to, deleted (stories.py)
         if n := stage("tidy stories", lambda: stories.purge(con, cfg)):
             log(con, f"stories: deleted {n} recordings taken away or no longer used")

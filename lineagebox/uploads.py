@@ -25,7 +25,12 @@ NAME_BYTES = 200  # the longest name kept, in bytes as file systems count them (
 FULL = "The photo storage is nearly full: nothing more can be uploaded for now."
 _BAD = re.compile(r'[\x00-\x1f<>:"/\\|?*]')
 _RESERVED = {"con", "prn", "aux", "nul", *(f"com{i}" for i in range(1, 10)), *(f"lpt{i}" for i in range(1, 10))}
-# what the first bytes of each kind of file look like: (offset, bytes) any of which will do
+ASF = b"\x30\x26\xb2\x75\x8e\x66\xcf\x11\xa6\xd9\x00\xaa\x00\x62\xce\x6c"  # Windows Media (.wmv, .wma)
+MP3 = [(0, b"ID3"), *((0, b"\xff" + bytes([b])) for b in (0xfb, 0xfa, 0xf3, 0xf2, 0xe3, 0xe2))]  # tags, or a frame
+HEAD = 256  # how much of the start of a file is looked at
+# What the first bytes of each kind of file look like: (offset, bytes), or a tuple of those that must all be there;
+# any one entry will do. Videos and recordings are held to more than their first few bytes: ffmpeg reads them, and
+# would read a file whose start says something else as that other kind (video.READS limits which).
 _SIGNATURES = {
     **{ext: [(0, b"\xff\xd8\xff")] for ext in (".jpg", ".jpeg", ".jpe", ".jfif")}, ".png": [(0, b"\x89PNG\r\n\x1a\n")],
     # TIFF, and BigTIFF (over 4 GB: big scans)
@@ -40,10 +45,18 @@ _SIGNATURES = {
                                                          ".dcr")},
     ".mp4": [(4, b"ftyp")], ".m4v": [(4, b"ftyp")], ".mov": [(4, b"ftyp"), (4, b"moov"), (4, b"wide"), (4, b"mdat"),
                                                              (4, b"free"), (4, b"skip"), (4, b"pnot")],
-    ".3gp": [(4, b"ftyp")], ".3g2": [(4, b"ftyp")], ".mts": [(4, b"\x47")], ".m2ts": [(4, b"\x47")],
-    ".avi": [(0, b"RIFF")], ".wmv": [(0, b"\x30\x26\xb2\x75\x8e\x66\xcf\x11")], ".mkv": [(0, b"\x1a\x45\xdf\xa3")],
+    ".3gp": [(4, b"ftyp")], ".3g2": [(4, b"ftyp")],
+    # AVCHD: 192-byte packets, each a 4-byte time and then the 0x47 every transport stream packet starts with
+    **{ext: [((4, b"\x47"), (196, b"\x47"))] for ext in (".mts", ".m2ts")},
+    ".avi": [((0, b"RIFF"), (8, b"AVI "))], ".wmv": [(0, ASF)], ".mkv": [(0, b"\x1a\x45\xdf\xa3")],
     ".mpg": [(0, b"\x00\x00\x01\xba"), (0, b"\x00\x00\x01\xb3")], ".mpeg": [(0, b"\x00\x00\x01\xba"),
                                                                             (0, b"\x00\x00\x01\xb3")],
+    # sound recordings
+    ".mp3": MP3, ".aac": [(0, b"\xff\xf1"), (0, b"\xff\xf9"), (0, b"ADIF"), (0, b"ID3"), (4, b"ftyp")],
+    ".m4a": [(4, b"ftyp")], ".wav": [((0, b"RIFF"), (8, b"WAVE")), ((0, b"RF64"), (8, b"WAVE"))], ".wma": [(0, ASF)],
+    **{ext: [(0, b"OggS")] for ext in (".ogg", ".oga", ".opus")}, ".flac": [(0, b"fLaC"), (0, b"ID3")],
+    ".amr": [(0, b"#!AMR")], **{ext: [((0, b"FORM"), (8, b"AIFF")), ((0, b"FORM"), (8, b"AIFC"))]
+                                for ext in (".aif", ".aiff")},
 }
 
 
@@ -116,7 +129,9 @@ def free_name(target: Path) -> Path:
 
 
 def looks_like(name: str, head: bytes) -> bool:
-    return any(head[at:at + len(sig)] == sig for at, sig in _SIGNATURES.get(Path(name).suffix.lower(), []))
+    def fits(entry) -> bool:
+        return all(head[at:at + len(sig)] == sig for at, sig in (entry if isinstance(entry[0], tuple) else [entry]))
+    return any(fits(entry) for entry in _SIGNATURES.get(Path(name).suffix.lower(), []))
 
 
 def _room(folder: Path, need: int) -> None:
@@ -141,8 +156,8 @@ async def receive(chunks, target: Path, most: int, expected: int = 0) -> int:
                 if size > most:
                     raise TooBig(f"{target.name} is over {size_text(most)}, the most one upload may be.")
                 if not checked:
-                    head += chunk[:64]
-                    if len(head) >= 16:
+                    head += chunk[:HEAD - len(head)]
+                    if len(head) >= HEAD:
                         if not looks_like(target.name, head):
                             raise Problem(f"{target.name} isn't a {target.suffix.lstrip('.').upper()} file.")
                         checked = True

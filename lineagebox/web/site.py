@@ -2,10 +2,14 @@
 needs it takes `s: Site = Depends(site)` (deps.py). Its settings as last looked up, who sees what, the limits on
 signing in and downloading, the pages' templates, and a few answers kept a while (a newer release, Whisper's health,
 the tours suggested to each viewer, the counts that take seconds on a big library, the pages that were slow)."""
+import base64
 import collections
 import contextlib
 import hashlib
+import hmac
 import ipaddress
+import json
+import secrets
 import threading
 import time
 from datetime import datetime
@@ -14,7 +18,7 @@ import httpx
 from fastapi import Request
 from fastapi.templating import Jinja2Templates
 
-from lineagebox import __version__, access, accounts, cleanup, db, events, i18n, settings, speech, updates
+from lineagebox import __version__, access, accounts, activity, cleanup, db, events, i18n, settings, speech, updates
 from lineagebox.config import Config
 from lineagebox.web import help as page_help
 from lineagebox.web import tiles
@@ -25,6 +29,7 @@ from lineagebox.web.common import (DATE_SOURCE_LABEL, HERE, PAGE_SIZES, ZIP_MOST
 SIGNED_IN_FOR = 10  # seconds a session's account is kept: a page asks for dozens of thumbnails, each signed in
 SLOW_PAGE = 1.0  # seconds: a request that took longer goes on the Status page (Site.slow)
 SLOW_KEPT = 40  # slow requests listed there, the newest
+CODE_MISSES = 20  # wrong sign-in codes for one email in a day before its codes stop until the next
 # what takes as long as it is big, so isn't timed: pictures, videos, originals, downloads, uploads
 UNTIMED = ("/t/", "/t2/", "/p/", "/face/", "/frame/", "/play/", "/original/", "/download", "/api/upload", "/static/")
 
@@ -86,18 +91,23 @@ class Site:
         self.networks = [ipaddress.ip_network(n) for n in cfg.allowed_networks]
         self.shared = {"at": -1e9, "cfg": cfg}
         self.viewers = access.Viewers(alone=cfg.demo_enabled)  # in a demo, a visitor's uploads are theirs alone
+        # Tries are counted per address, an IPv6 one's /64 (common.tries_from)
         self.sign_ins = accounts.Limiter(20, 900)  # Google sign-ins started per address in 15 minutes
         self.code_tries = accounts.Limiter(5, 900)  # local sign-in codes tried per address and email in 15 minutes
+        self.code_tries_here = accounts.Limiter(15, 900)  # ... per address, whatever emails are typed
         # ... and per email from every address together: many addresses on the home network can't share out the guessing
         self.code_tries_each = accounts.Limiter(10, 900)
+        self.code_misses = accounts.Limiter(CODE_MISSES, 86400)  # wrong codes per email in a day (see auth/local)
         self.zip_tries = accounts.Limiter(30, 3600)  # zip downloads per member in an hour: each can be up to ZIP_BYTES
         self.upload_tries = accounts.Limiter(3000, 3600)  # files uploaded per account in an hour
         self.look_tries = accounts.Limiter(40, 3600)  # "Look for faces again" per member in an hour: 10-15 s CPU each
-        self.google_started: dict[str, tuple[dict, float]] = {}  # state -> what a Google sign-in keeps until it's back
-        # passkeys: sign-ins started, and admins' links tried, per address in 15 minutes; what each start keeps until
-        # the browser answers (routes/passkeys.py)
+        # passkeys: sign-ins started, and admins' links tried, per address in 15 minutes (routes/passkeys.py)
         self.passkey_tries = accounts.Limiter(30, 900)
-        self.passkey_started: dict[str, tuple[dict, float]] = {}
+        self.passkey_used: dict[str, float] = {}  # challenges signed in with, until they are too old to be used
+        # What a Google or passkey sign-in keeps until the browser comes back is in a cookie of its own, signed with
+        # this (seal): nothing is kept here, so starting sign-ins by the thousand turns nobody else away. A restart
+        # makes a new one, and a sign-in started before it is started again.
+        self.seal_key = secrets.token_bytes(32)
         self.suggested: dict = {}  # viewer -> {"at", "list"}: tours worked out from what that viewer sees
         self.kept = Kept()
         self.slow = collections.deque(maxlen=SLOW_KEPT)  # {"at", "method", "path", "seconds", "status", "who"}
@@ -148,6 +158,23 @@ class Site:
         self.kept.put(key, dict(row), generation)
         return dict(row)
 
+    def seal(self, data: dict) -> str:
+        """data (JSON's kinds), and when it was sealed, as a cookie's value that comes back as it was or not at all."""
+        body = base64.urlsafe_b64encode(json.dumps({**data, "_at": time.time()}).encode()).decode().rstrip("=")
+        return f"{body}.{self._mac(body)}"
+
+    def unseal(self, value: str | None, seconds: float) -> dict | None:
+        """What seal() made value of, if it was sealed here under `seconds` ago."""
+        body, _, mac = (value or "").partition(".")
+        if not body or not hmac.compare_digest(mac.encode(), self._mac(body).encode()):
+            return None
+        data = json.loads(base64.urlsafe_b64decode(body + "=" * (-len(body) % 4)))
+        return data if 0 <= time.time() - data.pop("_at") <= seconds else None
+
+    def _mac(self, body: str) -> str:
+        mac = hmac.new(self.seal_key, body.encode(), hashlib.sha256).digest()
+        return base64.urlsafe_b64encode(mac).decode().rstrip("=")
+
     def limits(self, v: access.Viewer) -> bool:
         """Whether the limits on costly asks (zips, looking for faces again) hold for the viewer: a member's, and in a
         demo everyone's, its admins being anyone who clicked (demo.py)."""
@@ -168,7 +195,8 @@ class Site:
         at = datetime.now()
         self.slow.appendleft({"at": at.isoformat(timespec="seconds"), "method": request.method, "path": path[:300],
                               "seconds": seconds, "status": status, "who": who})
-        print(f"{at:%Y-%m-%d %H:%M:%S}  slow: {request.method} {path[:300]} took {seconds:.1f} s", flush=True)
+        print(f"{at:%Y-%m-%d %H:%M:%S}  slow: {request.method} {activity.one_line(path[:300])} took {seconds:.1f} s",
+              flush=True)
 
     def update_ready(self) -> dict | None:
         """The newer release admins see a link to on every page; looked up again every few minutes."""

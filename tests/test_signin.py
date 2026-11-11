@@ -9,8 +9,9 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from lineagebox import accounts, cli, people, settings
+from lineagebox import accounts, activity, cli, people, settings
 from lineagebox.web import app as webapp
+from lineagebox.web import site as site_module
 from tests.conftest import LAN
 
 APP = {"X-Requested-With": "lineagebox"}
@@ -77,11 +78,14 @@ def test_sign_in_with_google(setup, con):
     assert "lineagebox_session=" in cookie and "HttpOnly" in cookie and "Secure" in cookie and "samesite=lax" in cookie.lower()
     sent = setup["google"].seen[0]
     assert sent["code"] == ["abc"] and sent["client_secret"] == ["s3cret"] and len(sent["code_verifier"][0]) > 40
-    assert c.get("/people").status_code == 200
+    page = c.get("/people")
+    assert page.status_code == 200 and page.headers["cache-control"] == "private, no-cache"  # nobody else's to keep
+    assert c.get("/static/app.css").headers.get("cache-control") != "private, no-cache"  # the site's own files
     assert con.execute("SELECT count(*) FROM session").fetchone()[0] == 1
     assert len(con.execute("SELECT token_hash FROM session").fetchone()[0]) == 64  # only its hash is kept
-    # signing out ends this browser's session
-    assert c.post("/auth/signout", headers=APP).json()["go"] == "/signin"
+    # signing out ends this browser's session, and clears what the browser kept of the pages and photos
+    out = c.post("/auth/signout", headers=APP)
+    assert out.json()["go"] == "/signin" and out.headers["clear-site-data"] == '"cache"'
     assert con.execute("SELECT count(*) FROM session").fetchone()[0] == 0
     assert c.get("/people").status_code == 303
 
@@ -123,8 +127,28 @@ def test_a_sign_in_this_browser_did_not_start(setup, con):
     other = TestClient(setup["app"], client=OUTSIDE, follow_redirects=False)  # without the cookie: no signing in
     r = other.get(f"/auth/google/callback?code=abc&state={q['state']}")  # someone else into another's account
     assert "sign-in didn" in r.text and "lineagebox_session" not in r.cookies
-    assert "sign-in didn" in starter.get(f"/auth/google/callback?code=abc&state={q['state']}").text  # used up
-    assert "sign-in didn" in starter.get("/auth/google/callback?error=access_denied").text
+    other.cookies.set("lineagebox_signin", "e30.made-up")  # a cookie of their own making: not signed here
+    assert "sign-in didn" in other.get(f"/auth/google/callback?code=abc&state={q['state']}").text
+    # the browser that started it finishes it, once: what it kept goes with the sign-in
+    assert starter.get(f"/auth/google/callback?code=abc&state={q['state']}").status_code == 303
+    assert "lineagebox_signin" not in starter.cookies
+    starter.get(f"/auth/google/callback?code=abc&state={q['state']}")
+    assert con.execute("SELECT count(*) FROM session").fetchone()[0] == 1
+    assert "sign-in didn" in other.get("/auth/google/callback?error=access_denied").text
+
+
+def test_starting_sign_ins_by_the_thousand(setup, monkeypatch):
+    """What a start keeps is in the browser's cookie, so starts from many addresses turn nobody else away; an
+    IPv6 network's addresses count as one."""
+    monkeypatch.setattr(setup["app"].state.site.sign_ins, "most", 3)
+    flood = [TestClient(setup["app"], client=(f"2001:db8:1:2::{n:x}", 50000), follow_redirects=False)
+             .get("/auth/google").status_code for n in range(1, 6)]
+    assert flood == [303] * 3 + [200] * 2  # the rest are told to wait
+    assert not hasattr(setup["app"].state.site, "google_started")  # no list of starts here for them to fill
+    c = TestClient(setup["app"], client=OUTSIDE, follow_redirects=False)
+    q = start(c)  # still answered
+    setup["google"].claims = good_claims(q)
+    assert c.get(f"/auth/google/callback?code=abc&state={q['state']}").status_code == 303
 
 
 def test_a_switched_off_account_cannot_sign_in(setup, con):
@@ -253,6 +277,40 @@ def test_guessing_codes_from_many_addresses(setup, con):
     answers = [TestClient(setup["app"], client=(f"192.168.7.{n}", 50000)).post("/auth/local", json=body, headers=APP)
                .status_code for n in range(2, 16)]
     assert answers[:10] == [400] * 10 and set(answers[10:]) == {429}
+
+
+def test_what_is_typed_never_starts_a_line_of_the_log(setup, con, capsys):
+    """The container's log has one line per thing that happened: a line break typed into the email can't add one
+    that looks like the app's own."""
+    forged = "x@example.com\n2026-11-11 10:00:00  daniel.miller@example.com signed in\r\x1b[2K"
+    home = TestClient(setup["app"], client=LAN)
+    home.post("/auth/local", json={"email": forged, "code": "000000", "next": "/"}, headers=APP)
+    printed = capsys.readouterr().out
+    assert printed.count("\n") == 1 and "\\n2026-11-11" in printed and "\\r\\x1b[2K" in printed
+    assert activity.one_line("Owen's café tape") == "Owen's café\\u2028tape"
+
+
+def test_guessing_codes_slowly_or_with_made_up_emails(setup, con, monkeypatch):
+    """A few tries every 15 minutes still stop for the day after CODE_MISSES wrong ones, and say so on the Status
+    page; a new email for each try still counts against the address."""
+    secret = accounts.set_local_secret(con, setup["admin"])
+    s = setup["app"].state.site
+    body = {"email": "daniel.miller@example.com", "code": "000000", "next": "/"}
+    home = TestClient(setup["app"], client=LAN)
+    for n in range(site_module.CODE_MISSES):
+        assert home.post("/auth/local", json=body, headers=APP).status_code == 400
+        if n % 4 == 3:  # the 15-minute limits have passed meanwhile
+            for limiter in (s.code_tries, s.code_tries_here, s.code_tries_each):
+                limiter.tries.clear()
+    right = {**body, "code": accounts.code_at(secret, int(time.time() // 30))}
+    r = home.post("/auth/local", json=right, headers=APP)
+    assert r.status_code == 429 and "wrong too often today" in r.json()["detail"]
+    assert con.execute("SELECT 1 FROM activity WHERE message LIKE '%wrong 20 times today%'").fetchone()
+    # another address, an email for each try
+    away = TestClient(setup["app"], client=("192.168.7.99", 50000))
+    answers = [away.post("/auth/local", json={**body, "email": f"x{n}@example.com"}, headers=APP).status_code
+               for n in range(20)]
+    assert answers[:15] == [400] * 15 and set(answers[15:]) == {429}
 
 
 def test_nothing_large_before_signing_in(setup):

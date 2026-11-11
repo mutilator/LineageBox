@@ -3,9 +3,12 @@ page, and the admins' links.
 
 Each use of a passkey is two requests: a start, whose answer the browser hands to the phone or computer
 (navigator.credentials), and a finish with what it signed. What a start keeps until then (the challenge, and whose
-passkey it is for) stays in memory under a random name in a cookie of that browser's, for one finish only.
+passkey it is for) is in a cookie of that browser's, signed (Site.seal), so nothing is kept here for starts that
+never finish. A challenge signs in once (Site.passkey_used); a link makes one passkey (passkeys.use_invite), and a
+passkey is kept once.
 """
-import secrets
+import base64
+import hashlib
 import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -13,7 +16,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 from lineagebox import access, accounts, activity, passkeys
 from lineagebox.web.common import (ADMIN, MEMBER, PASSKEY_STARTED, PUBLIC, InviteBody, PasskeyBody, PasskeyName,
-                                   PasskeyStart, _client_ip, _from_app, _local_path)
+                                   PasskeyStart, _from_app, _local_path, _recently_signed_in, tries_from)
 from lineagebox.web.deps import page, site, viewer
 from lineagebox.web.routes.signin import start_session
 from lineagebox.web.site import Site
@@ -41,26 +44,32 @@ GONE = ("This link doesn't work any more: it was used, it ran out, or a newer on
 
 
 def _keep(s: Site, request: Request, keep: dict, answer: dict) -> JSONResponse:
-    now = time.monotonic()
-    for old in [k for k, (_, at) in s.passkey_started.items() if now - at > KEPT]:
-        s.passkey_started.pop(old, None)
-    if len(s.passkey_started) > 2000:  # a family uses a few at a time; more is someone filling the memory
-        raise HTTPException(429, TOO_MANY)
-    name = secrets.token_urlsafe(24)
-    s.passkey_started[name] = (keep, now)
+    keep = {**keep, "challenge": base64.urlsafe_b64encode(keep["challenge"]).decode()}
     response = JSONResponse(answer)
-    response.set_cookie(PASSKEY_STARTED, name, max_age=KEPT, httponly=True, samesite="strict",
+    response.set_cookie(PASSKEY_STARTED, s.seal(keep), max_age=KEPT, httponly=True, samesite="strict",
                         secure=request.url.scheme == "https")
     return response
 
 
 def _kept(s: Site, request: Request, kind: str) -> dict:
-    """What the start kept, once: a second finish with the same answer finds nothing."""
-    name = request.cookies.get(PASSKEY_STARTED, "")
-    found = s.passkey_started.pop(name, None) if name else None
-    if found is None or time.monotonic() - found[1] > KEPT or found[0]["kind"] != kind:
+    """What the start kept, from this browser's cookie; the cookie goes with the answer (_used)."""
+    keep = s.unseal(request.cookies.get(PASSKEY_STARTED), KEPT)
+    if keep is None or keep.get("kind") != kind:
         raise HTTPException(400, "That took too long, or was started on another page. Try again.")
-    return found[0]
+    return {**keep, "challenge": base64.urlsafe_b64decode(keep["challenge"])}
+
+
+def _used(s: Site, challenge: bytes) -> bool:
+    """Whether a passkey signed in with this challenge already; noted now if not. Only answers a passkey signed are
+    noted, so nobody fills the list without one."""
+    now = time.monotonic()
+    for old in [k for k, at in s.passkey_used.items() if now - at > KEPT]:
+        s.passkey_used.pop(old, None)
+    key = hashlib.sha256(challenge).hexdigest()
+    if key in s.passkey_used:
+        return True
+    s.passkey_used[key] = now
+    return False
 
 
 def _here(s: Site, request: Request) -> None:
@@ -87,7 +96,7 @@ def sign_in_start(request: Request, body: PasskeyStart, s: Site = Depends(site))
     if not now.accounts_enabled:
         raise HTTPException(404)
     _here(s, request)
-    if not s.passkey_tries.allow(_client_ip(request)):
+    if not s.passkey_tries.allow(tries_from(request)):
         raise HTTPException(429, TOO_MANY)
     options, challenge = passkeys.start_signing_in(now)
     return _keep(s, request, {"kind": "sign-in", "challenge": challenge, "next": _local_path(body.next)},
@@ -106,8 +115,12 @@ def sign_in_finish(request: Request, body: PasskeyBody, s: Site = Depends(site))
         except passkeys.Problem as e:
             activity.log(c, f"A sign-in with a passkey was turned away: {e}"[:200])
             raise
+        if _used(s, keep["challenge"]):  # the same answer sent again
+            raise HTTPException(400, "That took too long, or was started on another page. Try again.")
         activity.log(c, f"{accounts.get(c, account_id)['email']} signed in with a passkey")
-        return start_session(s, request, c, account_id, JSONResponse({"go": keep["next"]}), passkey_id)
+        response = start_session(s, request, c, account_id, JSONResponse({"go": keep["next"]}), passkey_id)
+        response.delete_cookie(PASSKEY_STARTED)
+        return response
 
 
 # ---- an admin's link -----------------------------------------------------------------------------------------------
@@ -126,7 +139,7 @@ def invite_page(request: Request, s: Site = Depends(site)):
 def invite_check(request: Request, body: InviteBody, s: Site = Depends(site)):
     """Whom a link is for, to say so before the passkey is made: it is made for that account, whoever holds the
     phone."""
-    if not s.passkey_tries.allow(_client_ip(request)):
+    if not s.passkey_tries.allow(tries_from(request)):
         raise HTTPException(429, TOO_MANY)
     with s.own_con() as c:
         row = passkeys.invited(c, body.token)
@@ -138,7 +151,7 @@ def invite_check(request: Request, body: InviteBody, s: Site = Depends(site)):
 @router.post("/auth/invite/start", dependencies=[Depends(_from_app)])
 def invite_start(request: Request, body: InviteBody, s: Site = Depends(site)):
     _here(s, request)
-    if not s.passkey_tries.allow(_client_ip(request)):
+    if not s.passkey_tries.allow(tries_from(request)):
         raise HTTPException(429, TOO_MANY)
     with s.own_con() as c:
         row = passkeys.invited(c, body.token)
@@ -253,6 +266,9 @@ def make_invite(account_id: int, request: Request, s: Site = Depends(site)):
     you = getattr(request.state, "account", None)
     with s.own_con() as c:
         now = s.live(c)  # as the Settings pages show it, not as kept a moment
+        target = accounts.get(c, account_id)
+        if target is not None and (target["role"] == "admin" or (you and you["id"] == account_id)):
+            _recently_signed_in(request, "make a passkey link for yourself or an admin")
         token, until = passkeys.make_invite(c, account_id, you["id"] if you else None, now)
         row = accounts.get(c, account_id)
         activity.log(c, f"A link for making a passkey was made for {row['email']}")

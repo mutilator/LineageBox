@@ -84,6 +84,11 @@ def export_parts(con: sqlite3.Connection, cfg: Config, version: str = "7.0", pho
     return ("﻿" + text).encode("utf-8"), media, f"family-tree-{day}.{ending}"
 
 
+# Every line break a reader may take as one (str.splitlines's: CR, LF, CRLF and the rarer ones) starts a CONT line.
+# Written as it is, a bare CR in a note would start a line of its own, read as a structure or a record of its own.
+_BREAK = re.compile(r"\r\n|[\n\r\x0b\x0c\x1c-\x1e\x85  ]")
+
+
 class _Writer:
     def __init__(self, con, cfg, version, photos, private_living, media):
         self.con, self.cfg, self.v7 = con, cfg, version == "7.0"
@@ -95,7 +100,7 @@ class _Writer:
         if payload is None or payload == "":
             self.lines.append(f"{level} {tag}")
             return
-        first, *more = str(payload).split("\n")
+        first, *more = _BREAK.split(str(payload))
         self._line(level, tag, first)
         for line in more:
             self._line(level + 1, "CONT", line)

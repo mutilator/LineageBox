@@ -148,7 +148,7 @@ PAGES = {
         N_("What was changed on the site, by family members and admins: faces named, people merged or removed, tags, "
            "dates, captions and comments, people added to photos, family links, details, what a folder means. Undo "
            "puts one back while nobody has changed the same thing again since. Family members' only shows just "
-           "theirs."),
+           "theirs. Changes are kept for 90 days."),
         N_("A family link can let someone see more of the family than they should (marking a brother's wife as your "
            "mother makes her parents your grandparents): those are marked, with whom each account now sees."))),
     "cleanup_same": Page(N_("Same person?"), (

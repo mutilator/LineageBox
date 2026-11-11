@@ -204,6 +204,7 @@ with, with **Stop sharing**.
   admins' own too (two people merged, someone removed, a group of faces named, many photos dated at once, a folder's
   meaning corrected). **Family members' only** shows just theirs. A family link can widen what someone sees (marking
   someone as your mother makes her parents your grandparents). Changes like that are marked, with who now sees whom.
+  Changes are kept for 90 days, then forgotten: they leave the list and can no longer be undone.
 - Right after a change, a note at the foot of the page has its own **Undo**: a member can take back their own change
   for half an hour; after that it is an admin's to undo.
 - **Cleanup → Same person?** lists people members added who may already be in the catalog under another name, and

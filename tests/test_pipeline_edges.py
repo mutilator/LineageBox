@@ -14,8 +14,9 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-from lineagebox import (chapters, check, describe, embeddings, llm, media, outbox, search, settings, slideshow, speech,
-                        stories, tagging, tours, video, worker)
+from lineagebox import (chapters, check, describe, embeddings, llm, media, outbox, retry, search, settings, slideshow,
+                        speech, stories, tagging, tours, video, worker)
+from lineagebox import ingest as ingest_module
 from lineagebox.catalog import VISIBLE
 from lineagebox.describe import _record
 from lineagebox.faces import FaceStats
@@ -309,7 +310,8 @@ def test_a_recordings_picture_waits_when_its_sound_cant_be_read_just_now(con, cf
         m.setattr(video, "waveform", lambda path: (_ for _ in ()).throw(video.TimedOut("ffmpeg took over 1800 s")))
         ingest(con, cfg, show_progress=False)
     f = con.execute("SELECT image_id, error FROM file WHERE path = ?", (rel("Tapes", "side A.mp3"),)).fetchone()
-    assert f["image_id"] is None and "1800 s" in f["error"]  # read again next time
+    assert f["image_id"] is None and "1800 s" in f["error"]  # read again later (retry.py)
+    con.execute("UPDATE retry SET next_at = 0")  # the wait is over
     ingest(con, cfg, show_progress=False)
     rec = con.execute("SELECT i.* FROM image i JOIN file f ON f.image_id = i.id WHERE f.path = ?",
                       (rel("Tapes", "side A.mp3"),)).fetchone()
@@ -352,8 +354,44 @@ def test_a_frame_that_takes_too_long_ends_the_frames_of_that_video(con, cfg, lib
                        (rel("Tapes", "tape.mp4"),)).fetchone()
     assert tape is not None and len([a for a in asked if a[0] == "tape.mp4"]) == 3  # none asked after it
     assert 1 <= con.execute("SELECT count(*) FROM video_frame WHERE image_id = ?", (tape[0],)).fetchone()[0] <= 2
-    slow = con.execute("SELECT image_id, error FROM file WHERE path = ?", (rel("Tapes", "slow.mp4"),)).fetchone()
-    assert slow["image_id"] is None and "900 s" in slow["error"]  # read again next time
+    slow = con.execute("SELECT id, image_id, error FROM file WHERE path = ?", (rel("Tapes", "slow.mp4"),)).fetchone()
+    assert slow["image_id"] is None and "900 s" in slow["error"]  # read again later
+    # ... after a while (retry.py), not on every pass: each try takes ffmpeg's whole time limit
+    assert con.execute("SELECT attempts FROM retry WHERE stage = 'ingest' AND item_id = ?", (slow["id"],)).fetchone()
+    assert ingest(con, cfg, show_progress=False).pending == 0
+    assert [s["stage"] for s in retry.summary(con)] == ["ingest"]
+    con.execute("UPDATE retry SET next_at = 0")  # the wait is over, and ffmpeg is quick this time
+    monkeypatch.setattr(video, "frame", real)
+    assert ingest(con, cfg, show_progress=False).new_images == 1
+    assert not con.execute("SELECT 1 FROM retry").fetchone()
+
+
+def test_a_video_this_code_cant_make_sense_of_never_stops_a_pass(con, cfg, library, monkeypatch):
+    """Whatever goes wrong in reading one video is recorded on it; the files after it are read as usual."""
+    scan(con, cfg)
+    ingest(con, cfg, show_progress=False)  # the sample library's photos
+    (library / "Camcorder").mkdir()
+    for name in ("00001.MTS", "00002.MTS"):
+        (library / "Camcorder" / name).write_bytes(name.encode() * 100)
+    scan(con, cfg)
+    monkeypatch.setattr(video, "available", lambda: True)
+    probe = video.Probe(duration=10, width=640, height=480, video_codec="h264", audio_codec=None, interlaced=False,
+                        created=None, gps=None, camera=None)
+    monkeypatch.setattr(video, "probe", lambda path: probe)
+    monkeypatch.setattr(ingest_module, "_video_frames", lambda *a, **k: [])
+
+    def taken_at(p, head, name):  # an odd camcorder block the date reader trips on
+        if name == "00001.MTS":
+            raise IndexError("index out of range")
+        return "2010-09-29T18:39:45", "camera"
+
+    monkeypatch.setattr(video, "taken_at", taken_at)
+    s = ingest(con, cfg, show_progress=False)
+    assert (s.new_images, s.decode_errors) == (2, 1)
+    errors = dict(con.execute("SELECT f.path, i.error FROM file f JOIN image i ON i.id = f.image_id"))
+    assert "IndexError" in errors[rel("Camcorder", "00001.MTS")] and errors[rel("Camcorder", "00002.MTS")] is None
+    # the date reader itself: a block cut off by the end of what was read says nothing
+    assert video.mdpm_date(b"\x00" * 10 + bytes.fromhex("17ee8c60f84d11d98cd60800200c9a66") + b"MDPM") is None
 
 
 def test_chapters_stop_taking_frames_after_one_takes_too_long(con, cfg, photo, monkeypatch):

@@ -7,7 +7,8 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 from lineagebox import accounts, passkeys, settings
 from lineagebox.web.common import (ADMIN, MEMBER, SEE_AS, AccountBody, AccountChange, CodeBody, MeBody, RuleBody,
-                                   SeeAsBody, _from_app, _person_named, _redirect_uri, _uploads_root)
+                                   SeeAsBody, _from_app, _person_named, _recently_signed_in, _redirect_uri,
+                                   _uploads_root)
 from lineagebox.web.deps import con, page, site
 from lineagebox.web.site import Site
 
@@ -46,7 +47,9 @@ def accounts_page(request: Request, c=Depends(con), s: Site = Depends(site)):
 
 
 @router.post("/api/accounts", dependencies=[Depends(_from_app)])
-def add_account(body: AccountBody, c=Depends(con)):
+def add_account(request: Request, body: AccountBody, c=Depends(con)):
+    if body.role == "admin":
+        _recently_signed_in(request, "add an admin")
     pid = _person_named(c, body.name, body.name_id) if body.name.strip() else None
     accounts.add(c, body.email, pid, body.role)
     c.commit()
@@ -54,7 +57,9 @@ def add_account(body: AccountBody, c=Depends(con)):
 
 
 @router.post("/api/accounts/{account_id}", dependencies=[Depends(_from_app)])
-def change_account(account_id: int, body: AccountChange, c=Depends(con)):
+def change_account(account_id: int, request: Request, body: AccountChange, c=Depends(con)):
+    if body.role == "admin" and (row := accounts.get(c, account_id)) is not None and row["role"] != "admin":
+        _recently_signed_in(request, "make someone an admin")
     pid = _person_named(c, body.name, body.name_id) if body.name.strip() else None
     accounts.update(c, account_id, role=body.role or None, person_id=pid,
                     disabled=body.disabled)
@@ -85,9 +90,10 @@ def codes_page(request: Request, c=Depends(con), s: Site = Depends(site)):
 
 
 @router.post("/api/accounts/{account_id}/local-code", dependencies=[Depends(_from_app)])
-def local_code(account_id: int, c=Depends(con), s: Site = Depends(site)):
+def local_code(account_id: int, request: Request, c=Depends(con), s: Site = Depends(site)):
     """A new secret for an admin's authenticator app (the old one stops working), shown this once: a QR code to
     scan, a link that opens the app on a phone, and the key to type."""
+    _recently_signed_in(request, "make a code for signing in")
     secret = accounts.set_local_secret(c, account_id)
     email = accounts.get(c, account_id)["email"]
     uri = accounts.setup_uri(secret, email, "LineageBox")
