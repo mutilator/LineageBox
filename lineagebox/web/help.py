@@ -301,7 +301,9 @@ PAGES = {
         N_("Look again: the ticked photos are looked at again more closely (at twice the size, keeping fainter faces), "
            "in the background, a few a minute; the faces found are recognised where they clearly match. No faces to "
            "find: their people face away or are too far off, and they aren't listed again; Undo, or Recent changes, "
-           "lists them again. Either takes them off this list."))),
+           "lists them again. Either takes them off this list."),
+        N_("The worker also looks closely at every photo on its own, some each pass (Settings → Faces), and at a photo "
+           "turned when no face is found: a photo it has looked at leaves this list."))),
     "person": Page(N_("A person"), (
         N_("Everything about one person: their name, sex, birth, family and other relationships, life events, "
            "documents and photos."),

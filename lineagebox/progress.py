@@ -8,7 +8,7 @@ from lineagebox import describe, embeddings
 from lineagebox.catalog import VISIBLE
 from lineagebox.config import Config
 from lineagebox.describe import count_pending
-from lineagebox.faces import STAGE_FACES
+from lineagebox.faces import STAGE_FACES, count_due as faces_due
 
 STAGES = {"scan": "Looking for new and changed files", "back up the catalog": "Backing up the catalog",
           "ingest": "Reading new photos",
@@ -22,6 +22,8 @@ STAGES.update({"transcribe": "Transcribing videos, recordings and stories (Whisp
                "chapters": "Finding chapters in long videos", "tidy stories": "Tidying recorded stories"})
 STAGES.update({"describe again": "Describing photos again, as asked (AI)",
                "meaning": "Reading descriptions for search by meaning (AI)"})
+STAGES.update({"look again": "Looking for faces again, as asked",
+               "look closely at every photo": "Looking closely at every photo for faces"})
 SILENT_AFTER = timedelta(minutes=3)  # an idle worker checks in every 15 s
 
 
@@ -41,6 +43,7 @@ def counts(con: sqlite3.Connection, cfg: Config) -> dict:
                                                 AND NOT ignored AND path != ''""")),
             ("Photos and videos to check for faces",
              one(f"SELECT count(*) FROM image i WHERE NOT (i.stage & {STAGE_FACES}) AND {VISIBLE}")),
+            ("Photos to look at closely for faces (Settings → Faces)", faces_due(con)),
             ("Photos to measure for sharpness",
              one(f"SELECT count(*) FROM image i WHERE i.sharpness IS NULL AND i.media = 'photo' AND {VISIBLE}")),
             ("Photos to add to the search", one(f"""SELECT count(*) FROM image i WHERE {VISIBLE}

@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from starlette.background import BackgroundTask
 
 from lineagebox import backup, db, export, https, llm, passkeys, serving, settings, speech, tours
-from lineagebox import imports, sidecars, writeback
+from lineagebox import faces, imports, sidecars, writeback
 from lineagebox.llm import Ollama
 from lineagebox.storage import fmt_size
 from lineagebox.web.common import (ADMIN, PRIVATE, FolderBody, _attachment, _cert_name, _from_app, _host_allowed,
@@ -59,7 +59,7 @@ def settings_page(request: Request, browse: str = "", c=Depends(con), s: Site = 
                                         (passkeys.domain(now),)).fetchone()[0],
                 backups=backup.summary(c, now), default_backups=s.cfg.data_dir.joinpath(*backup.DEFAULT_FOLDER),
                 sidecar_counts=sidecars.summary(c), other_apps=imports.summary(c),
-                exiftool=writeback.exiftool() is not None)
+                exiftool=writeback.exiftool() is not None, face_round=faces.round_progress(c))
 
 
 @router.post("/api/settings", dependencies=[Depends(_from_app)])

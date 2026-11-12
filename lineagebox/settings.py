@@ -19,7 +19,7 @@ from lineagebox.config import Config
 EDITABLE = ("folders", "ignore_dirs", "ingest_threads", "worker_interval_minutes", "describe_schedule", "describe_from",
             "describe_until", "describe_days", "ollama_url", "ollama_model", "llm_workers", "blurry_below",
             "turn_suggest", "whisper_url", "library_about", "southern_hemisphere", "day_first", "describe_enabled",
-            "transcribe_enabled", "faces_enabled",
+            "transcribe_enabled", "faces_enabled", "faces_again_every",
             "places_lookup", "network_paths", "allowed_hosts", "trusted_proxies", "tls_cert", "tls_key",
             "accounts_enabled", "google_client_id", "google_client_secret", "public_url", "session_days",
             "uploads_folder", "uploads_into", "upload_max_gb", "update_check", "hover_preview_ms",
@@ -29,6 +29,7 @@ EDITABLE += ("sidecars_enabled", "import_enabled")  # Settings → Other program
 EDITABLE += ("whisper_language",)  # Settings → Speech (speech.py)
 SCHEDULES =("always", "hours", "paused")
 TURN_LEVELS = ("sure", "more", "off")  # Cleanup → Turned photos, see orientation.py
+AGAIN_EVERY = (6, 12, 0)  # Settings → Faces: months between looking again at every photo (faces.py); 0: when asked
 DAY_NAMES = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 SKIP_ON_SHARE = {"system volume information", "lost+found", "$recycle.bin", "@eadir", "#recycle"}
 _CLOCK = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)(:00)?$")  # browsers may add seconds
@@ -322,6 +323,16 @@ def _turn_level(value, cfg: Config) -> str:
     return value
 
 
+def _again_every(value, cfg: Config) -> int:
+    try:
+        months = int(value)
+    except (TypeError, ValueError):
+        raise Invalid("Unknown choice for looking again at every photo.") from None
+    if months not in AGAIN_EVERY:
+        raise Invalid("Unknown choice for looking again at every photo.")
+    return months
+
+
 def _schedule(value, cfg: Config) -> str:
     if value not in SCHEDULES:
         raise Invalid("Unknown schedule.")
@@ -581,7 +592,8 @@ _CHECKS = {
     "ollama_url": _url, "ollama_model": _model, "llm_workers": _ranged("llm_workers", "Parallel requests"),
     "blurry_below": _blurry, "turn_suggest": _turn_level, "whisper_url": _whisper_url, "library_about": _about,
     "southern_hemisphere": _switch, "day_first": _switch,
-    "describe_enabled": _switch, "transcribe_enabled": _switch, "faces_enabled": _switch, "places_lookup": _switch,
+    "describe_enabled": _switch, "transcribe_enabled": _switch, "faces_enabled": _switch,
+    "faces_again_every": _again_every, "places_lookup": _switch,
     "update_check": _switch,
     "network_paths": _network_paths, "allowed_hosts": host_names, "trusted_proxies": _proxies,
     "tls_cert": _file, "tls_key": _file,

@@ -103,6 +103,14 @@ from every face you name, so each answer helps it find the rest.
   again**: the worker looks at them more closely in the background, a few a minute, and recognises the faces it
   finds. Tick those whose people face away or are too far off and press **No faces to find**: they aren't listed
   again (Undo, or Recent changes, lists them again).
+- **Every photo is looked at closely** by the worker on its own, in the background, some each pass: the same closer
+  look as **Look for faces again**, at twice the size, which finds the small faces the first look misses in group
+  photos. A photo where the AI sees people but no face is found is also looked at turned each way: a scan or an old
+  photo on its side has its faces found that way, and then shows on **Turned photos**. New faces are recognised where
+  they clearly match; a face marked as not a face stays so. A photo looked at closely leaves **Faces missed** and **No
+  faces found**. New photos get it a little after they arrive, and **Settings → Faces** says how many are left and
+  when to look at every photo again: every 6 months, every year, or only when you ask (**Look again at every photo
+  now**). Looking again finds faces in photos turned since, or after an update that looks better.
 
   Admins' **Find more photos of these people**, on People, names the faces elsewhere that clearly match.
 - A face's look can't tell anyone's age (it takes children for adults), so ages are never used to recognise anyone.
@@ -733,7 +741,8 @@ The menu at the side shows one part at a time (on a phone, it is above the setti
   paused.
 - **AI, speech and faces:** **AI (Ollama)** and **Speech in videos, recordings and stories (Whisper)**: on or off, the
   address, the model, how many at a time, and a connection check; for speech, the **language spoken** (auto, for
-  Whisper to tell from the speech, or a code such as en). **Faces:** on or off.
+  Whisper to tell from the speech, or a code such as en). **Faces:** on or off, and how often to look closely at
+  every photo again (every 6 months, every year, or only when you ask), with how many are left.
 - **Map:** looking up place names with OpenStreetMap's Nominatim. It is off until you turn it on, because it sends the
   place names (and nothing else) to nominatim.openstreetmap.org. It looks up a few a minute and each name only once, as
   Nominatim's [usage policy](https://operations.osmfoundation.org/policies/nominatim/) asks. That policy allows light

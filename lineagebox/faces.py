@@ -16,7 +16,7 @@ import zipfile
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import httpx
@@ -226,10 +226,14 @@ def detect(con: sqlite3.Connection, cfg: Config, limit: int | None = None, gpu: 
     return stats
 
 
-def look_again(con: sqlite3.Connection, cfg: Config, image_id: int, app=None) -> tuple[list[int], list[int]]:
+def look_again(con: sqlite3.Connection, cfg: Config, image_id: int, app=None, bar: float | None = None,
+               bring_back: bool = True, turned: bool = False) -> tuple[list[int], list[int]]:
     """Look for faces in one photo (or a video's frames) again, more closely than the first time. Faces not found
-    before are added; one found before and marked as not a face is brought back. Returns (new faces, faces brought
-    back). app: the closer look's models, loaded already (look_again_waiting); else they are loaded for this one."""
+    before are added; one found before and marked as not a face is brought back (bring_back: when someone asked about
+    this photo; never when going through every photo, which leaves what people said alone). Returns (new faces, faces
+    brought back). app: the closer look's models, loaded already (look_again_waiting); else they are loaded for this
+    one. bar: keep only new faces the detector is at least this sure of (None: from LOOK_AGAIN_THRESHOLD). turned: a
+    photo with no face at all, even now, is looked at turned each way (_found_turned)."""
     img = con.execute("SELECT sha256, media FROM image WHERE id = ?", (image_id,)).fetchone()
     if img is None:
         raise FileNotFoundError("That photo isn't in the catalog any more.")
@@ -249,7 +253,8 @@ def look_again(con: sqlite3.Connection, cfg: Config, image_id: int, app=None) ->
             app = closer_look_model(cfg)
         from insightface.app.common import Face
         for frame, path in pictures:
-            bgr = np.asarray(Image.open(path).convert("RGB"))[:, :, ::-1].copy()
+            rgb = Image.open(path).convert("RGB")
+            bgr = np.asarray(rgb)[:, :, ::-1].copy()
             h, w = bgr.shape[:2]
             # found, then read (embedding, age) only if new: on that ARM board a crowd of 150 faces took 47 s read whole
             boxes, points = app.det_model.detect(bgr, max_num=0, metric="default")
@@ -257,7 +262,10 @@ def look_again(con: sqlite3.Connection, cfg: Config, image_id: int, app=None) ->
                 box = tuple(float(v) for v in np.array(corners) / [w, h, w, h])
                 same = [k for k in known if k["frame"] == frame and _overlap(box, k) >= SAME_FACE]
                 if same:
-                    back |= {k["id"] for k in same if k["assigned_by"] == "not_a_face"}
+                    if bring_back:
+                        back |= {k["id"] for k in same if k["assigned_by"] == "not_a_face"}
+                    continue
+                if bar is not None and score < bar:
                     continue
                 f = Face(bbox=np.array(corners), kps=points[n], det_score=score)
                 for task, model in app.models.items():
@@ -266,6 +274,10 @@ def look_again(con: sqlite3.Connection, cfg: Config, image_id: int, app=None) ->
                 found.append((image_id, *box, (f.kps / np.array([w, h])).astype(np.float32).tobytes(),
                               float(f.det_score), float(f.embedding_norm), None if f.age is None else int(f.age),
                               f.sex, f.normed_embedding.astype(np.float32).tobytes(), frame))
+        found_turned = False
+        if turned and img["media"] == "photo" and not found and not back                 and all(k["assigned_by"] == "not_a_face" for k in known):
+            found = _found_turned(app, rgb, image_id)
+            found_turned = bool(found)
     if img["media"] == "video":  # one face per person, and none of someone the video already has a face of
         seen = [np.frombuffer(k["embedding"], dtype=np.float32) for k in known]
         found = [f for f in one_per_person(found) if not seen or max(
@@ -277,7 +289,67 @@ def look_again(con: sqlite3.Connection, cfg: Config, image_id: int, app=None) ->
     con.execute("UPDATE image SET faces_again = ? WHERE id = ?",  # off the list of photos with faces missed (missed)
                 (datetime.now().isoformat(timespec="seconds"), image_id))
     con.commit()
+    if found_turned:  # Turned photos lists it as sure, whatever the AI says (orientation.suggestions)
+        from lineagebox import settings
+
+        settings.put(con, FOUND_TURNED_KEY, sorted({*settings.get(con, FOUND_TURNED_KEY, []), image_id}))
     return new, sorted(back)
+
+
+TURNS = (90, 180, 270)  # the turns clockwise a photo with no face found is looked at in (_found_turned)
+# settings: photos whose faces were found only once turned. None as they are, even looking closely, and clear ones
+# turned, says the photo is on its side more surely than the AI, which in a folder of scanned prints called most of
+# those fine: Cleanup → Turned photos lists them as sure (orientation.suggestions)
+FOUND_TURNED_KEY = "turn_found"
+
+
+def _found_turned(app, rgb: Image.Image, image_id: int) -> list[tuple]:
+    """Faces found once a photo is turned: one taken sideways or upside down, which no camera tag turned upright (a
+    scan, an old camera), whose faces the detector misses as it is. Of the three turns, the one that finds the most
+    faces the detector is at least MIN_DET_SCORE sure of (the clearer on a tie); their boxes and landmarks put back on
+    the photo as it is, so they show where they are, and their landmarks then say that the photo is turned (Cleanup →
+    Turned photos). Each face is read (embedding, age) on the turned photo, where it is upright. Rows for face, as
+    look_again makes them; none when no turn finds a face."""
+    from insightface.app.common import Face
+
+    size = rgb.size
+    best = None  # (number of faces, their scores together, turn, the turned picture, [(box, landmarks)])
+    for turn in TURNS:
+        bgr = np.asarray(rgb.rotate(-turn, expand=True))[:, :, ::-1].copy()  # Pillow turns counter-clockwise
+        boxes, points = app.det_model.detect(bgr, max_num=0, metric="default")
+        keep = [(b, p) for b, p in zip(boxes, points) if b[4] >= MIN_DET_SCORE]
+        if keep and (best is None or (len(keep), sum(float(b[4]) for b, _ in keep)) > best[:2]):
+            best = (len(keep), sum(float(b[4]) for b, _ in keep), turn, bgr, keep)
+    if best is None:
+        return []
+    _, _, turn, bgr, keep = best
+    out = []
+    for b, p in keep:
+        f = Face(bbox=np.array(b[:4]), kps=p, det_score=b[4])
+        for task, model in app.models.items():
+            if task != "detection":
+                model.get(bgr, f)
+        corners = unturn(np.array([[b[0], b[1]], [b[2], b[3]]], dtype=np.float64), turn, size)
+        (x1, y1), (x2, y2) = corners.min(axis=0) / size, corners.max(axis=0) / size
+        marks = (unturn(np.asarray(p, dtype=np.float64), turn, size) / size).astype(np.float32).tobytes()
+        out.append((image_id, float(x1), float(y1), float(x2), float(y2), marks, float(b[4]), float(f.embedding_norm),
+                    None if f.age is None else int(f.age), f.sex, f.normed_embedding.astype(np.float32).tobytes(),
+                    None))
+    return out
+
+
+def unturn(points: np.ndarray, turn: int, size: tuple[int, int]) -> np.ndarray:
+    """Points (x, y), in pixels on a picture turned `turn` degrees clockwise, as pixels on the picture as it was;
+    size: that one's width and height."""
+    width, height = size
+    u, v = points[:, 0], points[:, 1]
+    if turn == 90:
+        return np.stack([v, height - u], axis=1)
+    if turn == 180:
+        return np.stack([width - u, height - v], axis=1)
+    if turn == 270:
+        return np.stack([width - v, u], axis=1)
+    return np.stack([u, v], axis=1)
 
 
 def closer_look_model(cfg: Config):
@@ -349,6 +421,108 @@ def look_again_waiting(con: sqlite3.Connection, cfg: Config, stop=None) -> tuple
         settings.put(con, LOOK_AGAIN_KEY, [i for i in settings.get(con, LOOK_AGAIN_KEY, []) if i != image_id])
         done += 1
     return done, faces
+
+
+# Looking again at every photo (the worker's stage, Settings → Faces): the closer look a photo's page gives, for every
+# photo that only had the first look. Measured on the library LineageBox was developed on (2026-11-11): of 80 photos
+# picked at random, 22 had faces the first look missed, 88 in all, nearly all small (at twice the size most scored
+# 0.6 to 0.86; 14 under 0.5). It takes 1.45 s a photo on the router's processor (the first look 0.55 s): about 16
+# hours for 38,000 photos, so the worker gives it some minutes a pass. Each photo is looked at once (faces_again),
+# and a new one soon after its first look. A round (ROUND_KEY) looks at every photo again, every few months as
+# Settings → Faces says (faces_again_every) or when an admin asks: the same look finds nothing new in a photo that
+# hasn't changed, but does in one turned since, or after an update that looks better.
+#
+# A photo where the AI sees people but no face is found, even now, is looked at turned too (_found_turned): in a folder
+# of scanned wedding prints with no turn in their files, 4 of 8 such photos had 2 or 3 clear faces once turned (0.83 to
+# 0.88), which then put them on Cleanup → Turned photos; at random, 4 photos in 80 were like that, none with faces.
+ROUND_KEY = "faces_round"  # settings: {"started": when this round began, "finished": when it ended, None while it runs}
+ROUND_BAR = 0.5            # new faces kept: the first look's bar, not the 0.35 of a photo someone asked about
+ROUND_AT_ONCE = 2000       # photos picked at a time; a pass stops sooner, when its minutes are up
+
+
+def _due(state: dict) -> tuple[str, dict]:
+    """The photos this round still has to look at: those whose first look is done and that haven't been looked at
+    closely since it began (all of them, if none ever did)."""
+    return (f"""i.media = 'photo' AND (i.stage & {STAGE_FACES}) AND {VISIBLE}
+                AND (i.faces_again IS NULL OR i.faces_again < :started)""", {"started": state.get("started") or ""})
+
+
+def round_state(con: sqlite3.Connection) -> dict:
+    from lineagebox import settings
+
+    return settings.get(con, ROUND_KEY, {}) or {}
+
+
+def start_round(con: sqlite3.Connection, now: datetime | None = None) -> None:
+    """Look again at every photo, from now: an admin asked, or it is time (faces_again_every)."""
+    from lineagebox import settings
+
+    settings.put(con, ROUND_KEY, {"started": (now or datetime.now()).isoformat(timespec="seconds"), "finished": None})
+
+
+def count_due(con: sqlite3.Connection) -> int:
+    """Photos still to look at closely (the Status page's list of what is waiting)."""
+    where, args = _due(round_state(con))
+    return con.execute(f"SELECT count(*) FROM image i WHERE {where}", args).fetchone()[0]
+
+
+def round_progress(con: sqlite3.Connection) -> dict:
+    """For Settings → Faces: {"photos": photos whose faces were looked for, "left": those still to look at closely,
+    "started", "finished": the round's, "hours": about how long the rest takes on a small router}."""
+    state = round_state(con)
+    photos = con.execute(f"""SELECT count(*) FROM image i WHERE i.media = 'photo' AND (i.stage & {STAGE_FACES})
+                             AND {VISIBLE}""").fetchone()[0]
+    left = count_due(con)
+    return {"photos": photos, "left": left, "started": state.get("started"), "finished": state.get("finished"),
+            "hours": round(left * 1.6 / 3600, 1)}
+
+
+def look_again_all(con: sqlite3.Connection, cfg: Config, every_months: int, stop=None,
+                   now: datetime | None = None) -> tuple[int, list[int]]:
+    """The worker's closer look at the photos this round still has to look at, the newest first, the models loaded
+    once, until stop() says so. Starts the first round, and a new one when the last finished more than every_months
+    ago (0: only when asked); marks a round finished when no photo is left. New faces are kept from ROUND_BAR, a face
+    marked as not a face stays so, and a photo where the AI sees people but no face is found is looked at turned.
+    Returns (photos looked at, new faces)."""
+    from lineagebox import settings
+
+    now = now or datetime.now()
+    state = round_state(con)
+    if not state.get("started"):
+        start_round(con, now)
+    elif every_months and state.get("finished") and             state["finished"] < (now - timedelta(days=round(every_months * 30.44))).isoformat(timespec="seconds"):
+        start_round(con, now)
+    state = round_state(con)
+    where, args = _due(state)
+    ids = [r[0] for r in con.execute(f"SELECT i.id FROM image i WHERE {where} ORDER BY i.id DESC LIMIT {ROUND_AT_ONCE}",
+                                     args)]
+    if not ids:
+        if not state.get("finished"):
+            settings.put(con, ROUND_KEY, {**state, "finished": now.isoformat(timespec="seconds")})
+            con.commit()
+        return 0, []
+    seen = dict(con.execute("""SELECT image_id, max(people_count) FROM analysis
+                               WHERE image_id IN (SELECT value FROM json_each(?)) GROUP BY image_id""",
+                            (json.dumps(ids),)).fetchall())
+    ensure_models(con, cfg.models_dir)
+    app = closer_look_model(cfg)
+    done, found = 0, []
+    for image_id in ids:
+        if stop is not None and stop():
+            break
+        try:
+            new, _ = look_again(con, cfg, image_id, app=app, bar=ROUND_BAR, bring_back=False,
+                                turned=(seen.get(image_id) or 0) >= 1)
+            found += new
+        except FileNotFoundError:  # no preview to look at just now (it is being made again): a later pass
+            continue
+        except sqlite3.OperationalError as e:  # the web app holds the catalog: the rest wait for the next pass
+            con.rollback()
+            if "locked" not in str(e):
+                raise
+            break
+        done += 1
+    return done, found
 
 
 # Photos with faces missed (Cleanup → Confirm faces → Faces missed): the AI's description counts the people it sees

@@ -12,6 +12,9 @@ Cleanup → No faces found (its own card): photos where the AI's description see
 - POST /api/images/look-again {image_ids}: the worker looks at these again, more closely (faces.look_again_waiting).
 - POST /api/images/no-faces-ok {image_ids}: no faces to find in these (people facing away, too far off): not listed
   again. Undoable.
+
+Settings → Faces: every photo is looked at closely once (faces.look_again_all), and again every few months.
+- POST /api/faces/look-again-all: look closely at every photo again, from now (unless that is under way already).
 """
 import json
 from datetime import datetime
@@ -32,6 +35,7 @@ ACCESS = {
     "/cleanup/no-faces": ADMIN,
     "/api/images/look-again": ADMIN,
     "/api/images/no-faces-ok": ADMIN,
+    "/api/faces/look-again-all": ADMIN,
 }
 
 TABS = {"ages": "Ages to check", "missed": "Faces missed"}  # Cleanup → Confirm faces' lists of this module
@@ -139,6 +143,17 @@ def look_again_later(body: ImageIds, c=Depends(con)):
     n = len(ids)
     return {"message": f"{n} photo{'' if n == 1 else 's'} will be looked at again in the background, a few a minute; "
                        "the faces found are recognised where they clearly match.", "reload": True}
+
+
+@router.post("/api/faces/look-again-all", dependencies=[Depends(_from_app)])
+def look_again_at_all(c=Depends(con)):
+    """Look closely at every photo again, from now, in the background (a pass starts now, as Check now starts one)."""
+    if faces.round_progress(c)["left"]:
+        return {"message": "Every photo is being looked at already; it carries on in the background."}
+    faces.start_round(c)
+    settings.put(c, "run_requested", datetime.now().isoformat(timespec="seconds"))
+    return {"message": "Every photo will be looked at again in the background, some each pass; the faces found are "
+                       "recognised where they clearly match.", "reload": True}
 
 
 @router.post("/api/images/no-faces-ok", dependencies=[Depends(_from_app)])

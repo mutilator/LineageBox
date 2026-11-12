@@ -218,8 +218,33 @@ machines and networks are hidden.{% endtrans %}</p>
       {% trans %}Find faces and recognize the people you name{% endtrans %}</label>
       <span class="hint">{% trans %}On this machine's processor, about a second a photo on a small one. The first time, it
       downloads its models (about 280 MB). Off: the People page keeps what was found so far.{% endtrans %}</span></p>
+    {#- every photo looked at closely once, and again every few months (faces.look_again_all) #}
+    <fieldset>
+      <legend>{% trans %}Look closely at every photo again{% endtrans %}</legend>
+      <label class="choice"><input type="radio" name="faces_again_every" value="6"{% if cfg.faces_again_every == 6 %} checked{% endif %}>
+        {% trans %}Every 6 months{% endtrans %}</label>
+      <label class="choice"><input type="radio" name="faces_again_every" value="12"{% if cfg.faces_again_every == 12 %} checked{% endif %}>
+        {% trans %}Every year{% endtrans %}</label>
+      <label class="choice"><input type="radio" name="faces_again_every" value="0"{% if cfg.faces_again_every == 0 %} checked{% endif %}>
+        {% trans %}Only when I ask{% endtrans %}</label>
+    </fieldset>
+    <p class="hint">{% trans %}The first look finds most faces quickly. A closer look, at twice the size, finds the small ones it
+    misses in group photos, and looks at a photo turned when the AI sees people in it but no face is found. Every
+    photo gets it once, a little after it arrives; looking again later finds faces in photos turned since, or after an
+    update. Faces marked as not a face stay so.{% endtrans %}</p>
     <p><button type="submit" class="primary">{% trans %}Save{% endtrans %}</button> <span class="hint inline" id="faces-saved"></span></p>
   </form>
+  <p class="meta" id="face-round">
+    {%- if face_round.left %}
+    {% trans left=face_round.left|number, photos=face_round.photos|number, hours=face_round.hours %}Looking closely: {{ left }} of {{ photos }} photos to go, about {{ hours }} hours of work, done some each pass.{% endtrans %}
+    {%- elif face_round.finished %}
+    {% trans when=face_round.finished|date(false) %}Every photo was looked at closely by {{ when }}.{% endtrans %}
+    <button type="button" data-api="/api/faces/look-again-all" data-show="#face-round-said" data-busy="{{ _('Starting…') }}">{% trans %}Look again at every photo now{% endtrans %}</button>
+    <span class="hint inline" id="face-round-said"></span>
+    {%- else %}
+    {% trans %}Every photo will be looked at closely in the background.{% endtrans %}
+    {%- endif %}
+  </p>
 </section>
 </div>
 

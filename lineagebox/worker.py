@@ -101,6 +101,9 @@ CHAPTER_MINUTES = 20  # long videos looked at for chapters per pass (chapters.py
 # Photos described again as asked, and descriptions read for search by meaning, each per pass at most: a thousand
 # asked for take hours, and would otherwise use up the whole pass, leaving the stages after them none of it
 ASKED_MINUTES = 20
+# every photo given the closer look a photo's page gives (faces.look_again_all): its first pass takes about 16 hours
+# on a small router for 38,000 photos, this long a pass at most, so the other stages go on meanwhile
+ROUND_MINUTES = 30
 
 
 def _for_minutes(minutes: float, stop: Stopper | None, describing: bool = False):
@@ -234,6 +237,16 @@ def run_once(con: sqlite3.Connection, cfg: Config, stop: Stopper | None = None) 
             recognised = stage("recognise", lambda: people.identify(con, again[1])) if again[1] else 0
             log(con, f"faces: looked again at {again[0]} photo{'' if again[0] == 1 else 's'}, found {len(again[1])} "
                      f"more faces, recognised {recognised or 0}")
+        # every photo looked at closely once, and again every few months (Settings → Faces): ROUND_MINUTES a pass
+        if (every := stage("look closely at every photo", lambda: faces.look_again_all(
+                con, cfg, cfg.faces_again_every, stop=_for_minutes(ROUND_MINUTES, stop)))) and every[0]:
+            recognised = stage("recognise", lambda: people.identify(con, every[1])) if every[1] else 0
+            if every[1]:
+                stage("group faces", lambda: people.cluster(con))
+            left = faces.round_progress(con)["left"]
+            log(con, f"faces: looked closely at {every[0]} photo{'' if every[0] == 1 else 's'}, found {len(every[1])} "
+                     f"more faces, recognised {recognised or 0}" + (f"; {left} photos to go" if left else "; every "
+                                                                     "photo looked at closely"))
         # a video's faces that plainly are someone named on its other frames (people.IN_VIDEO_SIMILARITY)
         if n := stage("faces in videos", lambda: people.name_in_videos(con)):
             log(con, f"people: named {n} faces in videos after the same person on other frames")

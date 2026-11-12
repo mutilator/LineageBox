@@ -75,6 +75,7 @@ it differs.
 | `[whisper] url` | none | Page | The speech-to-text service's address, e.g. `http://pc:9300`. |
 | `[whisper] language` | `auto` | Page | The language spoken: `auto` lets Whisper tell from the speech, video by video; or a code such as `en` or `de` when it guesses wrong. |
 | `[faces] enabled` | true | Page | Finding and recognizing faces. |
+| `[faces] again_every` | 6 | Page | Months between looking closely at every photo again: 6, 12, or 0 for only when an admin asks. Every photo is looked at closely once anyway. |
 | `[faces] models_dir` | `~/.insightface` (Docker: `/data/insightface`) | | Where the face models are downloaded. |
 | `[library] about` | none | Page | Whose photos these are ("a family in Oregon, USA"). Helps the AI read places in folder names. |
 | `[places] lookup` | false | Page | Find place names on the map with OpenStreetMap's Nominatim. This sends the names (nothing else) to `[places] url`, at most 4 a minute from the worker. |

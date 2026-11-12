@@ -79,6 +79,15 @@ def test_camera_name(make, model, expected):
     assert media.camera_name(exif) == expected
 
 
+def test_raw_dates_from_either_rawpy():
+    # LibRaw's date for a raw file: seconds since 1970 from rawpy up to 0.26, a datetime from 0.27 (turning a raw photo
+    # failed on it); a file with no date is 0, or 1970 as a datetime
+    taken = datetime(2012, 6, 3, 10, 5, 0)
+    assert media._local_time(taken) == media._local_time(taken.timestamp()) == "2012-06-03T10:05:00"
+    assert media._local_time(0) is None and media._local_time(datetime.fromtimestamp(0)) is None
+    assert media._local_time(None) is None
+
+
 def test_phash_fits_signed_64_bit():
     h = media.phash(Image.effect_noise((64, 64), 80).convert("RGB"))
     assert -(1 << 63) <= h < (1 << 63)

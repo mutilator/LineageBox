@@ -33,7 +33,7 @@ from PIL import Image
 from lineagebox import settings, writeback
 from lineagebox.catalog import VISIBLE
 from lineagebox.config import Config
-from lineagebox.faces import usable_faces_sql
+from lineagebox.faces import FOUND_TURNED_KEY, usable_faces_sql
 
 OK_KEY = "turn_ok"   # settings: photos marked fine as they are
 AI_KEY = "turn_ai"   # settings: image id -> what the AI said: "turned" or "fine"
@@ -77,15 +77,17 @@ def candidates(con: sqlite3.Connection, faces: int) -> dict[int, tuple[int, int]
 
 def suggestions(con: sqlite3.Connection, level: str) -> list[dict]:
     """The photos to list for the setting turn_suggest: id, turn, faces, and doubt (None when sure, else why not):
-    sure when two or more faces agree and the AI doesn't say otherwise, or one face does and the AI agrees."""
+    sure when two or more faces agree and the AI doesn't say otherwise, or one face does and the AI agrees, or its
+    faces were found only once the photo was turned (faces.FOUND_TURNED_KEY), whatever the AI says."""
     if level not in ("sure", "more"):
         return []
     found = candidates(con, 1)
     said = settings.get(con, AI_KEY, {})
+    turned = set(settings.get(con, FOUND_TURNED_KEY, []))
     out = []
     for image_id, (turn, faces) in found.items():
         verdict = said.get(str(image_id))
-        doubt = ("the AI thinks it is the right way up" if verdict == "fine"
+        doubt = (None if image_id in turned else "the AI thinks it is the right way up" if verdict == "fine"
                  else "only one face says so" if faces < 2 and verdict != "turned" else None)
         if doubt is None or level == "more":
             out.append({"id": image_id, "turn": turn, "faces": faces, "doubt": doubt})

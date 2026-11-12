@@ -205,10 +205,12 @@ def _cr3_exif(data: bytes) -> _Tags:
 
 
 def _local_time(timestamp) -> str | None:
-    """LibRaw's date for a raw file (read from it as local time, and given as seconds since 1970), as ISO time."""
+    """LibRaw's date for a raw file, read from it as local time, as ISO time. rawpy gives it as seconds since 1970 up
+    to 0.26, and from 0.27 as a datetime made from them, so a file with no date (0) is 1970 there: None either way."""
     try:
-        return dates.from_parts(*datetime.fromtimestamp(timestamp).timetuple()[:6]) if timestamp else None
-    except (OSError, OverflowError, ValueError):
+        when = timestamp if isinstance(timestamp, datetime) else datetime.fromtimestamp(timestamp) if timestamp else None
+        return dates.from_parts(*when.timetuple()[:6]) if when is not None and when.year > 1970 else None
+    except (OSError, OverflowError, ValueError, TypeError):
         return None
 
 

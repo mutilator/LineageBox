@@ -61,6 +61,7 @@ class Config:
     describe_enabled: bool = True                     # AI descriptions and folder names (Ollama)
     transcribe_enabled: bool = True                   # transcripts of videos (Whisper)
     faces_enabled: bool = True                        # finding and recognizing faces
+    faces_again_every: int = 6                        # months between looking again at every photo (0: when asked)
     places_lookup: bool = False                       # find place names on the map with OpenStreetMap (sends them)
     sidecars_enabled: bool = False                    # XMP sidecars of names and captions beside the photos (sidecars.py)
     import_enabled: bool = True                       # names, tags and dates from other apps' metadata (imports.py)
@@ -190,7 +191,8 @@ KEYS = {
     ("ingest", "threads"): "ingest_threads", ("ingest", "video_threads"): "video_threads",
     ("ingest", "thumb_size"): "thumb_size", ("ingest", "preview_size"): "preview_size",
     ("ollama", "enabled"): "describe_enabled", ("whisper", "enabled"): "transcribe_enabled",
-    ("faces", "enabled"): "faces_enabled", ("places", "lookup"): "places_lookup",
+    ("faces", "enabled"): "faces_enabled", ("faces", "again_every"): "faces_again_every",
+    ("places", "lookup"): "places_lookup",
     ("places", "url"): "places_url", ("places", "contact"): "places_contact",
     ("map", "tiles"): "map_tiles", ("map", "attribution"): "map_attribution",
     ("xmp", "sidecars"): "sidecars_enabled", ("xmp", "import"): "import_enabled",

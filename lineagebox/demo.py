@@ -63,7 +63,7 @@ LOCKED = frozenset({
     "/api/https", "/api/https/off", "/api/https/upload", "/api/update", "/api/update/check", "/api/backup",
     "/api/devices", "/api/devices/{device_id}/delete", "/api/devices/{device_id}/revoke",
     "/api/folders/watch", "/api/folders/unwatch", "/api/ollama/pull", "/api/ollama/check", "/api/whisper/check",
-    "/api/family/read",
+    "/api/family/read", "/api/faces/look-again-all",
 })
 HIDDEN = "(hidden in the demo)"
 _ADDRESS = re.compile(r"\bhttps?://[^\s;,)<>\"']+|\b\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?\b")
