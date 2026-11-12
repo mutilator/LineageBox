@@ -8,7 +8,17 @@
   <span>{{ caller() }}</span>
 </a>
 {%- endmacro %}
-{%- if part == "copies" %}
+{%- if part == "private" %}
+<a class="card private-card{% if n and n.photos %} waiting{% endif %}" href="/cleanup/private">
+  <b>{% trans %}Private papers{% endtrans %}</b>
+  {% if n is none %}<span class="num loading">{% trans %}Loading…{% endtrans %}</span>{% else %}<span class="num">{{ n.photos|number }}</span>{% endif %}
+  <span>{% if viewer.limited %}{% trans %}photos you uploaded that look like identity cards, money and tax papers, health
+  records or certificates of people living, which the rest of the family shouldn't see. Hide them from family members,
+  or say they are fine to show.{% endtrans %}{% else %}{% trans %}photos that look like identity cards, money and tax papers, health records or certificates of people
+  living, which family members shouldn't see. Hide them from family members, or say they are fine to show.{% endtrans %}{% endif %}
+  {%- if n and n.named %} {% trans count=n.named, num=n.named|number %}{{ num }} has someone named in it, so family members who see that person may see it now.{% pluralize %}{{ num }} have someone named in them, so family members who see those people may see them now.{% endtrans %}{% endif %}</span>
+</a>
+{%- elif part == "copies" %}
 {% call card("/cleanup/copies", _("Duplicate copies"), n and n.redundant_copies) %}{% trans %}files are identical copies of photos that
 are also in another folder. Remove the copies from one folder; the photo stays in the other.{% endtrans %}{% endcall %}
 {%- elif part == "similar" and viewer.limited %}

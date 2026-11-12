@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% set nav = "cleanup" %}
+{% block title %}{% trans %}Private papers{% endtrans %}{% endblock %}
+{#- Cleanup → Private papers (routes/private.py, private.py): photos that look like identity cards, money and tax papers,
+    health records and certificates of living people, found in the AI's descriptions, those with someone named in them
+    first. Ticked ones are hidden from family members, or said fine to show; either takes them off the list (Undo puts
+    them back). The text the AI read off a photo is never shown here, only what kind of thing it looked like. A family
+    member's are the photos they uploaded (routes/private.py _theirs). -#}
+{% block main %}
+<nav class="crumbs"><a href="/cleanup">{% trans %}Cleanup{% endtrans %}</a><span class="sep">/</span><h1>{% trans %}Private papers{% endtrans %}</h1></nav>
+{%- if viewer.limited %}
+<p class="meta">{% trans %}Photos you uploaded that look like driver's licenses and other identity cards, Social Security
+cards, bank and credit cards, checks, tax forms, insurance cards, health records, or the birth and marriage
+certificates of people still living: things the rest of the family shouldn't see. A family member sees a photo when
+someone they see is named in it, so those come first. Tick them and press <b>Hide from family members</b>: no other
+family member sees them again, whoever is in them; you still do, and so do the admins. Press <b>Fine to show</b> for
+any that aren't private, and they aren't listed again. Undo, in the message after, puts either back. Photos someone
+else uploaded are for an admin to look after.{% endtrans %}</p>
+{%- else %}
+<p class="meta">{% trans %}Photos that look like driver's licenses and other identity cards, Social Security cards, bank and
+credit cards, checks, tax forms, insurance cards, health records, or the birth and marriage certificates of people
+still living: things family members shouldn't see. A family member sees a photo when someone they see is named in it,
+so those come first. Tick them and press <b>Hide from family members</b>: no family member sees them again, whoever is
+in them, though whoever uploaded one still does, and admins do. Press <b>Fine to show</b> for any that aren't private,
+and they aren't listed again. Undo, or <a href="/cleanup/changes">Recent changes</a>, puts either back; a hidden photo's
+own page can show it again. Family members see the photos they uploaded here too, to hide them
+themselves.{% endtrans %}</p>
+{%- endif %}
+<p class="hint">{% trans %}They are found in the AI's descriptions of the photos, so a photo not described yet isn't here, and
+some here are something else. Certificates of people who have all died are family history and aren't listed.{% endtrans %}
+{%- if hidden %} {% trans count=hidden, n=hidden|number %}{{ n }} photo is hidden from family members already.{% pluralize %}{{ n }} photos are hidden from family members already.{% endtrans %}{% endif %}
+{%- if fine %} {% trans count=fine, n=fine|number %}{{ n }} was said to be fine to show.{% pluralize %}{{ n }} were said to be fine to show.{% endtrans %}{% endif %}</p>
+
+{%- if total %}
+<nav class="filters" aria-label="{{ _('Which papers') }}">
+  <a href="/cleanup/private"{% if not kind %} aria-current="page"{% endif %}>{% trans %}All{% endtrans %} <span>{{ total|number }}</span></a>
+  {%- for key, label in kinds.items() %}
+  <a href="/cleanup/private?kind={{ key }}"{% if kind == key %} aria-current="page"{% endif %}{% if not counts[key] %} class="empty"{% endif %}>{{ _(label) }} <span>{{ counts[key]|number }}</span></a>
+  {%- endfor %}
+</nav>
+{%- if named %}
+<p class="note problem">{% trans count=named, n=named|number %}{{ n }} of them has someone named in it: family members who see that person may see it now.{% pluralize %}{{ n }} of them have someone named in them: family members who see those people may see them now.{% endtrans %}</p>
+{%- endif %}
+{%- endif %}
+
+{% include "_pager.html" %}
+{%- if photos %}
+{%- set alts = tile_alts(photos) %}
+<form class="select-form" data-reason="private papers">
+  <div class="grid selectable">
+    {%- for im in photos %}
+    <label class="tile pick" title="{{ im.caption or (im.taken_at|date) }}">
+      <input type="checkbox" name="image" value="{{ im.id }}" aria-label="{{ alts[im.id] }}">
+      {{ m.tile_img(im, alts) }}
+      <a class="open" href="/image/{{ im.id }}" target="_blank" title="{{ _('Open in a new tab') }}" aria-label="{{ _('Open in a new tab') }}">↗</a>
+      <span class="badge wide why" title="{{ _(kinds[im.kind]) }}">{{ im.why }}{% if im.named %}<br><b>{% trans %}someone named in it{% endtrans %}</b>{% endif %}</span>
+    </label>
+    {%- endfor %}
+  </div>
+  <div class="select-bar">
+    <button type="button" data-select="all" data-key="a">{% trans %}Select all{% endtrans %}</button>
+    <button type="button" data-select="none" data-key="n">{% trans %}Select none{% endtrans %}</button>
+    <button type="submit" class="primary" data-api="/api/images/hide-private" data-label="{{ _('Hide {n} from family members') }}" disabled
+            title="{{ _('No family member sees the ticked photos again, whoever is in them (whoever uploaded one still does)') }}">{% trans %}Hide 0 from family members{% endtrans %}</button>
+    <button type="submit" data-api="/api/images/private-ok" data-label="{{ _('Fine to show: {n}') }}" disabled
+            title="{{ _("They aren't private: don't list them again") }}">{% trans %}Fine to show: 0{% endtrans %}</button>
+  </div>
+</form>
+{% include "_pager.html" %}
+{%- else %}
+<p class="note">{% if kind %}{% trans %}None of these.{% endtrans %}{% elif viewer.limited %}{% trans %}No photo you uploaded looks like private papers that others could see.{% endtrans %}{% else %}{% trans %}No photo the AI described looks like private papers that family members could see.{% endtrans %}{% endif %}</p>
+{%- endif %}
+{% endblock %}

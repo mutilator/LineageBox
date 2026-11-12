@@ -266,10 +266,14 @@ PAGES = {
            "aren't asked about it again. Recognition learns from every face you name."),
         N_("The faces come in this order: those someone in the family asked about (Who is this?, on Home), then those "
            "in photos with people already named that look like someone else, then those recognised automatically that "
-           "nobody has checked, the least certain first, and last the groups of faces that look like one person, to "
+           "nobody has checked, the least sure first, and last the groups of faces that look like one person, to "
            "name all at once (Don't know them sets aside a group nobody in the family knows). A group whose faces "
            "together look like someone already named asks “Are these …?”: Yes names them all. The buttons at the top "
            "show one kind only."),
+        N_("A face recognised or suggested says how sure it is: of faces that sure, how many are them, as measured on "
+           "faces named by hand. It never says more than 98%: even of the surest, about 1 in 50 is someone else, such as "
+           "a brother. Looks like someone and Recognised, to check can say yes to every face at least 98%, 95% or 90% "
+           "sure at once; Undo, in the message after, puts them all back."),
         N_("Not a face hides a pattern, a statue or a poster. Ask the family puts a face on Home for everyone who sees "
            "its photo. Open the photo shows it with the others in it. Tapped the wrong answer? The message that says "
            "what it did has Undo beside it.")),
@@ -296,6 +300,21 @@ PAGES = {
         N_("Faces missed: group photos where some faces were found and the description counts more people. Look for "
            "faces again looks more closely; family photos come first. Photos with no face found at all are under "
            "Cleanup → No faces found."))),
+    "cleanup_private": Page(N_("Private papers"), (
+        N_("Photos that look like identity cards (a driver's license, a passport, a Social Security card), bank and "
+           "credit cards, checks, tax forms, insurance cards, health records, or the birth and marriage certificates of "
+           "people living, found in the AI's descriptions: what family members shouldn't see. Those with someone named "
+           "in them come first, as family members who see that person see the photo. The buttons at the top show one "
+           "kind only."),
+        N_("Hide from family members: no family member sees the ticked photos again, whoever is in them, on any page, "
+           "share or photo frame; whoever uploaded one still does, and admins do. Fine to show: not listed again. Undo, "
+           "or Recent changes, puts either back, and a hidden photo's page has Show to family members again."),
+        N_("Only what the AI described is found, and some photos here are something else. What the AI read off a photo "
+           "isn't shown here, only what kind of thing it looked like (a number set out like a Social Security "
+           "number). Certificates of people who have all died aren't listed: they are family history. Admins are told "
+           "on New for you when new ones are found."),
+        N_("A family member sees here the photos they uploaded themselves, to hide them from the rest of the family or "
+           "say they are fine; an admin sees the whole library's."))),
     "cleanup_no_faces": Page(N_("No faces found"), (
         N_("Photos where the AI's description sees people but no face was found in them, the newest first. Hover over "
            "a photo for what the description says."),
@@ -313,6 +332,9 @@ PAGES = {
            "a box in the list adds one; a child with one parent entered offers their parent's partners as the other."),
         N_("Life events: births, deaths, weddings, moves, with dates as exact as you know them (1984-06-12, June 1984, "
            "about 1950, between 1950 and 1955). Press the number of an event to change it."),
+        N_("Groups, for people who aren't family (Family friends, Teachers, a band): adding someone to one asks first "
+           "whether their own family goes in it too, their wife, children, parents and so on, those not in it yet, to "
+           "untick any who don't. Your own family is never asked about. With nobody to ask about, it is done at once."),
         N_("After adding a life event, the Add box is ready for the next one."),
         N_("At the top, their portrait: Choose the portrait picks the face People, the Family page, the tree and "
            "exports show for them, from the faces named as them. Through the years, beside it, plays their face a "
@@ -541,8 +563,10 @@ PAGES = {
     "cleanup": Page(N_("Cleanup"), (
         N_("Lists of photos you may not want: duplicate copies, nearly black or blurry ones, screenshots and the like. "
            "Nothing is removed until you select it; removed files move to the Removed folder and can be put back."),
-        N_("With a family account: faces to name, your part of the family tree, and blank, blurry and similar shots "
-           "among the photos you uploaded yourself (an admin can put back what you move to Removed)."))),
+        N_("Private papers, first and by itself: photos of identity cards, tax forms, health records and the like, to "
+           "hide from family members."),
+        N_("With a family account: private papers, faces to name, your part of the family tree, and blank, blurry and "
+           "similar shots among the photos you uploaded yourself (an admin can put back what you move to Removed)."))),
     "cleanup_copies": Page(N_("Duplicate copies"), (
         N_("Pairs of folders holding identical copies of the same photos. Remove the copies from one folder; the other "
            "keeps them. Keep a pair to stop it being suggested."),)),
@@ -579,8 +603,8 @@ PAGES = {
         N_("What the worker is doing and has left to do, downloads in progress, problems, and counts of the catalog."),
         N_("Work in progress: each kind of work, with a bar of how far it is (how many of how many) and the time left "
            "at the pace of the last day, counting the hours between the worker's passes. It needs a pass or two to "
-           "tell; not moving lately means it waits for its turn after other steps, for the describing hours, or for "
-           "its service."),
+           "tell; not moving lately means it waits for its turn after other steps. The AI's work and transcripts say "
+           "what they wait for instead: the describing hours, Ollama or Whisper, or a model that can see."),
         N_("Point at a line to see what it counts. Numbers that are links open those photos, such as all photos with "
            "GPS or all dated only by their file's time."),
         N_("Storage: how full each disk is that holds the watched folders or LineageBox's data folder, and how much of "

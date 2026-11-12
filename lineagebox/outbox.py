@@ -6,7 +6,7 @@ Each event is written once, by the code that knows of it:
 - routes/home.py: "Who is this?" asked about a face, for everyone who sees its photo;
 - comments.add_comment: a comment on a photo, for whoever uploaded it, whoever is in it and whoever wrote on it before;
 - the worker (after_pass): new photos, once their faces are looked for; and, for admins, files found damaged, a disk
-  nearly full, Ollama away for days and a newer release;
+  nearly full, Ollama away for days, a newer release and photos that look like private papers (private.py);
 - activity.note_problem: a service with a problem (the model missing, describing failing...), for admins.
 
 Who sees an event is worked out each time it is shown, from what they see then (for_viewer): a member is told only of
@@ -36,7 +36,8 @@ PHOTOS_AFTER, PHOTOS_WAITING = "outbox_photos_after", "outbox_photos_waiting"  #
 DAMAGE_AFTER = "outbox_damage_after"  # settings: damaged files told of, by when they were checked
 OLLAMA_UP = "outbox_ollama_up"  # settings: when Ollama last answered the worker
 DISKS_ON = "outbox_disks_on"  # settings: the day the disks were last looked at
-ALERTS = ("damaged", "disk_low", "service", "update")
+PRIVATE_TOLD = "outbox_private_told"  # settings: the photos of private papers admins were told of
+ALERTS = ("damaged", "disk_low", "service", "update", "private")
 
 
 def _now() -> str:
@@ -115,7 +116,8 @@ def service_problem(con: sqlite3.Connection, name: str, message: str) -> None:
 def after_pass(con: sqlite3.Connection, cfg) -> int:
     """What the worker tells after its pass: new photos, and admins' alerts. Then events older than KEEP_DAYS go.
     Returns how many events were written. Commits."""
-    n = new_photos(con, cfg) + damaged_files(con) + disks(con, cfg) + ollama_away(con, cfg) + update(con)
+    n = (new_photos(con, cfg) + damaged_files(con) + disks(con, cfg) + ollama_away(con, cfg) + update(con)
+         + private_papers(con))
     con.execute("DELETE FROM main.outbox WHERE at < ?", ((datetime.now() - timedelta(days=KEEP_DAYS)).isoformat(),))
     con.commit()
     return n
@@ -160,6 +162,21 @@ def damaged_files(con: sqlite3.Connection) -> int:
     con.commit()
     settings.put(con, DAMAGE_AFTER, rows[1])
     return written
+
+
+def private_papers(con: sqlite3.Connection) -> int:
+    """Photos that look like private papers (private.suggestions) not told of before, as one alert: family members
+    may see them until an admin hides them."""
+    from lineagebox import private
+    found = private.suggestions(con)
+    told = set(settings.get(con, PRIVATE_TOLD, []))
+    new = [f for f in found if f["id"] not in told]
+    if not new:
+        return 0
+    written = add(con, "private", admins=True, data={"photos": len(new), "named": sum(f["named"] for f in new)})
+    con.commit()
+    settings.put(con, PRIVATE_TOLD, sorted(told | {f["id"] for f in found})[-5000:])
+    return written is not None
 
 
 def disks(con: sqlite3.Connection, cfg) -> int:
@@ -424,5 +441,12 @@ def alert(kind: str, data: dict) -> dict:
     if kind == "update":
         return {"text": f"LineageBox {data.get('version', '')} is out", "href": "/status#updates", "photos": [],
                 "faces": []}
+    if kind == "private":
+        n, named = data.get("photos", 0), data.get("named", 0)
+        text = (f"{_plural(n, 'photo')} {'looks' if n == 1 else 'look'} like private papers (identity cards, tax forms, "
+                f"health records) and {'is' if n == 1 else 'are'}n't hidden from family members"
+                + (f"; {named:,} with someone named in {'it' if n == 1 else 'them'}" if named else "")
+                + ": Cleanup → Private papers")
+        return {"text": text, "href": "/cleanup/private", "photos": [], "faces": []}
     return {"text": f"{data.get('service', 'A service')}: {data.get('message', '')}", "href": "/status",
             "photos": [], "faces": []}

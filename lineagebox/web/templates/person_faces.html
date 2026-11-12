@@ -8,7 +8,7 @@
 
 {% if auto_faces %}
 {%- set about = {"person_id": person.id}|tojson %}
-<h2>{% trans %}Recognised automatically <small>least certain first</small>{% endtrans %}</h2>
+<h2>{% trans %}Recognised automatically <small>least sure first</small>{% endtrans %}</h2>
 <p class="meta">{% trans name=person.name %}Is each of these {{ name }}? ✓ says yes: the face counts as named by you, and recognition learns
 from it. × (not them) says no: the name comes off, it is never recognised as them again, and it can be named as whoever it is on
 its photo. Or untick any you aren't sure of and say yes to the rest at once; the unticked ones stay as they are.
@@ -19,6 +19,7 @@ its photo. Or untick any you aren't sure of and say yes to the rest at once; the
     <span class="face" id="f{{ f.id }}">
       <label class="pick"><input type="checkbox" name="face" value="{{ f.id }}" checked aria-label="{{ person.name }}">
         <img src="/face/{{ f.id }}" alt="" loading="lazy" width="96" height="96"></label>
+      {%- if f.sure is not none %}{% set pct = (f.sure * 100 + 0.000001)|int %}<span class="sure{% if f.sure < 0.9 %} unsure{% endif %}" title="{{ _('Recognition is about %(pct)s%% sure this is them', pct=pct) }}">{{ pct }}%</span>{% endif %}
       <a class="open" href="/image/{{ f.image_id }}" target="_blank" title="{{ _('Open the photo in a new tab') }}">↗</a>
       <button type="button" class="no" data-api="/api/faces/{{ f.id }}/not" data-remove="#f{{ f.id }}" title="{{ _('Not them: not %(name)s', name=person.name) }}" aria-label="{{ _('Not them: not %(name)s', name=person.name) }}">×</button>
       <button type="button" class="yes" data-api="/api/faces/{{ f.id }}/yes" data-body='{{ about }}' data-remove="#f{{ f.id }}" title="{{ _("Yes, that's %(name)s", name=person.name) }}" aria-label="{{ _("Yes, that's %(name)s", name=person.name) }}">✓</button>
@@ -31,7 +32,7 @@ its photo. Or untick any you aren't sure of and say yes to the rest at once; the
     <button type="button" class="quiet" data-tick="none">{% trans %}Untick all{% endtrans %}</button>
   </p>
 </form>
-{% if auto_count > auto_faces|length %}<p class="meta">{% trans auto_faces=auto_faces|length %}Showing the {{ auto_faces }} least certain of {{ auto_count }}.{% endtrans %}</p>{% endif %}
+{% if auto_count > auto_faces|length %}<p class="meta">{% trans auto_faces=auto_faces|length %}Showing the {{ auto_faces }} least sure of {{ auto_count }}.{% endtrans %}</p>{% endif %}
 {% endif %}
 
 {% if named_faces %}

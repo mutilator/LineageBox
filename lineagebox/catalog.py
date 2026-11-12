@@ -187,7 +187,8 @@ def person_images(con: sqlite3.Connection, person_id: int) -> list[sqlite3.Row]:
 
 
 def person_faces(con: sqlite3.Connection, person_id: int, assigned_by: str) -> list[sqlite3.Row]:
-    return con.execute(f"""SELECT f.id, f.image_id, f.assign_score FROM face f JOIN image i ON i.id = f.image_id
+    return con.execute(f"""SELECT f.id, f.image_id, f.assign_score, f.assign_lead FROM face f
+                           JOIN image i ON i.id = f.image_id
                            WHERE f.person_id = ? AND f.assigned_by = ? AND {VISIBLE}
                            ORDER BY f.assign_score, i.taken_at""", (person_id, assigned_by)).fetchall()
 

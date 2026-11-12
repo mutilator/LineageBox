@@ -1,5 +1,6 @@
 """Faces -> people: cluster unnamed faces, name clusters, and recognise more faces of named people."""
 import json
+import math
 import sqlite3
 from collections import Counter, defaultdict
 
@@ -7,7 +8,7 @@ import numpy as np
 from sklearn.cluster import HDBSCAN
 from sklearn.decomposition import PCA
 
-from lineagebox import errors, events, family, search, tours
+from lineagebox import errors, events, family, search, settings, tours
 from lineagebox.catalog import VISIBLE
 from lineagebox.faces import MIN_QUALITY, usable_faces_sql
 from lineagebox.folders import FolderIndex
@@ -39,6 +40,41 @@ SUGGEST_MARGIN = 0.05
 IN_VIDEO_SIMILARITY = 0.5
 IN_VIDEO_SUGGEST = 0.35
 IN_VIDEO_MARGIN = 0.05
+
+# How sure a name is (People → Name faces, Check faces, yes to the surest at once): the share of faces with its score
+# for someone, and its lead over the next likeliest person who can be it, that are them. Measured on the library
+# LineageBox was developed on by scoring 5,868 faces named by hand against the hand-named faces of other days, as a new
+# photo is, and fitted as a logistic curve in the score and the lead: where it says 96% sure, 95.7% were right; 98.6%,
+# 99.0%. Checked against people's own answers about 1,483 faces recognised there: as right up to 98.6% sure (it said
+# 93.7%, 93.3% were; 98.6%, 98.7%), but of the faces it was surer of than that, 1.4% were someone else all the same (a
+# brother, a face too small to tell), so it never says more than SURE_MOST. Below the lead it was measured from
+# (SUGGEST_MARGIN), a name can't be told from the next likeliest: a tie is even, and a face that looks more like someone
+# else (a recognised face, after more were named) is less than that, down to none.
+SURE_BASE, SURE_SCORE, SURE_LEAD = -2.78, 10.48, 17.06
+SURE_MOST = 0.98
+SURE_BARS = (0.98, 0.95, 0.9)  # what "yes to every face at least this sure" offers
+MEASURED_KEY = "recognised_measured"  # settings: the faces named by hand when the recognised ones were last scored
+
+
+def how_sure(score: float | None, lead: float | None) -> float | None:
+    """How likely a face scoring this for someone, this far ahead of the next likeliest, is them: 0 to SURE_MOST (None
+    when either isn't known)."""
+    if score is None or lead is None:
+        return None
+    curve = 1 / (1 + math.exp(-(SURE_BASE + SURE_SCORE * score + SURE_LEAD * lead)))
+    return max(0.0, min(SURE_MOST, curve, 0.5 + lead / (2 * SUGGEST_MARGIN)))
+
+
+def _sure_sql(bar: float, f: str = "f") -> str:
+    """SQL: a recognised face f is at least bar sure (how_sure, for a bar from 0.5 up to SURE_MOST)."""
+    edge = math.log(bar / (1 - bar)) - 1e-9
+    return (f"({f}.assign_lead IS NOT NULL AND {SURE_BASE} + {SURE_SCORE} * {f}.assign_score "
+            f"+ {SURE_LEAD} * {f}.assign_lead >= {edge} AND {f}.assign_lead >= {(bar - 0.5) * 2 * SUGGEST_MARGIN - 1e-9})")
+
+
+# the least sure first: one not scored again yet counts as ahead by recognition's bar
+_LEAST_SURE_FIRST = (f"min(coalesce(f.assign_lead, {AUTO_MARGIN}), {SUGGEST_MARGIN}), "
+                     f"{SURE_SCORE} * f.assign_score + {SURE_LEAD} * coalesce(f.assign_lead, {AUTO_MARGIN}), f.id")
 
 
 def _embeddings(rows) -> np.ndarray:
@@ -174,7 +210,7 @@ def name_as(con: sqlite3.Connection, face_ids: list[int], pid: int, by: int | No
                      AND person_id IS NOT NULL AND person_id != ?""", (ids, pid))
     con.execute("DELETE FROM face_not_person WHERE face_id IN (SELECT value FROM json_each(?)) AND person_id = ?",
                 (ids, pid))
-    con.executemany("""UPDATE face SET person_id = ?, assigned_by = 'user', assign_score = NULL, cluster_id = NULL,
+    con.executemany("""UPDATE face SET person_id = ?, assigned_by = 'user', assign_score = NULL, assign_lead = NULL, cluster_id = NULL,
                                        named_by = ? WHERE id = ?""", ((pid, by, f) for f in face_ids))
     _reindex_faces(con, renamed)  # only photos whose names changed: the search doesn't tell by hand from recognised
     name_in_videos(con, _videos_of(con, renamed))
@@ -303,7 +339,7 @@ def remove(con: sqlite3.Connection, pid: int) -> tuple[str, int]:
                                            UNION SELECT image_id FROM image_person WHERE person_id = :p""", {"p": pid})]
     tours.forget(con, pid)
     con.execute("DELETE FROM settings WHERE key = 'me' AND value = ?", (str(pid),))
-    unnamed = con.execute("""UPDATE face SET person_id = NULL, assigned_by = NULL, assign_score = NULL,
+    unnamed = con.execute("""UPDATE face SET person_id = NULL, assigned_by = NULL, assign_score = NULL, assign_lead = NULL,
                                              cluster_id = NULL, named_by = NULL WHERE person_id = ?""", (pid,)).rowcount
     con.execute("DELETE FROM person WHERE id = ?", (pid,))  # face.person_id has no ON DELETE: the faces go first
     _reindex_images(con, photos)  # commits the removal first: their name is no longer found in those photos
@@ -324,13 +360,45 @@ def add_to_group(con: sqlite3.Connection, pid: int, group: str, added_by: int | 
     """Put someone in a group (teachers, the kids' friends, a band seen at a concert). A group's name is written the
     way it was first written: 'teachers' joins 'Teachers'. added_by: the family member's account that did it (they
     go on seeing the people of their groups)."""
-    group = " ".join(group.split())
+    group = group_name(con, group)
     if not group or len(group) > 60:
         raise Problem("Give the group a short name, like Teachers or Foo Fighters.")
-    same = con.execute("SELECT name FROM person_group WHERE lower(name) = lower(?) LIMIT 1", (group,)).fetchone()
-    group = same[0] if same else group
     con.execute("INSERT OR IGNORE INTO person_group(person_id, name, added_by) VALUES (?, ?, ?)", (pid, group, added_by))
     return group
+
+
+# Someone's own family shares a group of theirs: a family friend's wife and children are the family's friends too.
+# Who counts: those family.relations_to finds under these headings (never the far ones, "wife's great-aunt", nor former
+# family), and never the viewer's own family under them: a friend's son who married into the family is family.
+FAMILY_OF = ("partner", "parents", "siblings", "children", "grandchildren", "grandparents", "aunts and uncles",
+             "nieces and nephews", "cousins", "in-laws", "step-family")
+
+
+def group_family(con: sqlite3.Connection, pid: int, group: str) -> list[dict]:
+    """Someone's family (FAMILY_OF) not in a group yet, to ask whether they go in it too: [{"id", "name", "how"}],
+    the closest first, "how" what they are to them ("wife", "son"). On a member's connection, only people they see."""
+    g = family.load(con)
+    if pid not in g.people:
+        return []
+    ego = family.me(con)
+    ours = family.relations_to(g, ego) if ego is not None else {}
+    already = {r[0] for r in con.execute("SELECT person_id FROM person_group WHERE lower(name) = lower(?)",
+                                         (group_name(con, group),))}
+    out = []
+    for x, k in sorted(family.relations_to(g, pid).items(), key=lambda kv: (kv[1].distance, g.name(kv[0]).lower())):
+        if x == pid or x == ego or k.group not in FAMILY_OF or x in already:
+            continue
+        if x in ours and ours[x].group in FAMILY_OF:
+            continue
+        out.append({"id": x, "name": g.name(x), "how": k.label})
+    return out
+
+
+def group_name(con: sqlite3.Connection, group: str) -> str:
+    """A group's name as it was first written ('teachers' is 'Teachers'), else as given, its spaces tidied."""
+    group = " ".join(group.split())
+    same = con.execute("SELECT name FROM person_group WHERE lower(name) = lower(?) LIMIT 1", (group,)).fetchone()
+    return same[0] if same else group
 
 
 def remove_from_group(con: sqlite3.Connection, pid: int, group: str) -> None:
@@ -361,7 +429,7 @@ def also_known(con: sqlite3.Connection) -> dict[int, str]:
 
 def set_aside(con: sqlite3.Connection, face_ids: list[int], reason: str = "rejected") -> None:
     """Unassign faces and keep them out of clustering and recognition (strangers, statues, wrong matches)."""
-    con.executemany("""UPDATE face SET person_id = NULL, assigned_by = ?, assign_score = NULL, cluster_id = NULL
+    con.executemany("""UPDATE face SET person_id = NULL, assigned_by = ?, assign_score = NULL, assign_lead = NULL, cluster_id = NULL
                        WHERE id = ?""", ((reason, f) for f in face_ids))
     _reindex_faces(con, face_ids)
 
@@ -372,7 +440,7 @@ def not_them(con: sqlite3.Connection, face_ids: list[int]) -> None:
     con.execute("""INSERT OR IGNORE INTO face_not_person(face_id, person_id)
                    SELECT id, person_id FROM face WHERE id IN (SELECT value FROM json_each(?)) AND person_id IS NOT NULL""",
                 (json.dumps(face_ids),))
-    con.executemany("""UPDATE face SET person_id = NULL, assigned_by = NULL, assign_score = NULL, cluster_id = NULL
+    con.executemany("""UPDATE face SET person_id = NULL, assigned_by = NULL, assign_score = NULL, assign_lead = NULL, cluster_id = NULL
                        WHERE id = ?""", ((f,) for f in face_ids))
     _reindex_faces(con, face_ids)
 
@@ -463,10 +531,10 @@ def identify(con: sqlite3.Connection, face_ids: list[int] | None = None) -> int:
         if pid in taken[r["image_id"]] or pid in not_them[r["id"]] or _before_birth(r, births.get(pid)):
             continue
         taken[r["image_id"]].add(pid)
-        labelled.append((pid, float(best_score[i]), r["id"]))
-    con.executemany("""UPDATE face SET person_id = ?, assigned_by = 'auto', assign_score = ?, cluster_id = NULL
-                       WHERE id = ?""", labelled)
-    _reindex_faces(con, [f for _, _, f in labelled])
+        labelled.append((pid, float(best_score[i]), float(margin[i]), r["id"]))
+    con.executemany("""UPDATE face SET person_id = ?, assigned_by = 'auto', assign_score = ?, assign_lead = ?,
+                       cluster_id = NULL WHERE id = ?""", labelled)
+    _reindex_faces(con, [f for *_, f in labelled])
     return len(labelled) + name_in_videos(con, _videos_of(con, face_ids) if face_ids is not None else None)
 
 
@@ -485,6 +553,39 @@ def name_in_videos(con: sqlite3.Connection, video_ids: list[int] | None = None) 
                        WHERE id = ? AND person_id IS NULL AND assigned_by IS NULL""", labelled)
     _reindex_faces(con, [f for _, _, f in labelled])
     return len(labelled)
+
+
+def measure_recognised(con: sqlite3.Connection) -> int:
+    """Score each face recognised automatically again, against the faces named by hand now, with its lead over the next
+    likeliest person who can be it (not named in its photo already, not said not to be it), so how sure it is
+    (how_sure) follows what was named since: one that now looks more like someone else is asked about first. Only when
+    the faces named by hand changed since the last time, or some recognised faces have no lead yet (one named after the
+    same person on a video's other frames). Returns how many were scored."""
+    mark = list(con.execute("""SELECT count(*), coalesce(max(id), 0), total(person_id) FROM face
+                               WHERE assigned_by = 'user'""").fetchone())
+    if settings.get(con, MEASURED_KEY) == mark and not con.execute(
+            "SELECT 1 FROM face WHERE assigned_by = 'auto' AND assign_lead IS NULL LIMIT 1").fetchone():
+        return 0
+    faces = con.execute("SELECT id, image_id, person_id, embedding FROM face WHERE assigned_by = 'auto'").fetchall()
+    who, scores = _person_scores(con, faces)
+    column = {p: n for n, p in enumerate(who)}
+    named_in, not_them = _named_in(con), _not_them(con)
+    out = []
+    for f, s in zip(faces, scores):
+        own = column.get(f["person_id"])
+        if own is None:  # none of their faces is named by hand any more: nothing to be sure of
+            out.append((-1.0, -1.0, f["id"]))
+            continue
+        others = s.copy()
+        others[own] = -1.0
+        for pid in (named_in[f["image_id"]] | not_them[f["id"]]) - {f["person_id"]}:
+            if pid in column:
+                others[column[pid]] = -1.0
+        out.append((float(s[own]), float(s[own] - others.max()) if len(who) > 1 else 1.0, f["id"]))
+    con.executemany("UPDATE face SET assign_score = ?, assign_lead = ? WHERE id = ? AND assigned_by = 'auto'", out)
+    settings.put(con, MEASURED_KEY, mark)
+    con.commit()
+    return len(out)
 
 
 def _videos_of(con: sqlite3.Connection, face_ids: list[int]) -> list[int]:
@@ -556,7 +657,7 @@ def to_finish(con: sqlite3.Connection, offset: int = 0, limit: int = 25) -> tupl
                               WHERE f.image_id IN (SELECT value FROM json_each(?)) AND f.person_id IS NULL
                                 AND f.assigned_by IS NULL AND {usable_faces_sql()} ORDER BY f.frame, f.x1""",
                           (ids,)).fetchall()
-    guess = {f["id"]: pid for (_, pid), (_, f) in
+    guess = {f["id"]: pid for (_, pid), (_, f, _) in
              _likeliest(con, [f for f in unnamed if f["frame"] is None], _named_in(con)).items()}
     videos, not_them = _video_faces(con, [r["id"] for r in shown if r["media"] == "video"]), _not_them(con)
     for f in unnamed:
@@ -592,11 +693,11 @@ def together(con: sqlite3.Connection) -> list[dict]:
     named_in = _named_in(con)
     shown = {pid for (pid,) in con.execute("SELECT id FROM person")}
     groups = {}
-    for (image_id, pid), (score, f) in _likeliest(con, faces, named_in).items():
+    for (image_id, pid), (score, f, lead) in _likeliest(con, faces, named_in).items():
         if pid not in shown:
             continue
         g = groups.setdefault(pid, {"person_id": pid, "faces": [], "seen_with": Counter()})
-        g["faces"].append({"id": f["id"], "image_id": image_id, "score": score})
+        g["faces"].append({"id": f["id"], "image_id": image_id, "score": score, "sure": how_sure(score, lead)})
         g["seen_with"].update(named_in[image_id] & shown)
     for g in groups.values():
         g["faces"].sort(key=lambda f: -f["score"])
@@ -604,8 +705,8 @@ def together(con: sqlite3.Connection) -> list[dict]:
     return sorted(groups.values(), key=lambda g: (-len(g["faces"]), g["person_id"]))
 
 
-def suggest_for_photo(con: sqlite3.Connection, image_id: int) -> dict[int, tuple[int, float]]:
-    """face id -> (person id, score) for the unnamed faces of a photo that look enough like someone not named in it yet
+def suggest_for_photo(con: sqlite3.Connection, image_id: int) -> dict[int, tuple[int, float, float]]:
+    """face id -> (person id, score, how sure) for the unnamed faces of a photo that look enough like someone not named in it yet
     (see _likeliest), for its page. Any face clear enough to compare counts, even a small one: the person looking at
     the photo decides."""
     faces = con.execute(f"""SELECT f.id, f.image_id, f.embedding, i.taken_at, i.taken_at_source, i.date_to FROM face f
@@ -616,14 +717,16 @@ def suggest_for_photo(con: sqlite3.Connection, image_id: int) -> dict[int, tuple
         return {}
     named_in = defaultdict(set, {image_id: {pid for (pid,) in con.execute(
         "SELECT person_id FROM face WHERE image_id = ? AND person_id IS NOT NULL", (image_id,))}})
-    return {f["id"]: (pid, score) for (_, pid), (score, f) in _likeliest(con, faces, named_in).items()}
+    return {f["id"]: (pid, score, how_sure(score, lead))
+            for (_, pid), (score, f, lead) in _likeliest(con, faces, named_in).items()}
 
 
 def _likeliest(con: sqlite3.Connection, faces: list[sqlite3.Row],
-               named_in: defaultdict[int, set[int]]) -> dict[tuple[int, int], tuple[float, sqlite3.Row]]:
+               named_in: defaultdict[int, set[int]]) -> dict[tuple[int, int], tuple[float, sqlite3.Row, float]]:
     """Who each face most likely is: the closest person not named in its photo yet (nobody is in a photo twice), not
     born after it and not said to be someone else, when they score SUGGEST_SIMILARITY and beat the next such person by
-    SUGGEST_MARGIN. (photo, person) -> (score, face); of two faces in one photo, only the likelier."""
+    SUGGEST_MARGIN. (photo, person) -> (score, face, its lead over the next); of two faces in one photo, only the
+    likelier."""
     people, scores = _person_scores(con, faces)
     not_them, births = _not_them(con), _births(con)
     likeliest = {}
@@ -643,7 +746,7 @@ def _likeliest(con: sqlite3.Connection, faces: list[sqlite3.Row],
         if score < SUGGEST_SIMILARITY or score - runner_up < SUGGEST_MARGIN:
             continue
         if score > likeliest.get(key, (-1.0,))[0]:
-            likeliest[key] = (score, f)
+            likeliest[key] = (score, f, score - runner_up)
     return likeliest
 
 
@@ -651,7 +754,7 @@ def confirm(con: sqlite3.Connection, pid: int, yes: list[int], no: list[int], by
     """Faces suggested as someone (People → Seen together): those ticked are named as them, as if by hand; those
     unticked are noted as not them, so they are neither suggested nor recognised as them again and stay free to be
     named as anyone else. Faces named meanwhile keep their name. Returns how many were named."""
-    named = con.executemany("""UPDATE face SET person_id = ?, assigned_by = 'user', assign_score = NULL,
+    named = con.executemany("""UPDATE face SET person_id = ?, assigned_by = 'user', assign_score = NULL, assign_lead = NULL,
                                               cluster_id = NULL, named_by = ?
                                WHERE id = ? AND person_id IS NULL""", ((pid, by, f) for f in yes)).rowcount
     con.executemany("INSERT OR IGNORE INTO face_not_person(face_id, person_id) SELECT id, ? FROM face WHERE id = ?",
@@ -684,27 +787,46 @@ def not_this_person(con: sqlite3.Connection, pid: int, face_ids: list[int]) -> l
                    SELECT id, ? FROM face WHERE id IN (SELECT value FROM json_each(?))""", (pid, ids))
     theirs = [r[0] for r in con.execute("""SELECT id FROM face WHERE id IN (SELECT value FROM json_each(?))
                                            AND person_id = ?""", (ids, pid))]
-    con.executemany("""UPDATE face SET person_id = NULL, assigned_by = NULL, assign_score = NULL, cluster_id = NULL,
+    con.executemany("""UPDATE face SET person_id = NULL, assigned_by = NULL, assign_score = NULL, assign_lead = NULL, cluster_id = NULL,
                                        named_by = NULL WHERE id = ?""", ((f,) for f in theirs))
     _reindex_faces(con, theirs)
     return theirs
 
 
-def suggest_for_face(con: sqlite3.Connection, face_id: int) -> tuple[int, float] | None:
-    """Who one unnamed face most likely is, worked out as for its photo's page (suggest_for_photo): (person, score),
-    or None when nobody is close enough, or clearly ahead of the next."""
+def suggest_for_face(con: sqlite3.Connection, face_id: int) -> tuple[int, float, float] | None:
+    """Who one unnamed face most likely is, worked out as for its photo's page (suggest_for_photo): (person, score,
+    how sure), or None when nobody is close enough, or clearly ahead of the next."""
     row = con.execute("SELECT image_id FROM face WHERE id = ?", (face_id,)).fetchone()
     return suggest_for_photo(con, row[0]).get(face_id) if row else None
 
 
 def recognised_to_check(con: sqlite3.Connection) -> list[tuple[int, int]]:
-    """Faces recognised automatically that nobody has said yes or no to, as (face, person), the least certain first:
-    the likeliest to be wrong, and those that teach recognition the most once confirmed (it learns only from faces
-    named by hand). On a member's connection, those in photos they see, of people they see."""
+    """Faces recognised automatically that nobody has said yes or no to, as (face, person), the least sure first
+    (how_sure): the likeliest to be wrong, and those that teach recognition the most once confirmed (it learns only
+    from faces named by hand). On a member's connection, those in photos they see, of people they see."""
     return [(r[0], r[1]) for r in con.execute(f"""
         SELECT f.id, f.person_id FROM face f JOIN image i ON i.id = f.image_id
         WHERE f.assigned_by = 'auto' AND {VISIBLE} AND f.person_id IN (SELECT id FROM person)
-        ORDER BY f.assign_score, f.id""")]
+        ORDER BY {_LEAST_SURE_FIRST}""")]
+
+
+def recognised_sure(con: sqlite3.Connection, bar: float) -> dict[int, list[int]]:
+    """Of the faces recognised_to_check lists, those at least bar sure (how_sure), by person."""
+    out = defaultdict(list)
+    for fid, pid in con.execute(f"""SELECT f.id, f.person_id FROM face f JOIN image i ON i.id = f.image_id
+                                    WHERE f.assigned_by = 'auto' AND {VISIBLE} AND f.person_id IN (SELECT id FROM person)
+                                      AND {_sure_sql(bar)} ORDER BY f.id"""):
+        out[pid].append(fid)
+    return dict(out)
+
+
+def least_sure_first(faces) -> list[dict]:
+    """Recognised faces (rows with assign_score and assign_lead), each with how sure it is ("sure"), in the order
+    recognised_to_check gives them."""
+    lead = lambda f: f["assign_lead"] if f["assign_lead"] is not None else AUTO_MARGIN
+    out = [{**dict(f), "sure": how_sure(f["assign_score"], f["assign_lead"])} for f in faces]
+    return sorted(out, key=lambda f: (how_sure(f["assign_score"] or 0, lead(f)),
+                                      SURE_SCORE * (f["assign_score"] or 0) + SURE_LEAD * lead(f), f["id"]))
 
 
 def unnamed_groups(con: sqlite3.Connection) -> list[int]:

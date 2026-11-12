@@ -32,9 +32,9 @@ KEYS = {"face": ("id",), "image": ("id",), "image_tag": ("image_id", "tag_id"), 
         "camera_clock": ("id",)}
 # what a change can alter of faces and photos (the rest is the worker's: embeddings, stage, sharpness...), and of the
 # rows a merge points at the person kept
-COLUMNS = {"face": "id, image_id, person_id, assigned_by, assign_score, cluster_id, named_by",
+COLUMNS = {"face": "id, image_id, person_id, assigned_by, assign_score, assign_lead, cluster_id, named_by",
            "image": ("id, taken_at, taken_at_source, date_text, date_from, date_to, auto_taken_at, auto_taken_at_source, "
-                     "camera_taken_at"),
+                     "camera_taken_at, hidden"),
            "account": "id, person_id", "tour": "id, spec", "tour_type": "id, spec",
            "folder": "id, kind, place, place_type, event, people_hint, year, month, day, source"}
 UPDATE_ONLY = {"face", "image", "account", "tour", "tour_type", "folder"}  # never added or deleted by a change
@@ -63,7 +63,7 @@ ORDER.insert(ORDER.index("tag") + 1, "tag_alias")
 FAMILY ={"parent", "sibling", "partner", "relation", "person"}
 # A face's group and score are the worker's, and so is its recognising an unnamed face: neither keeps a change from
 # being undone. A name given by a person, or a face set aside by one, does.
-WORKERS = {"cluster_id", "assign_score"}
+WORKERS = {"cluster_id", "assign_score", "assign_lead"}
 CHOSEN = {"user", "rejected", "not_a_face"}
 OWN_UNDO_MINUTES = 30  # how long the Undo beside a change works for the member who made it
 # Changes older than this are forgotten, once a day (the worker): Recent changes no longer lists them, and they can't

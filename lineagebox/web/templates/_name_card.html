@@ -102,7 +102,8 @@
           {%- if card.asked %}{% trans asker=card.asked.asker or _("Someone") %}{{ asker }} asked who this is.{% endtrans %} {% endif %}
           {%- if card.how == "recognised" %}{% trans %}Recognised automatically; nobody has said yet whether it's right.{% endtrans %}
           {%- elif card.how == "named" %}{% trans name=who.name %}Named {{ name }} by hand.{% endtrans %}
-          {%- else %}{% trans name=who.name %}Looks like {{ name }}{% endtrans %}{% if card.with %}{% trans %}, who isn't named in this photo yet{% endtrans %}{% endif %}.{% endif %}</p>
+          {%- else %}{% trans name=who.name %}Looks like {{ name }}{% endtrans %}{% if card.with %}{% trans %}, who isn't named in this photo yet{% endtrans %}{% endif %}.{% endif %}
+          {%- if card.sure is not none %} <b class="sure{% if card.sure < 0.9 %} unsure{% endif %}">{% trans pct=(card.sure * 100 + 0.000001)|int %}About {{ pct }}% sure.{% endtrans %}</b>{% endif %}</p>
         {%- else %}
         <h2 class="naming-question" tabindex="-1" data-naming-focus>{% trans %}Who is this?{% endtrans %}</h2>
         <p class="hint">

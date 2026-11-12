@@ -170,7 +170,7 @@ def test_status_and_settings_pages(con, cfg, library):
     write_jpeg(cfg.share_root / "Scans" / "x.jpg")
     client = TestClient(webapp.create_app(cfg), client=LAN)
     status = client.get("/status").text
-    assert "AI descriptions" in status and "Not responding" in status  # no worker in tests
+    assert "<h2>Work in progress</h2>" in status and "Not responding" in status  # no worker in tests
     snap = progress.snapshot(con, cfg)
     assert snap["describe"]["left"] == snap["describe"]["total"] > 0
     assert "Photos and videos to describe (AI)" in client.get("/status/live").text

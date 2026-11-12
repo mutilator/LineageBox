@@ -3,7 +3,9 @@
 {% block title %}{% trans %}Duplicate copies{% endtrans %}{% endblock %}
 {% block main %}
 <nav class="crumbs"><a href="/cleanup">{% trans %}Cleanup{% endtrans %}</a><span class="sep">/</span><h1>{% trans %}Duplicate copies{% endtrans %}</h1></nav>
-<p class="meta">{% trans total=total|number %}{{ total }} pairs of folders hold identical copies of the same photos (the same file, byte for byte).
+<p class="meta">{% trans count=total, n=total|number %}{{ n }} pair of folders holds identical copies of the same photos (the same file, byte for byte).
+Removing the copies from one folder keeps every photo: the other folder still has it. A photo's last copy is never
+removed. <b>Keep both</b> stops listing a pair of folders whose copies you want.{% pluralize %}{{ n }} pairs of folders hold identical copies of the same photos (the same file, byte for byte).
 Removing the copies from one folder keeps every photo: the other folder still has it. A photo's last copy is never
 removed. <b>Keep both</b> stops listing a pair of folders whose copies you want.{% endtrans %}</p>
 
@@ -23,7 +25,7 @@ removed. <b>Keep both</b> stops listing a pair of folders whose copies you want.
   <p>{% trans count=p.shared, shared=p.shared|number %}{{ shared }} identical photo in both folders:{% pluralize %}{{ shared }} identical photos in both folders:{% endtrans %}</p>
   <div class="sides">
     {% for here, there, path, size, other in [(p.a, p.b, p.a_path, p.a_size, p.b_path), (p.b, p.a, p.b_path, p.b_size, p.a_path)] %}
-    <div class="side">
+    <div class="copy-side">
       <a href="/folder/{{ here }}">{{ path or _("Top folder") }}</a>
       <span class="meta">{% trans size=size|number %}{{ size }} photos{% endtrans %}{% if size == p.shared %}{% trans %}, all of them also in the other folder{% endtrans %}{% endif %}</span>
       <button type="button" data-api="/api/cleanup/copies?remove_from={{ here }}&keep_in={{ there }}" data-reload

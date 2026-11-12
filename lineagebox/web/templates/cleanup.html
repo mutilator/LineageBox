@@ -13,8 +13,14 @@ Photos you mark <b>Keep</b> are not suggested again.{% endtrans %}</p>
 among the photos you uploaded.{% endtrans %}</p>
 {% endif %}
 
+{%- if "private" in parts %}
+{#- private papers first, by themselves: what family members shouldn't see matters more than the rest #}
+<div class="cards private-cards">
+  {%- with part = "private" %}<div data-later="/cleanup/counts/private">{% include "_cleanup_counts.html" %}</div>{% endwith %}
+</div>
+{%- endif %}
 <div class="cards">
-  {%- for part in parts if part != "described" %}
+  {%- for part in parts if part not in ("described", "private") %}
   <div data-later="/cleanup/counts/{{ part }}">{% include "_cleanup_counts.html" %}</div>
   {%- endfor %}
 </div>

@@ -120,6 +120,12 @@ async function run(el, url, body) {
       if (!confirm(result.confirm)) return;
       result = await post(url, { ...(body ?? {}), ...(result.again ?? { merge: true }) });
     }
+    // a change that asks which of some more it goes to (a group: their family too): sent again with those ticked
+    if (result.choose) {
+      const picked = await choose(result.choose);
+      if (picked === null) return;
+      result = await post(url, { ...(body ?? {}), [result.choose.field]: picked });
+    }
     everyone = null; // a name just given may be a new person: suggest them from now on
     // what is said is shown now, or after the page this leads to has loaded
     const leaves = result.go || (!el.dataset.remove && (el.dataset.go || el.dataset.then || "reload" in el.dataset
@@ -3313,6 +3319,45 @@ function num(n) {
 }
 
 // text put into an attribute of HTML made here (a translation may hold quotes)
+// What the server asks to choose from (result.choose: a title, words, items to tick and the answers yes and no), as a
+// dialog: resolves to the ids ticked (yes), [] (no), or null when it is closed without an answer (Esc, Cancel).
+function choose(ask) {
+  return new Promise((resolve) => {
+    const make = (tag, props = {}, ...kids) => {
+      const el = Object.assign(document.createElement(tag), props);
+      el.append(...kids);
+      return el;
+    };
+    const box = make("dialog", { className: "choose" });
+    const form = make("form", { method: "dialog" });
+    const list = make("ul");
+    for (const item of ask.items ?? []) {
+      const tick = make("input", { type: "checkbox", value: String(item.id), checked: item.checked !== false });
+      const label = make("label", {}, tick, " ", item.label);
+      if (item.detail) label.append(" ", make("span", { className: "hint inline", textContent: item.detail }));
+      list.append(make("li", {}, label));
+    }
+    const yes = make("button", { type: "submit", value: "yes", className: "primary", textContent: ask.yes });
+    const no = make("button", { type: "submit", value: "no", textContent: ask.no });
+    const cancel = make("button", { type: "submit", value: "cancel", className: "quiet", textContent: t("Cancel") });
+    form.append(make("h2", { textContent: ask.title }));
+    if (ask.text) form.append(make("p", { className: "hint", textContent: ask.text }));
+    form.append(list, make("p", { className: "choose-answers" }, yes, no, cancel));
+    box.append(form);
+    document.body.append(box);
+    const ticked = () => [...list.querySelectorAll("input:checked")].map((b) => Number(b.value));
+    list.addEventListener("change", () => (yes.disabled = ticked().length === 0));
+    box.addEventListener("close", () => {
+      const answer = box.returnValue;
+      const ids = ticked();
+      box.remove();
+      resolve(answer === "yes" ? ids : answer === "no" ? [] : null);
+    });
+    box.showModal();
+    yes.focus();
+  });
+}
+
 function attrText(text) {
   return String(text).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 }

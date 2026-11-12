@@ -374,6 +374,9 @@ button:disabled { opacity: .5; cursor: wait; }
 .card .num.loading { color: var(--muted); font-weight: 400; }
 .cards > [data-later] { display: contents; }  /* a part loaded later (Cleanup's numbers): its cards are in the grid */
 .card span:last-child { color: var(--muted); font-size: .88rem; }
+.private-cards { grid-template-columns: minmax(0, 640px); margin-bottom: 0; }  /* Cleanup → Private papers, by itself */
+.private-card.waiting { border: 2px solid var(--danger); }
+.private-card.waiting .num { color: var(--danger); }
 .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 12px 0 16px; border-bottom: 1px solid var(--line); }
 .tabs a { padding: 8px 14px; border: 1px solid transparent; border-bottom: 0; border-radius: 8px 8px 0 0;
           margin-bottom: -1px; color: var(--muted); }
@@ -393,8 +396,9 @@ button:disabled { opacity: .5; cursor: wait; }
 .samples { display: flex; gap: 4px; overflow: hidden; }
 .samples img { display: block; height: 72px; width: auto; border-radius: 4px; background: var(--tile); }
 .sides { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.side { display: grid; gap: 4px; align-content: start; }
-.side button { justify-self: start; }
+/* a folder's side of a pair (Duplicate copies): not .side, the menu at the side, whose rules took it over */
+.copy-side { display: grid; gap: 4px; align-content: start; }
+.copy-side button { justify-self: start; }
 @media (max-width: 700px) { .sides { grid-template-columns: 1fr; } }
 .similar { display: flex; flex-wrap: wrap; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .similar .pick { width: min-content; }  /* the caption wraps under the photo, so ↗ stays on it */
@@ -408,6 +412,7 @@ button:disabled { opacity: .5; cursor: wait; }
               background: rgba(0, 0, 0, .55); color: #fff; }
 .badge.wide { left: 4px; right: auto; max-width: calc(100% - 8px); overflow: hidden; text-overflow: ellipsis;
               white-space: nowrap; }
+.badge.wide.why { white-space: normal; }  /* Private papers: why it looks private, on two lines if need be */
 .select-bar { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
               margin-top: 12px; padding: 10px 0; background: var(--bg); border-top: 1px solid var(--line); }
 button.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
@@ -428,7 +433,12 @@ button.danger { background: var(--danger); border-color: var(--danger); color: #
 .similar .keep-all { align-self: center; }
 
 /* status: live progress */
-.progress-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; margin: 16px 0; }
+/* the Worker (and Downloads, while something downloads) in a column at the side, Work in progress beside them; one
+   under the other on a narrow screen */
+.progress-grid { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); align-items: start; gap: 16px;
+                 margin: 16px 0; }
+.progress-side { display: grid; gap: 16px; }
+@media (max-width: 900px) { .progress-grid { grid-template-columns: minmax(0, 1fr); } }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 2px 16px 14px; }
 .panel h2 { margin-top: 14px; }
 .panel h3 { font-size: .98rem; margin: 22px 0 6px; }
@@ -447,8 +457,7 @@ button.danger { background: var(--danger); border-color: var(--danger); color: #
 .meter { height: 10px; border-radius: 999px; background: var(--tile); overflow: hidden; margin: 12px 0 6px; }
 .meter i { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
 /* Status → Work in progress: each kind of work's bar, how many of how many, and the time left at its pace */
-.work-panel { grid-column: 1 / -1; }
-.work { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px 32px; margin: 8px 0 12px;
+.work { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 14px 28px; margin: 8px 0 12px;
   padding: 0; list-style: none; }
 .work li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 2px 12px; }
 .work .meter { grid-column: 1 / -1; height: 8px; margin: 2px 0; }
@@ -816,6 +825,16 @@ table.broken code { word-break: break-all; }
 dialog.help { width: min(720px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); overflow: auto; padding: 8px 22px 18px;
               border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--text); }
 dialog.help::backdrop { background: rgba(0, 0, 0, .45); }
+/* a question with things to tick (app.js choose): a group's family too */
+dialog.choose { width: min(480px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); overflow: auto; padding: 6px 22px 16px;
+                border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--text); }
+dialog.choose::backdrop { background: rgba(0, 0, 0, .45); }
+dialog.choose h2 { margin: 12px 0 6px; font-size: 1.2rem; }
+dialog.choose ul { margin: 10px 0; padding: 0; list-style: none; }
+dialog.choose li label { display: flex; align-items: center; gap: 8px; min-height: 40px; cursor: pointer; }
+dialog.choose li input { width: 20px; height: 20px; margin: 0; }
+.choose-answers { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; }
+.choose-answers button { min-height: 44px; padding: 6px 16px; }
 dialog.help h2 { margin: 12px 0 8px; }
 dialog.help h3 { margin: 18px 0 6px; font-size: 1rem; }
 dialog.help p { margin: 6px 0; line-height: 1.45; }
@@ -1117,6 +1136,13 @@ fieldset.demo-locked { border: 0; margin: 0; padding: 0; min-width: 0; }  /* a d
                         font-size: 1rem; }
 .naming-steps { margin: 8px 0 14px; }
 .naming-steps a { min-height: 36px; display: inline-flex; align-items: center; }
+.naming-surest { margin: 0 0 18px; padding: 12px 16px; border: 1px solid var(--line); border-radius: 10px; }
+.naming-surest p { margin: 0 0 8px; }
+.naming-surest p:last-child { margin: 0; }
+.naming-surest .filters { margin-left: 8px; }
+.naming-surest button { min-height: 44px; padding: 6px 18px; }
+.sure { font-weight: 600; }
+.sure.unsure { color: var(--danger); }
 .naming-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 420px); gap: 20px 28px;
                align-items: start; margin: 8px 0 24px; }
 .naming-photo { display: flex; justify-content: center; align-items: center; min-height: 240px; padding: 8px;
@@ -1166,6 +1192,11 @@ fieldset.demo-locked { border: 0; margin: 0; padding: 0; min-width: 0; }  /* a d
   .naming-group .faces img { width: 64px; height: 64px; }
 }
 .check-faces .face { position: relative; }
+/* how sure recognition is (people.how_sure): on the picture, between ↗ and ✓ */
+.check-faces .face .sure { position: absolute; bottom: 6px; left: 50%; transform: translateX(-60%); z-index: 1;
+                           padding: 0 4px; border-radius: 4px; background: rgba(0, 0, 0, .55); color: #fff;
+                           font-size: .72rem; font-weight: 400; pointer-events: none; }
+.check-faces .face .sure.unsure { background: var(--danger); font-weight: 600; }
 .check-faces .faces img { display: block; width: 96px; height: 96px; }
 .check-faces .pick:has(input:checked) img { outline: none; opacity: 1; }  /* ticked: them, when Yes is pressed */
 .check-faces .pick:has(input:not(:checked)) img { opacity: .4; }  /* unticked: left as they are */

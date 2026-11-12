@@ -10,6 +10,7 @@ from lineagebox import (accounts, catalog, changes, check, cleanup, family, fami
                         settings, writeback)
 from lineagebox import face_ages, faces  # Cleanup → Camera clocks' count; Confirm faces' ages and faces missed
 from lineagebox import scan_dates  # Cleanup → Suggested dates' count
+from lineagebox import private  # Cleanup → Private papers' count
 from lineagebox.web.common import ADMIN, MEMBER, ImageIds, SameBody, UndoSinceBody, _from_app, _merge_spec, _moved
 from lineagebox.web.deps import con, page, paging, site, viewer, writer
 from lineagebox.web.site import Site
@@ -47,6 +48,7 @@ ACCESS = {
 # part is one or more cards (reference: one per kind), but "described" is the note under them. A card whose page has
 # tabs or lists of more than one thing shows them all added up, and says how many of each (_cleanup_counts.html).
 COUNTS = {
+    "private": lambda c, now: _private_counts(c),  # above the others (cleanup.html), routes/private.py
     "copies": lambda c, now: cleanup.summary(c, now.blurry_below, {"redundant_copies"}),
     "similar": lambda c, now: cleanup.summary(c, now.blurry_below, {"similar_groups"}),
     "blurry": lambda c, now: cleanup.summary(c, now.blurry_below, {"blurry", "unmeasured"}),
@@ -77,17 +79,26 @@ def _faces_counts(c) -> dict:
             "missed": faces.missed(c, 0, 0)[1]}
 
 
+def _private_counts(c, own: set[int] | None = None) -> dict:
+    """Private papers' photos (of own: a member's uploads), and how many of them have someone named in them (whom
+    family members may see)."""
+    found = [f for f in private.suggestions(c) if own is None or f["id"] in own]
+    return {"photos": len(found), "named": sum(f["named"] for f in found)}
+
+
 def _kept_counts(c, now) -> dict:
     """Kept's photos and folder pairs (cleanup.summary counts both together)."""
     pairs = c.execute("SELECT count(*) FROM kept_copies").fetchone()[0]
     return {"kept": cleanup.summary(c, now.blurry_below, {"kept"})["kept"] - pairs, "pairs": pairs}
 
 
-# faces to name, their part of the tree, and the blank, blurry and similar shots among their own uploads (which they
-# may move to Removed); the rest is the whole library's
-MEMBER_PARTS = ("faces", "family", "blurry", "similar", "described")
+# private papers among their own uploads (to hide from the rest of the family), faces to name, their part of the
+# tree, and the blank, blurry and similar shots among their own uploads (which they may move to Removed); the rest is
+# the whole library's
+MEMBER_PARTS = ("private", "faces", "family", "blurry", "similar", "described")
 # a member's counts of what they uploaded: (c, now, their photos)
 OWN_COUNTS = {
+    "private": lambda c, now, own: _private_counts(c, own),
     "blurry": lambda c, now, own: {"blurry": cleanup.blurry(c, now.blurry_below, 0, 0, own)[1], "unmeasured": 0},
     "similar": lambda c, now, own: {"similar_groups": cleanup.similar_groups(c, "all", only=own)[1]},
 }

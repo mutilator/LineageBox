@@ -14,6 +14,18 @@
 {%- else -%}{% trans %}time left: after the worker's next pass{% endtrans %}
 {%- endif -%}
 {%- endmacro %}
+{#- what holds up the AI's or Whisper's work (progress.held), in place of its time left #}
+{%- macro held_text(h, key) -%}
+<span class="hint inline">
+{%- if h.why == "off" %}{% trans part="whisper" if key == "transcribe" else "ollama" %}off in <a href="/settings#{{ part }}">Settings</a>{% endtrans %}
+{%- elif h.why == "paused" %}{% trans %}paused in <a href="/settings#schedule">Settings</a>{% endtrans %}
+{%- elif h.why == "hours" %}{% trans %}waits for the describing hours{% endtrans %}{% if h.at %}{% trans day=weekday_names[h.at.weekday()] %}: next start {{ day }}{% endtrans %} {{ clock(h.at) }}{% endif %}
+{%- elif h.why == "ollama" %}{% trans %}waits for Ollama, which isn't answering: is the machine it runs on asleep?{% endtrans %}
+{%- elif h.why == "model" %}{% trans %}waits for a model that can look at pictures (see above){% endtrans %}
+{%- elif h.why == "whisper" %}{% trans %}waits for Whisper, which isn't answering{% endtrans %}
+{%- endif -%}
+</span>
+{%- endmacro %}
 {% for service, problem in p.problems.items() %}
 <p class="note problem"><b>{{ service }}:</b> {{ problem.message }} <span class="hint inline">{% trans %}since{% endtrans %} {{ clock(problem.at) }} ·
   <a href="/settings#{{ {"OpenStreetMap": "map"}.get(service, service|lower) }}">{% trans %}Settings{% endtrans %}</a></span></p>
@@ -23,7 +35,9 @@
   after each try. The last said: {{ error }}{% endtrans %}</p>
 {% endfor %}
 <div class="progress-grid">
-  <section class="panel">
+  {#- the worker, and Downloads under it, at the side of Work in progress (one under the other on a narrow screen) #}
+  <div class="progress-side">
+  <section class="panel worker-panel">
     <h2>{% trans %}Worker{% endtrans %}</h2>
     {% if p.silent %}
     <p class="state off">{% trans %}Not responding{% endtrans %}{% if p.heartbeat %} {% trans %}since{% endtrans %} {{ clock(p.heartbeat) }}{% endif %}.</p>
@@ -42,44 +56,19 @@
       <dt>{% trans %}Looks for new photos{% endtrans %}</dt><dd>{% trans worker_interval_minutes=cfg.worker_interval_minutes %}every {{ worker_interval_minutes }} min{% endtrans %}</dd>
       <dt>{% trans %}Ollama{% endtrans %}</dt><dd>{% if not cfg.describe_enabled %}{% trans %}off{% endtrans %}{% elif p.ollama is none %}{% trans %}not checked yet{% endtrans %}{% elif p.ollama %}{% trans %}answering{% endtrans %}{% else %}<span class="off">{% trans %}not answering{% endtrans %}</span>{% endif %}
         {%- if cfg.describe_enabled and p.ollama_checked %} <span class="hint inline">{{ clock(p.ollama_checked) }}</span>{% endif %}</dd>
+      {%- if cfg.describe_enabled and d.last %}
+      <dt>{% trans %}Last description{% endtrans %}</dt><dd>{{ clock(d.last) }}</dd>
+      {%- endif %}
       <dt>{% trans %}Transcripts{% endtrans %}</dt><dd>{% if not cfg.transcribe_enabled %}{% trans %}off{% endtrans %}{% elif not cfg.whisper_url %}{% trans %}no service set{% endtrans %}{% elif whisper %}{% trans %}Whisper answering{% endtrans %}{% else %}<span class="off">{% trans %}Whisper not answering{% endtrans %}</span>{% endif %}</dd>
       <dt>{% trans %}Faces{% endtrans %}</dt><dd>{{ _("on") if cfg.faces_enabled else _("off") }}</dd>
     </dl>
   </section>
 
-  <section class="panel">
-    <h2>{% trans %}AI descriptions{% endtrans %}</h2>
-    {% set pct = (d.done / d.total * 100) if d.total else 100 %}
-    <div class="meter" role="progressbar" aria-valuenow="{{ pct|round|int }}" aria-valuemin="0" aria-valuemax="100"><i style="width: {{ pct }}%"></i></div>
-    <p class="big">{% trans pct=pct|round(1), done=d.done|number, total=d.total|number %}{{ pct }}% <span class="hint inline">{{ done }} of {{ total }} photos described</span>{% endtrans %}</p>
-    <dl>
-      <dt>{% trans %}Left{% endtrans %}</dt><dd>{{ d.left|number }}</dd>
-      <dt>{% trans %}Pace{% endtrans %}</dt><dd>{% if d.per_hour %}{% trans per_hour=d.per_hour|round|int|number %}{{ per_hour }} an hour{% endtrans %}{% else %}–{% endif %}</dd>
-      {% if d.hours_left %}<dt>{% trans %}Time left{% endtrans %}</dt><dd>{% if d.hours_left < 1 %}{% trans %}under an hour{% endtrans %}{% else %}{% trans hours_left=d.hours_left|round|int %}about {{ hours_left }} hours of describing{% endtrans %}{% endif %}</dd>{% endif %}
-      <dt>{% trans %}Last description{% endtrans %}</dt><dd>{{ clock(d.last) or "–" }}</dd>
-      <dt>{% trans %}Runs{% endtrans %}</dt><dd>{% trans schedule=d.schedule %}{{ schedule }} <a class="hint inline" href="/settings#schedule">change</a>{% endtrans %}</dd>
-    </dl>
-    {% if not cfg.describe_enabled %}
-    <p class="note">{% trans %}AI descriptions are off on the <a href="/settings#ollama">Settings</a> page.{% endtrans %}</p>
-    {% elif d.left %}
-      {% if p.waiting_for == "model" %}
-      <p class="note">{% trans %}Waiting for a model that can look at pictures: see above. The worker checks every 5 minutes.{% endtrans %}</p>
-      {% elif cfg.describe_schedule == "paused" %}
-      <p class="note">{% trans %}Describing is paused on the <a href="/settings#schedule">Settings</a> page.{% endtrans %}</p>
-      {% elif not d.may_now %}
-      <p class="note">{% trans %}Waiting for the describing hours{% endtrans %}{% if d.next_start %}{% trans day=weekday_names[d.next_start.weekday()] %}: next start {{ day }}{% endtrans %} {{ clock(d.next_start) }}{% endif %}.</p>
-      {% elif p.ollama == false %}
-      <p class="note">{% trans ollama_url=cfg.ollama_url %}Waiting for Ollama at <code>{{ ollama_url }}</code>: is the machine it runs on asleep? The worker checks every 5 minutes.{% endtrans %}</p>
-      {% endif %}
-    {% else %}
-    <p class="note">{% trans %}Every photo is described. New photos are described on the next pass after they are found.{% endtrans %}</p>
-    {% endif %}
-  </section>
-
+  {#- only while something downloads, or did lately (the face models, Ollama's, Whisper's) #}
+  {%- set wd = whisper.downloading if whisper else none %}
+  {%- if p.downloads or wd %}
   <section class="panel" id="downloads">
     <h2>{% trans %}Downloads{% endtrans %}</h2>
-    {% set wd = whisper.downloading if whisper else none %}
-    {% if p.downloads or wd %}
     <ul class="downloads">
       {%- for dl in p.downloads %}
       <li><b>{{ dl.label }}</b>
@@ -98,17 +87,20 @@
         <span class="hint">{{ mb(wd.done) }}{% if wd.total %} {% trans %}of{% endtrans %} {{ mb(wd.total) }}{% endif %}</span></li>
       {%- endif %}
     </ul>
-    {% else %}
-    <p class="hint">{% trans %}Nothing is downloading. The face models are downloaded the first time faces are looked for;
-    a model for Ollama when you press Download on the <a href="/settings#ollama">Settings</a> page.{% endtrans %}</p>
-    {% endif %}
   </section>
+  {%- endif %}
+  </div>
 
   {#- each kind of work: how far it is (a bar, when it has a whole), and the time left at the pace it has been going
       (progress.pace: from what the worker noted was left as each pass started and ended, over the last day, so the
       hours between passes count too). Kinds with nothing to do and nothing done yet aren't shown. #}
   <section class="panel work-panel" id="work">
     <h2>{% trans %}Work in progress{% endtrans %}</h2>
+    {%- if cfg.describe_enabled or cfg.transcribe_enabled %}
+    <p class="hint">{% if cfg.describe_schedule == "paused" %}{% trans %}The AI's work and transcripts are paused.{% endtrans %}
+      {%- else %}{% trans schedule=d.schedule %}The AI's work and transcripts run {{ schedule }}.{% endtrans %}{% endif %}
+      <a href="/settings#schedule">{% trans %}Change{% endtrans %}</a></p>
+    {%- endif %}
     <ul class="work">
       {%- for w in p.waiting if w.left or w.total %}
       {%- set pct = (w.done / w.total * 100) if w.total else none %}
@@ -118,13 +110,13 @@
         {%- if pct is not none %}
         <div class="meter" role="progressbar" aria-label="{{ _(w.label) }}" aria-valuenow="{{ pct|round|int }}" aria-valuemin="0" aria-valuemax="100"><i style="width: {{ pct }}%"></i></div>
         {%- endif %}
-        <span class="work-eta">{{ time_left(w) }}</span>
+        <span class="work-eta">{% if w.held %}{{ held_text(w.held, w.key) }}{% else %}{{ time_left(w) }}{% endif %}</span>
       </li>
       {%- endfor %}
     </ul>
     <p class="hint">{% trans %}New photos go through every step on the worker's next pass; some steps do a part of a big backlog
     each pass. Time left is at the pace of the last day, the hours between passes too. Not moving lately: waiting for
-    its turn after other steps, for the describing hours, or for its service (Ollama, Whisper).{% endtrans %}</p>
+    its turn after other steps. The AI's work and transcripts say when they wait for something else.{% endtrans %}</p>
   </section>
 </div>
 

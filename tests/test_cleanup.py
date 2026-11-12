@@ -1,3 +1,5 @@
+import re
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -152,14 +154,18 @@ def test_cleanup_pages(lib, cfg):
                 "/cleanup/removed", "/search?q=zoo&select=1"):
         r = client.get(url)
         assert r.status_code == 200, url
-    assert "Remove the copies from this folder" in client.get("/cleanup/copies").text
+    copies = client.get("/cleanup/copies").text
+    assert "Remove the copies from this folder" in copies and "1 pair of folders holds" in copies
+    # each folder's side has a class of its own: .side is the menu at the side, whose rules hid them on a phone
+    assert copies.count('class="copy-side"') == 2 and copies.count('class="side"') == 1
     assert client.get("/cleanup/reference/nope").status_code == 404
 
 
 def test_the_cleanup_page_opens_before_its_numbers_are_worked_out(lib, cfg):
     client = TestClient(webapp.create_app(cfg), client=LAN)
     page = client.get("/cleanup").text
-    assert page.count('class="num loading"') == page.count('class="card"') > 10  # every card waits for its number
+    cards = len(re.findall(r'class="card[ "]', page))  # Private papers' card has a class of its own too
+    assert page.count('class="num loading"') == cards > 10  # every card waits for its number
     for part in cleanup_routes.COUNTS:
         assert f'data-later="/cleanup/counts/{part}"' in page, part
         r = client.get(f"/cleanup/counts/{part}")

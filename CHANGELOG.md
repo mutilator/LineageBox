@@ -6,6 +6,32 @@ copies it there when the version is tagged ([releases](docs/development.md#relea
 A **catalog update** adds to the catalog's tables. LineageBox copies the catalog before it updates it, and earlier
 versions can't open the updated one.
 
+## 1.7.0 (2026-11-12)
+
+**Catalog update** (migration 035).
+
+### New
+
+- **How sure a face's name is:** People → Name faces says how sure it is of each face it recognised, or thinks looks
+  like someone (at most 98%: even of the surest, about 1 in 50 is someone else), and asks about the least sure first.
+  **Yes to the surest at once** names every face of a step at least 98%, 95% or 90% sure, with Undo. Check faces
+  shows it under each face.
+- **Cleanup → Private papers**, first on Cleanup and by itself: photos that look like driver's licenses,
+  Social Security cards, bank cards, checks, tax forms, insurance cards, health records, or birth and marriage
+  certificates of people living, found in the AI's descriptions. **Hide from family members** hides the ticked ones
+  from every family member (whoever uploaded one still sees it); **Fine to show** stops listing one. Admins see the
+  whole library's, family members the photos they uploaded. Admins are told on New for you when new ones are found.
+
+### Updated
+
+- **Groups** take in a whole family: putting a family friend in Family friends (or any group) asks whether their
+  wife, children and the rest of their family go in it too, listing those not in it yet to untick. Your own family is
+  never on the list.
+- **Status** is more compact: the AI descriptions panel is gone, as its row under Work in progress says as much. The
+  AI's work and transcripts now say what they wait for (the describing hours and when they start, Ollama or Whisper
+  not answering, a model that can't look at pictures), a line above the rows says when they run, and Downloads shows
+  only while something downloads.
+
 ## 1.6.1 (2026-11-11)
 
 **Catalog update** (migration 034).

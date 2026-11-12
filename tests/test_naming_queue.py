@@ -154,7 +154,8 @@ def test_who_says_what_to_ask_about_a_face(queue, cfg):
     assert who["suggest"]["face"] and who["photo"]["src"].startswith("/p/") and len(who["box"]) == 4
     assert who["card"] == f"/people/name/face/{q['brother']}?one=1" and who["asked"] is False
     who = client.get(f"/api/faces/{q['recognised']}/who").json()
-    assert who["named"] == {"person_id": q["owen"], "name": "Owen", "by": "auto"} and who["suggest"] is None
+    assert who["named"] == {"person_id": q["owen"], "name": "Owen", "by": "auto", "sure": 0.98}
+    assert who["suggest"] is None
     who = client.get(f"/api/faces/{q['asked']}/who").json()
     assert who["named"] is None and who["suggest"] is None and who["asked"] is True
     assert client.get("/api/faces/99999/who").status_code == 404

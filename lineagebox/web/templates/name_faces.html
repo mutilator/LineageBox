@@ -11,6 +11,24 @@ recognise the rest.{% endtrans %}</p>
   <a href="/people/name?only={{ key }}"{% if only == key %} aria-current="page"{% endif %}{% if not counts.get(key) %} class="empty"{% endif %}>{{ label }} <span>{{ counts.get(key, 0)|number }}</span></a>
   {%- endfor %}
 </nav>
+{%- if surest %}
+{#- the faces of this step at least so sure (people.how_sure), to say yes to at once (routes/naming.py sure_yes) #}
+<section class="naming-surest" aria-label="{{ _('Yes to the surest at once') }}">
+  <p><b>{% trans %}Yes to the surest at once{% endtrans %}</b>
+    <span class="filters">{% trans %}at least{% endtrans %}
+    {%- for bar, n in surest.bars %} <a href="/people/name?{{ {"only": only, "sure": bar}|urlencode }}"{% if bar == surest.bar %} aria-current="page"{% endif %}>{% trans bar=bar %}{{ bar }}% sure{% endtrans %} <span>{{ n|number }}</span></a>{% endfor %}</span></p>
+  {%- if surest.faces %}
+  <p><button type="button" class="primary" data-api="/api/faces/sure-yes" data-body='{{ {"step": only, "at_least": surest.bar}|tojson }}'
+        data-busy="{{ _('Naming them…') }}"
+        data-confirm="{{ ngettext('Say yes to %(num)s face at least %(bar)s%% sure?', 'Say yes to all %(num)s faces at least %(bar)s%% sure?', surest.faces, num=surest.faces|number, bar=surest.bar) }}">
+      {{- ngettext("Yes to the %(num)s face at least %(bar)s%% sure", "Yes to the %(num)s faces at least %(bar)s%% sure", surest.faces, num=surest.faces|number, bar=surest.bar) -}}
+    </button></p>
+  {%- endif %}
+  <p class="hint">{% trans wrong=100 - surest.bar, bar=surest.bar %}How sure is measured: of faces {{ bar }}% sure, about {{ wrong }} in 100
+    are someone else. Each one said yes to counts as named by you, and recognition learns from it, so pick a bar you
+    trust: Undo, in the message after, puts them all back.{% endtrans %}</p>
+</section>
+{%- endif %}
 <div class="naming" data-naming data-only="{{ only }}" data-skip="{{ skip|join(',') }}" data-skip-groups="{{ skip_groups|join(',') }}">
 {% include "_name_card.html" %}
 </div>

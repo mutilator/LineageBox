@@ -104,12 +104,28 @@ def delete_citation(citation_id: int, v=Depends(viewer), c=Depends(con), w=Depen
 
 @router.post("/api/people/{person_id}/groups", dependencies=[Depends(_from_app)])
 def add_to_group(person_id: int, body: GroupBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
-    if catalog.person(c, person_id) is None:
+    """Put someone in a group. Their own family not in it yet (people.group_family: a family friend's wife and
+    children) is asked about first: the answer lists them to tick (app.js choose), and comes back with also, those
+    ticked ([]: only them). Without such family it is done at once. All of it is one change, to undo."""
+    person = catalog.person(c, person_id)
+    if person is None:
         raise HTTPException(404, "No such person")
-    with changes.tracking(w, v, "person", f"Put {catalog.person(c, person_id)['name']} in {body.name}",
-                          _family_spec(v, person_id)):
-        people.add_to_group(w, person_id, body.name, _by(v))
-    return {}
+    kin = people.group_family(c, person_id, body.name)
+    group = people.group_name(c, body.name)
+    if body.also is None and kin:
+        first = person["name"].split()[0] if person["name"].split() else person["name"]
+        return {"choose": {
+            "title": f"Put {first}'s family in {group} too?",
+            "text": f"They are {person['name']}'s family and aren't in {group} yet. Untick anyone who isn't.",
+            "items": [{"id": k["id"], "label": k["name"], "detail": k["how"]} for k in kin],
+            "field": "also", "yes": "Add the ticked ones too", "no": f"Only {first}"}}
+    also = [k["id"] for k in kin if k["id"] in set(body.also or ())]
+    summary = f"Put {person['name']}" + (f" and {len(also)} of their family" if also else "") + f" in {group}"
+    with changes.tracking(w, v, "person", summary, _family_spec(v, person_id, *also)):
+        group = people.add_to_group(w, person_id, body.name, _by(v))
+        for x in also:
+            people.add_to_group(w, x, group, _by(v))
+    return {"message": summary + "."}
 
 
 @router.post("/api/people/{person_id}/groups/remove", dependencies=[Depends(_from_app)])

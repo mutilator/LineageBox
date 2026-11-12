@@ -323,7 +323,7 @@ def image_page(request: Request, image_id: int, ctx: str = "", v=Depends(viewer)
     doc = documents.get(c, image_id)
     names = dict(c.execute("SELECT id, name FROM person"))
     # worked out against everyone; shown only for someone the viewer sees (names holds only them)
-    suggested = {f: (pid, names[pid]) for f, (pid, _) in people.suggest_for_photo(w, image_id).items()
+    suggested = {f: (pid, names[pid]) for f, (pid, *_) in people.suggest_for_photo(w, image_id).items()
                  if pid in names}
     return page(request, "image.html", img=img, files=files, ctx=ctx, back=back, is_video=is_video,
                 frames=catalog.video_frames(c, image_id) if is_video else [],
@@ -576,7 +576,7 @@ def person_faces_page(request: Request, person_id: int, c=Depends(con)):
     p = catalog.person(c, person_id)
     if p is None:
         raise HTTPException(404, "No such person")
-    auto = catalog.person_faces(c, person_id, "auto")
+    auto = people.least_sure_first(catalog.person_faces(c, person_id, "auto"))
     named = people.least_typical_first(c, person_id)
     return page(request, "person_faces.html", nav="people", person=p, auto_faces=auto[:240], auto_count=len(auto),
                 named_faces=named[:240], confirmed_count=len(named))

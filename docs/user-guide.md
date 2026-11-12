@@ -88,11 +88,19 @@ from every face you name, so each answer helps it find the rest.
   stops asking you about it; **Ask the family** puts it on everyone's Home under **Who is this?**.
 - The faces come in this order: those someone in the family asked about; those in photos with people already named
   that look like someone else (nobody is in a photo twice, so each face is matched to the closest person not yet
-  named in that photo); those recognised automatically that nobody has checked, the least certain first; and last,
+  named in that photo); those recognised automatically that nobody has checked, the least sure first; and last,
   groups of faces that look like one person, down to groups of two or three, to name all at once. When a group's
   faces together look like someone already named, it asks **Are these …?** and **Yes** names them all; otherwise the
   folders the photos are in may suggest the name. The buttons at the top go through one kind only. Family members are
   asked only about photos and people they can see.
+- **How sure a name is.** A face recognised, or one that looks like someone, says how sure it is: of faces that sure,
+  how many are them. It comes from how alike the face is to the person's faces named by hand and how far ahead of the
+  next likeliest person they are, measured on faces named by hand, and it never says more than 98%: even of the
+  surest, about 1 in 50 is someone else, often a brother or sister. A recognised face that, after more faces are
+  named, looks more like someone else drops below even, and is asked about first; the name stays until you answer.
+  **Looks like someone** and **Recognised, to check** can say yes to every face at least 98%, 95% or 90% sure at once:
+  each then counts as named by you, and recognition learns from it, so pick a bar you trust. **Undo**, in the message
+  after, puts them all back.
 - **Cleanup → Confirm faces** has the same faces as lists, for going through many at once: **Seen together** (untick
   the faces that aren't them, then confirm; unticked faces are never suggested or recognised as that person again),
   **Photos to finish** (**don't know** sets aside someone nobody knows) and **Unnamed groups** (the **×**, not them,
@@ -136,8 +144,8 @@ from every face you name, so each answer helps it find the rest.
   the name off so the face waits to be named. It is never suggested or recognised as the wrong person again. An
   unnamed face that looks like someone not yet in the photo offers their name to click.
 - **Check faces** on a person's page lists their named faces, the least alike first, for spotting mistakes, and the
-  faces recognised as them: **✓** says one is them (it then counts as named by you), **×** that it isn't, and
-  **Yes, the ticked are …** confirms every face left ticked.
+  faces recognised as them, the least sure first, each with how sure: **✓** says one is them (it then counts as named
+  by you), **×** that it isn't, and **Yes, the ticked are …** confirms every face left ticked.
 
 Names you give by hand always win: recognition never overwrites them.
 
@@ -163,7 +171,10 @@ step-family) relative to the person marked **This is me**. Those words work in s
   link only ("foster grandmother"). A child can have two birth parents and two adoptive ones, and foster parents
   besides; the tree marks adopted and foster children.
 - **Groups** hold people who aren't family: the kids' friends, family friends, a band from a concert. Groups are
-  filters on the People page, and searchable.
+  filters on the People page, and searchable. Putting someone in a group asks first whether their own family goes in
+  it too: a family friend's wife, children, parents, brothers and sisters, grandchildren and in-laws, those not in it
+  yet, each ticked, to untick any who don't belong (**Only …** leaves them all out). Your own family is never on the
+  list, not even someone who married into it from theirs. With nobody to ask about, it is done at once.
 - **Documents:** mark a photo of a certificate, an obituary or a letter as a document, and link it to the person or
   event it records.
 - **Sources** (on a person's page): a book, a website, a census page or a register that bears out what is there, for
@@ -660,6 +671,25 @@ The **Cleanup** page lists what could go. Nothing is removed until you pick it, 
 next to their watched folder, keeping their folder path. **Removed** restores a whole cleanup step at once, or a single
 photo from its page. **Empty the Removed folder** is the only thing in LineageBox that deletes files.
 
+**Private papers** comes first, on its own: photos that look like identity cards (a driver's license, a
+passport, a Social Security card), bank and credit cards, checks, tax forms, insurance cards, health records, or the
+birth and marriage certificates of people still living. Family members shouldn't see these, but a family member sees
+any photo with someone they see named in it, so a driver's license whose face is recognised is seen by that person's
+whole family. The card turns red while there are some, and admins are told on **New for you** when new ones are found.
+An admin sees the whole library's; a family member sees the photos they uploaded themselves, to hide or keep as they
+choose.
+
+- Tick them and press **Hide from family members**: no family member sees them again, whoever is in them, on any page,
+  share or photo frame. Whoever uploaded one still sees it, and admins do. **Fine to show** stops listing those that
+  aren't private. **Undo**, or Recent changes, puts either back; a hidden photo's page has **Show to family members
+  again**.
+- They are found in the AI's descriptions: a phrase such as "driver's license" or "tax form" in a description of a
+  document or an object (not one of people, where "identification" is a badge at the zoo), or something in the text
+  it read off the photo that looks like a Social Security number or a card number. That text is never shown on the
+  list, only what it looked like. Photos not described yet aren't found, and some found are something else.
+- Certificates of people who have all died (by their death, or born over 110 years ago) are family history and aren't
+  listed.
+
 - **Duplicate copies:** folders holding byte-identical copies of the same photos. You remove the copies on one side,
   and the photo stays on the other. A photo's last copy is never removed this way.
 - **Similar shots:** burst shots and copies of the same picture, with a filter for each kind:
@@ -678,7 +708,8 @@ photo from its page. **Empty the Removed folder** is the only thing in LineageBo
 - **Blank and blurry:** ranked by a sharpness score measured from the pixels, worst first. Black frames and lens caps
   come first, and soft keepers further down. The cut-off is under **Settings → Cleanup**.
 - **Papers, screens, wiring and repairs:** photos without people whose description mentions things like "receipt",
-  "computer screen" or "wiring". These lists grow as descriptions finish.
+  "computer screen" or "wiring", to remove if they were only taken to remember something. These lists grow as
+  descriptions finish. Papers that are private are under **Private papers**, to hide, whether or not they go.
 - **Turned photos:** photos that are probably on their side, judged from the faces in them, with the AI as a second
   opinion when it is on. Confirming writes the rotation into the file too, where the format allows (JPEG, TIFF and NEF,
   with ExifTool), without re-compressing it.
@@ -719,15 +750,15 @@ photos of every group at once, are admins' only.
 
 ## Status
 
-- what the worker is doing now, and its recent activity;
-- how far the descriptions are, with the pace and the time left;
+- what the worker is doing now (and when the AI last described a photo), and its recent activity;
 - **Work in progress**: each kind of work (reading new files, finding faces, looking closely at every photo for
   faces, sharpness, the damage check, the search, descriptions, transcripts, chapters, video copies), with a bar of
   how far it is, how many of how many, and the time left at the pace of the last day. The worker notes what is left
   as each pass starts and ends, so the pace counts the hours between passes too; a pass or two after a start it can
-  tell. **Not moving lately** means it is waiting for its turn after other steps, for the describing hours, or for
-  its service (Ollama, Whisper);
-- downloads (face models, Ollama models, Whisper models);
+  tell. **Not moving lately** means it is waiting for its turn after other steps. The AI's work and transcripts say
+  what they wait for instead: the describing hours (with the next start), Ollama or Whisper not answering, a model
+  that can't look at pictures, or that they are paused or off. A line above the rows says when they run;
+- downloads (face models, Ollama models, Whisper models), while there are any;
 - red notes when something needs attention, such as Ollama not answering or a model that can't look at pictures;
 - **Storage**: how full each disk is that holds the watched folders or LineageBox's data folder, and how much of it
   is photos and videos, removed files waiting in the Removed folders (emptying them gives that back), LineageBox's

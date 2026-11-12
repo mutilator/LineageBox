@@ -252,6 +252,8 @@ def run_once(con: sqlite3.Connection, cfg: Config, stop: Stopper | None = None) 
         # a video's faces that plainly are someone named on its other frames (people.IN_VIDEO_SIMILARITY)
         if n := stage("faces in videos", lambda: people.name_in_videos(con)):
             log(con, f"people: named {n} faces in videos after the same person on other frames")
+        # how sure each recognised face is, after the faces named by hand changed (People → Name faces shows it)
+        stage("how sure", lambda: people.measure_recognised(con))
     # names, tags and dates other apps left in the photos (imports.py), once their faces are found; then the XMP
     # sidecars of what changed (sidecars.py), each a few minutes a pass at most
     if (m := stage("other apps' names", lambda: imports.run(con, cfg, stop=stop.reading if stop else None))) \

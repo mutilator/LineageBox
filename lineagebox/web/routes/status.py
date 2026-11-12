@@ -23,19 +23,22 @@ STATUS_COUNTS_FOR = 30  # seconds the counts of what is left are kept: the page 
 STATS_FOR = 60  # seconds the catalog's counts are kept (Site.kept: any change made on the site counts them again)
 
 
-def _snapshot(s: Site, v, c, now):
+def _snapshot(s: Site, v, c, now, whisper):
     """What the worker is doing (always now), with the counts of what is left kept a while, through changes: only
-    the worker changes them."""
+    the worker changes them. whisper: what Whisper said of itself (Site.whisper_health), for its row: None when it
+    didn't answer, or isn't used."""
     kept = s.keep(v, ("status counts",), STATUS_COUNTS_FOR, lambda: progress.counts(c, now), through_changes=True)
-    return progress.snapshot(c, now, kept)
+    used = now.transcribe_enabled and bool(now.whisper_url)
+    return progress.snapshot(c, now, kept, whisper=(whisper is not None) if used else None)
 
 
 @router.get("/status", response_class=HTMLResponse)
 def status_page(request: Request, v=Depends(viewer), c=Depends(con), s: Site = Depends(site)):
     now = s.live(c)
+    whisper = s.whisper_health(now)
     return page(request, "status.html", s=s.keep(v, ("stats", now.folders), STATS_FOR,
                                                   lambda: catalog.stats(c, now.folders)),
-                cfg=now, p=_snapshot(s, v, c, now), whisper=s.whisper_health(now), date_labels=catalog.DATE_SOURCES,
+                cfg=now, p=_snapshot(s, v, c, now, whisper), whisper=whisper, date_labels=catalog.DATE_SOURCES,
                 date_help=catalog.DATE_HELP, release=updates.available(c), last_check=settings.get(c, updates.KEY),
                 updater=updates.updater_state(s.cfg), in_docker=IN_DOCKER, slow=list(s.slow), slow_after=SLOW_PAGE,
                 disks=s.keep(v, ("storage",), 60, lambda: storage.disks(c, now)), backups=backup.summary(c, now))
@@ -79,7 +82,8 @@ def check_for_update(c=Depends(con), s: Site = Depends(site)):
 @router.get("/status/live", response_class=HTMLResponse)
 def status_live(request: Request, v=Depends(viewer), c=Depends(con), s: Site = Depends(site)):
     now = s.live(c)
-    return page(request, "_progress.html", cfg=now, p=_snapshot(s, v, c, now), whisper=s.whisper_health(now))
+    whisper = s.whisper_health(now)
+    return page(request, "_progress.html", cfg=now, p=_snapshot(s, v, c, now, whisper), whisper=whisper)
 
 
 @router.post("/api/worker/run", dependencies=[Depends(_from_app)])

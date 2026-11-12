@@ -113,7 +113,7 @@ def test_a_model_that_cant_see_is_shown_and_nothing_is_described(con, cfg, libra
     worker.set_state(con, waiting_for=r.waiting_for)  # as run_forever does after each pass
     page = TestClient(webapp.create_app(cfg), client=LAN).get("/status").text
     assert "llama3 can&#39;t look at pictures." in page
-    assert "Waiting for a model that can look at pictures" in page
+    assert "waits for a model that can look at pictures" in page  # on the descriptions' row
 
 
 def test_errors_ollama_answers_every_photo_with_are_shown(con, cfg, library, monkeypatch):
@@ -153,7 +153,8 @@ def test_each_kind_of_ai_can_be_turned_off(con, cfg, library, monkeypatch):
     r = worker.run_once(con, settings.current(con, cfg))
     assert calls == [] and r.waiting_for is None
     live = TestClient(webapp.create_app(cfg), client=LAN).get("/status/live").text
-    assert "AI descriptions are off" in live
+    describing = live[live.index("Photos and videos to describe (AI)"):].split("</li>")[0]
+    assert 'off in <a href="/settings#ollama">Settings</a>' in describing
     page = TestClient(webapp.create_app(cfg), client=LAN).get("/settings").text
     assert 'name="describe_enabled">' in page and 'name="faces_enabled">' in page  # unticked
 
@@ -227,7 +228,7 @@ def test_downloads_on_the_status_page(cfg, con, monkeypatch):
     started = []
     monkeypatch.setattr(llm, "pull", lambda cfg, c: (started.append(cfg.ollama_model), c.close()))
     c = TestClient(webapp.create_app(cfg), client=LAN)
-    assert "Nothing is downloading" in c.get("/status").text
+    assert 'id="downloads"' not in c.get("/status").text  # nothing downloading: no panel for it
     assert "is downloading ministral-3" in c.post("/api/ollama/pull", headers=APP).json()["message"]
     for _ in range(200):  # it runs in a thread of its own
         if started:

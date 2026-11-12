@@ -25,7 +25,8 @@ STAGES.update({"describe again": "Describing photos again, as asked (AI)",
                "meaning": "Reading descriptions for search by meaning (AI)"})
 STAGES.update({"look again": "Looking for faces again, as asked",
                "look closely at every photo": "Looking closely at every photo for faces",
-               "count people": "Counting the people in photos whose faces don't add up (AI)"})
+               "count people": "Counting the people in photos whose faces don't add up (AI)",
+               "how sure": "Working out how sure each recognised face is"})
 SILENT_AFTER = timedelta(minutes=3)  # an idle worker checks in every 15 s
 
 
@@ -116,8 +117,39 @@ def pace(notes: list[dict], key: str, left: int, now: datetime) -> tuple[str, fl
     return "going", (then - left) / ((now - when).total_seconds() / 3600)
 
 
-def snapshot(con: sqlite3.Connection, cfg: Config, kept: dict | None = None) -> dict:
-    """What the worker is doing, with counts() (or the ones given, kept from a moment ago)."""
+# Kinds of work the AI (Ollama) does, and Whisper's, both only in the describing hours (settings.may_describe): their
+# rows say what holds them up (held()) rather than "not moving lately". Those that look at pictures need a model that
+# can. The Status page had a panel of its own for descriptions until 2026-11-12, when these rows took its place.
+AI_WORK = {"folders", "describe", "describe again", "meaning", "headcount"}
+SEES = {"describe", "describe again", "headcount"}
+SPEECH_WORK = {"transcribe"}
+
+
+def held(key: str, cfg: Config, now: datetime, state: dict, whisper: bool | None = None) -> dict | None:
+    """What keeps a kind of work (a counts() row's key) from going on just now: {"why": "off" (in Settings), "paused",
+    "hours" (with "at": when the describing hours start next, if they do), "ollama" (not answering), "model" (it can't
+    look at pictures) or "whisper" (not answering)}. None when nothing does, or it isn't the AI's or Whisper's work.
+    state: the worker's (its "ollama" and "waiting_for"); whisper: whether Whisper answers (None: not asked)."""
+    if key not in AI_WORK | SPEECH_WORK:
+        return None
+    if not (cfg.describe_enabled if key in AI_WORK else cfg.transcribe_enabled and cfg.whisper_url):
+        return {"why": "off"}
+    if cfg.describe_schedule == "paused":
+        return {"why": "paused"}
+    if not settings.may_describe(cfg, now):
+        return {"why": "hours", "at": settings.next_describe_start(cfg, now)}
+    if key in AI_WORK and state.get("ollama") is False:
+        return {"why": "ollama"}
+    if key in SEES and state.get("waiting_for") == "model":
+        return {"why": "model"}
+    if key in SPEECH_WORK and whisper is False:
+        return {"why": "whisper"}
+    return None
+
+
+def snapshot(con: sqlite3.Connection, cfg: Config, kept: dict | None = None, whisper: bool | None = None) -> dict:
+    """What the worker is doing, with counts() (or the ones given, kept from a moment ago), each kind of work with what
+    holds it up (held(); whisper: whether Whisper answers, None if not asked)."""
     now = datetime.now()
     one = lambda sql, *a: con.execute(sql, a).fetchone()[0]
     state = settings.get(con, "worker", {})
@@ -125,12 +157,10 @@ def snapshot(con: sqlite3.Connection, cfg: Config, kept: dict | None = None) -> 
 
     numbers = kept or counts(con, cfg)
     total, left = numbers["total"], numbers["left"]
-    recent = con.execute("SELECT count(*), min(created_at), max(created_at) FROM analysis WHERE created_at >= ?",
-                         ((now - timedelta(minutes=30)).isoformat(timespec="seconds"),)).fetchone()
-    per_hour = None
-    if recent[0] >= 5 and (span := (_time(recent[2]) - _time(recent[1])).total_seconds()) > 0:
-        per_hour = (recent[0] - 1) / span * 3600
     last = one("SELECT max(created_at) FROM analysis")
+    waiting = _with_pace(con, numbers["waiting"], now)
+    for w in waiting:
+        w["held"] = held(w["key"], cfg, now, state, whisper) if w["left"] else None
 
     return {
         "now": now,
@@ -145,12 +175,10 @@ def snapshot(con: sqlite3.Connection, cfg: Config, kept: dict | None = None) -> 
         "ollama_checked": _time(state.get("ollama_checked")),
         "run_requested": (settings.get(con, "run_requested") or "") > (state.get("pass_started") or ""),
         "describe": {
-            "total": total, "done": total - left, "left": left, "per_hour": per_hour,
-            "hours_left": left / per_hour if per_hour else None, "last": _time(last),
-            "may_now": settings.may_describe(cfg, now), "schedule": settings.schedule_text(cfg),
-            "next_start": settings.next_describe_start(cfg, now),
+            "total": total, "done": total - left, "left": left, "last": _time(last),
+            "schedule": settings.schedule_text(cfg),
         },
-        "waiting": _with_pace(con, numbers["waiting"], now),
+        "waiting": waiting,
         "downloads": downloads.current(con, now),
         "problems": {settings.PROBLEM_SERVICES[s]: p | {"at": _time(p["at"])} for s, p in settings.problems(con).items()},
         "retrying": retry.summary(con),

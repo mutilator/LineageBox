@@ -666,6 +666,7 @@ class CitationBody(BaseModel):
 
 class GroupBody(BaseModel):
     name: str = Field(min_length=1, max_length=60)
+    also: list[int] | None = Field(None, max_length=500)  # their family to put in it too, as ticked (none: only them)
 
 
 class OtherNameBody(BaseModel):
