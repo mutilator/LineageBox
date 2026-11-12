@@ -274,6 +274,9 @@ PAGES = {
            "faces named by hand. It never says more than 98%: even of the surest, about 1 in 50 is someone else, such as "
            "a brother. Looks like someone and Recognised, to check can say yes to every face at least 98%, 95% or 90% "
            "sure at once; Undo, in the message after, puts them all back."),
+        N_("A recognised face can look more like someone else once more faces are named (brothers and sisters, most "
+           "often). Such a face comes first, as the least sure of its name, and asks whether it is the one it looks "
+           "more like: Yes names it them, “No, it's …” keeps the name it was given, and Neither says it is neither."),
         N_("Not a face hides a pattern, a statue or a poster. Ask the family puts a face on Home for everyone who sees "
            "its photo. Open the photo shows it with the others in it. Tapped the wrong answer? The message that says "
            "what it did has Undo beside it.")),

@@ -6,6 +6,16 @@ copies it there when the version is tagged ([releases](docs/development.md#relea
 A **catalog update** adds to the catalog's tables. LineageBox copies the catalog before it updates it, and earlier
 versions can't open the updated one.
 
+## 1.7.1 (2026-11-12)
+
+### Updated
+
+- **Name faces** asks about the likelier person. A recognised face that, after more faces were named, looks more
+  like someone else (often a brother or sister) came first as "Is this … ? About 0% sure", asking about its less
+  likely name. It now asks whether it is the person it looks like, says what it was recognised as, and answers
+  **Yes**, **No, it's …** (keeps the name) or **Neither**. People born after a photo no longer make a recognised
+  face in it look less sure.
+
 ## 1.7.0 (2026-11-12)
 
 **Catalog update** (migration 035).

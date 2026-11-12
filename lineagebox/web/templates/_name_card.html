@@ -95,15 +95,18 @@
         <h2 class="naming-question" tabindex="-1" data-naming-focus>{% trans %}Named already{% endtrans %}</h2>
         <p class="hint">{% trans %}As someone outside your part of the family: only an admin can change it.{% endtrans %}</p>
         {%- elif who %}
+        {#- a recognised face that looks more like someone else now asks about them: its name is the less likely #}
+        {%- set ask, sure = (card.more_like, card.more_like.sure) if card.more_like else (who, card.sure) %}
         <h2 class="naming-question" tabindex="-1" data-naming-focus>{% trans %}Is this{% endtrans %}
-          {%- if who.face %} <img class="naming-who" src="/face/{{ who.face }}" alt="" width="44" height="44">{% endif %}
-          <a href="/person/{{ who.id }}">{{ who.name }}</a>?</h2>
+          {%- if ask.face %} <img class="naming-who" src="/face/{{ ask.face }}" alt="" width="44" height="44">{% endif %}
+          <a href="/person/{{ ask.id }}">{{ ask.name }}</a>?</h2>
         <p class="hint">
           {%- if card.asked %}{% trans asker=card.asked.asker or _("Someone") %}{{ asker }} asked who this is.{% endtrans %} {% endif %}
-          {%- if card.how == "recognised" %}{% trans %}Recognised automatically; nobody has said yet whether it's right.{% endtrans %}
+          {%- if card.more_like %}{% trans name=who.name, other=ask.name %}Recognised as {{ name }} automatically, but looks more like {{ other }} now that more faces are named.{% endtrans %}
+          {%- elif card.how == "recognised" %}{% trans %}Recognised automatically; nobody has said yet whether it's right.{% endtrans %}
           {%- elif card.how == "named" %}{% trans name=who.name %}Named {{ name }} by hand.{% endtrans %}
           {%- else %}{% trans name=who.name %}Looks like {{ name }}{% endtrans %}{% if card.with %}{% trans %}, who isn't named in this photo yet{% endtrans %}{% endif %}.{% endif %}
-          {%- if card.sure is not none %} <b class="sure{% if card.sure < 0.9 %} unsure{% endif %}">{% trans pct=(card.sure * 100 + 0.000001)|int %}About {{ pct }}% sure.{% endtrans %}</b>{% endif %}</p>
+          {%- if sure is not none %} <b class="sure{% if sure < 0.9 %} unsure{% endif %}">{% trans pct=(sure * 100 + 0.000001)|int %}About {{ pct }}% sure.{% endtrans %}</b>{% endif %}</p>
         {%- else %}
         <h2 class="naming-question" tabindex="-1" data-naming-focus>{% trans %}Who is this?{% endtrans %}</h2>
         <p class="hint">
@@ -115,12 +118,19 @@
     {%- if card.how == "outside" %}
     <div class="naming-answers">{{ skip_control(f.id) }}</div>
     {%- elif who %}
-    {%- set about = {"person_id": who.id}|tojson %}
+    {%- set ask = card.more_like or who %}
     <div class="naming-answers">
-      <button type="button" class="primary" data-answer="yes" data-url="/api/faces/{{ f.id }}/yes" data-body='{{ about }}'
+      <button type="button" class="primary" data-answer="yes" data-url="/api/faces/{{ f.id }}/yes" data-body='{{ {"person_id": ask.id}|tojson }}'
               data-key="y" data-key-label="{{ _("Yes, it's them") }}">{% trans %}Yes{% endtrans %}</button>
-      <button type="button" data-answer="no" data-url="/api/faces/{{ f.id }}/no" data-body='{{ about }}'
+      {%- if card.more_like %}
+      <button type="button" data-answer="yes" data-url="/api/faces/{{ f.id }}/yes" data-body='{{ {"person_id": who.id}|tojson }}'
+              data-key="k" data-key-label="{{ _("No, it's %(name)s: keep the name it was given", name=who.name) }}">{% trans name=who.name %}No, it's {{ name }}{% endtrans %}</button>
+      <button type="button" data-answer="no" data-url="/api/faces/{{ f.id }}/no" data-body='{{ {"person_id": who.id, "also": [ask.id]}|tojson }}'
+              data-again="/people/name/face/{{ f.id }}" data-key="n" data-key-label="{{ _("Neither: it isn't %(name)s or %(other)s", name=who.name, other=ask.name) }}">{% trans %}Neither{% endtrans %}</button>
+      {%- else %}
+      <button type="button" data-answer="no" data-url="/api/faces/{{ f.id }}/no" data-body='{{ {"person_id": who.id}|tojson }}'
               data-again="/people/name/face/{{ f.id }}" data-key="n" data-key-label="{{ _("Not them: it isn't %(name)s", name=who.name) }}">{% trans %}Not them{% endtrans %}</button>
+      {%- endif %}
       {{ skip_control(f.id) }}
     </div>
     {%- else %}

@@ -3,11 +3,12 @@ a box to type who it is; app.js brings the next card after each answer without l
 the order). And the answers about one face that this page, Check faces and any other page asking about a face (one
 tapped on its photo) use:
 
-- GET /api/faces/{id}/who: what to ask about the face, as JSON: where it is on its photo, its name now, who it most
-  likely is, and whether someone asked who it is. GET /people/name/face/{id}?one=1: the same as a card to show.
-- POST /api/faces/{id}/yes {"person_id"}: it is them, named by hand. POST /api/faces/{id}/no {"person_id"}: it
-  isn't (the name comes off if it was theirs; never suggested or recognised as them again); /who then says who it
-  may be instead.
+- GET /api/faces/{id}/who: what to ask about the face, as JSON: where it is on its photo, its name now (and whom a
+  recognised face looks more like now, if anyone), who it most likely is, and whether someone asked who it is. GET
+  /people/name/face/{id}?one=1: the same as a card to show.
+- POST /api/faces/{id}/yes {"person_id"}: it is them, named by hand. POST /api/faces/{id}/no {"person_id", "also"}:
+  it isn't, nor any of also (the name comes off if it was theirs; never suggested or recognised as them again); /who
+  then says who it may be instead.
 - Who it is, typed: POST /api/faces/{id}/name {"name", "name_id"} (routes/faces.py). Don't know: POST
   /api/faces/{id}/skip (routes/home.py), never asked of this account again.
 - POST /api/people/{id}/yes {"yes": [face ids]}: Check faces' ticked faces are them.
@@ -57,6 +58,10 @@ class Problem(errors.Problem):
 
 class PersonBody(BaseModel):
     person_id: int
+
+
+class NoBody(PersonBody):
+    also: list[int] = Field(default_factory=list, max_length=5)  # nor any of these (Neither)
 
 
 class YesBody(BaseModel):
@@ -205,17 +210,22 @@ def _face_card(v: access.Viewer, c, w, face_id: int, suggest: tuple | None = Non
     automatically or "named" by hand, as "person"), or who it most likely is ("suggested", worked out against
     everyone, as on its photo's page, and shown only if the viewer sees them; suggest: (person, score, how sure)
     worked out already), else nobody ("open": who is it?). "outside": named as someone outside a member's part of the
-    family, whom only an admin can change. "sure": how sure a recognised or suggested name is (people.how_sure). Also
-    whether someone asked who it is, and who else is named in the photo."""
+    family, whom only an admin can change. "sure": how sure a recognised or suggested name is (people.how_sure).
+    "more_like": someone a recognised face looks more like than its name (people.looks_more_like), with how sure, whom
+    the card asks about instead. Also whether someone asked who it is, and who else is named in the photo."""
     f = catalog.face(c, face_id)
     if f is None:
         return None
-    card = {"kind": "face", **_where(c, f), "person": None, "score": None, "sure": None, "asked": None, "with": []}
+    card = {"kind": "face", **_where(c, f), "person": None, "score": None, "sure": None, "more_like": None,
+            "asked": None, "with": []}
     if f["person_id"] is not None:
         card["person"] = _who(c, f["person_id"], face_id)
         card["how"] = "outside" if card["person"] is None else "recognised" if f["assigned_by"] == "auto" else "named"
         if card["how"] == "recognised":
             card["sure"] = people.how_sure(f["assign_score"], f["assign_lead"])
+            if (f["assign_lead"] or 0) < 0 and (more := people.looks_more_like(w, face_id)) \
+                    and (other := _who(c, more[0], face_id)):
+                card["more_like"] = {**other, "score": more[1], "sure": more[2]}
     else:
         who = _who(c, suggest[0], face_id) if suggest else None
         if who is None and f["assigned_by"] != "not_a_face":
@@ -323,6 +333,9 @@ def who(face_id: int, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
         named = {"person_id": person["id"], "name": person["name"], "by": "auto" if how == "recognised" else "user"}
         if card["sure"] is not None:
             named["sure"] = round(card["sure"], 3)
+        if more := card["more_like"]:
+            named["more_like"] = {"person_id": more["id"], "name": more["name"], "face": more["face"],
+                                  "score": round(more["score"], 3), "sure": round(more["sure"], 3)}
     elif how == "suggested":
         suggest = {"person_id": person["id"], "name": person["name"], "face": person["face"],
                    "score": round(card["score"], 3), "sure": round(card["sure"], 3)}
@@ -356,12 +369,16 @@ def yes(face_id: int, body: PersonBody, v=Depends(viewer), c=Depends(con), w=Dep
 
 
 @router.post("/api/faces/{face_id}/no", dependencies=[Depends(_from_app)])
-def no(face_id: int, body: PersonBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
-    """It isn't them (people.not_this_person). /api/faces/{id}/who then says who else it may be."""
-    _, name = _answerable(c, v, face_id, body.person_id)
-    with changes.tracking(w, v, "faces", f"Said a face isn't {name}", _faces_spec(v, [face_id])) as kept:
-        people.not_this_person(w, body.person_id, [face_id])
-    return {"message": f"Not {name}: noted.", "undo": kept.id}
+def no(face_id: int, body: NoBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
+    """It isn't them (people.not_this_person), nor any of also (Neither: not the name a face was recognised as, nor
+    whom it looks more like). /api/faces/{id}/who then says who else it may be."""
+    pids = list(dict.fromkeys([body.person_id, *body.also]))
+    names = [_answerable(c, v, face_id, pid)[1] for pid in pids]
+    said = names[0] if len(names) == 1 else f"{', '.join(names[:-1])} or {names[-1]}"
+    with changes.tracking(w, v, "faces", f"Said a face isn't {said}", _faces_spec(v, [face_id])) as kept:
+        for pid in pids:
+            people.not_this_person(w, pid, [face_id])
+    return {"message": f"Not {said}: noted.", "undo": kept.id}
 
 
 @router.post("/api/faces/sure-yes", dependencies=[Depends(_from_app)])

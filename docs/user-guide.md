@@ -97,7 +97,9 @@ from every face you name, so each answer helps it find the rest.
   how many are them. It comes from how alike the face is to the person's faces named by hand and how far ahead of the
   next likeliest person they are, measured on faces named by hand, and it never says more than 98%: even of the
   surest, about 1 in 50 is someone else, often a brother or sister. A recognised face that, after more faces are
-  named, looks more like someone else drops below even, and is asked about first; the name stays until you answer.
+  named, looks more like someone else is the least sure of its name, so it comes first, and asks about the one it
+  looks more like: **Is this …?** says what it was recognised as, **Yes** names it as the one it looks like,
+  **No, it's …** keeps the name it was given, and **Neither** says it is neither. The name stays until you answer.
   **Looks like someone** and **Recognised, to check** can say yes to every face at least 98%, 95% or 90% sure at once:
   each then counts as named by you, and recognition learns from it, so pick a bar you trust. **Undo**, in the message
   after, puts them all back.

@@ -560,16 +560,18 @@ def measure_recognised(con: sqlite3.Connection) -> int:
     likeliest person who can be it (not named in its photo already, not said not to be it), so how sure it is
     (how_sure) follows what was named since: one that now looks more like someone else is asked about first. Only when
     the faces named by hand changed since the last time, or some recognised faces have no lead yet (one named after the
-    same person on a video's other frames). Returns how many were scored."""
+    same person on a video's other frames). Nobody born after the photo counts as the next likeliest, as in identify.
+    Returns how many were scored."""
     mark = list(con.execute("""SELECT count(*), coalesce(max(id), 0), total(person_id) FROM face
                                WHERE assigned_by = 'user'""").fetchone())
     if settings.get(con, MEASURED_KEY) == mark and not con.execute(
             "SELECT 1 FROM face WHERE assigned_by = 'auto' AND assign_lead IS NULL LIMIT 1").fetchone():
         return 0
-    faces = con.execute("SELECT id, image_id, person_id, embedding FROM face WHERE assigned_by = 'auto'").fetchall()
+    faces = con.execute("""SELECT f.id, f.image_id, f.person_id, f.embedding, i.taken_at, i.taken_at_source, i.date_to
+                           FROM face f JOIN image i ON i.id = f.image_id WHERE f.assigned_by = 'auto'""").fetchall()
     who, scores = _person_scores(con, faces)
     column = {p: n for n, p in enumerate(who)}
-    named_in, not_them = _named_in(con), _not_them(con)
+    named_in, not_them, births = _named_in(con), _not_them(con), _births(con)
     out = []
     for f, s in zip(faces, scores):
         own = column.get(f["person_id"])
@@ -581,6 +583,8 @@ def measure_recognised(con: sqlite3.Connection) -> int:
         for pid in (named_in[f["image_id"]] | not_them[f["id"]]) - {f["person_id"]}:
             if pid in column:
                 others[column[pid]] = -1.0
+        while len(who) > 1 and others.max() > -1.0 and _before_birth(f, births.get(who[int(others.argmax())])):
+            others[int(others.argmax())] = -1.0
         out.append((float(s[own]), float(s[own] - others.max()) if len(who) > 1 else 1.0, f["id"]))
     con.executemany("UPDATE face SET assign_score = ?, assign_lead = ? WHERE id = ? AND assigned_by = 'auto'", out)
     settings.put(con, MEASURED_KEY, mark)
@@ -798,6 +802,32 @@ def suggest_for_face(con: sqlite3.Connection, face_id: int) -> tuple[int, float,
     how sure), or None when nobody is close enough, or clearly ahead of the next."""
     row = con.execute("SELECT image_id FROM face WHERE id = ?", (face_id,)).fetchone()
     return suggest_for_photo(con, row[0]).get(face_id) if row else None
+
+
+def looks_more_like(con: sqlite3.Connection, face_id: int) -> tuple[int, float, float] | None:
+    """Who a face recognised automatically looks more like than the name it was given, now that more faces are named
+    by hand (measure_recognised found its name behind): (person, score, how sure), how sure against everyone who can
+    be it, the name it has too. Name faces asks about them instead: the face is first in the queue, being the least
+    sure of its name, and asking whether it is the name it was given would ask about the less likely of the two.
+    Nobody named elsewhere in its photo, said not to be it or born after it can be it. None when its name is still the
+    likeliest, or nobody else looks enough like it to suggest (SUGGEST_SIMILARITY)."""
+    f = con.execute("""SELECT f.id, f.image_id, f.person_id, f.embedding, f.assign_lead, i.taken_at, i.taken_at_source,
+                              i.date_to FROM face f JOIN image i ON i.id = f.image_id
+                       WHERE f.id = ? AND f.assigned_by = 'auto'""", (face_id,)).fetchone()
+    if f is None or f["assign_lead"] is None or f["assign_lead"] >= 0:
+        return None
+    who, scores = _person_scores(con, [f])
+    cannot = {pid for (pid,) in con.execute("""SELECT person_id FROM face WHERE image_id = ? AND id != ?
+                                                AND person_id IS NOT NULL
+                                              UNION SELECT person_id FROM face_not_person WHERE face_id = ?""",
+                                           (f["image_id"], face_id, face_id))}
+    births = _births(con)
+    found = [p for p in np.argsort(-scores[0]) if who[p] not in cannot and not _before_birth(f, births.get(who[p]))][:2]
+    if not found or who[found[0]] == f["person_id"] or scores[0][found[0]] < SUGGEST_SIMILARITY:
+        return None
+    score = float(scores[0][found[0]])
+    lead = score - (float(scores[0][found[1]]) if len(found) > 1 else -1.0)
+    return who[found[0]], score, how_sure(score, lead)
 
 
 def recognised_to_check(con: sqlite3.Connection) -> list[tuple[int, int]]:
