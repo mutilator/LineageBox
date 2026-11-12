@@ -421,6 +421,16 @@ button.danger { background: var(--danger); border-color: var(--danger); color: #
 @media (prefers-reduced-motion: reduce) { .state.busy::before { animation: none; } }
 .meter { height: 10px; border-radius: 999px; background: var(--tile); overflow: hidden; margin: 12px 0 6px; }
 .meter i { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+/* Status → Work in progress: each kind of work's bar, how many of how many, and the time left at its pace */
+.work-panel { grid-column: 1 / -1; }
+.work { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px 32px; margin: 8px 0 12px;
+  padding: 0; list-style: none; }
+.work li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 2px 12px; }
+.work .meter { grid-column: 1 / -1; height: 8px; margin: 2px 0; }
+.work-numbers { color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.work-eta { grid-column: 1 / -1; font-size: .9rem; }
+.work li.done { color: var(--muted); }
+.work li.done .meter i { background: var(--keep); }
 .note.problem { border-left: 4px solid var(--danger); margin: 0 0 12px; }
 ul.downloads { list-style: none; margin: 0; padding: 0; }
 ul.downloads li { margin: 0 0 12px; }

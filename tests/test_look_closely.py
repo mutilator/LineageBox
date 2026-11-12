@@ -143,7 +143,8 @@ def test_settings_say_how_far_and_start_it_again(con, cfg):
     assert "Looking closely: 2 of" in page and "/api/faces/look-again-all" not in page
     # and the Status page counts them with what else is waiting
     status = client.get("/status").text
-    assert "<dt>Photos to look at closely for faces (Settings → Faces)</dt><dd>2</dd>" in status
+    row = status[status.index('<span class="work-what">Photos to look at closely for faces'):].split("</li>")[0]
+    assert '<span class="work-numbers">0 of 2</span>' in row and 'aria-valuenow="0"' in row
     # under way: asking again changes nothing
     r = client.post("/api/faces/look-again-all", headers=APP).json()
     assert "being looked at already" in r["message"] and faces.round_state(con) == {}

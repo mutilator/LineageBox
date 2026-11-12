@@ -5,10 +5,11 @@ from datetime import datetime, timedelta
 
 from lineagebox import chapters, copies, downloads, retry, settings, speech
 from lineagebox import describe, embeddings
-from lineagebox.catalog import VISIBLE
+from lineagebox.catalog import ON_SHARE, VISIBLE
 from lineagebox.config import Config
 from lineagebox.describe import count_pending
 from lineagebox.faces import STAGE_FACES, count_due as faces_due
+from lineagebox.video import LONG_VIDEO
 
 STAGES = {"scan": "Looking for new and changed files", "back up the catalog": "Backing up the catalog",
           "ingest": "Reading new photos",
@@ -29,33 +30,87 @@ SILENT_AFTER = timedelta(minutes=3)  # an idle worker checks in every 15 s
 
 def counts(con: sqlite3.Connection, cfg: Config) -> dict:
     """What is left for each stage: on a big library these take a second or more, so the Status page, which asks
-    every 10 seconds, keeps them a while (snapshot takes them)."""
+    every 10 seconds, keeps them a while (snapshot takes them). Each row of "waiting": key, label, left, and total,
+    what left is out of, for a progress bar (None for a queue of what was asked for, which has no whole)."""
     one = lambda sql, *a: con.execute(sql, a).fetchone()[0]
     left = count_pending(con, cfg.ollama_model)
+    visible = one(f"SELECT count(*) FROM image i WHERE {VISIBLE}")
+    photos = one(f"SELECT count(*) FROM image i WHERE i.media = 'photo' AND {VISIBLE}")
+    total = one(f"SELECT count(*) FROM image i WHERE (i.dup_group_id IS NULL OR i.dup_group_id = i.id) AND {VISIBLE}")
+    files = one("""SELECT count(*) FROM file f JOIN folder d ON d.id = f.folder_id WHERE NOT f.missing
+                   AND NOT d.ignored""")
+    embedded = one("SELECT count(DISTINCT image_id) FROM embedding WHERE model = ?", cfg.ollama_embed_model)
+    meaning = embeddings.count_pending(con, cfg.ollama_embed_model)
+    sound = one(f"""SELECT count(*) FROM image i WHERE i.media IN ('video', 'audio')
+                    AND i.codecs NOT LIKE '%/no sound' AND {VISIBLE}""")
+    checked = """SELECT count(*) FROM file f JOIN image i ON i.id = f.image_id
+                 WHERE NOT f.missing AND i.error IS NULL"""  # as check.check reads them
+    row = lambda key, label, n, whole=None: {"key": key, "label": label, "left": n, "total": whole}
     return {
-        "total": one(f"""SELECT count(*) FROM image i
-                         WHERE (i.dup_group_id IS NULL OR i.dup_group_id = i.id) AND {VISIBLE}"""),
+        "total": total,
         "left": left,
         "waiting": [
-            ("New or changed files to read", one("""SELECT count(*) FROM file f JOIN folder d ON d.id = f.folder_id
-                                                   WHERE f.image_id IS NULL AND NOT f.missing AND NOT d.ignored""")),
-            ("Folder names to read (AI)", one("""SELECT count(*) FROM folder WHERE kind IS NULL AND source = 'auto'
-                                                AND NOT ignored AND path != ''""")),
-            ("Photos and videos to check for faces",
-             one(f"SELECT count(*) FROM image i WHERE NOT (i.stage & {STAGE_FACES}) AND {VISIBLE}")),
-            ("Photos to look at closely for faces (Settings → Faces)", faces_due(con)),
-            ("Photos to measure for sharpness",
-             one(f"SELECT count(*) FROM image i WHERE i.sharpness IS NULL AND i.media = 'photo' AND {VISIBLE}")),
-            ("Photos to add to the search", one(f"""SELECT count(*) FROM image i WHERE {VISIBLE}
-                                                   AND i.id NOT IN (SELECT rowid FROM search_fts)""")),
-            ("Photos and videos to describe (AI)", left),
-            ("Photos asked to be described again (AI)", describe.count_requests(con)),
-            ("Descriptions to read for search by meaning (AI)", embeddings.count_pending(con, cfg.ollama_embed_model)),
-            ("Videos, recordings and stories to transcribe (Whisper)", speech.count_pending(con)),
-            ("Long videos to find chapters in", chapters.count_pending(con)),
-            ("Videos to make a 720p copy of", copies.count_pending(con)),
+            row("files", "New or changed files to read", one("""SELECT count(*) FROM file f
+                JOIN folder d ON d.id = f.folder_id WHERE f.image_id IS NULL AND NOT f.missing AND NOT d.ignored"""),
+                files),
+            row("folders", "Folder names to read (AI)", one("""SELECT count(*) FROM folder WHERE kind IS NULL
+                AND source = 'auto' AND NOT ignored AND path != ''"""),
+                one("SELECT count(*) FROM folder WHERE source = 'auto' AND NOT ignored AND path != ''")),
+            row("faces", "Photos and videos to check for faces",
+                one(f"SELECT count(*) FROM image i WHERE NOT (i.stage & {STAGE_FACES}) AND {VISIBLE}"), visible),
+            row("closely", "Photos to look at closely for faces (Settings → Faces)", faces_due(con),
+                one(f"""SELECT count(*) FROM image i WHERE i.media = 'photo' AND (i.stage & {STAGE_FACES})
+                        AND {VISIBLE}""")),
+            row("sharpness", "Photos to measure for sharpness",
+                one(f"SELECT count(*) FROM image i WHERE i.sharpness IS NULL AND i.media = 'photo' AND {VISIBLE}"),
+                photos),
+            row("check", "Files to read whole for damage (Cleanup → Damaged files)",
+                one(f"{checked} AND f.checked_at IS NULL"), one(checked)),
+            row("search", "Photos to add to the search", one(f"""SELECT count(*) FROM image i WHERE {VISIBLE}
+                AND i.id NOT IN (SELECT rowid FROM search_fts)"""), visible),
+            row("describe", "Photos and videos to describe (AI)", left, total),
+            row("describe again", "Photos asked to be described again (AI)", describe.count_requests(con)),
+            row("meaning", "Descriptions to read for search by meaning (AI)", meaning,
+                embedded + meaning if cfg.ollama_embed_model else None),
+            row("transcribe", "Videos, recordings and stories to transcribe (Whisper)", speech.count_pending(con),
+                sound + one("SELECT count(*) FROM story WHERE removed_at IS NULL")),
+            row("chapters", "Long videos to find chapters in", chapters.count_pending(con),
+                one(f"""SELECT count(*) FROM image i WHERE i.media = 'video' AND i.duration >= {LONG_VIDEO}
+                        AND {VISIBLE}""")),
+            row("copies", "Videos to make a 720p copy of", copies.count_pending(con),
+                one(f"SELECT count(*) FROM image i WHERE i.playable IN ('copy', 'needed') AND {ON_SHARE}")),
         ],
     }
+
+
+# How long what is waiting takes, at the pace it has been going. The worker notes what is left of each (record) as
+# each pass starts and ends; the pace is how much less is left now than at the earliest note of the last PACE_OVER,
+# over the time between, so it counts the hours between passes too: what "some each pass" comes to by the clock.
+HISTORY_KEY = "progress_history"  # settings: [{"at": when, "left": {key: what was left}}], oldest first
+PACE_OVER = timedelta(hours=24)
+PACE_FROM = timedelta(minutes=20)  # notes closer together than this say nothing yet
+
+
+def record(con: sqlite3.Connection, cfg: Config, now: datetime | None = None) -> None:
+    """Note what is left of each kind of work, for its pace (pace()); notes older than twice PACE_OVER go."""
+    now = now or datetime.now()
+    waiting = counts(con, cfg)["waiting"]
+    notes = [n for n in settings.get(con, HISTORY_KEY, []) if (t := _time(n.get("at"))) and now - t <= 2 * PACE_OVER]
+    notes.append({"at": now.isoformat(timespec="seconds"), "left": {w["key"]: w["left"] for w in waiting}})
+    settings.put(con, HISTORY_KEY, notes[-200:])
+
+
+def pace(notes: list[dict], key: str, left: int, now: datetime) -> tuple[str, float | None]:
+    """("going", how many an hour), ("still", None) when no less has been left for PACE_FROM or more, or ("early",
+    None) while the notes span less than that."""
+    points = sorted((t, n["left"][key]) for n in notes if key in n.get("left", {})
+                    and (t := _time(n.get("at"))) and timedelta(0) <= now - t <= PACE_OVER)
+    if not points or now - points[0][0] < PACE_FROM:
+        return "early", None
+    when, then = points[0]
+    if then <= left:
+        return "still", None
+    return "going", (then - left) / ((now - when).total_seconds() / 3600)
 
 
 def snapshot(con: sqlite3.Connection, cfg: Config, kept: dict | None = None) -> dict:
@@ -92,12 +147,23 @@ def snapshot(con: sqlite3.Connection, cfg: Config, kept: dict | None = None) -> 
             "may_now": settings.may_describe(cfg, now), "schedule": settings.schedule_text(cfg),
             "next_start": settings.next_describe_start(cfg, now),
         },
-        "waiting": numbers["waiting"],
+        "waiting": _with_pace(con, numbers["waiting"], now),
         "downloads": downloads.current(con, now),
         "problems": {settings.PROBLEM_SERVICES[s]: p | {"at": _time(p["at"])} for s, p in settings.problems(con).items()},
         "retrying": retry.summary(con),
         "activity": con.execute("SELECT at, message FROM activity ORDER BY id DESC LIMIT 30").fetchall(),
     }
+
+
+def _with_pace(con: sqlite3.Connection, waiting: list[dict], now: datetime) -> list[dict]:
+    """The waiting rows, each with done (of its total), pace (pace()'s word), per_hour and hours_left."""
+    notes = settings.get(con, HISTORY_KEY, [])
+    out = []
+    for w in waiting:
+        how, per_hour = pace(notes, w["key"], w["left"], now) if w["left"] else ("done", None)
+        out.append({**w, "done": (w["total"] - w["left"]) if w["total"] else None, "pace": how,
+                    "per_hour": per_hour, "hours_left": w["left"] / per_hour if per_hour else None})
+    return out
 
 
 def _time(iso: str | None) -> datetime | None:

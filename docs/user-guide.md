@@ -705,7 +705,12 @@ photos of every group at once, are admins' only.
 
 - what the worker is doing now, and its recent activity;
 - how far the descriptions are, with the pace and the time left;
-- what is waiting at each stage;
+- **Work in progress**: each kind of work (reading new files, finding faces, looking closely at every photo for
+  faces, sharpness, the damage check, the search, descriptions, transcripts, chapters, video copies), with a bar of
+  how far it is, how many of how many, and the time left at the pace of the last day. The worker notes what is left
+  as each pass starts and ends, so the pace counts the hours between passes too; a pass or two after a start it can
+  tell. **Not moving lately** means it is waiting for its turn after other steps, for the describing hours, or for
+  its service (Ollama, Whisper);
 - downloads (face models, Ollama models, Whisper models);
 - red notes when something needs attention, such as Ollama not answering or a model that can't look at pictures;
 - **Storage**: how full each disk is that holds the watched folders or LineageBox's data folder, and how much of it

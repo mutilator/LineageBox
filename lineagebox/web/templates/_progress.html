@@ -2,6 +2,18 @@
 {% set d = p.describe %}
 {% macro clock(t) %}{% if t %}{% if t.date() == p.now.date() %}{{ "%d:%02d"|format(t.hour, t.minute) }}{% else %}{{ t.isoformat()|date }}{% endif %}{% endif %}{% endmacro %}
 {% macro mb(n) %}{% trans mb=(n / 1e6)|number(0) %}{{ mb }} MB{% endtrans %}{% endmacro %}
+{%- macro time_left(w) -%}
+{%- if w.pace == "done" -%}{% if w.total %}{% trans %}done{% endtrans %}{% else %}{% trans %}nothing waiting{% endtrans %}{% endif %}
+{%- elif w.pace == "going" -%}
+{%- set h = w.hours_left -%}
+{%- if h < 1 %}{% trans %}under an hour left{% endtrans %}
+{%- elif h < 48 %}{{ ngettext("about %(num)s hour left", "about %(num)s hours left", h|round|int, num=h|round|int) }}
+{%- else %}{{ ngettext("about %(num)s day left", "about %(num)s days left", (h / 24)|round|int, num=(h / 24)|round|int) }}{% endif %}
+<span class="hint inline">{% if w.per_hour >= 10 %}{% trans n=w.per_hour|round|int|number %}{{ n }} an hour{% endtrans %}{% else %}{% trans n=w.per_hour|round(1) %}{{ n }} an hour{% endtrans %}{% endif %}</span>
+{%- elif w.pace == "still" -%}<span class="hint inline">{% trans %}not moving lately{% endtrans %}</span>
+{%- else -%}{% trans %}time left: after the worker's next pass{% endtrans %}
+{%- endif -%}
+{%- endmacro %}
 {% for service, problem in p.problems.items() %}
 <p class="note problem"><b>{{ service }}:</b> {{ problem.message }} <span class="hint inline">{% trans %}since{% endtrans %} {{ clock(problem.at) }} ·
   <a href="/settings#{{ {"OpenStreetMap": "map"}.get(service, service|lower) }}">{% trans %}Settings{% endtrans %}</a></span></p>
@@ -92,12 +104,27 @@
     {% endif %}
   </section>
 
-  <section class="panel">
-    <h2>{% trans %}Waiting to be processed{% endtrans %}</h2>
-    <dl>
-      {%- for label, n in p.waiting %}<dt>{{ label }}</dt><dd>{{ n|number if n else "–" }}</dd>{% endfor %}
-    </dl>
-    <p class="hint">{% trans %}New photos go through every step on the worker's next pass. Faces and descriptions take longest.{% endtrans %}</p>
+  {#- each kind of work: how far it is (a bar, when it has a whole), and the time left at the pace it has been going
+      (progress.pace: from what the worker noted was left as each pass started and ended, over the last day, so the
+      hours between passes count too). Kinds with nothing to do and nothing done yet aren't shown. #}
+  <section class="panel work-panel" id="work">
+    <h2>{% trans %}Work in progress{% endtrans %}</h2>
+    <ul class="work">
+      {%- for w in p.waiting if w.left or w.total %}
+      {%- set pct = (w.done / w.total * 100) if w.total else none %}
+      <li{% if not w.left %} class="done"{% endif %}>
+        <span class="work-what">{{ _(w.label) }}</span>
+        <span class="work-numbers">{% if w.total %}{% trans done=w.done|number, total=w.total|number %}{{ done }} of {{ total }}{% endtrans %}{% else %}{% trans left=w.left|number %}{{ left }} waiting{% endtrans %}{% endif %}</span>
+        {%- if pct is not none %}
+        <div class="meter" role="progressbar" aria-label="{{ _(w.label) }}" aria-valuenow="{{ pct|round|int }}" aria-valuemin="0" aria-valuemax="100"><i style="width: {{ pct }}%"></i></div>
+        {%- endif %}
+        <span class="work-eta">{{ time_left(w) }}</span>
+      </li>
+      {%- endfor %}
+    </ul>
+    <p class="hint">{% trans %}New photos go through every step on the worker's next pass; some steps do a part of a big backlog
+    each pass. Time left is at the pace of the last day, the hours between passes too. Not moving lately: waiting for
+    its turn after other steps, for the describing hours, or for its service (Ollama, Whisper).{% endtrans %}</p>
   </section>
 </div>
 

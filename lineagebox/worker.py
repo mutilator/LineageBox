@@ -29,6 +29,7 @@ from lineagebox import imports, sidecars
 from lineagebox import chapters, stories
 from lineagebox import changes, outbox
 from lineagebox import scan_dates  # the dates written on scanned documents, read by the AI
+from lineagebox import progress  # what is left of each kind of work, noted for the Status page's time left
 from lineagebox.activity import log, note_problem
 from lineagebox.config import Config
 from lineagebox.describe import describe
@@ -400,7 +401,9 @@ def run_forever(con: sqlite3.Connection, base: Config) -> None:
                     log(con, f"pass started: {reason}")
                 budget = cfg.worker_interval_minutes * 60
                 started = time.monotonic()
+                _note_progress(con, cfg)
                 result = run_once(con, cfg, Stopper(con, base, budget))
+                _note_progress(con, cfg)
                 next_pass = time.monotonic() if result.run_again else started + budget
                 waiting_for, ollama_tried = result.waiting_for, time.monotonic()
                 wait = max(0.0, next_pass - time.monotonic())
@@ -418,6 +421,15 @@ def run_forever(con: sqlite3.Connection, base: Config) -> None:
             log(con, f"worker: {traceback.format_exc().strip().splitlines()[-1]}; trying again in 5 min")
             next_pass = max(next_pass, time.monotonic() + 300)
             time.sleep(TICK)
+
+def _note_progress(con: sqlite3.Connection, cfg: Config) -> None:
+    """What is left of each kind of work, as a pass starts and ends: the Status page's time left goes by how fast it
+    falls (progress.pace). A catalog busy just now leaves this one out."""
+    try:
+        progress.record(con, cfg)
+    except sqlite3.OperationalError:
+        con.rollback()
+
 
 def _now() -> str:
     return datetime.now().isoformat(timespec="seconds")

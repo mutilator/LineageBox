@@ -78,7 +78,7 @@ def test_described_again_as_asked_keeping_what_people_said(lib, cfg, seeing):
     assert r.status_code == 200 and "with gemma3:12b" in r.json()["message"], r.text
     assert settings.get(con, "run_requested")  # the worker comes at once
     assert [(q["id"], q["model"]) for q in describe.requests(con)] == [(blue, "gemma3:12b")]
-    assert ("Photos asked to be described again (AI)", 1) in progress.counts(con, cfg)["waiting"]
+    assert {"key": "describe again", "label": "Photos asked to be described again (AI)", "left": 1, "total": None}         in progress.counts(con, cfg)["waiting"]
 
     stats = describe.describe_requests(con, cfg)
     assert (stats.pending, stats.done) == (1, 1) and describe.count_requests(con) == 0

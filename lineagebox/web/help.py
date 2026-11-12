@@ -576,6 +576,10 @@ PAGES = {
         N_("Photos and folder pairs you chose to keep: cleanup doesn't suggest them. Undo to let it."),)),
     "status": Page(N_("Status"), (
         N_("What the worker is doing and has left to do, downloads in progress, problems, and counts of the catalog."),
+        N_("Work in progress: each kind of work, with a bar of how far it is (how many of how many) and the time left "
+           "at the pace of the last day, counting the hours between the worker's passes. It needs a pass or two to "
+           "tell; not moving lately means it waits for its turn after other steps, for the describing hours, or for "
+           "its service."),
         N_("Point at a line to see what it counts. Numbers that are links open those photos, such as all photos with "
            "GPS or all dated only by their file's time."),
         N_("Storage: how full each disk is that holds the watched folders or LineageBox's data folder, and how much of "
