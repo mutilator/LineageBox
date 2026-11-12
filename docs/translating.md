@@ -67,7 +67,7 @@ it to run. Any `.po` editor works for the translating itself, such as [Poedit](h
    ```
 
 5. **Try it**: restart LineageBox (`serve`, or the containers after building the image). With more than one language
-   installed, the More menu has **Language**, which each browser keeps for itself; until someone picks one there,
+   installed, the round button at the top has **Language**, which each browser keeps for itself; until someone picks one there,
    each visitor gets the first language their browser asks for that LineageBox has, else `[web] language`
    ([configuration](configuration.md#web-and-network)), else English. A message left untranslated shows in English.
 

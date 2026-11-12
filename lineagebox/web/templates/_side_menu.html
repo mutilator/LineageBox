@@ -1,0 +1,63 @@
+{#- The menu: every page at the side, in sections, with Add photos above them (the user's choice, 2026-11-11, of the
+    layouts tried). On a phone it is hidden, and ☰ opens it over the page (app.js openPanel); elsewhere the button at
+    its foot shows its icons only, kept in this browser (theme.js puts data-side on <html> before the page is drawn).
+    The help's "Every page" list says what each is (help.py MENU, in this order). -#}
+{%- set menu_path = request.url.path if request is defined else "" %}
+{#- each icon one path, drawn 20 px in its line (app.css .side svg) #}
+{%- set side_icons = {
+  "add": "M10 4v12M4 10h12",
+  "home": "M3 9.5 10 4l7 5.5V16a1 1 0 0 1-1 1h-3.5v-4.5h-5V17H4a1 1 0 0 1-1-1z",
+  "folder": "M2.5 6a1 1 0 0 1 1-1h4l1.6 1.8h7.4a1 1 0 0 1 1 1V15a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1z",
+  "timeline": "M3.5 5h13v11.5h-13zM3.5 8.5h13M7 3v3.5M13 3v3.5",
+  "map": "M10 17.5s5.5-5.2 5.5-9.3a5.5 5.5 0 0 0-11 0c0 4.1 5.5 9.3 5.5 9.3zM10 10.2a2 2 0 1 0 0-4 2 2 0 0 0 0 4z",
+  "tags": "M3 3.5h6.5l7.5 7.5-6 6-7.5-7.5zM6.5 7.2a.6.6 0 1 0 0-1.2.6.6 0 0 0 0 1.2z",
+  "heart": "M10 16.5S3 12.4 3 7.6A3.6 3.6 0 0 1 10 6a3.6 3.6 0 0 1 7 1.6c0 4.8-7 8.9-7 8.9z",
+  "albums": "M5.5 6.5h11.5v10H5.5zM3 4h11.5M3 4v10",
+  "tours": "M3 4.5h14v11H3zM8.5 7.5v5l4-2.5z",
+  "people": "M10 9.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM4 17c.6-3.2 3-5 6-5s5.4 1.8 6 5",
+  "family": "M8 2.5h4v3.5H8zM3 13h4v3.5H3zM13 13h4v3.5h-4zM10 6v3.5M5 13V9.5h10V13",
+  "faces": "M10 17a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM7.5 8.5v.5M12.5 8.5v.5M7 12.2c1.6 1.4 4.4 1.4 6 0",
+  "cleanup": "M4 10.5l3.5 3.5L16 5.5",
+  "status": "M2.5 10h3.5l2-5 4 10 2-5h3.5",
+  "settings": "M4 5.5h12M4 10h12M4 14.5h12M7 4v3M13 8.5v3M9 13v3",
+  "update": "M10 3.5v9M6 9l4 4 4-4M4 16.5h12",
+  "fold": "M12.5 5 7.5 10l5 5"} %}
+{#- (heading or none, [(href, name, icon, open now)]) #}
+{%- set side_sections = [
+  (none, [("/home", _("Home"), "home", nav == "home")]),
+  (_("Library"), [("/" if viewer.admin else "/folders", _("Folders"), "folder", nav == "folders"),
+                  ("/timeline", _("Timeline"), "timeline", nav == "timeline"),
+                  ("/map", _("Map"), "map", nav == "map"),
+                  ("/tags", _("Tags"), "tags", nav == "tags")]),
+  (_("Collections"), [("/favourites", _("Favourites"), "heart", menu_path == "/favourites"),
+                      ("/albums", _("Albums"), "albums", menu_path.startswith("/album")),
+                      ("/tours", _("Tours"), "tours", nav == "tours" and not menu_path.startswith("/album")
+                                                      and menu_path != "/favourites")]),
+  (_("People"), [("/people", _("People"), "people", nav == "people" and not menu_path.startswith("/people/name")),
+                 ("/family", _("Family"), "family", nav == "family")]),
+  (_("Tidy up"), [("/people/name", _("Name faces"), "faces", menu_path.startswith("/people/name")),
+                  ("/cleanup", _("Cleanup"), "cleanup", nav == "cleanup")]),
+  (_("Admin") if viewer.admin else none,
+   [("/status", _("Status"), "status", nav == "status"), ("/settings", _("Settings"), "settings", nav == "settings")]
+   if viewer.admin else [])] %}
+<nav id="menu" class="side" aria-label="{{ _('Pages') }}">
+  {%- if signed_in %}
+  <a href="/upload" class="side-add"{% if nav == "upload" %} aria-current="page"{% endif %} title="{{ _('Add photos and videos from this computer or phone') }}">
+    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="{{ side_icons.add }}"/></svg><span class="label">{% trans %}Add photos{% endtrans %}</span></a>
+  {%- endif %}
+  {%- for heading, links in side_sections if links %}
+  <div class="side-group"{% if heading %} role="group" aria-labelledby="side-{{ loop.index }}"{% endif %}>
+    {%- if heading %}<span class="side-heading" id="side-{{ loop.index }}">{{ heading }}</span>{% endif %}
+    {%- for href, name, icon, here in links %}
+    <a href="{{ href }}"{% if here %} aria-current="page"{% endif %} title="{{ name }}">
+      <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="{{ side_icons[icon] }}"/></svg><span class="label">{{ name }}</span></a>
+    {%- endfor %}
+    {%- if heading and viewer.admin and update_ready and loop.last %}
+    <a href="/status#updates" class="update-ready" title="{{ _('LineageBox %(version)s is out', version=update_ready.version) }}">
+      <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="{{ side_icons.update }}"/></svg><span class="label">{% trans %}Update available{% endtrans %}</span></a>
+    {%- endif %}
+  </div>
+  {%- endfor %}
+  <button type="button" class="side-toggle" data-side-toggle aria-pressed="false" title="{{ _('Show the menu as icons only, or with their words') }}">
+    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="{{ side_icons.fold }}"/></svg><span class="label">{% trans %}Show icons only{% endtrans %}</span></button>
+</nav>

@@ -58,12 +58,18 @@ def test_photos_by_day():
 
 
 def test_home_shows_the_newest_photos_by_day(dated, cfg, con):
+    # a face low in yesterday's photo: its square, as Photo tiles makes them unless Whole photos is chosen, aims at it
+    con.execute("""INSERT INTO face(image_id, x1, y1, x2, y2, det_score, quality, embedding)
+                   VALUES (?, 0.4, 0.8, 0.5, 0.95, 0.9, 20, zeroblob(2048))""", (dated["yesterday.jpg"],))
+    con.commit()
     page = TestClient(webapp.create_app(cfg), client=LAN).get("/home").text
     latest = page.split('id="latest"')[1]
     assert "<h3>Yesterday</h3>" in latest
     assert latest.index(sha(con, dated["yesterday.jpg"])) < latest.index(sha(con, dated["earlier.jpg"]))
     assert f'<h2 class="month">{TODAY - timedelta(days=40):%B}' in latest
-    assert "--r: 1.5" in latest  # each photo as wide as its shape
+    assert "--r: 1.5" in latest  # each photo as wide as its shape, for Whole photos
+    tile = latest.split(sha(con, dated["yesterday.jpg"]))[1].split(">")[0]
+    assert 'style="object-position:' in tile
     # photos with no day known (only their file's time) aren't in the days: they are under Recently added
     undated = con.execute("SELECT image_id FROM file WHERE path = ?", (rel("transparent.png"),))
     small = sha(con, undated.fetchone()[0])

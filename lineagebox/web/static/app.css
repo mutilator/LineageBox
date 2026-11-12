@@ -1,6 +1,6 @@
 /* The colours: light, and dark when the computer or phone is set to dark (prefers-color-scheme) unless light is
-   chosen in this browser, or when dark is chosen (More → Colours puts data-theme on <html>; theme.js does it again
-   before each page is drawn). The dark ones are written twice, once for each way in: a colour added here goes in all
+   chosen in this browser, or when dark is chosen (the round button → Colours puts data-theme on <html>; theme.js does
+   it again before each page is drawn). The dark ones are written twice, once for each way in: a colour added here goes in all
    three blocks. */
 :root {
   --bg: #f6f6f3;
@@ -86,23 +86,47 @@ code { font-size: .9em; }
 .top { position: sticky; top: 0; z-index: 10; height: var(--header-h); display: flex; align-items: center; gap: 28px;
        padding: 0 24px; background: var(--surface); border-bottom: 1px solid var(--line); }
 .brand { font-weight: 700; color: var(--text); letter-spacing: .02em; }
-.top nav { display: flex; flex: none; gap: 18px; white-space: nowrap; }
-.top nav a { color: var(--muted); }
-.top nav a[aria-current] { color: var(--text); font-weight: 600; }
-/* When the links don't fit (app.js measures them; on phones always) they fold into the ☰ menu */
+/* ☰: on a phone, opens the menu at the side over the page (.side.open) */
 .menu-button { flex: none; display: none; place-items: center; width: 34px; height: 34px; padding: 0; }
-.top.folded .menu-button { display: grid; }
-.top.folded nav:not(.open) { display: none; }
-.top nav.open { position: absolute; top: calc(100% + 1px); left: 0; z-index: 20; flex-direction: column; gap: 0;
-                min-width: 220px; max-height: calc(100dvh - var(--header-h)); overflow-y: auto; padding: 6px 0;
-                background: var(--surface); border: 1px solid var(--line); border-top: 0; border-radius: 0 0 10px 0;
-                box-shadow: 0 8px 24px rgb(0 0 0 / .18); }
-.top nav.open a { padding: 10px 20px; font-size: 1rem; }
-.top nav.open a:hover { background: var(--bg); text-decoration: none; }
-/* who is signed in: the round button with their initials, and Sign out under it */
+/* who is signed in: the round button with their initials, Sign out under it, and how the site looks; without
+   accounts a plain button with the latter alone */
 .profile { position: relative; flex: none; }
 .avatar { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border-radius: 50%;
           border-color: var(--accent); background: var(--accent); color: var(--on-accent); font-size: .8rem; font-weight: 600; }
+.looks-button { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border-radius: 50%; }
+
+/* The menu at the side (_side_menu.html): every page, in sections, beside the page and in sight as it scrolls. The
+   button at its foot shows its icons only (data-side="icons" on <html>, theme.js); on a phone it is hidden, and ☰
+   opens it over the page. */
+.shell { display: flex; align-items: flex-start; }
+.shell > main { flex: 1 1 auto; min-width: 0; }
+.side { position: sticky; top: var(--header-h); flex: none; width: 216px; height: calc(100dvh - var(--header-h));
+        box-sizing: border-box; display: flex; flex-direction: column; gap: 1px; padding: 10px; overflow-y: auto;
+        overscroll-behavior: contain; background: var(--surface); border-right: 1px solid var(--line); }
+/* a laptop's screen holds the whole of it (fourteen pages, five headings, Add photos and the switch at its foot) */
+.side a, .side-toggle { display: flex; align-items: center; gap: 12px; min-height: 32px; padding: 0 10px;
+                        border-radius: 8px; color: var(--text); white-space: nowrap; }
+.side a:hover, .side-toggle:hover { background: var(--bg); text-decoration: none; }
+.side a[aria-current] { background: color-mix(in srgb, var(--accent) 14%, var(--surface)); font-weight: 600; }
+.side svg { flex: none; }
+.side svg path { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.side-group { display: grid; gap: 1px; padding-bottom: 6px; }
+.side-heading { padding: 4px 10px 1px; color: var(--muted); font-size: .72rem; font-weight: 600; letter-spacing: .04em;
+                text-transform: uppercase; }
+.side a.side-add { justify-content: center; gap: 8px; min-height: 38px; margin-bottom: 8px; border-radius: 999px;
+                   background: var(--accent); color: var(--on-accent); font-weight: 600; }
+.side a.side-add:hover, .side a.side-add[aria-current] { background: var(--accent); filter: brightness(1.1); }
+.side a.side-add svg path { stroke-width: 2; }
+.side-toggle { margin-top: auto; border: 0; background: none; color: var(--muted); font: inherit; font-size: .9rem; }
+@media (min-width: 761px) {
+  :root[data-side="icons"] .side { width: 64px; }
+  :root[data-side="icons"] .side-heading { display: none; }
+  :root[data-side="icons"] .side .label { position: absolute; width: 1px; height: 1px; overflow: hidden;
+                                          clip-path: inset(50%); white-space: nowrap; }
+  :root[data-side="icons"] .side a.side-add { padding: 0; }
+  :root[data-side="icons"] .side-toggle svg { transform: scaleX(-1); }
+}
+body.immersive .side { display: none; }
 .profile-menu { display: none; position: absolute; top: calc(100% + 8px); right: 0; z-index: 20; width: max-content;
                 min-width: 220px; max-width: calc(100vw - 32px); padding: 12px 14px; gap: 8px; justify-items: start;
                 background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
@@ -133,14 +157,15 @@ h2 small, .months small { color: var(--muted); font-weight: 400; }
 .folder-card.ignored { opacity: .5; }
 
 /* photo grid */
-/* Photo tiles, as chosen in this browser (More → Photo tiles; theme.js puts them on <html> before the page is drawn):
-   Small, Medium or Large (data-tile-size; Medium is none), squares, or Whole photos (data-tiles="whole"): rows of
-   photos in their own shapes (--r, from tiles.tile_shapes), each row filled out, as Home's days. A square's crop is
+/* Photo tiles, as chosen in this browser (the round button → Photo tiles; theme.js puts them on <html> before the
+   page is drawn): Small, Medium or Large (data-tile-size; Medium is none), squares, or Whole photos
+   (data-tiles="whole"): rows of photos in their own shapes (--r, from tiles.tile_shapes), each row filled out. A square's crop is
    aimed at the faces in it (object-position, set on each tile). Two fingers pinched over the photos on a touch screen
-   make them larger or smaller (app.js), so the page itself doesn't zoom there. */
-:root { --tile-min: 150px; --tile-row: 170px; }
-:root[data-tile-size="s"] { --tile-min: 104px; --tile-row: 120px; }
-:root[data-tile-size="l"] { --tile-min: 230px; --tile-row: 260px; }
+   make them larger or smaller (app.js), so the page itself doesn't zoom there. Home's photos by the day follow the
+   same choices (.day-tiles, --day-row: their rows of whole photos, a little higher than a list's). */
+:root { --tile-min: 150px; --tile-row: 170px; --day-row: 190px; }
+:root[data-tile-size="s"] { --tile-min: 104px; --tile-row: 120px; --day-row: 130px; }
+:root[data-tile-size="l"] { --tile-min: 230px; --tile-row: 260px; --day-row: 270px; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--tile-min), 1fr)); gap: 4px;
         touch-action: pan-x pan-y; }
 .tile { position: relative; display: block; aspect-ratio: 1; background: var(--tile); overflow: hidden; border-radius: 3px; }
@@ -318,7 +343,7 @@ input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]),
   border-color: var(--edge); }
 button:hover { border-color: var(--accent); }
 button.primary, a.button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
-nav a.update-ready { color: var(--accent); font-weight: 600; }
+.side a.update-ready { color: var(--accent); font-weight: 600; }
 button.quiet, a.button.quiet { background: none; color: var(--muted); }
 button:disabled { opacity: .5; cursor: wait; }
 .hint.inline { display: inline; margin-left: 4px; }
@@ -388,7 +413,7 @@ button:disabled { opacity: .5; cursor: wait; }
 button.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
 .danger-zone { margin-top: 28px; padding-top: 14px; border-top: 1px solid var(--line); }
 
-.search { margin-left: auto; flex: 0 1 360px; min-width: 160px; }
+.search { margin-left: auto; flex: 0 1 520px; min-width: 160px; }
 .search input { width: 100%; font: inherit; padding: 5px 10px; border-radius: 8px; border: 1px solid var(--line);
                 background: var(--bg); color: var(--text); }
 
@@ -481,10 +506,13 @@ ul.downloads .meter { margin: 6px 0 4px; }
   .top .brand { display: none; }
   .search { flex: 1 1 auto; min-width: 0; }
   .menu-button { display: grid; }
-  .top nav:not(.open) { display: none; }
-  :root { --tile-min: 100px; --tile-row: 120px; }
-  :root[data-tile-size="s"] { --tile-min: 72px; --tile-row: 84px; }
-  :root[data-tile-size="l"] { --tile-min: 160px; --tile-row: 190px; }
+  .side { display: none; }
+  .side.open { display: flex; position: fixed; top: var(--header-h); left: 0; bottom: 0; z-index: 30; width: min(280px, 85vw);
+               height: auto; box-shadow: 0 8px 24px rgb(0 0 0 / .25); }
+  .side-toggle { display: none; }
+  :root { --tile-min: 100px; --tile-row: 120px; --day-row: 120px; }
+  :root[data-tile-size="s"] { --tile-min: 72px; --tile-row: 84px; --day-row: 84px; }
+  :root[data-tile-size="l"] { --tile-min: 160px; --tile-row: 190px; --day-row: 180px; }
   .folders { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
   /* the photo fills the screen, and its details are a sheet at the foot: its handle (the caption or the date)
      shows, and a tap or a swipe up slides it up */
@@ -914,7 +942,7 @@ fieldset.demo-locked { border: 0; margin: 0; padding: 0; min-width: 0; }  /* a d
   height: 36px; padding: 0; border-radius: 50%; box-shadow: 0 2px 8px rgb(0 0 0 / .25); font-size: 1.2rem; }
 .memories-wrap .scroll.back, .events-wrap .scroll.back { left: -10px; }
 .memories-wrap .scroll.on, .events-wrap .scroll.on { right: -10px; }
-.days { --row: 190px; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 18px 22px; margin-top: 18px; }
+.days { --row: var(--day-row); display: flex; flex-wrap: wrap; align-items: flex-start; gap: 18px 22px; margin-top: 18px; }
 .days .month { flex: 0 0 100%; margin: 22px 0 -6px; font-size: 1.5rem; font-weight: 400; }
 /* a day is as wide as its photos side by side, and shares a line with others that fit; one too wide for a line
    wraps, and its rows but the last are stretched to the edge (where a day fits on one line there is nothing to fill) */
@@ -934,11 +962,15 @@ fieldset.demo-locked { border: 0; margin: 0; padding: 0; min-width: 0; }  /* a d
 .kin-button > span:last-child { display: grid; line-height: 1.25; }
 .kin-button b { font-size: 1.05rem; font-weight: 600; }
 .kin-button small { font-size: .8rem; opacity: .8; }
-.day-tiles { display: flex; flex-wrap: wrap; gap: 4px; }
-.day-tiles .tile { flex: var(--r) 0 auto; width: calc(var(--row) * var(--r)); max-width: 100%; height: var(--row);
-                   aspect-ratio: auto; }
+/* a day's photos, as Photo tiles says (the round button): squares aimed at their faces, each row but the last
+   stretched to the edge as a list's are; or Whole photos, in rows of their own shapes */
+.day-tiles { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px; touch-action: pan-x pan-y; }
+.day-tiles .tile { flex: 1 0 var(--tile-min); width: var(--tile-min); max-width: calc(var(--tile-min) * 1.6);
+                   aspect-ratio: 1; }
+:root[data-tiles="whole"] .day-tiles .tile { flex: var(--r) 0 auto; width: calc(var(--row) * var(--r)); max-width: 100%;
+                                            height: var(--row); aspect-ratio: auto; }
 .day-tiles::after { content: ""; flex-grow: 1000; margin-left: -4px; }  /* the last row isn't stretched */
-@media (max-width: 760px) { .days { --row: 120px; } .memory { flex-basis: 70vw; } .memories-wrap .scroll { display: none; } }
+@media (max-width: 760px) { .memory { flex-basis: 70vw; } .memories-wrap .scroll { display: none; } }
 
 /* Storage, on the Status page: each disk's bar in parts, with what each part is */
 .disk { margin: 10px 0 18px; }
@@ -1027,9 +1059,8 @@ fieldset.demo-locked { border: 0; margin: 0; padding: 0; min-width: 0; }  /* a d
 /* ---- big enough to tap: on touch screens every button, link in the menu and small control is at least 44px ---- */
 @media (pointer: coarse) {
   button, .button, select { min-height: 44px; }
-  .top nav.open a { padding: 13px 20px; }
   .faces.review button { width: 34px; height: 34px; min-height: 0; font-size: 1.1rem; }
-  .menu-button, .help-button, .avatar { width: 44px; height: 44px; }
+  .menu-button, .help-button, .avatar, .looks-button { width: 44px; height: 44px; }
   .faces.review button::after, .tag-chip button::after { content: ""; position: absolute; inset: -6px; }
   .tag-chip { position: relative; }
   .tag-chip button { position: relative; min-height: 32px; padding: 0 10px 0 4px; }
@@ -1515,42 +1546,21 @@ ul.life-events > li { margin: 2px 0; display: flex; flex-wrap: wrap; align-items
 .brand { display: flex; flex: none; align-items: center; gap: 8px; }
 .brand:hover { text-decoration: none; }
 .brand img { display: block; width: 24px; height: 24px; border-radius: 6px; }
-/* More: the pages used less, a menu under the button; folded into ☰ (app.js; on phones always), a list of its own */
-.top .more { position: relative; display: flex; align-items: center; }
-.more-button { display: inline-flex; align-items: center; min-height: 0; padding: 0; border: 0; background: none;
-               color: var(--muted); font-size: 1rem; }
-.more-button:hover, .more-button[aria-expanded="true"] { color: var(--text); }
-.more.here > .more-button { color: var(--text); font-weight: 600; }  /* the page open is one of its own */
-.more-menu { display: none; position: absolute; top: calc(100% + 12px); left: -14px; z-index: 20; min-width: 250px;
-             padding: 6px 0; background: var(--surface); border: 1px solid var(--line); border-radius: 0 0 10px 10px;
-             box-shadow: 0 8px 24px rgb(0 0 0 / .18); white-space: nowrap; }
-.more-menu.open { display: block; }
-.more-group { display: grid; }
-.more-group + .more-group, .theme-pick { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
-.top .more-menu a { display: block; padding: 8px 20px; }
-.top .more-menu a:hover { background: var(--bg); text-decoration: none; }
-.theme-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 20px 6px; color: var(--muted); }
+/* how the site looks (Colours, Photo tiles, Language), in the round button's panel at the top */
+.theme-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; width: 100%; padding: 8px 0 2px;
+              border-top: 1px solid var(--line); color: var(--muted); }
 .theme-pick > span { flex-basis: 100%; font-size: .9rem; }
 .theme-pick > .look-break { height: 0; }  /* Photo tiles: the sizes on a line of their own */
 .theme-pick button { padding: 2px 10px; }
 .theme-pick button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
-.top nav.open .more { order: 1; }  /* folded: after Status and Settings, so Colours come last */
-.top.folded .more-button { display: none; }
-.top.folded .more { display: block; }
-.top.folded .more-menu { display: block; position: static; min-width: 0; margin-top: 6px; padding: 6px 0 0; border: 0;
-                         border-top: 1px solid var(--line); border-radius: 0; box-shadow: none; }
 @media (max-width: 760px) {
   .top { gap: 10px; }
   .top .brand { display: flex; }
   .brand-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .more-button { display: none; }
-  .top .more { display: block; }
-  .more-menu { display: block; position: static; min-width: 0; margin-top: 6px; padding: 6px 0 0; border: 0;
-               border-top: 1px solid var(--line); border-radius: 0; box-shadow: none; }
 }
 @media (pointer: coarse) {
   .brand { min-width: 44px; min-height: 44px; justify-content: center; }
-  .top .more-menu a { padding: 13px 20px; }
+  .side a, .side-toggle { min-height: 44px; }
 }
 
 /* keyboard hints are for keyboards: none on a phone or tablet (the help's keys, "← → to step" on a photo) */
@@ -1599,7 +1609,7 @@ ul.life-events > li { margin: 2px 0; display: flex; flex-wrap: wrap; align-items
     --on-accent: #fff; --tile: #eee; color-scheme: light;
   }
   body:not(.book-page) { background: #fff; color: #111; }
-  body:not(.book-page) header.top, body:not(.book-page) .skip, body:not(.book-page) #notice,
+  body:not(.book-page) header.top, body:not(.book-page) .side, body:not(.book-page) .skip, body:not(.book-page) #notice,
   body:not(.book-page) .see-as, dialog.help { display: none !important; }
   body:not(.book-page) main { max-width: none; padding: 0; }
   :is(.person-page, .family-page) main :is(button:not(.chip.on), [type="submit"], .hint, .portrait-change,

@@ -11,12 +11,21 @@ from tests.test_face_checks import A, face, like, photo
 APP = {"X-Requested-With": "lineagebox"}
 
 
-def seen(con, image_id, people_count, caption="Two people walking away along a beach", looked=True):
-    """The AI's description of a photo, counting people; looked: its faces were looked for."""
+def seen(con, image_id, people_count, caption="Two people walking away along a beach", looked=True, sure=0.9):
+    """The AI's description of a photo, counting people, and its careful count of them (headcount.py), as sure as
+    this; looked: its faces were looked for."""
     con.execute("""INSERT INTO analysis(image_id, model, prompt_version, created_at, caption, people_count, raw_json)
                    VALUES (?, 'm', 1, '2026-11-07T10:00:00', ?, ?, '{}')""", (image_id, caption, people_count))
+    counted(con, image_id, people_count, sure)
     if looked:
         con.execute("UPDATE image SET stage = stage | ? WHERE id = ?", (faces.STAGE_FACES, image_id))
+
+
+def counted(con, image_id, people, sure=0.9, faces=None, faces_sure=None):
+    """The AI's careful count of the people in a photo (headcount.py), and of the faces it sees."""
+    con.execute("""INSERT OR REPLACE INTO headcount(image_id, model, version, counted_at, people, people_sure, faces,
+                                                    faces_sure) VALUES (?, 'm', 1, '2026-11-11T10:00:00', ?, ?, ?, ?)""",
+                (image_id, people, sure, faces, faces_sure))
 
 
 def library(con):
@@ -58,7 +67,7 @@ def test_the_page_and_its_buttons(con, cfg):
     client = TestClient(webapp.create_app(cfg), client=LAN)
     page = client.get("/cleanup/no-faces").text
     assert 'value="2"' in page and 'value="1"' in page and 'value="3"' not in page
-    assert "9 people" in page and 'title="A crowd watching fireworks from behind"' in page
+    assert "9 people, 90% sure" in page and 'title="A crowd watching fireworks from behind"' in page
     assert 'data-api="/api/images/look-again"' in page and 'data-api="/api/images/no-faces-ok"' in page
     card = client.get("/cleanup/counts/nofaces").text
     assert "No faces found" in card and '<span class="num">3</span>' in card

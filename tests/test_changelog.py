@@ -48,7 +48,8 @@ def test_this_version_has_release_notes():
     done = subprocess.run([sys.executable, str(SCRIPT), lineagebox.__version__, "--repo", "example/lineagebox"],
                           capture_output=True, text=True, encoding="utf-8")
     assert done.returncode == 0, done.stderr
-    assert done.stdout.startswith("### ")
+    # under New, Updated or Fixed, perhaps after a line such as "Catalog update"
+    assert any(f"### {part}\n" in done.stdout for part in ("New", "Updated", "Fixed"))
     assert "**Full Changelog**: https://github.com/example/lineagebox/" in done.stdout
 
 

@@ -24,9 +24,9 @@ Some settings are deliberately not on the page: the photo folders, the catalog f
 mistake there could lock everyone out.
 
 A few choices belong to each browser, not to the install, and are kept only there (its `localStorage`): light or dark
-(More → Colours), the map's ticked layers, and whether keys of one letter work. The catalog's `settings` table also
-keeps what LineageBox notes for itself, never set by hand; one of them, `first_run_hidden`, is set once the first steps
-on an admin's Home are all done or put away.
+(the round button → Colours), photo tiles, the menu as icons only, the map's ticked layers, and whether keys of one
+letter work. The catalog's `settings` table also keeps what LineageBox notes for itself, never set by hand; one of
+them, `first_run_hidden`, is set once the first steps on an admin's Home are all done or put away.
 
 Value formats in environment variables: lists are separated by commas (`LINEAGEBOX_SCAN_IGNORE_DIRS=Thumbs,@eaDir`), and
 pairs are written `folder=path,folder=path` (`LINEAGEBOX_WEB_NETWORK_PATHS=local=\\nas\photo`). Booleans are `true` or
@@ -108,7 +108,7 @@ is then 5 June, and a folder named "Party 5.6.98" is from 5 June 1998 (unticked,
 | `[web] trusted_proxies` | none | Page | Reverse proxies whose `X-Forwarded-For` and `X-Forwarded-Proto` are believed. |
 | `[web] tls_cert`, `[web] tls_key` | none | Page | HTTPS without a proxy: certificate (full chain) and key, PEM. Both or neither. |
 | `[web] hover_preview_ms` | 500 | Page | Milliseconds of pointing at a photo before it shows larger; 0 never. |
-| `[web] language` | none (English) | | Once a translation is installed ([translating](translating.md)): the pages' language for a browser that asks for none LineageBox has (`de`, `pt_BR`). A browser's own choice (More → Language) and its languages come first. |
+| `[web] language` | none (English) | | Once a translation is installed ([translating](translating.md)): the pages' language for a browser that asks for none LineageBox has (`de`, `pt_BR`). A browser's own choice (the round button → Language) and its languages come first. |
 
 ### Family accounts
 

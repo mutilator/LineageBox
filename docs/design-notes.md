@@ -76,6 +76,16 @@ faces. DeepFace pulls in TensorFlow.
   library found clear faces in none, except one stretch of 1,400 phone photos whose faces had never been looked for
   properly (half had clear faces); so the list is for looking at again (in the worker, the models loaded once) or
   setting aside, not a fault in the detector. Face ids had no gaps: nothing found had been lost.
+- **How sure a count is** (2026-11-11). The descriptions' counts had made both lists untrustworthy: 397 of 37,599 counted
+  more than 200 people (the most 5,000,000,000,000,000), and the photos' prompt had never said what the field was.
+  Asking the model how sure it is says little; the chances Ollama gives each token of an answer (`logprobs`) do. So
+  the photos whose faces don't add up are asked two numbers on their own (people, and those showing their face), and a
+  number's sureness is its digits' shares among the digits the model could have written there, times its ending where
+  it did (`headcount.sure_of`). Those chances are of what the model would write unbound by the JSON schema (the
+  opening brace scored 0.000: it would rather have written prose), so only shares among the allowed tokens mean
+  anything. On 90 photos of the two lists, looked at by eye, ministral-3 was right every time it was 80% sure or more
+  (5 of 5, one to three people), wrong in two of three at 75% to 80%, and never that sure of a group of more than three
+  (5% to 60%, mostly wrong: 12 people for 8, 5 faces for 2). At 0.8 s a photo on a graphics card.
 - InsightFace licenses these models for **non-commercial research purposes only**. LineageBox downloads them; it doesn't
   include them.
 
@@ -230,10 +240,14 @@ FastAPI with Jinja2 templates and a few hundred lines of plain JavaScript. There
 in 16–130 ms on the development PC, including a folder of over a thousand photos and a year of several thousand, and
 in 36–350 ms on the ARM board.
 
-- **A short menu.** Ten to twelve links in a row were more than a family member needs, and showed them Tags and
-  Cleanup first. Home, People, Family, Upload and Folders stay up front, the search box beside them; the rest is
-  under More, a menu opened by a click (nothing only on hover), which folds into ☰ with the others. The help's
-  "Every page" list follows the menu, and a test checks that they match.
+- **The menu at the side** (2026-11-11). Ten to twelve links in a row were more than a family member needs, and
+  showed them Tags and Cleanup first, so the rest went under More; but then eight pages hid behind one word. Of four
+  layouts tried as clickable mock-ups (menus by task, a side menu, a second row of tabs, an All pages panel), the
+  user chose the side menu, with every page in sight in sections named for what you do: Library (the ways to look
+  through the photos, Tags among them), Collections (Favourites, Albums, Tours), People, Tidy up (Name faces with
+  Cleanup) and Admin. Upload became **Add photos**, a button above them, as it is something you do rather than a
+  place. Colours, Photo tiles and Language aren't pages: they went to the round button at the top. The help's "Every
+  page" list follows the menu, and a test checks that they match.
 - **One word for each answer about a face.** Six words meant "not this person" (No, ×, stranger, Strangers, Hide,
   don't know who). They are now two, whatever the action behind them, which stays as it was: **Not them** (the face
   isn't who it is named, suggested or grouped as; the × on a small face picture is labelled so) and **Don't know**

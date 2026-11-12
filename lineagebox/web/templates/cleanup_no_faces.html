@@ -2,19 +2,23 @@
 {% import "_macros.html" as m %}
 {% set nav = "cleanup" %}
 {% block title %}{% trans %}No faces found{% endtrans %}{% endblock %}
-{#- Cleanup → No faces found (routes/face_checks.py, faces.no_faces): photos where the AI's description sees people and
-    no face was found. Ticked photos are looked at again by the worker, more closely, or set aside as having no faces
+{#- Cleanup → No faces found (routes/face_checks.py, faces.no_faces): photos where the AI is sure it sees people
+    (headcount.py) and no face was found. Ticked photos are looked at again by the worker, more closely, or set aside as having no faces
     to find; either takes them off the list for good (Undo puts back those set aside). -#}
 {% block main %}
 <nav class="crumbs"><a href="/cleanup">{% trans %}Cleanup{% endtrans %}</a><span class="sep">/</span><h1>{% trans %}No faces found{% endtrans %}</h1></nav>
-<p class="meta">{% trans %}Photos where the AI's description sees people but no face was found in them. A closer look finds the
-faces in some: turned a little, small, in shadow. Tick those and press <b>Look again</b>: it is done in the background,
-and the faces found are recognised where they clearly match. The rest show people facing away or too far off: tick
+<p class="meta">{% trans sure=sure_at %}Photos where the AI, counting the people on its own, is at least {{ sure }}% sure it sees
+someone, but no face was found in them. A closer look finds the faces in some: turned a little, small, in shadow. Tick
+those and press <b>Look again</b>: it is done in the background, and the faces found are recognised where they clearly
+match. The rest show people facing away or too far off: tick
 them and press <b>No faces to find</b>, and they aren't listed again. Either way they leave this list; Undo, or
 <a href="/cleanup/changes">Recent changes</a>, puts back those set aside. Photos where some faces were found and more
 people are seen are under <a href="/cleanup/faces?show=missed">Confirm faces → Faces missed</a>.{% endtrans %}</p>
 {%- if not faces_on %}
 <p class="note">{% trans %}Face recognition is switched off in Settings, so nothing is looked at again until it is on.{% endtrans %}</p>
+{%- endif %}
+{%- if to_count %}
+<p class="note">{% trans count=to_count, n=to_count|number %}The AI has {{ n }} more photo to count the people in; it is listed here if it is sure of someone.{% pluralize %}The AI has {{ n }} more photos to count the people in; each is listed here if it is sure of someone.{% endtrans %}</p>
 {%- endif %}
 {%- if waiting %}
 <p class="note">{% trans count=waiting, n=waiting|number %}{{ n }} photo is waiting to be looked at again.{% pluralize %}{{ n }} photos are waiting to be looked at again.{% endtrans %}</p>
@@ -30,7 +34,7 @@ people are seen are under <a href="/cleanup/faces?show=missed">Confirm faces →
       <input type="checkbox" name="image" value="{{ im.id }}" aria-label="{{ alts[im.id] }}">
       {{ m.tile_img(im, alts) }}
       <a class="open" href="/image/{{ im.id }}" target="_blank" title="{{ _('Open in a new tab') }}" aria-label="{{ _('Open in a new tab') }}">↗</a>
-      <span class="badge wide">{% trans count=im.people, n=im.people|number %}{{ n }} person{% pluralize %}{{ n }} people{% endtrans %}</span>
+      <span class="badge wide">{% trans count=im.people, n=im.people|number, sure=im.sure %}{{ n }} person, {{ sure }}% sure{% pluralize %}{{ n }} people, {{ sure }}% sure{% endtrans %}</span>
     </label>
     {%- endfor %}
   </div>
@@ -45,6 +49,6 @@ people are seen are under <a href="/cleanup/faces?show=missed">Confirm faces →
 </form>
 {% include "_pager.html" %}
 {%- else %}
-<p class="note">{% trans %}No photo where the description sees people is without a face.{% endtrans %}{% if set_aside %} {% trans count=set_aside, n=set_aside|number %}{{ n }} photo is set aside as having no faces to find.{% pluralize %}{{ n }} photos are set aside as having no faces to find.{% endtrans %}{% endif %}</p>
+<p class="note">{% trans %}No photo where the AI is sure it sees people is without a face.{% endtrans %}{% if set_aside %} {% trans count=set_aside, n=set_aside|number %}{{ n }} photo is set aside as having no faces to find.{% pluralize %}{{ n }} photos are set aside as having no faces to find.{% endtrans %}{% endif %}</p>
 {%- endif %}
 {% endblock %}

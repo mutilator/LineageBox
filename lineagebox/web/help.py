@@ -29,25 +29,26 @@ EVERYWHERE = (("?", N_("open or close this help")), ("/", N_("search")),
                          "takes them")),
               ("Enter", N_("save the box you are in (each box saves on its own)")))
 
-# one line on each page of the menu (base.html), in its order, for the help's "Every page" list: the pages up front,
-# those under More, then the bell and the admins' own. _help.html leaves out those the viewer has no link to.
-MENU = (("/home", N_("Home"), N_("memories, faces someone asked about, and the newest photos of the family by day; for "
+# one line on each page of the menu (_side_menu.html), in its order, for the help's "Every page" list: Add photos, Home,
+# then each section's pages, the bell and the admins' own. _help.html leaves out those the viewer has no link to.
+MENU = (("/upload", N_("Add photos"), N_("photos and videos from this computer or phone, into a folder of your own: the "
+                                         "button at the top of the menu")),
+        ("/home", N_("Home"), N_("memories, faces someone asked about, and the newest photos of the family by day; for "
                                  "an admin, the first steps on a new LineageBox until they are done")),
+        ("/", N_("Folders"), N_("your photos folder by folder, as they are on disk")),
+        ("/folders", N_("Folders"), N_("your uploads, what others in the family share with you, and what you share")),
+        ("/timeline", N_("Timeline"), N_("photos by the year and month they were taken")),
+        ("/map", N_("Map"), N_("where photos were taken and where family lived, year by year")),
+        ("/tags", N_("Tags"), N_("keywords given by the AI or by you; open one to work on its photos")),
+        ("/favourites", N_("Favourites"), N_("the photos you gave a heart")),
+        ("/albums", N_("Albums"), N_("photos picked by hand, in your own order, with captions")),
+        ("/tours", N_("Tours"), N_("slideshows picked by rules: a person, a season, anniversaries")),
         ("/people", N_("People"), N_("everyone named, and faces to name; type to find someone")),
         ("/family", N_("Family"), N_("the family tree, reading obituaries and notes into it, acquaintances by group, "
                                      "and family tree programs")),
-        ("/upload", N_("Upload"), N_("photos and videos from this computer or phone, into a folder of your own")),
-        ("/", N_("Folders"), N_("your photos folder by folder, as they are on disk")),
-        ("/folders", N_("Folders"), N_("your uploads, what others in the family share with you, and what you share")),
-        ("/timeline", N_("Timeline"), N_("photos by the year and month they were taken (under More)")),
-        ("/map", N_("Map"), N_("where photos were taken and where family lived, year by year (under More)")),
-        ("/tours", N_("Tours"), N_("slideshows picked by rules: a person, a season, anniversaries (under More)")),
-        ("/albums", N_("Albums"), N_("photos picked by hand, in your own order, with captions (under More)")),
-        ("/favourites", N_("Favourites"), N_("the photos you gave a heart (under More)")),
-        ("/people/name", N_("Name faces"), N_("the faces nobody has named yet, one at a time (under More)")),
-        ("/tags", N_("Tags"), N_("keywords given by the AI or by you; open one to work on its photos (under More)")),
+        ("/people/name", N_("Name faces"), N_("the faces nobody has named yet, one at a time")),
         ("/cleanup", N_("Cleanup"), N_("duplicates, blurry and similar shots to move to the Removed folder, and faces "
-                                       "to confirm (under More)")),
+                                       "to confirm")),
         ("/news", N_("New for you"), N_("what happened that you may want to see: the bell at the top")),
         ("/status", N_("Status"), N_("what the worker is doing, downloads, and counts that link to their photos")),
         ("/settings", N_("Settings"),

@@ -87,7 +87,9 @@ videos wait for it instead.
    photos once their faces were looked for, and admins' alerts, for New for you), **transcribe** (`speech.py`: the
    family's recorded stories first, then videos and recordings) and **describe** (`describe.py`). Before describing,
    **document dates** (`scan_dates.read_waiting`): the AI reads the dates written on each scan Cleanup → Suggested
-   dates lists, once, documents first, for 20 minutes a pass at most.
+   dates lists, once, documents first, for 20 minutes a pass at most; then **count people**
+   (`headcount.count_waiting`): the AI counts the people in each photo whose faces don't add up to its description's
+   count, and says how many show their face, once, for 20 minutes a pass at most.
 
 Before ingest, **slideshow videos** (`slideshow.make_waiting`): the tours and albums someone asked to have as one
 video file, the oldest first, so whoever asked waits minutes, not hours. Asking sets a settings key that starts a
@@ -142,6 +144,7 @@ The main tables:
 | `image_place`, `folder_place` | Photos and folders put on the map by hand (`places.py`): a photo's wins over its GPS, which wins over its folder's (by hand, then a place its name gives). Changes to them are tracked for undo. |
 | `sidecar`, `sidecar_stale` | XMP sidecars LineageBox wrote beside photo files (`sidecars.py`), with the SHA-256 of what each says (`other`: one another program made, or wrote into since, left alone); and the photos whose sidecars may be out of date, filled by triggers on what a sidecar holds. |
 | `metadata_read`, `imported` | Other apps' metadata (`imports.py`): the photos read, and everything brought in from them (names on faces, people added, tags, captions, dates, places) for Settings → Other photo programs. |
+| `headcount` | The AI's careful count of the people in a photo (`headcount.py`, Cleanup → No faces found and Confirm faces → Faces missed): `people` and `faces`, each with how sure it was (`_sure`, 0 to 1, from the chances Ollama gave each digit; NULL from an Ollama that gives none). Asked of photos whose faces don't add up to their description's count; again for a new model or question `version`. |
 | `scan_reading` | The dates the AI found written on a scan (`scan_dates.py`, Cleanup → Suggested dates): `dates`, JSON `[{"written", "what"}]` as it copied them, the document's own first; one row a scan, read again for a new model or prompt `version`. |
 | `camera_clock` | A camera's clock put right (`camera_clock.py`): a stretch of its photos, from the first it dated wrong to the last (by the dates it wrote; or on to every later one), and `pins`, the photos in it someone said were really taken when. One pin moves them all as much; two or more spread a drift over the photos between. `image.camera_taken_at` keeps what the camera wrote. |
 
@@ -258,9 +261,11 @@ Templates are in `web/templates`, and `web/static/app.js` drives the pages.
   (`static/sw.js`, with the version number put in), which keeps only the site's own static files and an offline page;
   the icons are in `static/icons/`. `routes/frame.py` is the photo frame (`photo_frame.html`, `static/frame.js`,
   written for old browsers) and Settings → Photo frames.
-- The menu (`base.html`): the pages used most up front, the rest under More (a `data-panel` menu, as ☰ and the
-  profile button are), all folded into ☰ when they don't fit. `help.py` `MENU` has a line for each of its pages, in
-  its order, for the help's "Every page" list (`tests/test_help.py` checks they match). Light or dark: `static/theme.js`
+- The menu (`_side_menu.html`, included by `base.html`): every page at the side, in sections (Library, Collections,
+  People, Tidy up, Admin), with Add photos above them; its icons only when the browser keeps `lineagebox-side`
+  (`theme.js` sets `<html data-side>`), and on a phone hidden until ☰ opens it (a `data-panel`, as the round
+  button's panel is). `help.py` `MENU` has a line for each of its pages, in its order, for the help's "Every page"
+  list (`tests/test_help.py` checks they match). Light or dark: `static/theme.js`
   (a file, as the Content-Security-Policy allows no inline script) puts the browser's choice (`localStorage`
   `lineagebox-theme`) on `<html data-theme>` before the page is drawn, and `app.css` defines the colours for
   `prefers-color-scheme` and for `data-theme`; a person's page (`body.person-page`) and Family (`body.family-page`)
@@ -279,7 +284,7 @@ translation is a catalog added under `lineagebox/locale/<language>/LC_MESSAGES/`
 `i18n.py` holds it together:
 
 - **Which language**: the gate in `web/app.py` picks one for each request (`i18n.choose`: the browser's own choice
-  from More → Language, a `lang` cookie set by `web/routes/language.py`; else the first language its Accept-Language
+  from the round button → Language, a `lang` cookie set by `web/routes/language.py`; else the first language its Accept-Language
   asks for that is installed; else `[web] language`; else English) and sets it for the request (`i18n.speaking`, a
   context variable), so templates, the help and any Python code that runs for the request speak it. With English
   only, every visitor gets English and nothing in a page changes.
@@ -305,7 +310,7 @@ translation is a catalog added under `lineagebox/locale/<language>/LC_MESSAGES/`
 | Entry points | `cli.py` (commands), `worker.py`, `web/app.py`, `copies.py`, `health.py` (Docker health check), `updater.py` (the update service) |
 | Config and storage | `config.py`, `settings.py`, `db.py`, `migrations/`, `mounts.py` (refuses a catalog on a network share) |
 | Reading files | `scan.py`, `ingest.py`, `media.py` (decoding, thumbnails, previews), `video.py` (ffmpeg: frames, chapters, sound waves, copies), `chapters.py` (long videos' chapters), `check.py` |
-| Understanding photos | `dates.py`, `dedup.py`, `folders.py`, `faces.py`, `people.py`, `describe.py`, `llm.py`, `speech.py`, `quality.py`, `orientation.py`, `places.py` (the map, places by hand), `towns.py` (the nearest town, from `data/towns.tsv.gz`), `face_ages.py` (what faces' ages can say: names that don't fit, a birth-year hint), `date_hints.py` (a probable date for a scan), `camera_clock.py`, `scan_dates.py` (scans dated by the day they were scanned: what can tell their real date) |
+| Understanding photos | `dates.py`, `dedup.py`, `folders.py`, `faces.py`, `people.py`, `describe.py`, `llm.py`, `speech.py`, `quality.py`, `orientation.py`, `places.py` (the map, places by hand), `towns.py` (the nearest town, from `data/towns.tsv.gz`), `face_ages.py` (what faces' ages can say: names that don't fit, a birth-year hint), `date_hints.py` (a probable date for a scan), `camera_clock.py`, `scan_dates.py` (scans dated by the day they were scanned: what can tell their real date), `headcount.py` (the AI's careful count of the people in a photo, and how sure it is) |
 | Finding photos | `search.py` (words, filters, suggestions), `embeddings.py` (search by meaning, More like this), `catalog.py` (shared read queries), `tagging.py` (also tags across the library), `tours.py`, `tour_suggestions.py`, `albums.py` (albums picked by hand), `favourites.py` (hearts), `slideshow.py` (a tour or album saved as a video), `comments.py` (captions and comments), `stories.py` (recorded stories), `live.py` (Live Photos) |
 | Family | `family.py` (relationship words from a `Graph`), `events.py`, `documents.py` (documents and written sources), `family_check.py`, `gedcom.py`, `gedcom_import.py`, `life.py` (a person's life by age, for their page), `book.py` (a family book to print or save as a PDF, `static/book.css`) |
 | Cleanup | `cleanup.py` (moves to Removed, restore, empty; a photo's sidecar goes with it), `writeback.py` (ExifTool: a rotation, and what the family gave a photo, into its file) |

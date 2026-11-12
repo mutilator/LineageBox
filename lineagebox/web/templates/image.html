@@ -120,7 +120,8 @@
       <dl>
         {% if ai.setting %}<dt>{% trans %}Setting{% endtrans %}</dt><dd>{{ ai.setting }}{% if ai.indoor_outdoor and ai.indoor_outdoor != "unknown" %} · {{ ai.indoor_outdoor }}{% endif %}</dd>{% endif %}
         {% if ai.event %}<dt>{% trans %}Event{% endtrans %}</dt><dd>{{ ai.event }}</dd>{% endif %}
-        {% if ai.people_count %}<dt>{% trans %}People{% endtrans %}</dt><dd>{{ ai.people_count }}{% if ai_raw.age_groups %} · {{ ai_raw.age_groups|join(", ") }}{% endif %}</dd>{% endif %}
+        {#- people_seen: the AI's careful count with how sure it was, or its description's count (headcount.shown) -#}
+        {% if people_seen or ai_raw.age_groups %}<dt>{% trans %}People{% endtrans %}</dt><dd>{% if people_seen %}{{ people_seen.count|number }}{% if people_seen.sure is not none %} {% trans sure=people_seen.sure %}({{ sure }}% sure){% endtrans %}{% endif %}{% if ai_raw.age_groups %} · {% endif %}{% endif %}{{ ai_raw.age_groups|join(", ") }}</dd>{% endif %}
         {% if ai_raw.animals %}<dt>{% trans %}Animals{% endtrans %}</dt><dd>{{ ai_raw.animals|join(", ") }}</dd>{% endif %}
         {% if ai.text_visible %}<dt>{% trans %}Text{% endtrans %}</dt><dd>“{{ ai.text_visible }}”</dd>{% endif %}
       </dl>

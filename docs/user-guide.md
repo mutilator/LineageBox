@@ -27,26 +27,34 @@ the list goes once all of them are done. **Put this list away** hides it for goo
 
 ### The menu
 
-The pages used most are up front: **Home**, **People**, **Family**, **Upload** (with a family account) and
-**Folders**, with the search box beside them. **More** opens the rest: **Timeline**, **Map**, **Tours**, **Albums**
-and **Favourites**, then **Name faces**, **Tags** and **Cleanup**. Admins also have **Status** and **Settings** up
-front. The bell is **New for you**. The LineageBox logo always goes to Home.
+Every page is in the menu at the side, in sections:
 
-When the links don't fit (always on a phone) they fold into **☰**, More's after the others, and on a phone only the
-logo's picture shows. The menu works from the keyboard: Tab to **More**, Enter opens it, Esc closes it.
+- **Add photos** (with a family account), the button at the top: photos and videos from this computer or phone.
+- **Home**.
+- **Library:** **Folders**, **Timeline**, **Map** and **Tags**, the ways to look through the photos.
+- **Collections:** **Favourites**, **Albums** and **Tours**.
+- **People:** **People** and **Family**.
+- **Tidy up:** **Name faces** and **Cleanup**.
+- **Admin** (admins only): **Status** and **Settings**.
+
+**Show icons only**, at its foot, makes it a narrow strip of icons (point at one for its name), kept in each browser;
+press it again for the words. On a phone the menu is hidden: **☰** opens it over the page, and only the logo's picture
+shows. At the top are the search box, the bell (**New for you**), **?** for help, and the round button: who is signed
+in, with Sign out, and how the site looks (below). The LineageBox logo always goes to Home.
 
 ### Light or dark
 
-**Colours**, at the foot of More: **Automatic** follows the computer or phone (light, or dark when it is set to dark),
+**Colours**, under the round button at the top right: **Automatic** follows the computer or phone (light, or dark when it is set to dark),
 **Light** and **Dark** keep that one. The choice is kept in each browser, so a phone and a computer can differ, and the
 page never flashes the other colours first. The map's popups and boxes follow it too; a picture of the family tree is
 always drawn on white.
 
-**Photo tiles**, under Colours, sets how lists of photos look, in each browser the same way:
+**Photo tiles**, under Colours, sets how lists of photos look, Home's photos by the day too, in each browser the
+same way:
 
 - **Squares** (as it was): every photo in a square, cropped around the faces in it, so heads in a tall photo and the
   people at the ends of a wide one stay in sight.
-- **Whole photos**: every photo in its own shape, in rows, as Home's photos by the day are.
+- **Whole photos**: every photo in its own shape, in rows.
 - **Small**, **Medium** and **Large**: how big the tiles are. On a phone or tablet, pinch two fingers apart over the
   photos to make them larger, or together to make them smaller.
 
@@ -95,14 +103,22 @@ from every face you name, so each answer helps it find the rest.
     or said to be right (otherwise it is under **Suggested dates → Looks too young**). Usually the name is right and
     the photo's date is wrong (see [Dates](#dates)); **Not them** takes the name off, and an admin's **Right as it
     is** stops listing one.
-  - **Faces missed:** group photos where some faces were found and the AI's description counts more people, family
-    photos first. **Look for faces again** looks more closely; the photo then leaves the list (**All found**, for an
-    admin, takes it off as it is).
-- **Cleanup → No faces found** (admins) lists the photos where the AI's description sees people but no face was found
-  at all, the newest first (hover over one for the description). Tick those with faces to find and press **Look
+  - **Faces missed:** group photos where some faces were found and the AI is sure it sees more people, family photos
+    first. **Look for faces again** looks more closely; the photo then leaves the list (**All found**, for an admin,
+    takes it off as it is).
+- **Cleanup → No faces found** (admins) lists the photos where the AI is sure it sees someone but no face was found at
+  all, the newest first (hover over one for the description). Tick those with faces to find and press **Look
   again**: the worker looks at them more closely in the background, a few a minute, and recognises the faces it
   finds. Tick those whose people face away or are too far off and press **No faces to find**: they aren't listed
   again (Undo, or Recent changes, lists them again).
+- **How sure the AI is.** A description's count of the people in a photo can be far off (a hundred people at a concert
+  with eight in sight), so for these two lists the AI counts again, on its own: how many people, and how many show
+  their face. How sure it is comes from the chances it gave each digit of its answer, and a photo is listed only when
+  it is at least 80% sure of its count, and not as sure that every face it sees was found (a hand holding something,
+  people seen from behind). Each shows its count and how sure, as does the photo's page. It counts only the photos
+  whose faces don't add up to their description's count, about a second each on a graphics card, in the describing
+  hours (Status shows how many are left), so a list fills as it goes. It is rarely that sure of a group of more than
+  three, so Faces missed lists few photos.
 - **Every photo is looked at closely** by the worker on its own, in the background, some each pass: the same closer
   look as **Look for faces again**, at twice the size, which finds the small faces the first look misses in group
   photos. A photo where the AI sees people but no face is found is also looked at turned each way: a scan or an old
@@ -730,7 +746,7 @@ format), and pointing at a line says what it counts. **Check now** starts a work
 Changes here apply without a restart. They are kept in the catalog, so the web UI and the worker both see them, and
 they win over `.env` and config files. On a new LineageBox, [the first steps](#the-first-steps) on Home point to the
 parts to set first (the watched folder, the AI). Light or dark is not here: each browser chooses its own, under
-More → Colours.
+the round button at the top → Colours.
 
 The menu at the side shows one part at a time (on a phone, it is above the settings):
 

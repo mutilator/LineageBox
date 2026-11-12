@@ -4,7 +4,7 @@ import base64
 import json
 import sqlite3
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 import httpx
@@ -28,6 +28,9 @@ class Usage:
     prompt_tokens: int
     output_tokens: int
     seconds: float
+    # the answer's tokens, each {"token", "logprob", "top_logprobs": [{"token", "logprob"}...]}, when asked for
+    # (chat_json's logprobs) and this Ollama gives them; else empty
+    tokens: list = field(default_factory=list)
 
 
 @dataclass
@@ -135,11 +138,13 @@ class Ollama:
         return vectors
 
     def chat_json(self, system: str, user: str, schema: dict, images: Sequence[bytes] = (),
-                  temperature: float = 0.1, max_tokens: int = 1024) -> tuple[dict, Usage]:
+                  temperature: float = 0.1, max_tokens: int = 1024, logprobs: int = 0) -> tuple[dict, Usage]:
         """images: JPEGs, in order (a video's frames). max_tokens stops an answer that repeats itself until
         it is cut off; the longest photo descriptions are about 400 tokens, and a question whose answer grows
-        with it (a batch of folders) passes more. Raises ValueError for an answer that is not valid JSON (CutOff
-        when it stopped at max_tokens), OllamaError when Ollama answers with an error."""
+        with it (a batch of folders) passes more. logprobs: also how likely each token of the answer was, with that
+        many others the model could have written there, in Usage.tokens (an Ollama too old to give them leaves it
+        empty). Raises ValueError for an answer that is not valid JSON (CutOff when it stopped at max_tokens),
+        OllamaError when Ollama answers with an error."""
         message = {"role": "user", "content": user}
         if images:
             message["images"] = [base64.b64encode(im).decode() for im in images]
@@ -152,11 +157,14 @@ class Ollama:
         }
         if self.thinks():
             body["think"] = False
+        if logprobs:
+            body["logprobs"], body["top_logprobs"] = True, logprobs
         r = self.http.post("/api/chat", json=body)
         if not r.is_success:
             raise OllamaError(f"Ollama answered {r.status_code}: {_error_text(r)}")
         body = r.json()
-        usage = Usage(body.get("prompt_eval_count", 0), body.get("eval_count", 0), body.get("total_duration", 0) / 1e9)
+        usage = Usage(body.get("prompt_eval_count", 0), body.get("eval_count", 0), body.get("total_duration", 0) / 1e9,
+                      body.get("logprobs") or [])
         try:
             return json.loads(body["message"]["content"]), usage
         except ValueError as e:

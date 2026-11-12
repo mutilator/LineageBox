@@ -2,6 +2,7 @@
     a section's), the days' one below. On its own (/home/family), the next older photos of a member's family, with
     the button for the ones before those. #}
 {% macro by_day(days, level) %}
+{%- set shapes = tile_shapes(days|map(attribute="photos")|sum(start=[])) %}  {#- where each square is aimed (tiles.py) #}
 <div class="days">
   {%- for d in days %}
   {%- if d.month %}
@@ -12,7 +13,7 @@
     <div class="day-tiles">
       {%- for im in d.photos %}
       <a class="tile" href="/image/{{ im.id }}?ctx={{ ('year:' ~ im.taken_at[:4])|urlencode }}" style="--r: {{ im.ratio }}" title="{{ im.taken_at|date }}">
-        <img src="/t/{{ im.sha256 }}" loading="lazy" alt="{{ _('%(what)s from %(taken_at)s', what={'video': _('Video'), 'audio': _('Sound recording')}.get(im.media, _('Photo')), taken_at=im.taken_at|date(false)) }}">
+        <img src="/t/{{ im.sha256 }}" loading="lazy"{% if shapes.get(im.id) and shapes[im.id].focus %} style="object-position: {{ shapes[im.id].focus }}"{% endif %} alt="{{ _('%(what)s from %(taken_at)s', what={'video': _('Video'), 'audio': _('Sound recording')}.get(im.media, _('Photo')), taken_at=im.taken_at|date(false)) }}">
         {%- if im.media == "video" %}<span class="badge video" title="{{ _('Video') }}">▶ {{ im.duration|duration }}</span>{% elif im.media == "audio" %}<span class="badge video sound" title="{{ _('Sound recording') }}">🎙 {{ im.duration|duration }}</span>{% endif %}
         {%- if date_source_label[im.taken_at_source] %}<span class="badge" title="{{ date_source_label[im.taken_at_source] }}">≈</span>{% endif %}
       </a>

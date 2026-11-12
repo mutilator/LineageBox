@@ -29,6 +29,7 @@ from lineagebox import imports, sidecars
 from lineagebox import chapters, stories
 from lineagebox import changes, outbox
 from lineagebox import scan_dates  # the dates written on scanned documents, read by the AI
+from lineagebox import headcount  # the AI's careful count of the people in a photo, for the lists of faces missed
 from lineagebox import progress  # what is left of each kind of work, noted for the Status page's time left
 from lineagebox.activity import log, note_problem
 from lineagebox.config import Config
@@ -306,6 +307,12 @@ def run_once(con: sqlite3.Connection, cfg: Config, stop: Stopper | None = None) 
         if n := stage("document dates", lambda: scan_dates.read_waiting(
                 con, cfg, ollama, stop=_for_minutes(ASKED_MINUTES, stop, describing=True))):
             log(con, f"document dates: the AI read the dates on {n} scanned document{'' if n == 1 else 's'}")
+    # a careful count of the people in photos whose faces don't add up to their description's, with how sure the AI
+    # is of it, for Cleanup's lists of faces missed (headcount.py): each asked once, ASKED_MINUTES a pass at most
+    if ai_now and problem is None and cfg.describe_enabled and cfg.faces_enabled:
+        if n := stage("count people", lambda: headcount.count_waiting(
+                con, cfg, ollama, stop=_for_minutes(ASKED_MINUTES, stop, describing=True))):
+            log(con, f"count people: the AI counted the people in {n} photo{'' if n == 1 else 's'}")
 
     if not cfg.describe_enabled:
         pass

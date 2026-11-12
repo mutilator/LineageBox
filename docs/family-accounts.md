@@ -38,13 +38,13 @@ follow from those people and photos, and so does a photo's **More like this**. E
 own: nobody else sees them. Settings, Status and the Cleanup pages
 that move files are for admins only, except Blank and blurry and Similar shots of a member's own uploads (below).
 
-A member's menu has Home, People, Family, Upload and Folders (their uploads and what is shared with them) up front,
-and the rest under More (Timeline, Map, Tours, Albums, Favourites, Name faces, Tags, Cleanup). Their pages say things
+A member's menu, at the side, has Add photos, Home, Library (Folders, which is their uploads and what is shared with
+them, Timeline, Map, Tags), Collections, People and Tidy up; only Admin isn't there. Their pages say things
 plainly: no file formats, programs or background work, which admins still see on the same pages (a video's codecs,
 the AI model, why a file can't be read). The first steps of a new LineageBox, on Home, are for admins only.
 
 Once a translation is installed ([translating](translating.md)), each relative sees the site in their browser's
-language, or the one they pick under More → Language, kept in that browser; a photo frame follows its own browser's.
+language, or the one they pick under the round button → Language, kept in that browser; a photo frame follows its own browser's.
 Sign-in pages follow the browser. What the family wrote (names, captions, comments, stories) is shown as written.
 
 ## Before you start

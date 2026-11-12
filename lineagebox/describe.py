@@ -62,12 +62,17 @@ SYSTEM = """You catalog a family photo library. Look at the photo and fill in th
 - caption: 1-2 factual sentences describing what is happening.
 - setting: short noun phrase for the place type (e.g. "petting zoo", "beach", "living room", "backyard").
 - event: the occasion if evident (birthday party, Christmas, Halloween, wedding, ...), else null.
+- people_count: how many people can be seen, counted one by one; 0 if none.
 - age_groups: the age groups of the people visible.
 - tags: 5-15 lowercase search keywords.
 Only describe what is visible; if unsure what an animal or object is, use a general word ("animal", "toy").
 Never use people's names: describe people ("a young boy", "an older woman"). Names come from elsewhere.
 Library context may be given. Use it to name the place or event when it is consistent with the image, but never
 invent details the image contradicts."""
+# people_count had no line here until 2026-11-11 (videos' prompt had one): a small model's guess at it could be
+# anything, 5,000,000,000,000,000 at most. Descriptions made since have the line; those made before keep their count
+# (PROMPT_VERSION is the same, so nothing is described again for it), and Cleanup's lists of faces missed go by the
+# AI's careful count instead (headcount.py).
 
 SYSTEM_VIDEO = """You catalog a family video library. The images are frames from one video clip, in the order they
 appear in it. Fill in the JSON fields for the clip as a whole.

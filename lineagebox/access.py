@@ -93,6 +93,7 @@ SCOPED = {
     # Search by meaning, describing again and tags across the library (embeddings.py, describe.py, tagging.py): the
     # meaning of the photos they see, their own asks, and none of the tags' renames (an admin's, about every photo)
     "embedding": "image_id IN temp.seen_image",
+    "headcount": "image_id IN temp.seen_image",  # the AI's careful count of the people in a photo (headcount.py)
     "describe_request": "account_id = {account}",
     "tag_alias": "0",
 }

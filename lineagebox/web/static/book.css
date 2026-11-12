@@ -49,7 +49,7 @@
   @page { margin: 16mm 14mm; }
   :root { --surface: #fff; --text: #000; --muted: #444; --line: #bbb; --tile: #eee; }
   html, body { background: #fff !important; color: #000 !important; }
-  header.top, .book-tools, .skip, #help, #notice, .see-as { display: none !important; }
+  header.top, .side, .book-tools, .skip, #help, #notice, .see-as { display: none !important; }
   main { padding: 0 !important; margin: 0 !important; max-width: none !important; }
   .book { max-width: none; margin: 0; }
   .book > section { border: 0; border-radius: 0; padding: 0 !important; margin: 0; background: #fff; }

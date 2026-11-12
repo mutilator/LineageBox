@@ -187,8 +187,9 @@ page to its list when it shows something the others don't.
    it with `page(request, "x.html", ...)`. A new module goes in `MODULES` in `routes/__init__.py`.
 2. Give the route a class in that module's `ACCESS` (`public`, `member` or `admin`). Without one it answers 500.
 3. Add the template's help to `PAGES` in `lineagebox/web/help.py`. `tests/test_help.py` enforces it. A page with a
-   link in the menu (`base.html`: up front, or under More) also gets a line in `MENU`, in the menu's order, which the
-   help's "Every page" list shows; `test_every_page_list_matches_the_menu` checks an admin's and a member's.
+   link in the menu (`_side_menu.html`, in one of its sections) also gets a line in `MENU`, in the menu's order,
+   which the help's "Every page" list shows; `test_every_page_list_matches_the_menu` checks an admin's and a
+   member's.
 4. For a member route, read with `c=Depends(con)`, the viewer's filtered connection. Check ids with
    `_people_or_404`, `_images_or_404` or `_face_to_change`.
 5. Run `tests/test_access_web.py`. It requests every GET route with every id, as each kind of member, looking for

@@ -6,6 +6,27 @@ copies it there when the version is tagged ([releases](docs/development.md#relea
 A **catalog update** adds to the catalog's tables. LineageBox copies the catalog before it updates it, and earlier
 versions can't open the updated one.
 
+## 1.6.1 (2026-11-11)
+
+**Catalog update** (migration 034).
+
+### Updated
+
+- **The menu is at the side**, with every page in sight in sections: Library (Folders, Timeline, Map, Tags),
+  Collections (Favourites, Albums, Tours), People, Tidy up (Name faces, Cleanup) and, for admins, Admin. **Add
+  photos** is a button above them. It can shrink to its icons, and on a phone ☰ opens it. Nothing is under More any
+  more.
+- Colours, Photo tiles and Language moved to the round button at the top right.
+- **Photo tiles** now apply to Home's photos by the day too: squares aimed at the faces, or whole photos, in three
+  sizes.
+
+### Fixed
+
+- **Faces missed** and **No faces found** listed thousands of photos on the AI's wild guesses at how many people were
+  in them (up to 5,000,000,000,000,000). The AI now counts the people in those photos again, on its own, and says how
+  sure it is; a photo is listed only when it is at least 80% sure. The count and how sure show on the lists and on
+  the photo's page, and a description's own count past belief isn't shown.
+
 ## 1.6.0 (2026-11-11)
 
 ### New

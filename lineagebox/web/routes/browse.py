@@ -14,6 +14,7 @@ from lineagebox import places as map_places, sidecars  # places: a list's name i
 from lineagebox import chapters, speech, stories  # long videos' chapters, transcripts, recorded stories
 from lineagebox import embeddings  # search by meaning
 from lineagebox import albums, favourites  # the albums a photo is in, the viewer's heart on it
+from lineagebox import headcount  # how many people a photo shows, and how sure the AI is of it
 from lineagebox.folders import FolderIndex
 from lineagebox.web.common import (ADMIN, MEMBER, _covers, _kin_labels, _name_choices, _others_by_whose, _share_panel,
                                    _upload_labels, _within, years_of)
@@ -335,6 +336,7 @@ def image_page(request: Request, image_id: int, ctx: str = "", v=Depends(viewer)
                 prev_id=ids[pos - 1] if pos > 0 else None, next_id=next_id,
                 next_sha=catalog.image(c, next_id)["sha256"] if next_id else None,
                 ai=analysis, ai_raw=json.loads(analysis["raw_json"]) if analysis else {},
+                people_seen=headcount.shown(c, analysis),
                 folder_ctx=FolderIndex(c).context(image_id), similar=catalog.group_members(c, image_id),
                 date_hint=date_hints.suggest(c, image_id),  # a photo dated only by file time or folder: a year
                 faces=faces, kin=_kin_labels(c), tags=tagging.for_image(c, image_id), linked=linked,

@@ -52,36 +52,49 @@ def nav_of(html):
 
 # ---- the menu --------------------------------------------------------------------------------------------------
 
-def test_the_menu_puts_the_pages_used_most_up_front(cfg, con):
-    """Home, People, Family, (Upload,) Folders, then More with the rest; admins keep Status and Settings. The logo
-    goes Home. The page open is marked, and More is marked when it is one of its own."""
+def sections_of(nav):
+    """The menu's sections, each its heading ("" for none) and its links, in order."""
+    out = []
+    for group in nav.split('<div class="side-group"')[1:]:
+        heading = re.search(r'<span class="side-heading"[^>]*>([^<]+)</span>', group)
+        out.append((heading.group(1) if heading else "", re.findall(r'<a href="([^"]+)"', group)))
+    return out
+
+
+def test_the_menu_at_the_side_has_every_page_in_sections(cfg, con):
+    """Home, then Library, Collections, People and Tidy up; admins also have Admin. Without accounts nobody uploads,
+    so there is no Add photos. The logo goes Home, the page open is marked, and the icons-only switch is at the foot."""
     client = TestClient(webapp.create_app(cfg), client=LAN)
     html = client.get("/timeline").text
     nav = nav_of(html)
-    up_front, more = nav.split('<div class="more', 1)
-    assert re.findall(r'<a href="([^"]+)"', up_front) == ["/home", "/people", "/family", "/"]
-    assert re.findall(r'<a href="([^"]+)"', more) == ["/timeline", "/map", "/tours", "/albums", "/favourites",
-                                                      "/people/name", "/tags", "/cleanup", "/status", "/settings"]
-    assert more.startswith(' here">')  # Timeline is under More
-    assert 'data-panel="more-menu" aria-expanded="false" aria-controls="more-menu">More' in nav
-    assert '<a href="/timeline" aria-current="page">Timeline</a>' in nav
+    assert '<nav id="menu" class="side"' in html and "side-add" not in nav
+    assert sections_of(nav) == [("", ["/home"]), ("Library", ["/", "/timeline", "/map", "/tags"]),
+                                ("Collections", ["/favourites", "/albums", "/tours"]),
+                                ("People", ["/people", "/family"]), ("Tidy up", ["/people/name", "/cleanup"]),
+                                ("Admin", ["/status", "/settings"])]
+    assert '<a href="/timeline" aria-current="page"' in nav and nav.count('aria-current="page"') == 1
+    assert "data-side-toggle" in nav and 'data-panel="menu"' in html  # ☰, for a phone
     assert '<a class="brand" href="/home"' in html and 'src="/static/icons/icon.svg"' in html
 
     nav = nav_of(client.get("/people/name").text)
-    assert 'aria-current="page">Name faces' in nav and 'aria-current="page">People' not in nav
-    nav = nav_of(client.get("/people").text)
-    assert '<a href="/people" aria-current="page">People</a>' in nav and '<div class="more">' in nav
+    assert '<a href="/people/name" aria-current="page"' in nav and '<a href="/people" aria-current' not in nav
     nav = nav_of(client.get("/favourites").text)
-    assert 'aria-current="page">Favourites' in nav and 'aria-current="page">Tours' not in nav
+    assert '<a href="/favourites" aria-current="page"' in nav and '<a href="/tours" aria-current' not in nav
+    # how the site looks is in the round button's panel, here a plain button, as nobody is signed in
+    assert 'class="looks-button" data-panel="profile"' in html and 'data-look="tiles"' in html
+    assert "lineagebox-side" in (STATIC / "theme.js").read_text(encoding="utf-8")
 
 
 def test_a_family_members_menu(cfg, con):
     emma = people.person_id(con, "Emma Miller")
     _, member = accounts_on(cfg, con, emma)
-    nav = nav_of(member.get("/people").text)
-    up_front, more = nav.split('<div class="more', 1)
-    assert re.findall(r'<a href="([^"]+)"', up_front) == ["/home", "/people", "/family", "/upload", "/folders"]
-    assert "/tags" in more and "/cleanup" in more and "/status" not in nav and "/settings" not in nav
+    html = member.get("/people").text
+    nav = nav_of(html)
+    # Add photos at the top, their own Folders, and no Admin
+    assert '<a href="/upload" class="side-add"' in nav and '<a href="/people" aria-current="page"' in nav
+    assert [heading for heading, _ in sections_of(nav)] == ["", "Library", "Collections", "People", "Tidy up"]
+    assert sections_of(nav)[1][1][0] == "/folders" and "/status" not in nav and "/settings" not in nav
+    assert 'class="avatar" data-panel="profile"' in html and 'data-theme-choice="dark"' in html
 
 
 def test_light_or_dark_is_chosen_before_the_page_is_drawn(cfg):

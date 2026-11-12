@@ -7,7 +7,7 @@
 {%- endmacro %}
 
 {#- part: the grid is one part of a page loaded in pieces (_pieces.html): its tiles can be jumped to (id) and say their
-    month (data-ym), for the scrubber. --r: the photo's shape, for Whole photos (More → Photo tiles). #}
+    month (data-ym), for the scrubber. --r: the photo's shape, for Whole photos (the round button → Photo tiles). #}
 {% macro grid(images, ctx, part=none) %}
 {%- set ns = namespace(guessed=false) %}
 {%- set alts = tile_alts(images) %}

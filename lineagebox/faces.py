@@ -357,7 +357,7 @@ def closer_look_model(cfg: Config):
     return load_model(cfg.models_dir, det_size=LOOK_AGAIN_SIZES, det_thresh=LOOK_AGAIN_THRESHOLD)
 
 
-# Photos with no face found where the AI's description sees people (Cleanup → No faces found). Looking again more
+# Photos with no face found where the AI is sure it sees people (Cleanup → No faces found). Looking again more
 # closely finds the faces of some (turned a little, small, in shadow); the rest are people seen from behind or too far
 # off, which an admin sets aside (NONE_OK_KEY) so that they aren't listed again. Faces missed (missed) is the group
 # photos with some faces found, so a photo is on one list or the other, and one looked at again (faces_again) leaves
@@ -368,27 +368,36 @@ NONE_OK_KEY = "no_faces_ok"  # settings: photos an admin said have no faces to f
 LOOK_AGAIN_KEY = "faces_look_again"  # settings: photos ticked to be looked at again by the worker (look_again_waiting)
 
 
+def _counted(found: str) -> str:
+    """SQL: the AI's careful count of the people in photo i (headcount h, headcount.py) is one it is sure of, and it
+    isn't as sure that the faces it sees are no more than those found (found: SQL for how many): a hand holding
+    something, people seen from behind."""
+    from lineagebox.headcount import SURE
+
+    return f"h.people_sure >= {SURE} AND NOT (coalesce(h.faces_sure, 0) >= {SURE} AND h.faces <= {found})"
+
+
 def no_faces(con: sqlite3.Connection, offset: int = 0, limit: int = 50) -> tuple[list[dict], int]:
-    """Photos looked at for faces with none found, where the AI's description counts people: not looked at again,
-    set aside or waiting to be looked at again. The newest first, so an event's photos come together. (The page, each
-    with the people counted and the description's caption; how many there are.)"""
+    """Photos looked at for faces with none found, where the AI is sure it sees someone (_counted): not looked at
+    again, set aside or waiting to be looked at again. The newest first, so an event's photos come together. (The page,
+    each with the people counted, how sure the AI is of it and the description's caption; how many there are.)"""
     from lineagebox import settings
 
     left_out = set(settings.get(con, NONE_OK_KEY, [])) | set(settings.get(con, LOOK_AGAIN_KEY, []))
     ids = [r[0] for r in con.execute(f"""
-        WITH counted AS (SELECT image_id, max(people_count) AS people FROM analysis GROUP BY image_id)
-        SELECT i.id FROM image i JOIN counted n ON n.image_id = i.id
-        WHERE i.media = 'photo' AND (i.stage & {STAGE_FACES}) AND i.faces_again IS NULL AND n.people >= 1
-          AND {VISIBLE}
+        SELECT i.id FROM image i JOIN headcount h ON h.image_id = i.id
+        WHERE i.media = 'photo' AND (i.stage & {STAGE_FACES}) AND i.faces_again IS NULL AND h.people >= 1
+          AND {_counted("0")} AND {VISIBLE}
           AND NOT EXISTS (SELECT 1 FROM face f WHERE f.image_id = i.id
                           AND (f.assigned_by IS NULL OR f.assigned_by != 'not_a_face'))
         ORDER BY i.taken_at DESC, i.id""") if r[0] not in left_out]
     shown = ids[offset:offset + limit]
     rows = {r["id"]: dict(r) for r in con.execute("""
-        SELECT i.id, i.sha256, i.taken_at, i.taken_at_source, i.media,
-               (SELECT max(a.people_count) FROM analysis a WHERE a.image_id = i.id) AS people,
+        SELECT i.id, i.sha256, i.taken_at, i.taken_at_source, i.media, h.people,
+               min(99, CAST(round(h.people_sure * 100) AS INTEGER)) AS sure,  -- a whole percentage
                (SELECT a.caption FROM analysis a WHERE a.image_id = i.id ORDER BY a.created_at DESC LIMIT 1) AS caption
-        FROM image i WHERE i.id IN (SELECT value FROM json_each(?))""", (json.dumps(shown),))}
+        FROM image i JOIN headcount h ON h.image_id = i.id
+        WHERE i.id IN (SELECT value FROM json_each(?))""", (json.dumps(shown),))}
     return [rows[i] for i in shown if i in rows], len(ids)
 
 
@@ -525,32 +534,34 @@ def look_again_all(con: sqlite3.Connection, cfg: Config, every_months: int, stop
     return done, found
 
 
-# Photos with faces missed (Cleanup → Confirm faces → Faces missed): the AI's description counts the people it sees
-# (analysis.people_count), and where it counts MISSED_GROUP or more and MISSED_MORE more than the faces found, looking
-# again (look_again, at twice the size and a lower bar) may find the small faces of a group photo. On the library
-# LineageBox was developed on, 3,495 of 36,969 described photos were like that, 882 of them with someone named in them:
-# those come first, as photos of the family; crowds and people seen from behind are among the rest.
+# Photos with faces missed (Cleanup → Confirm faces → Faces missed): the AI counts the people it sees, and where it
+# counts MISSED_GROUP or more and MISSED_MORE more than the faces found, looking again (look_again, at twice the size
+# and a lower bar) may find the small faces of a group photo. On the library LineageBox was developed on, 3,495 of
+# 36,969 described photos were like that by their descriptions' counts, 882 of them with someone named in them: those
+# come first, as photos of the family. But a description's count of a group was as often wildly wrong (100 people at a
+# concert with 8 in sight), so only the AI's careful count goes, and only when it is sure of it (_counted,
+# headcount.py): rarely, for a group of more than three.
 MISSED_GROUP = 3
 MISSED_MORE = 2
+_FOUND = """(SELECT count(*) FROM face f WHERE f.image_id = i.id
+             AND (f.assigned_by IS NULL OR f.assigned_by != 'not_a_face'))"""
 
 
 def missed(con: sqlite3.Connection, offset: int = 0, limit: int = 25) -> tuple[list[sqlite3.Row], int]:
-    """Photos where the AI counted more people than faces were found (see MISSED_GROUP), not yet looked at again,
-    those with someone named in them first, then the most missed: (the page, how many there are). Only photos with
-    some faces found: those with none are on the list of no faces found (no_faces)."""
+    """Photos where the AI is sure it sees more people than faces were found (see MISSED_GROUP), not yet looked at
+    again, those with someone named in them first, then the most missed: (the page, how many there are). Only photos
+    with some faces found: those with none are on the list of no faces found (no_faces)."""
     rows = con.execute(f"""
-        WITH counted AS (SELECT image_id, max(people_count) AS people FROM analysis GROUP BY image_id)
-        SELECT i.id, i.sha256, i.taken_at, i.taken_at_source, i.media, n.people,
-               (SELECT count(*) FROM face f WHERE f.image_id = i.id
-                AND (f.assigned_by IS NULL OR f.assigned_by != 'not_a_face')) AS found,
+        SELECT i.id, i.sha256, i.taken_at, i.taken_at_source, i.media, h.people,
+               min(99, CAST(round(h.people_sure * 100) AS INTEGER)) AS sure,  -- a whole percentage
+               {_FOUND} AS found,
                EXISTS (SELECT 1 FROM face f WHERE f.image_id = i.id AND f.person_id IS NOT NULL) AS named
-        FROM image i JOIN counted n ON n.image_id = i.id
-        WHERE i.media = 'photo' AND i.faces_again IS NULL AND n.people >= {MISSED_GROUP} AND {VISIBLE}
-          AND n.people - (SELECT count(*) FROM face f WHERE f.image_id = i.id
-                          AND (f.assigned_by IS NULL OR f.assigned_by != 'not_a_face')) >= {MISSED_MORE}
+        FROM image i JOIN headcount h ON h.image_id = i.id
+        WHERE i.media = 'photo' AND i.faces_again IS NULL AND h.people >= {MISSED_GROUP} AND {VISIBLE}
+          AND h.people - {_FOUND} >= {MISSED_MORE} AND {_counted(_FOUND)}
           AND EXISTS (SELECT 1 FROM face f WHERE f.image_id = i.id
                       AND (f.assigned_by IS NULL OR f.assigned_by != 'not_a_face'))
-        ORDER BY named DESC, n.people - found DESC, i.taken_at DESC, i.id""").fetchall()
+        ORDER BY named DESC, h.people - found DESC, i.taken_at DESC, i.id""").fetchall()
     return rows[offset:offset + limit], len(rows)
 
 

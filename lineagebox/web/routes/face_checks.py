@@ -22,7 +22,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 
-from lineagebox import camera_clock, catalog, changes, face_ages, faces, people, settings
+from lineagebox import camera_clock, catalog, changes, face_ages, faces, headcount, people, settings
 from lineagebox.catalog import VISIBLE
 from lineagebox.web.common import ADMIN, ImageIds, _from_app
 from lineagebox.web.deps import con, page, paging, site, viewer
@@ -71,7 +71,7 @@ def tab(request: Request, show: str, pg: int, per: str | None, c) -> dict:
                 "clock_cameras": sorted(cameras.items(), key=lambda kv: -kv[1])}
     p = paging(request, "missed", pg, per, "25")
     photos, p.total = faces.missed(c, p.offset, p.size)
-    return {"paging": p, "missed_photos": photos}
+    return {"paging": p, "missed_photos": photos, "sure_at": round(headcount.SURE * 100)}
 
 
 def looks_like(v, c, w, cluster_ids) -> dict[int, dict]:
@@ -113,7 +113,7 @@ def faces_found(image_id: int, c=Depends(con)):
 @router.get("/cleanup/no-faces", response_class=HTMLResponse)
 def no_faces_page(request: Request, pg: int = Query(1, alias="page", ge=1), per: str | None = None,
                   c=Depends(con), s: Site = Depends(site)):
-    """Photos where the AI's description sees people and no face was found, a page at a time."""
+    """Photos where the AI is sure it sees people and no face was found, a page at a time."""
     p = paging(request, "no_faces", pg, per, "50")
     photos, p.total = faces.no_faces(c, p.offset, p.size)
     if p.pg > p.pages:  # past the end (the last ones were just set aside): its last page
@@ -121,7 +121,8 @@ def no_faces_page(request: Request, pg: int = Query(1, alias="page", ge=1), per:
         photos, p.total = faces.no_faces(c, p.offset, p.size)
     return page(request, "cleanup_no_faces.html", nav="cleanup", photos=photos, paging=p,
                 waiting=len(settings.get(c, faces.LOOK_AGAIN_KEY, [])),
-                set_aside=len(settings.get(c, faces.NONE_OK_KEY, [])), faces_on=s.live(c).faces_enabled)
+                set_aside=len(settings.get(c, faces.NONE_OK_KEY, [])), faces_on=s.live(c).faces_enabled,
+                sure_at=round(headcount.SURE * 100), to_count=len(headcount.waiting(c)))
 
 
 def _known(c, ids: list[int]) -> list[int]:

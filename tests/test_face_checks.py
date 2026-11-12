@@ -167,12 +167,15 @@ def test_photos_with_faces_missed(con, cfg):
     for image_id, count in ((group, 6), (alone, 1)):
         con.execute("""INSERT INTO analysis(image_id, model, prompt_version, created_at, people_count, raw_json)
                        VALUES (?, 'test', 1, '2026-01-01', ?, '{}')""", (image_id, count))
+        # the AI's careful count (headcount.py), which the list goes by
+        con.execute("""INSERT INTO headcount(image_id, model, version, counted_at, people, people_sure)
+                       VALUES (?, 'test', 1, '2026-01-01', ?, 0.85)""", (image_id, count))
     con.commit()
     rows, total = faces.missed(con)
-    assert total == 1 and rows[0]["id"] == group and (rows[0]["people"], rows[0]["found"]) == (6, 1)
+    assert total == 1 and rows[0]["id"] == group and (rows[0]["people"], rows[0]["found"], rows[0]["sure"]) == (6, 1, 85)
     client = TestClient(webapp.create_app(cfg), client=LAN)
     page = client.get("/cleanup/faces?show=missed").text
-    assert f'data-api="/api/images/{group}/faces"' in page and "6 people, 1 face found" in page
+    assert f'data-api="/api/images/{group}/faces"' in page and "6 people (85% sure), 1 face found" in page
     assert client.post(f"/api/images/{group}/faces-found").status_code == 403
     assert client.post(f"/api/images/{group}/faces-found", headers=APP).status_code == 200
     assert faces.missed(con)[1] == 0

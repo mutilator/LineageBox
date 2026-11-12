@@ -921,11 +921,9 @@ document.addEventListener("click", (e) => {
   if (e.target.closest("[data-help]")) showHelp();
 });
 
-// The top bar. Its links fold into the ☰ menu when they don't all fit (on phones they always do, by the stylesheet,
-// so they never show squashed first); the round button says who is signed in, with Sign out. A menu opens on a
-// click and closes on a click anywhere else, or Esc.
+// The top bar's buttons: ☰ (on a phone, the menu at the side over the page) and the round one (who is signed in,
+// with Sign out, and how the site looks). A panel opens on a click and closes on a click anywhere else, or Esc.
 const topBar = document.querySelector("header.top");
-const topLinks = topBar?.querySelector("nav");
 const phone = matchMedia("(max-width: 760px)");
 
 function openPanel(button) {
@@ -936,16 +934,23 @@ function openPanel(button) {
   });
 }
 
-let measuredAt = 0;
-function foldLinks() {
-  if (!topLinks || phone.matches || innerWidth === measuredAt) return;  // only when the width changed
-  measuredAt = innerWidth;
-  if (topLinks.matches(".open")) openPanel(null);
-  topBar.classList.remove("folded");
-  topBar.classList.toggle("folded", topBar.scrollWidth > topBar.clientWidth + 1);  // the links never shrink
-}
-foldLinks();
-addEventListener("resize", foldLinks);
+phone.addEventListener("change", () => openPanel(null));  // no ☰ past a phone's width: the menu is beside the page
+
+// The menu at the side: its words, or its icons alone (the button at its foot), kept in this browser; theme.js puts
+// the choice on <html> before the page is drawn.
+const SIDE_KEY = "lineagebox-side";
+const sideToggle = document.querySelector("[data-side-toggle]");
+sideToggle?.setAttribute("aria-pressed", String(document.documentElement.dataset.side === "icons"));
+sideToggle?.addEventListener("click", () => {
+  const icons = document.documentElement.dataset.side !== "icons";
+  if (icons) document.documentElement.dataset.side = "icons";
+  else delete document.documentElement.dataset.side;
+  sideToggle.setAttribute("aria-pressed", String(icons));
+  try {
+    if (icons) localStorage.setItem(SIDE_KEY, "icons");
+    else localStorage.removeItem(SIDE_KEY);
+  } catch { /* kept for this page only */ }
+});
 
 document.addEventListener("click", (e) => {
   const button = e.target.closest("[data-panel]");
@@ -2740,21 +2745,18 @@ document.addEventListener("click", (e) => {
 });
 
 // ---- A shorter menu, first steps, plain words, light or dark, printing (U8, U9, U10, U12; base.html, home.html) ----
-// More, in the top bar: it opens and closes as the other menus there do (openPanel, a [data-panel] button), and also
-// when the keyboard moves on out of it, so it never stays open over what has the focus next. Folded into ☰ (or on a
-// phone) its links are part of that menu, and there is no More button to close.
-document.querySelector(".top .more")?.addEventListener("focusout", (e) => {
-  const more = e.currentTarget;
-  if (e.relatedTarget && !more.contains(e.relatedTarget) && more.querySelector(".more-menu.open")) openPanel(null);
-});
-addEventListener("resize", () => {  // open when the links folded into ☰: its button is gone, so close it
-  const menu = document.getElementById("more-menu");
-  if (menu?.classList.contains("open") && getComputedStyle(menu).position === "static") openPanel(null);
+// The round button's panel (who is signed in, how the site looks): it closes when the keyboard moves on out of it,
+// so it never stays open over what has the focus next.
+document.querySelector(".top .profile")?.addEventListener("focusout", (e) => {
+  const profile = e.currentTarget;
+  if (e.relatedTarget && !profile.contains(e.relatedTarget) && profile.querySelector(".profile-menu.open")) {
+    openPanel(null);
+  }
 });
 
-// Colours, at the foot of More: Automatic (as the computer or phone is set), Light or Dark, kept in this browser.
-// theme.js puts the choice on every page before it is drawn; a press changes this page at once, and the menu stays
-// open to try the other. Another tab of the site changing it changes this one too.
+// Colours, in the round button's panel at the top: Automatic (as the computer or phone is set), Light or Dark, kept
+// in this browser. theme.js puts the choice on every page before it is drawn; a press changes this page at once, and
+// the panel stays open to try the other. Another tab of the site changing it changes this one too.
 const THEME_KEY = "lineagebox-theme";
 function showTheme(theme) {
   if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
@@ -2820,13 +2822,14 @@ document.addEventListener("click", (e) => {
 addEventListener("storage", (e) => {
   for (const [name, look] of Object.entries(LOOKS)) if (e.key === look.key) showLook(name, e.newValue || "");
 });
-// Two fingers over a grid of photos: pinched apart, larger tiles; together, smaller (a step each time the fingers
-// are a third further apart or closer). The grids don't let the page itself zoom (touch-action in app.css).
+// Two fingers over a grid of photos (or Home's photos by the day): pinched apart, larger tiles; together, smaller (a
+// step each time the fingers are a third further apart or closer). The grids don't let the page itself zoom
+// (touch-action in app.css).
 let pinch = null;
 const fingersApart = (touches) => Math.hypot(touches[0].clientX - touches[1].clientX,
                                              touches[0].clientY - touches[1].clientY);
 document.addEventListener("touchstart", (e) => {
-  pinch = e.touches.length === 2 && e.target.closest?.(".grid") ? fingersApart(e.touches) : null;
+  pinch = e.touches.length === 2 && e.target.closest?.(".grid, .day-tiles") ? fingersApart(e.touches) : null;
 }, { passive: true });
 document.addEventListener("touchmove", (e) => {
   if (!pinch || e.touches.length !== 2) return;
