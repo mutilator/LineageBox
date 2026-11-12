@@ -2,7 +2,8 @@
 # (ghcr.io/mutilator/lineagebox, and -whisper for the speech-to-text service; metadata-action lowercases the name):
 # - A version tag (v1.2.3, the same as lineagebox/__init__.py's __version__) is a release. Its images are published as
 #   1.2.3, 1.2 and latest at once (a pre-release such as v1.3.0-rc.1 only as itself), and then a GitHub Release is
-#   made, which is what installs look for once a day to say an update is available.
+#   made, which is what installs look for once a day to say an update is available. Its notes are the version's
+#   section of CHANGELOG.md (.github/release_notes.py), and a tag without one is refused before anything is published.
 # - A push to main publishes "main" and "sha-<commit>", for trying what is coming. Never "latest".
 name: image
 
@@ -35,6 +36,9 @@ jobs:
             echo "::error::The tag $GITHUB_REF_NAME doesn't match the version in lineagebox/__init__.py ($code)"
             exit 1
           fi
+      - name: A release's tag has its notes in CHANGELOG.md
+        if: github.ref_type == 'tag'
+        run: python .github/release_notes.py "$GITHUB_REF_NAME" > /dev/null
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg libimage-exiftool-perl
       # cryptography: the HTTPS tests make their own certificates (they skip without it)
       - run: pip install --disable-pip-version-check -r docker/requirements.txt pytest cryptography
@@ -100,7 +104,8 @@ jobs:
           labels: ${{ steps.whisper.outputs.labels }}
           cache-from: type=gha,scope=whisper
           cache-to: type=gha,mode=max,scope=whisper
-      # only once both images are there: installs are told about a release as soon as it exists
+      # only once both images are there: installs are told about a release as soon as it exists. Its notes are its
+      # section of CHANGELOG.md, then a link to the commits since the release before.
       - name: GitHub Release
         if: github.ref_type == 'tag'
         env:
@@ -108,5 +113,6 @@ jobs:
         run: |
           pre=""
           case "$GITHUB_REF_NAME" in *-*) pre="--prerelease" ;; esac
-          gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes \
+          python3 .github/release_notes.py "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > "$RUNNER_TEMP/notes.md"
+          gh release create "$GITHUB_REF_NAME" --verify-tag --notes-file "$RUNNER_TEMP/notes.md" \
             --title "LineageBox ${GITHUB_REF_NAME#v}" $pre

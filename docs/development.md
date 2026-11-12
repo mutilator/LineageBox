@@ -28,11 +28,19 @@ its own, so the updater service doesn't swap it for the published image).
 
 The version is `__version__` in `lineagebox/__init__.py`, the only place it is written. To release:
 
-1. Set `__version__` to the new version (`1.3.0`) and commit it.
-2. Tag that commit `v1.3.0` and push the tag. A pre-release is `v1.3.0-rc.1`.
-3. CI runs the tests and refuses a tag that doesn't match `__version__`. It publishes both images as `1.3.0`, `1.3` and
-   `latest` (a pre-release only as itself), and then makes the GitHub Release, with notes from the pull requests.
+1. Set `__version__` to the new version (`1.3.0`). In [CHANGELOG.md](../CHANGELOG.md), head the notes gathered under
+   `## Unreleased` (if any) `## 1.3.0 (date)`, or write that section at the top: under **New**, **Updated** and
+   **Fixed**, what people will notice, not every detail. Say **Catalog update** when it adds a migration. Commit both.
+   The tests fail while `__version__` has no section.
+2. Tag that commit `v1.3.0` and push the tag. A pre-release is `v1.3.0-rc.1`, with the notes of `1.3.0` unless it has a
+   section of its own.
+3. CI runs the tests and refuses a tag that doesn't match `__version__` or has no notes. It publishes both images as
+   `1.3.0`, `1.3` and `latest` (a pre-release only as itself), and then makes the GitHub Release, with that section of
+   the changelog as its notes (`.github/release_notes.py`) and a link to the commits since the release before.
    Installs find it within a day and offer the update.
+
+To change a published release's notes, edit its section and paste what `python .github/release_notes.py 1.3.0 --repo
+mutilator/LineageBox` prints into the release on GitHub.
 
 Pushes to `main` publish `main` and `sha-<commit>` images, never `latest`. A change to the catalog's tables is a new
 `lineagebox/migrations/NNN_*.sql` or `.py`; never change one that has been released. Installs copy the catalog before

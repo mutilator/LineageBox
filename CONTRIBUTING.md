@@ -17,7 +17,9 @@ Please leave out photos, people's names, email addresses and network addresses y
    services.
 3. Run the whole suite: `python -m pytest -q`. After adding a page or an API, make sure `tests/test_access_web.py`
    passes. It checks that no route leaks photos to family members who shouldn't see them.
-4. Update the documentation in `docs/` if the change affects what people see or set.
+4. Update the documentation in `docs/` if the change affects what people see or set. If people will notice it, add a
+   line to [CHANGELOG.md](CHANGELOG.md) under `## Unreleased` (at the top; start it if it isn't there), in **New**,
+   **Updated** or **Fixed**.
 5. Open a pull request saying what it changes and why.
 
 A few rules shape most of the code ([details](docs/development.md#conventions)):
