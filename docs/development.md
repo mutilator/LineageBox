@@ -38,9 +38,16 @@ The version is `__version__` in `lineagebox/__init__.py`, the only place it is w
    `1.3.0`, `1.3` and `latest` (a pre-release only as itself), and then makes the GitHub Release, with that section of
    the changelog as its notes (`.github/release_notes.py`) and a link to the commits since the release before.
    Installs find it within a day and offer the update.
+4. Then it writes the [GitHub wiki](https://github.com/mutilator/LineageBox/wiki) over with these docs as they are in
+   the release (`.github/wiki.py`; not for a pre-release): Home is README.md with this folder's index, the user guide
+   a page per section, and the changelog a page of its own. Edit the docs here, never the wiki.
 
 To change a published release's notes, edit its section and paste what `python .github/release_notes.py 1.3.0 --repo
 mutilator/LineageBox` prints into the release on GitHub.
+
+The wiki is checked on every change: `tests/test_wiki.py` fails on a link from one page to another, or to a heading,
+that the wiki wouldn't have, and on a new document or user guide section the wiki doesn't know where to put
+(`PAGES`, `GUIDE_ABOUT` in `.github/wiki.py`). To see the pages, `python .github/wiki.py <folder>` writes them there.
 
 Pushes to `main` publish `main` and `sha-<commit>` images, never `latest`. A change to the catalog's tables is a new
 `lineagebox/migrations/NNN_*.sql` or `.py`; never change one that has been released. Installs copy the catalog before

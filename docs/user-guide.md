@@ -653,9 +653,11 @@ it. They are listed on **Albums** (under Tours).
 - **Make one** on Albums by its name, or tick photos on any page of photos (a folder, a year, a search, a person) and
   type an album's name under **Add to an album** in the bar at the foot: a name you have no album of makes a new one.
   A photo's page adds it too, under **Albums**, which also lists the albums it is in.
-- In your own album, drag the photos into order (or use ↑ and ↓, on a phone or with the keyboard), press ★ on the one
-  to be its cover, type a caption under a photo and press Enter, and press × to take a photo out (it stays in your
-  photos; **Undo** puts it back). **Rename** also takes a few words about the album.
+- In your own album, drag the photos into order (on a phone or tablet, rest a finger on a photo a moment, then drag
+  it; or use ↑ and ↓, also with the keyboard). Held near the top or bottom of the window, a photo scrolls the page,
+  and Esc puts it back. Press ★ on the one to be its cover, type a caption under a photo and press Enter, and press ×
+  to take a photo out (it stays in your photos; **Undo** puts it back). **Rename** also takes a few words about the
+  album.
 - An album's caption for a photo is the album's own ("Grandma, who flew in from Ohio"). Where it has none, the photo's
   own caption shows, in grey, so nothing has to be written twice.
 - **Play** shows it as a slideshow in its order, after a title card; **Save as a video** and **Download all** work as

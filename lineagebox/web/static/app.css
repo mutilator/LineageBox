@@ -1441,7 +1441,15 @@ table.cameras th, table.cameras td { text-align: left; padding: 6px 8px; border-
 .album-photo { display: grid; gap: 6px; align-content: start; background: var(--surface); border: 1px solid var(--line);
   border-radius: 8px; padding: 6px; }
 .album-photos[data-album] .album-photo { cursor: grab; }
-.album-photo.dragging { opacity: .45; border-color: var(--accent); }
+/* held on a phone: picked up (app.js), not the phone's menu for the link or picture, nor words selected */
+.album-photos[data-album] .tile { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
+  -webkit-user-drag: none; }
+.album-photo.dragging { opacity: .45; border-color: var(--accent); border-style: dashed; }
+.album-ghost { position: fixed; left: 0; top: 0; z-index: 50; pointer-events: none; border-radius: 6px;
+  overflow: hidden; opacity: .9; box-shadow: 0 8px 24px rgb(0 0 0 / .35); will-change: transform; }
+.album-ghost img { display: block; width: 100%; height: 100%; object-fit: cover; }
+body.album-dragging { -webkit-user-select: none; user-select: none; }
+body.album-dragging, body.album-dragging * { cursor: grabbing; }
 .album-photo .tile { display: block; position: relative; }
 .album-photo .tile img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 4px;
   background: var(--tile); }

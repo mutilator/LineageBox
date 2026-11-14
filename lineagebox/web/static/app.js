@@ -2695,8 +2695,11 @@ document.addEventListener("click", async (e) => {
   }
 });
 
-// An album's photos in order (ol[data-album], album.html): dragged with a mouse, or moved with ↑ ↓ (data-move, for
-// touch screens and the keyboard). Each new order is sent at once; the page stays as it is.
+// An album's photos in order (ol[data-album], album.html): a photo is picked up and put in its place, with a mouse
+// at once, and on a touch screen once a finger has rested on it a moment, so a quick swipe still scrolls the page
+// (phones don't start the browser's own drag and drop from a touch, and open a menu of their own on a held link). Or
+// moved with ↑ ↓ (data-move, also for the keyboard). Held near the top or foot of the window, the page scrolls; Esc
+// puts it back. Each new order is sent at once; the page stays as it is.
 async function albumOrder(list) {
   const ids = [...list.querySelectorAll("li[data-image]")].map((li) => Number(li.dataset.image));
   try {
@@ -2705,34 +2708,153 @@ async function albumOrder(list) {
     notice(t("The new order wasn't kept: {why}", { why: err.message }), { error: true });
   }
 }
-let albumDragged = null;
-document.addEventListener("dragstart", (e) => {
-  const li = e.target.closest?.("ol[data-album] li[data-image]");
-  if (!li) return;
-  albumDragged = li;
-  li.classList.add("dragging");
-  e.dataTransfer.effectAllowed = "move";
-  e.dataTransfer.setData("text/plain", li.dataset.image);
-});
-document.addEventListener("dragover", (e) => {
-  const list = e.target.closest?.("ol[data-album]");
-  if (!albumDragged || !list || albumDragged.parentElement !== list) return;
-  e.preventDefault();
-  const over = e.target.closest("li[data-image]");
-  if (!over || over === albumDragged) return;
-  const box = over.getBoundingClientRect();
-  const after = e.clientX > box.left + box.width / 2;  // the photos wrap in rows: the side of the photo pointed at
-  over.parentElement.insertBefore(albumDragged, after ? over.nextSibling : over);
-});
-document.addEventListener("drop", (e) => {
-  if (albumDragged && e.target.closest?.("ol[data-album]")) e.preventDefault();
-});
-document.addEventListener("dragend", () => {
-  if (!albumDragged) return;
-  const list = albumDragged.parentElement;
-  albumDragged.classList.remove("dragging");
-  albumDragged = null;
-  albumOrder(list);
+const HOLD_TO_PICK_UP = 350;  // ms a finger rests on a photo to pick it up (phones open their own menu at about 500)
+const STILL = 8;  // px a press may wander and still be one: further, a mouse drags and a finger scrolls the page
+document.querySelectorAll("ol[data-album]").forEach((list) => {
+  // The photo pressed: li, mouse (its pointer id) or finger (its touch id), from and at ([x, y]); once picked up (up),
+  // grip (where on the photo it was taken), home (what was after it), before (the order), ghost, top, frame; put once
+  // put down, until the press ends.
+  let held = null;
+  let swallow = false;  // the click that ends a drag opens nothing
+  const order = () => [...list.querySelectorAll("li[data-image]")].map((li) => li.dataset.image).join();
+  const grip = (target) => !target.closest("button, input, textarea, form") && target.closest("li[data-image]");
+  const moved = () => Math.hypot(held.at[0] - held.from[0], held.at[1] - held.from[1]) > STILL;
+  const place = () => {  // the picture under the pointer, and the photo moved to where it points
+    const [x, y] = held.at;
+    held.ghost.style.transform = `translate(${x - held.grip[0]}px, ${y - held.grip[1]}px)`;
+    const hit = document.elementFromPoint(x, y);
+    const over = hit?.closest("li[data-image]");
+    if (over && over !== held.li && over.parentElement === list) {
+      const box = over.getBoundingClientRect();
+      const after = x > box.left + box.width / 2;  // the photos wrap in rows: the side of the photo pointed at
+      list.insertBefore(held.li, after ? over.nextSibling : over);
+    } else if (hit === list) {  // the empty end of the last row: last
+      const box = list.lastElementChild.getBoundingClientRect();
+      if (y >= box.top && y <= box.bottom && x > box.right) list.append(held.li);
+    }
+  };
+  const scroll = () => {  // near the top or foot of the window, the page scrolls on, faster nearer the edge
+    if (!held?.up) return;
+    const edge = Math.min(80, innerHeight / 5);
+    const y = held.at[1];
+    const by = y < held.top + edge ? (y - held.top - edge) / edge
+      : y > innerHeight - edge ? (y - innerHeight + edge) / edge : 0;
+    if (by) {
+      scrollBy(0, Math.round(Math.max(-1, Math.min(1, by)) * 16) || Math.sign(by));
+      place();
+    }
+    held.frame = requestAnimationFrame(scroll);
+  };
+  const pickUp = () => {
+    const tile = held.li.querySelector(".tile");
+    const box = tile.getBoundingClientRect();
+    held.grip = [held.from[0] - box.left, held.from[1] - box.top];
+    held.home = held.li.nextSibling;
+    held.before = order();
+    held.top = document.querySelector(".top")?.getBoundingClientRect().bottom || 0;  // under the page's header
+    held.ghost = Object.assign(document.createElement("div"), { className: "album-ghost" });
+    held.ghost.style.width = `${box.width}px`;
+    held.ghost.style.height = `${box.height}px`;
+    held.ghost.append(tile.querySelector("img").cloneNode());
+    document.body.append(held.ghost);
+    held.li.classList.add("dragging");
+    document.body.classList.add("album-dragging");
+    held.up = true;
+    place();
+    held.frame = requestAnimationFrame(scroll);
+  };
+  const putDown = (keep) => {  // where it is now, or (Esc, the touch cut off) back where it was
+    clearTimeout(held.timer);
+    if (!held.up) return;
+    held.up = false;
+    held.put = true;
+    cancelAnimationFrame(held.frame);
+    held.ghost.remove();
+    held.li.classList.remove("dragging");
+    document.body.classList.remove("album-dragging");
+    if (!keep) list.insertBefore(held.li, held.home);
+    if (order() !== held.before) albumOrder(list);
+  };
+
+  // A mouse: the photo goes with it once it has moved a little; a click that hasn't opens the photo as before.
+  list.addEventListener("pointerdown", (e) => {
+    if (e.pointerType !== "mouse" || e.button !== 0 || held) return;
+    const li = grip(e.target);
+    if (!li) return;
+    e.preventDefault();  // no words selected as the mouse moves
+    held = { li, mouse: e.pointerId, from: [e.clientX, e.clientY], at: [e.clientX, e.clientY] };
+  });
+  document.addEventListener("pointermove", (e) => {
+    if (held?.mouse !== e.pointerId || held.put) return;
+    held.at = [e.clientX, e.clientY];
+    if (held.up) place();
+    else if (moved()) pickUp();
+  });
+  const mouseUp = (e, keep) => {
+    if (held?.mouse !== e.pointerId) return;
+    putDown(keep);
+    if (held.put) {
+      swallow = true;
+      setTimeout(() => (swallow = false));
+    }
+    held = null;
+  };
+  document.addEventListener("pointerup", (e) => mouseUp(e, true));
+  document.addEventListener("pointercancel", (e) => mouseUp(e, false));
+  document.addEventListener("click", (e) => {
+    if (!swallow) return;
+    e.preventDefault();
+    e.stopPropagation();
+    swallow = false;
+  }, true);
+
+  // A finger: held still a moment, the photo is picked up and the page stops scrolling under it. Touch events, not
+  // pointer events: only a touchmove can still stop the page scrolling once the finger moves.
+  const finger = (e) => held?.finger !== undefined && [...e.changedTouches].find((f) => f.identifier === held.finger);
+  list.addEventListener("touchstart", (e) => {
+    if (held) {  // a second finger: a pinch, not a photo picked up
+      if (!held.up) {
+        clearTimeout(held.timer);
+        held = null;
+      }
+      return;
+    }
+    const li = e.touches.length === 1 && grip(e.target);
+    if (!li) return;
+    const [f] = e.changedTouches;
+    held = { li, finger: f.identifier, from: [f.clientX, f.clientY], at: [f.clientX, f.clientY] };
+    held.timer = setTimeout(pickUp, HOLD_TO_PICK_UP);
+  }, { passive: true });
+  list.addEventListener("touchmove", (e) => {
+    const f = finger(e);
+    if (!f) return;
+    held.at = [f.clientX, f.clientY];
+    if (held.up) {
+      if (e.cancelable) e.preventDefault();
+      place();
+    } else if (!held.put && moved()) {  // a swipe: the page scrolls
+      clearTimeout(held.timer);
+      held = null;
+    }
+  }, { passive: false });
+  const lifted = (e, keep) => {
+    if (!finger(e)) return;
+    putDown(keep);
+    if (held.put && e.cancelable) e.preventDefault();  // a photo put down isn't opened as well
+    held = null;
+  };
+  list.addEventListener("touchend", (e) => lifted(e, true));
+  list.addEventListener("touchcancel", (e) => lifted(e, false));
+  list.addEventListener("contextmenu", (e) => {  // a long press on a phone: the photo, not the phone's menu
+    if (held?.finger !== undefined) e.preventDefault();
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || !held?.up) return;
+    e.preventDefault();
+    e.stopPropagation();  // only the photo goes back: no panel closes as well
+    putDown(false);
+  }, true);
 });
 document.addEventListener("click", (e) => {
   const button = e.target.closest("ol[data-album] button[data-move]");

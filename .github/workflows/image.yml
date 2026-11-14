@@ -4,6 +4,8 @@
 #   1.2.3, 1.2 and latest at once (a pre-release such as v1.3.0-rc.1 only as itself), and then a GitHub Release is
 #   made, which is what installs look for once a day to say an update is available. Its notes are the version's
 #   section of CHANGELOG.md (.github/release_notes.py), and a tag without one is refused before anything is published.
+#   Once it is out, the docs as they are in it become the repository's wiki (.github/wiki.py), unless it is a
+#   pre-release.
 # - A push to main publishes "main" and "sha-<commit>", for trying what is coming. Never "latest".
 name: image
 
@@ -116,3 +118,33 @@ jobs:
           python3 .github/release_notes.py "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > "$RUNNER_TEMP/notes.md"
           gh release create "$GITHUB_REF_NAME" --verify-tag --notes-file "$RUNNER_TEMP/notes.md" \
             --title "LineageBox ${GITHUB_REF_NAME#v}" $pre
+
+  # A release's docs as the wiki, written over (.github/wiki.py, which the tests have already checked): Home, a page
+  # for each document, the user guide a page per section, and the changelog. Only once the release is out, and not
+  # for a pre-release, so the wiki tells of the version people install.
+  wiki:
+    needs: image
+    if: github.ref_type == 'tag' && !contains(github.ref_name, '-')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # pushing to the repository's wiki
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false   # the wiki is a repository of its own, cloned below
+      - name: Write the wiki over
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git clone --quiet --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" \
+            "$RUNNER_TEMP/wiki"
+          python3 .github/wiki.py "$RUNNER_TEMP/wiki" --repo "$GITHUB_REPOSITORY"
+          cd "$RUNNER_TEMP/wiki"
+          git add --all
+          if git diff --cached --quiet; then
+            echo "The wiki already has these docs."
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit --quiet -m "The documentation of LineageBox ${GITHUB_REF_NAME#v}"
+          git push --quiet origin HEAD

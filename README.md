@@ -241,6 +241,7 @@ docker compose pull && docker compose up -d
 ```
 
 [Updating and backups](docs/install.md#updating-and-backups) has the details, and how to stay on one version.
+[CHANGELOG.md](CHANGELOG.md) says what is new in each version.
 
 ## Contributing
 

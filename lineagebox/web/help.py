@@ -461,13 +461,15 @@ PAGES = {
         N_("Its photos in its own order, each with the album's caption for it; where the album has none, the photo's "
            "own caption shows. Play shows them full screen, after a title card; Save as a video makes one video file "
            "of it to send."),
-        N_("In your own album: drag photos into order (or use ↑ and ↓), ★ makes one the cover, type a caption under a "
-           "photo and press Enter, and × takes a photo out of the album (it stays in your photos; Undo puts it back)."),
+        N_("In your own album: drag photos into order (on a phone or tablet, rest a finger on one a moment first; or use "
+           "↑ and ↓), ★ makes one the cover, type a caption under a photo and press Enter, and × takes a photo out of "
+           "the album (it stays in your photos; Undo puts it back)."),
+        N_("While you drag a photo, hold it near the top or bottom of the window to scroll the page."),
         N_("Sharing, at the bottom of your own album: share it with one family account or with everyone who has one. "
            "They see its photos in its order, also those of your family they couldn't see before. Photos others shared "
            "with you are not passed on.")), (
         ("Space", N_("pause or go on (in the slideshow)")), ("← →", N_("previous or next photo (in the slideshow)")),
-        ("Esc", N_("leave the slideshow")))),
+        ("Esc", N_("leave the slideshow, or put back a photo you are dragging")))),
     "favourites": Page(N_("Your favourites"), (
         N_("The photos you gave a heart (♡ on a photo's page), the latest first. Tours pick a favourite before other "
            "photos like it, and memories on Home use one as their cover."),

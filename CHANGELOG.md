@@ -6,6 +6,16 @@ copies it there when the version is tagged ([releases](docs/development.md#relea
 A **catalog update** adds to the catalog's tables. LineageBox copies the catalog before it updates it, and earlier
 versions can't open the updated one.
 
+## 1.7.2 (2026-11-14)
+
+### Updated
+
+- **Albums** can be put in order by dragging on a phone or tablet too: rest a finger on a photo a moment, then drag
+  it where it goes (a quick swipe still scrolls). With a mouse or a finger, holding a photo near the top or bottom of
+  the window scrolls the page, and Esc puts it back. ↑ and ↓ still work.
+- The **[wiki](https://github.com/mutilator/LineageBox/wiki)** is brought up to date with each release, and has this
+  changelog as a page of its own.
+
 ## 1.7.1 (2026-11-12)
 
 ### Updated
