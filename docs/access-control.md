@@ -116,6 +116,24 @@ An account can share a folder, a photo, a tour or an album with one account or w
 - a shared tour's photos, as kept in `tour_photo`;
 - a shared album's photos, as kept in `album_passed`.
 
+#### Couples
+
+With **Partners see what each other adds** on (Settings → Family accounts, on unless an admin turns it off), the two
+people of a couple see what the other adds without either of them sharing anything: the partner's uploads folder,
+their albums and their tours, so their journeys too. Who counts comes from the family tree -- whoever is marked as
+someone's *current* partner, married or not -- and an account that is switched off gives nothing.
+
+`access.partner_shares` makes these as rows shaped like a share's, with no id, and `active_shares` adds them to the
+real ones, so they pass through the same checks and show in the same places (Folders, the Albums and Tours lists,
+Home); a hidden photo is left out as always. Nothing is written down: they are worked out afresh every time a view
+is, so a couple who come together or part start or stop seeing each other's at once, and there is nothing to stop
+sharing. What someone else shared with one of them is not passed on to the other, as a share never passes on.
+
+An album or tour is recorded as its maker's, an admin's as well (`routes/albums.py`, `routes/tours.py`); one with no
+account on it is the admins' own, nobody's in particular, and goes to no partner. Migration 039 gave those already in
+a catalog to its one admin, where a library has exactly one. A member's own uploads recorded in `upload` go too,
+wherever the files lie.
+
 A share counts only while it holds (`access.active_shares`): the account that shared it isn't switched off, and what it
 shares is still that account's to share. For a member, that means a folder in their uploads folder, a photo they
 uploaded (in that folder, or recorded in `upload`) and their own tour or album. This is checked every time a view is worked out,
@@ -136,7 +154,8 @@ the maker's own connection before it is written. A member's connection holds onl
 shared with them (`album`), and of each only the photos they see (`album_photo`); only an album's maker or an admin
 changes it, renames it, shares it or deletes it.
 
-Members see only their own rows of `share`, and no rows of `tour_photo` or `album_passed`. Which accounts a member may share with is
+Members see only their own rows of `share`, and no rows of `tour_photo` or `album_passed`. A partner's automatic
+shares are in no table at all. Which accounts a member may share with is
 limited to those of people they can see, so the list of accounts tells them nothing new.
 
 Each account's viewer is kept in memory. It is worked out again right after a change by anyone (any successful POST),

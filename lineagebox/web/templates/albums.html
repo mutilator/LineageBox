@@ -16,14 +16,14 @@
 
 <h2>{{ _("Every album") if viewer.admin else _("Your albums") }} <small>{{ albums|length }}</small></h2>
 {%- if albums %}
-{{ m.album_cards(albums) }}
+{{ m.album_cards(albums, least) }}
 {%- else %}
 <p class="note">{% trans %}No albums yet.{% endtrans %}</p>
 {%- endif %}
 
 {%- if others %}
 <h2>{% trans %}Shared with you{% endtrans %} <small>{{ others|length }}</small></h2>
-{{ m.album_cards(others) }}
+{{ m.album_cards(others, least) }}
 {%- endif %}
 
 <h2>{% trans %}Favorites{% endtrans %}</h2>
@@ -34,4 +34,7 @@
   </a>
 </div>
 <p class="hint">{% trans %}♡ on a photo's page makes it one of your favorites: tours and memories show favorites first.{% endtrans %}</p>
+<p class="hint">{% trans %}An album whose photos were taken in two or more places draws <b>a journey</b>: its stops in the
+  album's own order on the map, with the way from each to the next. Open the album and press <b>🗺 See the
+  journey</b>.{% endtrans %}</p>
 {% endblock %}

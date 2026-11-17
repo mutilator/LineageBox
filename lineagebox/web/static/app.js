@@ -204,7 +204,7 @@ function updateSelection(form) {
   const kept = ticksKept(form);
   const n = kept?.size ?? form.querySelectorAll('input[name="image"]:checked, input[name="face"]:checked').length;
   if (kept) sayTicked(form, n);
-  form.querySelectorAll('button[type="submit"][data-label]').forEach((submit) => {
+  form.querySelectorAll("button[data-label]").forEach((submit) => {
     submit.textContent = submit.dataset.label.replace("{n}", num(n));
     submit.disabled = n === 0;
   });
@@ -3197,6 +3197,28 @@ document.querySelectorAll("[data-letter-keys]").forEach((box) => {
   });
 });
 
+// Put the ticked photos on the map (places.py): the map page says where, so the ids go with them in this tab and
+// the map's placing panel reads them (PLACING, map.js). The ticks stay as they are: the photos don't leave the list.
+const PLACING = "lineagebox-placing";
+document.addEventListener("click", (e) => {
+  const button = e.target.closest("[data-place-ticked]");
+  if (!button) return;
+  const form = button.closest("form.select-form");
+  const ids = form ? tickedIds(form) : [];
+  if (!ids.length) return;
+  const first = form.querySelector(`input[name="image"][value="${ids[0]}"]`)?.closest("li, .tile, label");
+  try {
+    sessionStorage.setItem(PLACING, JSON.stringify({
+      ids, back: location.pathname + location.search, thumb: first?.querySelector("img")?.getAttribute("src") || null,
+      title: tn("this photo", "these {n} photos", ids.length),
+    }));
+  } catch {
+    notice(t("That didn't work."), { error: true });
+    return;
+  }
+  location.href = "/map?place=ticked";
+});
+
 // Ticks kept. A list with the tick-photos bar (form.select-form with .select-bar.bulk) keeps the photos ticked in it
 // in this tab, under the list's address without its page or part: they stay ticked as more of the list loads, on its
 // other pages and when the list is opened again, until they are moved away or Clear is pressed. Select all ticks the
@@ -3515,4 +3537,51 @@ function choose(ask) {
 
 function attrText(text) {
   return String(text).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+}
+
+// An arc between two places, bowed to one side as travel maps draw it, as [lat, lng] points for a line to follow
+// (map.js, journey.js). The bow is worked out in the map's own projection, so it looks the same wherever it is and
+// whatever way it goes; the points are evenly spaced along it, which is what the drawing and the light go by.
+function arcThrough(map, from, to, bend = 0.2, steps = 40) {
+  const ZOOM = 18;
+  const a = map.project(from, ZOOM), b = map.project(to, ZOOM);
+  const over = { x: (a.x + b.x) / 2 + (b.y - a.y) * bend,     // left of the way travelled: the arc bows north
+                 y: (a.y + b.y) / 2 - (b.x - a.x) * bend };
+  const out = [];
+  for (let i = 0; i <= steps; i++) {
+    const k = i / steps, j = 1 - k;
+    const point = map.unproject([j * j * a.x + 2 * j * k * over.x + k * k * b.x,
+                                 j * j * a.y + 2 * j * k * over.y + k * k * b.y], ZOOM);
+    out.push([point.lat, point.lng]);
+  }
+  return out;
+}
+
+// Which way a leg of a journey goes where its arrow sits, in degrees from east, for rotating the arrow glyph.
+function arcTurn(points, at) {
+  const a = points[Math.max(0, at - 1)], b = points[Math.min(points.length - 1, at + 1)];
+  const east = (b[1] - a[1]) * Math.cos(((a[0] + b[0]) / 2) * Math.PI / 180);
+  return Math.round(Math.atan2(-(b[0] - a[0]), east) * 180 / Math.PI);
+}
+
+// Whether this computer or phone was asked to show less movement: an animation then goes straight to its end.
+function stillPlease() {
+  return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+}
+
+// The credit under a map ([map] attribution in config.toml), which Leaflet shows as HTML: its words and its links
+// to http(s) addresses, nothing else, whoever wrote it. Read in a document of its own, where nothing in it runs.
+function credit(html) {
+  const out = document.createElement("span");
+  const add = (node, into) => {
+    for (const n of node.childNodes) {
+      if (n.nodeType === Node.TEXT_NODE) into.append(n.textContent);
+      else if (n.nodeName === "A" && /^https?:\/\//i.test(n.getAttribute("href") || "")) {
+        into.append(Object.assign(document.createElement("a"),
+                                  { href: n.getAttribute("href"), textContent: n.textContent }));
+      } else if (n.nodeType === Node.ELEMENT_NODE) add(n, into);
+    }
+  };
+  add(new DOMParser().parseFromString(html || "", "text/html").body, out);
+  return out.innerHTML;
 }

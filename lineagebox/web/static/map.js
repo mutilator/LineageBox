@@ -19,6 +19,7 @@ document.addEventListener("DOMContentLoaded", () => {
     confirmed: { label: t("Placed by folder name, confirmed"), color: "#1f7a3f" },
     folder: { label: t("Placed by folder name, not checked yet"), color: "#7a3fb8" },
     events: { label: t("Family events"), color: "#b42318" },
+    journeys: { label: t("Journeys"), color: "#0e7490" },
   };
   const layers = Object.fromEntries(Object.keys(kinds).map((k) => [k, L.layerGroup()]));
   let hidden = new Set();
@@ -33,7 +34,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   const slider = document.getElementById("year"), label = document.getElementById("year-label");
   const note = document.getElementById("map-note"), bars = document.getElementById("years");
-  let years = [], current = null, fitted = false;
+  let years = [], current = null, fitted = false, journeysDrawn = false;
 
   const el = (tag, props = {}, ...children) => {
     const e = Object.assign(document.createElement(tag), props);
@@ -71,6 +72,74 @@ document.addEventListener("DOMContentLoaded", () => {
       popup.append(el("details", {}, el("summary", { textContent: t("Wrong place?") }), input, relook, remove));
     }
     return popup;
+  }
+
+  // A journey (journeys.py): an album whose photos were taken in two or more places, drawn in the order the family
+  // travelled, with an arrow on each leg. Its line and its stops open the album's own journey page.
+  function journeyPopup(j) {
+    const popup = el("div", { className: "map-popup" }, el("b", { textContent: j.name }));
+    const parts = [tn("{n} stop", "{n} stops", j.stops.length)];
+    if (j.km) parts.push(t("{n} km", { n: num(j.km) }));
+    if (j.days) parts.push(tn("{n} day", "{n} days", j.days));
+    popup.append(el("div", { className: "hint", textContent: parts.join(" · ") }),
+                 el("div", { className: "hint", textContent: j.stops.map((s) => s.name).join(" → ") }),
+                 el("a", { href: `/album/${j.album_id}/journey`, textContent: t("See the journey") }));
+    return popup;
+  }
+
+  const DRAWING = 900, AT_A_STOP = 220;  // ms: drawing one leg, and the wait at the place it reaches
+
+  function journeyStop(s) {
+    return L.circleMarker([s.lat, s.lon], { radius: 4, color: kinds.journeys.color, weight: 2, fillOpacity: 0.9,
+                                            interactive: false });
+  }
+
+  function journeyArrow(points) {  // which way the leg went, in the middle of its arc
+    const at = Math.floor(points.length / 2);
+    return L.marker(points[at], {
+      interactive: false, keyboard: false,
+      icon: L.divIcon({ className: "map-journey-arrow", iconSize: [16, 16], iconAnchor: [8, 8],
+                        html: `<span style="display:block;rotate:${arcTurn(points, at)}deg">➤</span>` }),
+    });
+  }
+
+  // A journey is drawn as travel maps do it: the first place, then a dashed arc bowing out to the next, a place
+  // again, and so on. Every journey on the map draws at the same time, once, when the page opens; after that (a
+  // year picked, a layer ticked again) they are simply there, as they are for anyone who asked for less movement.
+  function drawJourney(j, drawing) {
+    const at = j.stops.map((s) => [s.lat, s.lon]);
+    const arcs = at.slice(1).map((b, i) => arcThrough(map, at[i], b));
+    const line = L.polyline([], { color: kinds.journeys.color, weight: 3, opacity: 0.9, dashArray: "7 8",
+                                  lineCap: "round" })
+      .bindPopup(() => journeyPopup(j), { maxWidth: 280 }).addTo(layers.journeys);
+    reachable(line, tn("{name}: {n} stop", "{name}: {n} stops", j.stops.length, { name: j.name }));
+    journeyStop(j.stops[0]).addTo(layers.journeys);
+    if (!drawing) {
+      line.setLatLngs(arcs.flat());
+      arcs.forEach((points, i) => {
+        journeyArrow(points).addTo(layers.journeys);
+        journeyStop(j.stops[i + 1]).addTo(layers.journeys);
+      });
+      return arcs.flat();
+    }
+    let done = [];
+    const walk = (leg) => {
+      const points = arcs[leg];
+      const from = performance.now();
+      const frame = (now) => {
+        if (!layers.journeys.hasLayer(line)) return;  // the year changed under it, or the layer was ticked off
+        const part = Math.min(1, (now - from) / DRAWING);
+        line.setLatLngs(done.concat(points.slice(0, Math.max(2, Math.round(points.length * part)))));
+        if (part < 1) { requestAnimationFrame(frame); return; }
+        done = done.concat(points);
+        journeyArrow(points).addTo(layers.journeys);
+        journeyStop(j.stops[leg + 1]).addTo(layers.journeys);
+        if (leg + 1 < arcs.length) setTimeout(() => walk(leg + 1), AT_A_STOP);
+      };
+      requestAnimationFrame(frame);
+    };
+    walk(0);
+    return arcs.flat();  // where they go, so the map can fit them all in before the drawing starts
   }
 
   function eventsPopup(place, list) {
@@ -168,6 +237,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 tn("{place}: {n} family event", "{place}: {n} family events", list.length, { place }));
       points.push([list[0].lat, list[0].lon]);
     }
+    for (const j of d.journeys || []) points.push(...drawJourney(j, !journeysDrawn && !stillPlease()));
+    if (d.journeys?.length) journeysDrawn = true;  // they draw themselves once, when the page opens
     if (points.length && !fitted) { map.fitBounds(points, { padding: [30, 30], maxZoom: 7 }); fitted = true; }
     if (pin) pin.addTo(map);  // above the circles
     const parts = [];
@@ -181,6 +252,7 @@ document.addEventListener("DOMContentLoaded", () => {
       parts.push(year ? tn("{n} photo this year with no place yet", "{n} photos this year with no place yet", d.unplaced)
                       : tn("{n} photo with no place yet", "{n} photos with no place yet", d.unplaced));
     }
+    if (d.journeys?.length) parts.push(tn("{n} journey", "{n} journeys", d.journeys.length));
     if (d.to_find) parts.push(tn("{n} place name still to find", "{n} place names still to find", d.to_find));
     if (d.not_found) parts.push(t("{n} OpenStreetMap didn't know", { n: d.not_found }));
     note.textContent = parts.join(" · ");
@@ -191,18 +263,38 @@ document.addEventListener("DOMContentLoaded", () => {
   // middle of the map (for the keyboard: arrow keys move the map, + and − zoom), then dragged to the spot and saved.
   // A photo's place is tracked like any change, so the notice offers Undo.
   let pin = null;
+  // The photos ticked on another page (app.js left their ids in this tab), to place all at once
+  function tickedTarget() {
+    try {
+      const kept = JSON.parse(sessionStorage.getItem("lineagebox-placing") || "null");
+      if (kept?.ids?.length) return { kind: "ticked", ids: kept.ids, sha: null, thumb: kept.thumb, title: kept.title,
+                                      back: kept.back || "/", lat: null, lon: null, by_hand: false };
+    } catch {}
+    return null;
+  }
+
   async function placing(kind, id) {
     const panel = document.getElementById("placing");
-    const r = await fetch(`/api/places/target?kind=${kind}&id=${id}`);
-    if (!r.ok) { notice(t("That can't be put on the map from here."), { error: true }); return; }
-    const target = await r.json();
+    let target = kind === "ticked" ? tickedTarget() : null;
+    if (kind !== "ticked") {
+      const r = await fetch(`/api/places/target?kind=${kind}&id=${id}`);
+      if (!r.ok) { notice(t("That can't be put on the map from here."), { error: true }); return; }
+      target = await r.json();
+    }
+    if (!target) { notice(t("Tick the photos to place first."), { error: true }); return; }
     const where = document.getElementById("placing-where"), save = document.getElementById("placing-save");
     const clear = document.getElementById("placing-clear"), town = document.getElementById("placing-town");
     const list = document.getElementById("placing-towns"), thumb = document.getElementById("placing-thumb");
-    document.getElementById("placing-what").textContent = target.title;
+    document.getElementById("placing-title").textContent = target.ids
+      ? t("Where were {what} taken?", { what: target.title }) : t("Where was {what} taken?", { what: target.title });
+    if (target.ids) {
+      where.textContent = t("Click the map where they were taken, or find a town, then drag the pin to the spot.");
+    }
     document.getElementById("placing-back").href = target.back;
-    document.getElementById("placing-back").textContent = kind === "image" ? t("Back to the photo") : t("Back to the folder");
-    if (target.sha) { thumb.src = `/t/${target.sha}`; thumb.hidden = false; }
+    const backs = { image: t("Back to the photo"), folder: t("Back to the folder"), album: t("Back to the album") };
+    document.getElementById("placing-back").textContent = backs[kind] || t("Back to the photos");
+    const picture = target.sha ? `/t/${target.sha}` : target.thumb;
+    if (picture) { thumb.src = picture; thumb.hidden = false; }
     panel.hidden = false;
     clear.hidden = !target.by_hand;
     if (target.lat != null) {
@@ -225,7 +317,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const send = async (body) => {
       let d;
       try {
-        d = await post(kind === "image" ? `/api/images/${id}/place` : `/api/folders/${id}/place`, body);
+        d = await post(target.ids ? "/api/selection/place"
+                       : kind === "image" ? `/api/images/${id}/place` : `/api/folders/${id}/place`,
+                       target.ids ? { ...body, image_ids: target.ids, reason: "put on the map together" } : body);
       } catch (err) {
         notice(err.message || t("That didn't work."), { error: true });
         return null;
@@ -267,28 +361,13 @@ document.addEventListener("DOMContentLoaded", () => {
       }, 200);
     });
   }
-  const target = (new URLSearchParams(location.search).get("place") || "").match(/^(image|folder):(\d+)$/);
+  const asked = new URLSearchParams(location.search).get("place") || "";
+  const target = asked.match(/^(image|folder|album):(\d+)$/);
   if (target) placing(target[1], Number(target[2]));  // with no place yet, the map still fits the family's photos
+  else if (asked === "ticked") placing("ticked", 0);
 
   let wait;
   slider.addEventListener("input", () => { clearTimeout(wait); label.textContent = slider.value; wait = setTimeout(() => show(Number(slider.value)), 250); });
   document.getElementById("all-years").onclick = () => show(null);
   show(null);
 });
-
-// The credit under the map ([map] attribution in config.toml), which Leaflet shows as HTML: its words and its links
-// to http(s) addresses, nothing else, whoever wrote it. Read in a document of its own, where nothing in it runs.
-function credit(html) {
-  const out = document.createElement("span");
-  const add = (node, into) => {
-    for (const n of node.childNodes) {
-      if (n.nodeType === Node.TEXT_NODE) into.append(n.textContent);
-      else if (n.nodeName === "A" && /^https?:\/\//i.test(n.getAttribute("href") || "")) {
-        into.append(Object.assign(document.createElement("a"),
-                                  { href: n.getAttribute("href"), textContent: n.textContent }));
-      } else if (n.nodeType === Node.ELEMENT_NODE) add(n, into);
-    }
-  };
-  add(new DOMParser().parseFromString(html || "", "text/html").body, out);
-  return out.innerHTML;
-}

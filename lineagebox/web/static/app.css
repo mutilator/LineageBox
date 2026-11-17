@@ -806,6 +806,10 @@ div#map { height: 65vh; min-height: 320px; border-radius: 8px; border: 1px solid
 .swatch.folder { border-color: #7a3fb8; background: rgb(122 63 184 / .45); }
 .map-popup .confirm { margin: 6px 0; }
 .swatch.events { border-color: #b42318; background: rgb(180 35 24 / .25); }
+.swatch.journeys { border-color: #0e7490; background: rgb(14 116 144 / .45); }
+/* which way a journey went, in the middle of each leg (map.js drawJourney) */
+.leaflet-marker-icon.map-journey-arrow { color: #0e7490; font-size: .9rem; line-height: 1; text-align: center;
+                                         text-shadow: 0 0 3px var(--bg), 0 0 3px var(--bg); }
 .face-row .age { font-weight: 600; }
 .import-review table { width: 100%; border-collapse: collapse; }
 .import-review td, .import-review th { text-align: left; vertical-align: top; padding: 6px 8px; border-bottom: 1px solid var(--line); }
@@ -1747,3 +1751,44 @@ dialog.player::backdrop { background: #000; }
 /* the help's switch for keys of one letter */
 .keys-switch label { font-weight: 600; }
 .keys-switch input { width: 1.1em; height: 1.1em; vertical-align: -2px; }
+
+/* ---- A journey: an album read as a trip on the map (journeys.py, journey.html, journey.js) ---------------------- */
+.journey-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 10px 0; }
+.journey-near { color: var(--muted); font-size: .9rem; }
+.journey-near .chip { font-size: .9rem; }
+.journey-near .chip.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+/* the way travelled: a dashed arc from each place to the next, drawn when the page opens (journey.js), with dots
+   running along it afterwards the way the family went */
+.journey-line { stroke: var(--accent); stroke-width: 4; opacity: .55; stroke-dasharray: 8 9; stroke-linecap: round; }
+.journey-flow { stroke: var(--accent); stroke-width: 6; stroke-linecap: round; stroke-dasharray: .1 18;
+                animation: journey-flow 1.1s linear infinite; }
+@keyframes journey-flow { to { stroke-dashoffset: -18.1; } }
+.leaflet-marker-icon.journey-arrow { color: var(--accent); font-size: 1rem; line-height: 1; text-align: center;
+                                     text-shadow: 0 0 3px var(--bg), 0 0 3px var(--bg); }
+.leaflet-marker-icon.journey-pin { display: grid; place-items: center; border-radius: 50%; background: var(--surface);
+  border: 3px solid var(--accent); color: var(--text); font-weight: 700; font-size: .85rem;
+  box-shadow: 0 1px 4px rgb(0 0 0 / .4); }
+.leaflet-marker-icon.journey-pin.on { background: var(--accent); color: var(--on-accent); }
+.leaflet-marker-icon.journey-dot { border-radius: 50%; background: var(--accent); border: 3px solid var(--surface);
+  box-shadow: 0 0 10px 3px color-mix(in srgb, var(--accent) 65%, transparent); }
+.folder-card .label.journey { color: var(--accent); }
+.map-popup .said { margin: 4px 0; }
+.journey-stops { list-style: none; margin: 14px 0; padding: 0; display: grid; gap: 10px; }
+.journey-stop { display: flex; gap: 12px; padding: 10px 12px; border-radius: 10px; background: var(--surface);
+                border: 1px solid var(--line); }
+.journey-stop.on { border-color: var(--accent);
+                   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent); }
+.journey-n { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+             background: var(--accent); color: var(--on-accent); font-size: .85rem; }
+.journey-what { flex: 1; min-width: 0; }
+.journey-what h2 { margin: 0; font-size: 1.05rem; }
+.journey-what h2 button { font: inherit; color: inherit; background: none; border: 0; padding: 0; text-align: left;
+                          cursor: pointer; }
+.journey-what h2 button:hover { color: var(--accent); }
+.journey-what p { margin: 2px 0; }
+.journey-photos { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+.journey-photo { display: block; width: 72px; height: 72px; }
+.journey-photo img { width: 100%; height: 100%; object-fit: cover; border-radius: 6px; background: var(--tile); }
+.journey-photos .more { color: var(--muted); font-size: .9rem; }
+@media (prefers-reduced-motion: reduce) { .journey-flow { animation: none; } }
+@media (pointer: coarse) { .journey-near .chip { min-height: 44px; display: inline-flex; align-items: center; } }

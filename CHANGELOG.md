@@ -6,6 +6,56 @@ copies it there when the version is tagged ([releases](docs/development.md#relea
 A **catalog update** adds to the catalog's tables. LineageBox copies the catalog before it updates it, and earlier
 versions can't open the updated one.
 
+## Unreleased
+
+**Catalog update** (migration 039).
+
+### New
+
+- **A couple see what each other adds.** A husband and wife — or any two people marked as current partners in the
+  family tree, married or not — now see each other's albums, tours, journeys and uploads without either of them
+  having to share anything. Each finds the other's under **Shared with you** on **Folders**, among their own albums
+  and tours, and on Home. It follows the family tree: it starts when a couple are entered as partners and stops when
+  they are not current ones any more, so there is nothing to stop sharing. What someone else shared with one of them
+  is not passed on, and a photo an admin hid is never passed on. Admins can turn it off for the whole library under
+  **Settings → Family accounts → Couples**. An album or tour used to be kept as the admins' own, without saying
+  which admin made it; from now on it is recorded as its maker's, and where a library has a single admin the ones
+  already in it become that admin's when the catalog updates. With several admins there is no telling who made
+  which, so those stay the admins' own and are shared by hand as before.
+
+- **A trip on the map: an album's journey.** An album is already a list of photos in the order you want them, and a
+  trip is just that — New York, Colorado, Yellowstone, Mount Rushmore, the Mall of America, home again. Put a
+  trip's photos in an album, in the order you travelled, and **🗺 See the journey** at the top of the album
+  draws it on a map of its own: each place in turn, numbered, with the way from one to the next, arrows pointing
+  which way it went, and dots running along the line. **Follow the journey** sends a light along it, waiting at each
+  place and lighting that stop up in the list below. Photos taken near one another, one after another in the album,
+  are one stop; going back at the end to the place you set out from is a stop of its own. **Places this close are one
+  stop** (5, 25 or 100 km) says how near counts as the same place. Albums that draw a journey are marked as such on
+  **Albums**. Nothing is kept in the catalog: the journey is read from the album every time it is shown, so putting
+  its photos in another order, or on the map, changes it at once. The [user guide](docs/user-guide.md#journeys) says
+  how to make one.
+- **Photos put on the map many at a time.** Most photos have no GPS, and placing them one by one was the only way.
+  Tick photos on any page of photos — a folder, a year, a search, a tag, a person — and **Put N on the map**
+  in the bar at the foot opens the map and asks for one place for all of them; **Select all** first does a whole
+  folder or a whole search. An album of your own has **Put them on the map** at the top for all of its photos. One
+  **Undo** takes the lot back. A place given this way wins over the photos' own GPS, so it also puts a batch right.
+- **Journeys on the Map page.** The map's box at the top right has a **Journeys** tick of its own, on to begin with:
+  every journey of the albums you see is drawn on the main map, each leg with an arrow showing which way it went.
+  They draw themselves when the map opens, all at once and the way a travel film does — a place, then a dashed
+  arc bowing out to the next, a place again — and then stay as they are.
+  Click a line for its stops, how far it went and a way into it. Picking a year leaves the journeys with a photo
+  from that year.
+- **Put in date order**, in your own album, puts its photos in the order they were taken, the earliest first: the
+  order a trip was travelled, without dragging a few hundred photos. Photos with no date at all stay at the end, and
+  **Undo** in the message puts the order back.
+
+### Fixed
+
+- **A hospital bill counts as a health record.** Cleanup → Private papers knew medical records, lab results and
+  insurance cards, but not a bill or statement from a hospital, which says as much about someone's health: an
+  itemized 1983 hospital statement sat in plain sight. It now also knows hospital bills, statements and accounts,
+  medical bills and expenses, a doctor's bill and a discharge summary.
+
 ## 1.9.0 (2026-11-17)
 
 ### New

@@ -30,6 +30,11 @@ def test_what_looks_private():
     assert seen("A close-up of an insurance card on a table.") == ("health", "insurance card")
     assert seen("A certified copy of a birth certificate.") == ("certificates", "birth certificate")
     assert seen("A receipt", tags=["tax form"]) == ("money", "tax form")
+    # a bill from a hospital says as much about someone's health as a record does (a demo library's 1983 statement)
+    assert seen("A hospital statement of account for Carol Marchetti, detailing medical expenses from a 3-day "
+                "stay.") == ("health", "hospital statement")
+    assert seen("An itemized hospital bill from 1983.") == ("health", "hospital bill")
+    assert seen("A letter about medical bills.") == ("health", "medical bills")
     # on a photo of people the phrases are mostly something else
     assert seen("A boy wears a lanyard with an identification card.", "candid") is None
     assert seen("A couple signs a marriage license at their wedding.", "portrait") is None

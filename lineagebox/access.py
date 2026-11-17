@@ -13,6 +13,9 @@ For a member who is person P (docs/access-control.md, "Who a member sees"):
   it shows its maker, or an album with the photos its maker may pass on (albums.py). Only shares that still hold count:
   from an account not switched off, of what is still theirs to share (a member's own uploads, tours and albums), and
   never a photo an admin hid.
+- and what their partner adds, without either of them having to share it (partner_shares; Settings → Family accounts):
+  a couple see each other's uploads, albums and tours, and so each other's journeys, as long as the tree has them as
+  current partners -- married or not. Switched off, or in a demo, there is none of this.
 Admins see everything; so does everyone while accounts are off.
 
 The web app keeps a member to that in two ways: every route says who may use it, and a member's connection only
@@ -27,8 +30,9 @@ import threading
 import time
 from dataclasses import dataclass, field
 
-from lineagebox import family
+from lineagebox import family, settings
 from lineagebox.catalog import under
+from lineagebox.config import Config
 
 REFRESH = 30  # seconds a viewer is kept before it is worked out again (the worker names faces as it goes)
 
@@ -115,6 +119,7 @@ class Viewer:
     granted: frozenset[int] = frozenset()  # of the photos, those they see only because they were shared with them
     tours: frozenset[int] = frozenset()  # tours others shared with them
     albums: frozenset[int] = frozenset()  # albums others shared with them
+    partners: frozenset[int] = frozenset()  # the accounts of their partners, whose albums, tours and uploads they see
     shared_folders: frozenset[str] = frozenset()  # paths of the folders shared with them, to browse
     seeing_as: bool = False  # an admin looking through this member's eyes: changes are refused
     lists: dict = field(default_factory=dict, compare=False, repr=False)  # the sets as JSON lists, for scope()
@@ -287,6 +292,7 @@ class Shared:
     tours: frozenset[int] = frozenset()
     folders: frozenset[str] = frozenset()
     albums: frozenset[int] = frozenset()
+    partners: frozenset[int] = frozenset()  # the accounts whose share needed no asking (partner_shares)
 
 
 def within(path: str | None, folder: str | None) -> bool:
@@ -294,11 +300,64 @@ def within(path: str | None, folder: str | None) -> bool:
     return path is not None and bool(folder) and (path == folder or path.startswith(folder + "/"))
 
 
-def active_shares(con: sqlite3.Connection, account_id: int) -> list[sqlite3.Row]:
+def couples_share(con: sqlite3.Connection) -> bool:
+    """Whether what one of a couple adds is seen by the other without either having to share it (Settings → Family
+    accounts). Kept in the catalog, so turning it off takes hold as soon as each view is worked out again."""
+    return bool(settings.get(con, "partners_share", Config.partners_share))
+
+
+def partner_accounts(con: sqlite3.Connection, account_id: int) -> list[sqlite3.Row]:
+    """The accounts of this account's current partners, married or not, as the family tree has them. Empty while
+    couples_share is off, for an account that is nobody in the tree, and for a partner with no account or one that is
+    switched off. On a connection that sees everyone."""
+    if not couples_share(con):
+        return []
+    return con.execute("""SELECT o.id, o.role, o.person_id, o.upload_folder, p.name
+                          FROM main.account me
+                          JOIN main.partner r ON r.current AND me.person_id IN (r.a, r.b)
+                          JOIN main.account o ON o.person_id = CASE WHEN r.a = me.person_id THEN r.b ELSE r.a END
+                          LEFT JOIN main.person p ON p.id = o.person_id
+                          WHERE me.id = ? AND me.person_id IS NOT NULL AND o.id != me.id AND o.disabled_at IS NULL
+                          ORDER BY o.id""", (account_id,)).fetchall()
+
+
+def partner_shares(con: sqlite3.Connection, account_id: int) -> list[dict]:
+    """What this account's partner adds, shared with them without either of them having to: the partner's uploads
+    folder, and every album and tour of theirs (an album's journey is the album, so it comes with it). An album or
+    tour with no account on it is the admins' own, nobody's in particular, and goes to no partner. Shaped like
+    the rows of active_shares, with no id of their own: they are worked out afresh every time, so a couple who part
+    stop seeing each other's at once and there is nothing left behind to take back."""
+    out = []
+    for them in partner_accounts(con, account_id):
+        theirs = {"id": None, "account_id": them["id"], "with_id": account_id, "created_at": None,
+                  "by_role": them["role"], "by_uploads": them["upload_folder"], "automatic": True,
+                  "folder_id": None, "image_id": None, "tour_id": None, "album_id": None,
+                  "folder_path": None, "tour_maker": None, "album_maker": None}
+        if them["upload_folder"]:
+            row = con.execute("SELECT id, path FROM main.folder WHERE path = ?", (them["upload_folder"],)).fetchone()
+            if row is not None:
+                out.append({**theirs, "folder_id": row["id"], "folder_path": row["path"]})
+        for row in con.execute("SELECT id FROM main.album WHERE account_id = ? ORDER BY id",
+                               (them["id"],)).fetchall():
+            out.append({**theirs, "album_id": row["id"], "album_maker": them["id"]})
+        for row in con.execute("SELECT id FROM main.tour WHERE account_id = ? ORDER BY id",
+                               (them["id"],)).fetchall():
+            out.append({**theirs, "tour_id": row["id"], "tour_maker": them["id"]})
+    return out
+
+
+def automatic(share) -> bool:
+    """Whether a share row is one a partner never had to make (partner_shares), rather than one from the share
+    table. Takes a row of either (both answer keys())."""
+    return "automatic" in share.keys() and bool(share["automatic"])
+
+
+def active_shares(con: sqlite3.Connection, account_id: int, partners: bool = True) -> list:
     """The shares with this account, or with everyone, that still hold: from another account that isn't switched off,
     of what is still that account's to share. A member shares only their own uploads (in their uploads folder, or
     recorded as theirs) and their own tours; an admin, anything. So an admin made a member, or an upload an admin moved
-    into the library, shares no more than it may."""
+    into the library, shares no more than it may. What their partner adds (partner_shares) follows, needing no share
+    of its own; partners False leaves it out, as a demo does."""
     rows = con.execute("""
         SELECT s.*, a.role AS by_role, a.upload_folder AS by_uploads, f.path AS folder_path,
                t.account_id AS tour_maker, al.account_id AS album_maker
@@ -307,7 +366,8 @@ def active_shares(con: sqlite3.Connection, account_id: int) -> list[sqlite3.Row]
         LEFT JOIN main.album al ON al.id = s.album_id
         WHERE a.disabled_at IS NULL AND s.account_id != :me AND (s.with_id = :me OR s.with_id IS NULL)
         ORDER BY s.id""", {"me": account_id}).fetchall()
-    return [r for r in rows if r["by_role"] == "admin" or theirs_to_share(con, r)]
+    held = [r for r in rows if r["by_role"] == "admin" or theirs_to_share(con, r)]
+    return held + (partner_shares(con, account_id) if partners else [])
 
 
 def theirs_to_share(con: sqlite3.Connection, share: sqlite3.Row) -> bool:
@@ -326,11 +386,12 @@ def theirs_to_share(con: sqlite3.Connection, share: sqlite3.Row) -> bool:
                              "under": under(share["by_uploads"]) if share["by_uploads"] else ""}).fetchone() is not None
 
 
-def shared_with(con: sqlite3.Connection, account_id: int) -> Shared:
+def shared_with(con: sqlite3.Connection, account_id: int, partners: bool = True) -> Shared:
     """What other accounts shared with this one (active_shares), on a connection that sees everything: a folder's
     photos (in it or below, now and later), one photo, or the photos a tour showed its maker when it was last saved,
-    shared or opened (tour_photo). Never a photo an admin hid."""
-    shares = active_shares(con, account_id)
+    shared or opened (tour_photo). Never a photo an admin hid. partners False: without what a partner's account
+    passes on without being asked (a demo, where a visitor's uploads are theirs alone)."""
+    shares = active_shares(con, account_id, partners)
     images = {r["image_id"] for r in shares if r["image_id"] is not None}
     folders = {r["folder_path"] for r in shares if r["folder_id"] is not None}
     tours = {r["tour_id"] for r in shares if r["tour_id"] is not None}
@@ -352,16 +413,23 @@ def shared_with(con: sqlite3.Connection, account_id: int) -> Shared:
         images |= {r[0] for r in con.execute("""SELECT image_id FROM main.album_passed
                                                 WHERE album_id IN (SELECT value FROM json_each(?))""",
                                              (json.dumps(sorted(albums)),))}
+    # a partner's uploads wherever they lie: one recorded as theirs that a reorganization moved out of their uploads
+    # folder, or an admin partner's, who may have no such folder at all
+    partner_ids = {r["account_id"] for r in shares if automatic(r)}
+    if partner_ids:
+        images |= {r[0] for r in con.execute("""SELECT image_id FROM main.upload
+                                                WHERE account_id IN (SELECT value FROM json_each(?))""",
+                                             (json.dumps(sorted(partner_ids)),))}
     if images:
         not_shown, args = hidden(con)
         images -= {r[0] for r in con.execute(not_shown, args)}
-    return Shared(frozenset(images), frozenset(tours), frozenset(folders), frozenset(albums))
+    return Shared(frozenset(images), frozenset(tours), frozenset(folders), frozenset(albums), frozenset(partner_ids))
 
 
 def compute(con: sqlite3.Connection, account: dict, shared: bool = True, alone: bool = False) -> Viewer:
     """Work out what an account sees, on a connection that sees everything. shared False: without what others shared
     with them, which is what a tour of theirs passes on when they share it (routes/tours.py). alone: without what
-    other accounts uploaded (a demo)."""
+    other accounts uploaded, nor what a partner adds (a demo)."""
     if account["role"] == "admin":
         return admin(account)
     g = family.load(con)
@@ -372,7 +440,7 @@ def compute(con: sqlite3.Connection, account: dict, shared: bool = True, alone: 
                                        {"a": account["id"]})}
     people = people_for(g, account["person_id"], [tuple(r) for r in rules], added)
     images = images_for(con, people, account["id"], account["upload_folder"], alone)
-    others = shared_with(con, account["id"]) if shared else Shared()
+    others = shared_with(con, account["id"], partners=not alone) if shared else Shared()
     granted = others.images - images
     images |= granted
     # the clip of each Live Photo they see, which its page plays (live.py); no page lists one
@@ -383,7 +451,7 @@ def compute(con: sqlite3.Connection, account: dict, shared: bool = True, alone: 
     folders = folders_for(con, images, account["upload_folder"], others.folders)
     return Viewer(account=account, admin=False, people=frozenset(people), images=frozenset(images),
                   shas=frozenset(shas), folders=frozenset(folders), granted=frozenset(granted), tours=others.tours,
-                  shared_folders=others.folders, albums=others.albums,
+                  shared_folders=others.folders, albums=others.albums, partners=others.partners,
                   lists={"person": json.dumps(sorted(people)), "image": json.dumps(sorted(images)),
                          "folder": json.dumps(sorted(folders)), "tour": json.dumps(sorted(others.tours)),
                          "album": json.dumps(sorted(others.albums))})

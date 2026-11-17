@@ -3,7 +3,7 @@ photos and folders put on the map by hand (tracked, undoable, members for the ph
 import pytest
 from fastapi.testclient import TestClient
 
-from lineagebox import accounts, catalog, places, settings, sidecars, towns
+from lineagebox import accounts, albums, catalog, places, settings, sidecars, towns
 from lineagebox.ingest import ingest
 from lineagebox.scan import scan
 from lineagebox.web import app as webapp
@@ -153,3 +153,35 @@ def test_a_photos_place_by_hand_taken_away_and_a_place_that_isnt_one(con, cfg, p
         assert home.post(f"/api/images/{gps}/place", json=body, headers=APP).status_code in (400, 422)
     assert home.post("/api/images/999999/place", json={"lat": 1, "lon": 1}, headers=APP).status_code == 404
     assert home.post("/api/images/999999/write-file", headers=APP).status_code == 404
+
+
+def test_many_photos_put_on_the_map_at_once(con, cfg, placed):
+    """The ticked photos of any list, or an album's, are placed together, and one Undo takes the lot back."""
+    home = TestClient(webapp.create_app(cfg), client=LAN)
+    ids = [placed[n] for n in ("gps.jpg", "none.jpg", "own.jpg")]
+    r = home.post("/api/selection/place", json={"image_ids": ids, "lat": 48.8566, "lon": 2.3522}, headers=APP)
+    assert r.status_code == 200, r.text
+    assert "3 photos" in r.json()["message"] and r.json()["label"].startswith("Paris")
+    assert con.execute("SELECT count(*) FROM image_place").fetchone()[0] == 3
+    # a place given this way wins over a photo's own GPS, as one given on its page does
+    assert places.photo_place(con, placed["gps.jpg"], catalog.image(con, placed["gps.jpg"]))["how"] == "photo"
+    assert home.post(f"/api/changes/{r.json()['undo']}/undo-own", headers=APP).status_code == 200
+    assert con.execute("SELECT count(*) FROM image_place").fetchone()[0] == 0
+    # with no place, nothing is saved; clear takes them off again
+    assert home.post("/api/selection/place", json={"image_ids": ids}, headers=APP).status_code == 400
+    home.post("/api/selection/place", json={"image_ids": ids, "lat": 48.8566, "lon": 2.3522}, headers=APP)
+    gone = home.post("/api/selection/place", json={"image_ids": ids, "clear": True}, headers=APP)
+    assert gone.status_code == 200 and con.execute("SELECT count(*) FROM image_place").fetchone()[0] == 0
+
+
+def test_an_album_is_a_target_for_the_map(con, cfg, placed):
+    """The album's page sends the map its photos, and the map saves one place for all of them."""
+    album_id = albums.create(con, "A day out", None)
+    albums.add(con, album_id, [placed["none.jpg"], placed["own.jpg"]])
+    con.commit()
+    home = TestClient(webapp.create_app(cfg), client=LAN)
+    target = home.get(f"/api/places/target?kind=album&id={album_id}").json()
+    assert target["ids"] == [placed["none.jpg"], placed["own.jpg"]] and "2 photos" in target["title"]
+    assert target["back"] == f"/album/{album_id}" and target["sha"]
+    assert "/map?place=album:" in home.get(f"/album/{album_id}").text
+    assert home.get("/api/places/target?kind=album&id=9999").status_code == 404

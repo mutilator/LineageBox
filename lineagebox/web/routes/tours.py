@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse
 
 from lineagebox import access, accounts, albums, catalog, dates, sharing, slideshow, tour_suggestions, tours
-from lineagebox.web.common import (ADMIN, MEMBER, PRIVATE, _attachment, _by, _covers, _from_app, _own_tour,
+from lineagebox.web.common import (ADMIN, MEMBER, PRIVATE, _attachment, _covers, _from_app, _own_tour,
                                    _people_or_404, _share_panel)
 from lineagebox.web.deps import con, page, site, viewer, writer
 from lineagebox.web import pieces  # a tour's photos a piece at a time
@@ -62,10 +62,12 @@ def shown(s: Site, v: access.Viewer, c, w, t: dict) -> tuple[list[dict], access.
     theirs = v.admin or t["account_id"] == v.account_id
     if theirs:
         chosen = tours.photos(c, t["spec"], s.live(c).blurry_below, seed=t["id"])
-        if not sharing.is_shared(w, "tour", t["id"]):
+        if not sharing.seen_by_others(w, "tour", t["id"], t["account_id"]):
             return chosen, v
-        # what they pick from is what its maker has: an admin's own tour, or a member with nothing shared with them
-        same = (v.admin and t["account_id"] is None) or (v.limited and not v.granted)
+        # what they pick from is what its maker has: an admin's own tour (theirs, the admins' or another admin's), or
+        # a member with nothing shared with them
+        maker = accounts.get(w, t["account_id"]) if t["account_id"] is not None else None
+        same = (v.admin and (maker is None or maker["role"] == "admin")) or (v.limited and not v.granted)
         kept = chosen if same else maker_photos(s, t)
     else:
         chosen = kept = maker_photos(s, t)
@@ -80,11 +82,12 @@ def tours_page(request: Request, v=Depends(viewer), c=Depends(con), w=Depends(wr
     """Their own tours (an admin's: every tour), and those others shared with them."""
     saved = tours.tours(c)
     shared = {r[0] for r in w.execute("SELECT DISTINCT tour_id FROM main.share WHERE tour_id IS NOT NULL")}
-    from_whom = {x["item_id"]: x["by_name"] for x in sharing.with_me(w, v.account_id) if x["kind"] == "tour"} \
+    from_whom = {x["item_id"]: x["by_name"] for x in sharing.with_me(w, v) if x["kind"] == "tour"} \
         if v.limited else {}
     for t in saved:
         t["about"] = tours.describe(c, t["spec"])
-        t["shared"] = t["id"] in shared
+        # their partner sees what they add without a share of its own (access.partner_shares)
+        t["shared"] = t["id"] in shared or (bool(v.partners) and t["account_id"] == v.account_id)
         t["from"] = from_whom.get(t["id"])
     kinds = tours.types(c)
     for t in kinds:
@@ -174,7 +177,7 @@ def tour_page(request: Request, tour_id: int, select: bool = False, v=Depends(vi
     chosen, _ = shown(s, v, c, w, t)
     images = _tiles(chosen)
     theirs = v.admin or t["account_id"] == v.account_id
-    from_whom = next((x["by_name"] for x in sharing.with_me(w, v.account_id)
+    from_whom = next((x["by_name"] for x in sharing.with_me(w, v)
                       if x["kind"] == "tour" and x["item_id"] == tour_id), None) if not theirs else None
     signed_in = getattr(request.state, "account", None)
     return page(request, "tour.html", nav="tours", tour=t, images=images, slides=with_title(c, t["name"], chosen),
@@ -285,7 +288,8 @@ def preview_tour(body: dict, tour: int | None = None, v=Depends(viewer), c=Depen
 @router.post("/api/tours", dependencies=[Depends(_from_app)])
 def create_tour(body: dict, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     spec, type_id = tour_from(c, v, body)
-    return {"go": f"/tour/{tours.save_tour(w, None, type_id, spec, tour_name(c, body, spec), _by(v))}"}
+    # whoever made it, an admin as well: a tour of the admins' own is one from before, or one made without accounts
+    return {"go": f"/tour/{tours.save_tour(w, None, type_id, spec, tour_name(c, body, spec), v.account_id)}"}
 
 
 @router.post("/api/tours/{tour_id}", dependencies=[Depends(_from_app)])
@@ -294,8 +298,9 @@ def update_tour(tour_id: int, body: dict, v=Depends(viewer), c=Depends(con), w=D
     _own_tour(c, v, tour_id)
     spec, type_id = tour_from(c, v, body, tour_id)
     tours.save_tour(w, tour_id, type_id, spec, tour_name(c, body, spec))
-    if sharing.is_shared(w, "tour", tour_id):  # those it is shared with see what it picks now
-        sharing.remember(w, tour_id, [p["id"] for p in maker_photos(s, tours.tour(w, tour_id))])
+    t = tours.tour(w, tour_id)
+    if sharing.seen_by_others(w, "tour", tour_id, t["account_id"]):  # whoever sees it sees what it picks now
+        sharing.remember(w, tour_id, [p["id"] for p in maker_photos(s, t)])
     return {"go": f"/tour/{tour_id}"}
 
 

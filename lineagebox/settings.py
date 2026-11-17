@@ -27,6 +27,7 @@ EDITABLE = ("folders", "ignore_dirs", "ingest_threads", "worker_interval_minutes
 EDITABLE += ("ollama_embed_model",)  # search by meaning (embeddings.py)
 EDITABLE += ("sidecars_enabled", "import_enabled")  # Settings → Other programs (sidecars.py, imports.py)
 EDITABLE += ("whisper_language",)  # Settings → Speech (speech.py)
+EDITABLE += ("partners_share",)  # Settings → Family accounts: couples share what they add (access.py)
 SCHEDULES =("always", "hours", "paused")
 TURN_LEVELS = ("sure", "more", "off")  # Cleanup → Turned photos, see orientation.py
 AGAIN_EVERY = (6, 12, 0)  # Settings → Faces: months between looking again at every photo (faces.py); 0: when asked
@@ -602,6 +603,7 @@ _CHECKS = {
     "uploads_folder": _folder_name, "uploads_into": _uploads_into,
     "upload_max_gb": _ranged("upload_max_gb", "The largest upload"),
     "hover_preview_ms": _ranged("hover_preview_ms", "The time to point at a photo"),
+    "partners_share": _switch,
     "backup_enabled": _switch, "backup_folder": _backup_folder,
     "backup_keep_daily": _ranged("backup_keep_daily", "Days of daily copies"),
     "backup_keep_weekly": _ranged("backup_keep_weekly", "Weeks of weekly copies"),

@@ -143,10 +143,11 @@ def remove_rule(account_id: int, body: MeBody, c=Depends(con)):
 
 @router.post("/api/settings/accounts", dependencies=[Depends(_from_app)])
 def save_account_settings(body: dict, c=Depends(con), s: Site = Depends(site)):
-    """Sign-in and uploads. The client secret is kept when the box is left empty (it is never shown). A new address
-    from outside is a new name for passkeys: those made for the old one are said to stop working."""
+    """Sign-in, uploads and what a couple see of each other's. The client secret is kept when the box is left empty
+    (it is never shown). A new address from outside is a new name for passkeys: those made for the old one are said
+    to stop working."""
     keys = ("accounts_enabled", "google_client_id", "google_client_secret", "public_url", "session_days",
-            "uploads_folder", "uploads_into", "upload_max_gb")
+            "uploads_folder", "uploads_into", "upload_max_gb", "partners_share")
     changes = {k: body[k] for k in keys if k in body}
     if not str(changes.get("google_client_secret", "")).strip():
         changes.pop("google_client_secret", None)

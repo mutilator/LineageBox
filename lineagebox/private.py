@@ -34,7 +34,9 @@ PHRASES = {
               "pin number"],
     "health": ["insurance card", "health insurance", "medicare card", "medicaid card", "medical record",
                "medical records", "lab results", "lab report", "test results", "blood test", "vaccination card",
-               "vaccination record", "immunization record", "immunization records", "prescription"],
+               "vaccination record", "immunization record", "immunization records", "prescription",
+               "hospital bill", "hospital statement", "hospital account", "medical bill", "medical bills",
+               "medical expenses", "doctor's bill", "discharge summary"],
     "certificates": ["birth certificate", "certificate of birth", "certificate of live birth", "marriage certificate",
                      "marriage license", "adoption papers", "adoption decree", "adoption certificate"],
 }

@@ -193,6 +193,21 @@ Whoever it is shared with sees those photos as they see their own family's: on H
 the map. People in them from outside their branch are named without a link. A photo an admin hid is never shared, and
 nothing an account shared is shown while that account is switched off.
 
+### Couples
+
+**Settings → Family accounts → Sign-in → Couples** has **Partners see what each other adds**, on unless you turn it
+off. With it on, a husband and wife -- or any two people marked as current partners in the family tree, married or
+not -- see each other's albums, tours, journeys and uploads without either of them sharing anything. Each finds the
+other's under **Shared with you** on **Folders**, among their albums and tours, and on Home, and the Sharing panel
+says so instead of offering to share it again.
+
+It follows the family tree, so it starts when a couple are entered as partners and stops when they are no longer
+current ones; there is nothing to **Stop sharing**. It passes on only what is theirs: photos someone else shared with
+one of them stay with that one, and a photo an admin hid is never passed on. An album or tour is recorded as the
+maker's, an admin's as well. Those made before, which were the admins' own without saying which admin, became the
+admin's where a library has only one; where there are several admins the older ones belong to none of them and are
+shared by hand.
+
 The **Sharing** panel of a folder (at the top of its page), photo, tour or album (at the bottom) shows whom it is shared
 with, with **Stop sharing**.
 **Folders** lists everything a member shares; for an admin it lists everything anyone shares. Members' shares are on

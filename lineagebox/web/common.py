@@ -275,8 +275,8 @@ def _upload_labels(w, v: access.Viewer) -> dict[str, str]:
 
 def _share_panel(w, v: access.Viewer, kind: str, item_id: int) -> dict:
     """What the sharing panel (_macros.share_panel) shows of one folder, photo or tour: whom it is shared with (a
-    member sees only what they shared themselves), and whom else it may be shared with. On a connection that sees
-    everyone."""
+    member sees only what they shared themselves), whom else it may be shared with, and the partner who sees it
+    already without being asked (sharing.goes_to_partners). On a connection that sees everyone."""
     shares = []
     for s in sharing.of(w, kind, item_id):
         if v.admin or s["by_id"] == v.account_id:
@@ -285,7 +285,7 @@ def _share_panel(w, v: access.Viewer, kind: str, item_id: int) -> dict:
                            "by": None if s["by_id"] == v.account_id else
                            sharing.who(v, s["by_person"], s["by_name"], s["by_email"])})
     return {"kind": kind, "item_id": item_id, "shares": shares, "recipients": sharing.recipients(w, v),
-            "admin": v.admin}
+            "admin": v.admin, "partners": sharing.goes_to_partners(w, v, kind, item_id)}
 
 
 def _shared_with_me(w, c, v: access.Viewer) -> dict:
@@ -296,7 +296,7 @@ def _shared_with_me(w, c, v: access.Viewer) -> dict:
     if not v.limited:
         return out
     tree, seen = None, set()
-    for s in sharing.with_me(w, v.account_id):
+    for s in sharing.with_me(w, v):
         if (s["kind"], s["item_id"]) in seen:
             continue
         seen.add((s["kind"], s["item_id"]))

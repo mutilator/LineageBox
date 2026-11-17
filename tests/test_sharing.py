@@ -287,3 +287,87 @@ def test_shares_go_with_what_they_share(site, con, cfg):
     con.commit()
     assert not con.execute("SELECT 1 FROM share").fetchone()
     assert "share" in changes.KEYS and sharing.KINDS == ("folder", "image", "tour", "album")
+
+
+# ---- couples: what one of them adds, the other sees (access.partner_shares) ------------------------------------------
+
+def album_of(c, name: str, image_ids=()) -> int:
+    """A new album of theirs, with photos, as the page makes one; its id."""
+    r = c.post("/api/albums", json={"name": name, "image_ids": list(image_ids)}, headers=APP)
+    assert r.status_code == 200, r.text
+    return int(r.json()["go"].rsplit("/", 1)[1])
+
+
+def test_a_couple_see_what_each_other_adds(site, con, cfg):
+    """Cora's husband Milo sees her uploads, albums and tours with nothing shared by hand, and she his; her brother
+    sees none of it. Turning Couples off on the Settings page ends it."""
+    p = site["people"]
+    site["who"]["Milo"] = fx.account(con, p["Milo"], "milo@example.com")
+    cora, milo, bart = (client(site, con, w) for w in ("Cora", "Milo", "Bart"))
+    roses = uploaded(cora, con, cfg, {"Garden/roses.jpg": "red"})["Garden/roses.jpg"]
+    album = album_of(cora, "Our garden", [roses])
+    tour = tours.save_tour(con, None, None, tours.clean({"title": "Hers"}), "Hers", site["who"]["Cora"]["id"])
+    later(site)
+    assert not con.execute("SELECT 1 FROM share").fetchone()  # nobody shared anything
+    for path in (f"/image/{roses}", f"/album/{album}", f"/tour/{tour}"):
+        assert milo.get(path).status_code == 200, path
+        assert bart.get(path).status_code == 404, path  # a brother, not a partner
+    assert "from Cora" in milo.get("/albums").text and "from Cora" in milo.get("/tours").text
+    page = milo.get("/folders").text
+    assert "What Cora adds is here too" in page and "Cora&#39;s uploads" in page
+    assert "/api/shares/" not in page  # nothing to take back: it follows the family tree, not a share
+    # and she is told, where she would otherwise share it
+    assert "Milo sees this already" in cora.get(f"/album/{album}").text
+    # the other way round too
+    shed = uploaded(milo, con, cfg, {"Shed/tools.jpg": "brown"})["Shed/tools.jpg"]
+    later(site)
+    assert cora.get(f"/image/{shed}").status_code == 200
+    # switched off, each keeps their own again
+    settings.save(con, cfg, {"partners_share": False})
+    later(site)
+    for path in (f"/image/{roses}", f"/album/{album}", f"/tour/{tour}"):
+        assert milo.get(path).status_code == 404, path
+    assert "Milo sees this already" not in cora.get(f"/album/{album}").text
+
+
+def test_an_admins_partner_sees_what_the_admin_adds(site, con, cfg):
+    """An admin's album reaches their partner the same way, with the photos the admin may pass on (album_passed)."""
+    admin, tina = client(site, con, "Sam"), client(site, con, "Tina")  # Sam and Tina are married
+    jim = site["photos"]["jim.jpg"]  # Cora's friend: nobody's family, so Tina can't see him
+    assert tina.get(f"/image/{jim}").status_code == 404
+    album = album_of(admin, "Odds and ends", [jim])
+    later(site)
+    assert tina.get(f"/album/{album}").status_code == 200
+    assert tina.get(f"/image/{jim}").status_code == 200
+    assert "from Sam" in tina.get("/albums").text
+
+
+def test_a_former_partner_is_not_a_partner(site, con, cfg):
+    """Bart's former wife Eve sees what she always saw, and nothing he adds."""
+    p = site["people"]
+    site["who"]["Eve"] = fx.account(con, p["Eve"], "eve@example.com")
+    bart, eve = client(site, con, "Bart"), client(site, con, "Eve")
+    shed = uploaded(bart, con, cfg, {"Loft/box.jpg": "olive"})["Loft/box.jpg"]
+    album = album_of(bart, "His own", [shed])
+    later(site)
+    assert eve.get(f"/image/{shed}").status_code == 404 and eve.get(f"/album/{album}").status_code == 404
+    assert "sees this already" not in bart.get(f"/album/{album}").text
+
+
+def test_a_partner_passes_on_no_more_than_their_own(site, con, cfg):
+    """What someone else shared with one of a couple doesn't travel on to the other, and a hidden photo never does."""
+    p = site["people"]
+    site["who"]["Milo"] = fx.account(con, p["Milo"], "milo@example.com")
+    cora, milo, tina = (client(site, con, w) for w in ("Cora", "Milo", "Tina"))
+    admin = client(site, con, "Sam")
+    hers = uploaded(tina, con, cfg, {"Tins/tin.jpg": "silver"})["Tins/tin.jpg"]
+    assert share(tina, image_id=hers, to=str(site["who"]["Cora"]["id"])).status_code == 200
+    mine = uploaded(cora, con, cfg, {"Mine/pot.jpg": "teal"})["Mine/pot.jpg"]
+    album = album_of(cora, "Bits", [mine, hers])  # one of hers, one shared with her
+    later(site)
+    assert cora.get(f"/image/{hers}").status_code == 200
+    assert milo.get(f"/album/{album}").status_code == 200 and milo.get(f"/image/{mine}").status_code == 200
+    assert milo.get(f"/image/{hers}").status_code == 404  # Tina shared it with Cora, not with the two of them
+    assert admin.post(f"/api/images/{mine}/hidden", json={"hidden": True}, headers=APP).status_code == 200
+    later(site)
+    assert milo.get(f"/image/{mine}").status_code == 404

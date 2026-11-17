@@ -273,6 +273,10 @@ account or with everyone who has one. Whoever it is shared with sees those photo
 own branch, and a shared folder keeps sharing what is added to it later. **Folders** lists a member's uploads, what is
 shared with them and what they share; admins find everything anyone shares there too, and can share any folder or tour.
 
+A couple need not share with each other at all: unless an admin turns **Partners see what each other adds** off
+(Settings → Family accounts → Couples), two people marked as current partners in the family tree see each other's
+albums, tours, journeys and uploads as soon as either adds one.
+
 ### New for you
 
 The bell at the top of every page counts what happened since you last looked, and opens **New for you**:
@@ -509,6 +513,18 @@ on the map** at the top of the folder's page: its photos, and those of the folde
 own, are then shown there. From the keyboard, move the map with the arrow keys (+ and − zoom) and press **Pin the
 middle of the map**.
 
+A trip from place to place is a **journey**: put its photos in an album, in the order you travelled, and the album
+draws the way you went on a map of its own, stop by stop ([journeys](#journeys)). **Journeys**, in the box at the
+map's top right, draws them on this map as well, each leg with an arrow showing which way it went; click a line for
+its stops and a way into it. Picking a year leaves the journeys with a photo from that year.
+
+**Many photos at once.** Most photos have no GPS, so places are usually given by hand. Tick photos on any page of
+photos — a folder, a year, a search, a tag, a person — and press **Put N on the map** in the bar at the foot:
+the map opens and asks for one place for all of them. **Select all** first places a whole folder's or a whole
+search's photos in one go. An album of your own has **Put them on the map** at the top, which does the same for every
+photo in it. One **Undo** in the message takes the lot back. A place given this way wins over the photos' own GPS and
+over a place one of them was given before, so it is also the way to put a batch right.
+
 Which place a photo shows: one put there by hand wins (a phone's GPS can be wrong), then the camera's GPS, then the
 nearest folder, up from its own, that is placed by hand or whose name gives a place. Places put there by hand go into
 the photo's XMP sidecar, when those are on ([other photo programs](#other-photo-programs)), and into the file itself
@@ -674,14 +690,74 @@ it. They are listed on **Albums** (under Tours).
   album.
 - An album's caption for a photo is the album's own ("Grandma, who flew in from Ohio"). Where it has none, the photo's
   own caption shows, in gray, so nothing has to be written twice.
+- **Put in date order**, in your own album, puts its photos in the order they were taken, the earliest first — the
+  order a trip was travelled, without dragging a few hundred photos. Photos with no date at all stay at the end.
+  **Undo** in the message puts the order back.
 - **Play** shows it as a slideshow in its order, after a title card; **Save as a video** and **Download all** work as
   for a tour. Opening a photo from an album, **← →** go through the album in its order.
+- **🗺 See the journey**, on an album whose photos were taken in two or more places, follows the album on the
+  map, stop by stop: see [journeys](#journeys).
 - With family accounts, each member has their own albums, and shares one as a tour is shared: they see its photos
   in its order, including those of your family they couldn't see before, but not photos others shared with you.
   Others may look at an album shared with them; only its maker, or an admin, changes it.
 - **Favorites**: **♡** on a photo's page (or **h**) gives it your heart. Each account has its own. **Your
   favorites**, on Albums, lists them, the latest first, to play or to make into an album. Tours and Home's memories
   show favorites first.
+
+## Journeys
+
+A trip — Michigan to Colorado, on to Yellowstone, Mount Rushmore and the Mall of America, then home again — is
+an album whose photos are in the order you travelled. **🗺 See the journey**, at the top of such an album,
+draws it on a map of its own. It draws itself when the page opens, the way a travel film does: the first place, then
+a dashed arc out to the next, a place again, and on to the end. Each leg keeps an arrow showing which way it went,
+and once the whole way is there, dots run along it.
+
+Nothing new has to be made or kept up to date. The journey is read from the album every time it is shown, so putting
+its photos in another order, or on the map, changes it at once.
+
+### Making one
+
+1. **Put the trip's photos in an album.** Tick them on any page of photos (a folder, a year, a search) and type an
+   album's name under **Add to an album** in the bar at the foot — a name you have no album of makes a new one.
+   The same photos can be in as many albums as you like, so an album for the trip takes nothing away from the albums
+   of each place you may already have.
+2. **Put them in the order you travelled.** The album's own order is the order of the journey. **Put in date order**
+   on the album's page is usually all it takes; otherwise drag the photos into place (on a phone or tablet, rest a
+   finger on one a moment first).
+3. **Make sure they have places.** A photo from a phone or a camera that recorded where it was is already on the map.
+   For the others, tick the photos of one stop on any page of photos and press **Put N on the map** in the bar at the
+   foot, which asks for one place for all of them at once ([putting photos on the map](#putting-photos-on-the-map));
+   one photo at a time, it is **Put it on the map** in its Details. An admin can also place a whole folder from the
+   folder's page, which covers every photo in it without a place of its own. The journey says how many of the album's
+   photos still have none.
+4. **Press 🗺 See the journey.** It comes up on the album's page as soon as its photos were taken in two or
+   more places, and **Albums** marks such an album *a journey of N stops*.
+
+### Reading it
+
+- **The stops** are the places, in the album's order: photos taken near one another, one after another in the album,
+  are one stop. Going back at the end to the place you set out from is a stop of its own, as it was a day of its own.
+- **Places this close are one stop** changes how near counts as the same place: **5 km** keeps neighboring towns
+  apart, **25 km** is the usual, **100 km** makes a day's drive one stop.
+- **Follow the journey** runs a light along the line, waiting at each place and lighting it up in the list below;
+  press it again to stop. A computer or phone set to show less movement leaves the line still until you press it.
+- **A numbered pin**, or a stop's name under the map, shows that stop's photos. Each stop says how far it is from the
+  one before, as the crow flies, how many photos it has and when they were taken, and the album's caption for its
+  first photo, if it has one.
+- The line is the way **between** the stops, not the roads you drove: LineageBox knows where the photos were taken,
+  not what lay in between.
+- **On the Map page** too: tick **Journeys** in the box at its top right to see every journey at once. They all draw
+  themselves together when the map opens, then stay as they are. It is on to begin with, and what you tick there is
+  remembered in your browser.
+
+### If it doesn't look right
+
+- **A place in the wrong spot**, or one photo off on its own in the middle of the trip, is usually a photo whose
+  place came from its folder rather than from itself. Open it and **Put it on the map** to say where it really was.
+- **A stop that should be two** (or two that should be one): try another **Places this close are one stop**.
+- **Stops in the wrong order**: the album's order is the journey's order. Press **Put in date order** on the album's
+  page, or drag the photos into place.
+- **Photos with no place yet** are counted under the map and left off the line. They stay in the album.
 
 ## Cleanup
 
@@ -867,6 +943,8 @@ The menu at the side shows one part at a time (on a phone, it is above the setti
 - On a tour, an album or Your favorites, `p` plays the slideshow. The slideshow holds the keyboard while it plays:
   space pauses, `←` `→` step, `Esc` closes it and puts you back on **Play**; a screen reader stays in it.
 - On someone's Through the years, `p` plays or pauses and `←` `→` step a year.
+- On a journey, `p` follows it along the line, and stops it again. Tab reaches each numbered pin; Enter or Space
+  opens it.
 - The keys of one letter or sign (`?`, `/`, `g` and the letters on buttons) can be turned off at the foot of the help
   (**Keys of one letter or sign**), in each browser: for a screen reader or speech software of your own, or if they get
   pressed by mistake. The arrow keys, `Esc`, Tab and Enter still work, and the help opens from **?** at the top.

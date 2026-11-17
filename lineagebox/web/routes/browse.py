@@ -99,7 +99,7 @@ def folder_page(request: Request, folder_id: int, select: bool = False, v=Depend
     watched = s.live(c).folders
     from_whom = None
     if not own:  # who shared the folder they are in
-        from_whom = next((x["by_name"] for x in sharing.with_me(w, v.account_id)
+        from_whom = next((x["by_name"] for x in sharing.with_me(w, v)
                           if x["kind"] == "folder" and x["item_id"] == crumbs[0].id), None)
     return page(request, "folder.html", folder=folder, crumbs=crumbs, labels=labels, subfolders=subfolders,
                 images=images, photos=photos, everything=[r["id"] for r in images] if select else None,

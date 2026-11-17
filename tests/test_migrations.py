@@ -110,3 +110,34 @@ def test_a_new_catalog_tells_nothing_of_its_first_reading(cfg, tmp_path):
         assert settings.get(c, outbox.PHOTOS_AFTER) == 2
     finally:
         c.close()
+
+
+def test_the_only_admins_albums_and_tours_become_theirs(cfg, tmp_path):
+    """039: with one admin, the albums and tours with no account are that admin's, so a partner sees them like the
+    rest (access.partner_shares); with several admins there is no telling whose they are, and they stay as they are."""
+    old, c = older(cfg, tmp_path, 38)
+    try:
+        c.execute("INSERT INTO account(id, email, role, created_at) VALUES (1, 'sam@example.com', 'admin', 'x'), "
+                  "(2, 'cora@example.com', 'member', 'x')")
+        c.execute("INSERT INTO album(id, name, created_at, changed_at) VALUES (1, 'Admins', 'x', 'x')")
+        c.execute("INSERT INTO album(id, name, created_at, changed_at, account_id) VALUES (2, 'Cora', 'x', 'x', 2)")
+        c.execute("INSERT INTO tour(id, name, spec, created_at) VALUES (1, 'Admins', '{}', 'x')")
+        c.execute("INSERT INTO tour(id, name, spec, created_at, account_id) VALUES (2, 'Cora', '{}', 'x', 2)")
+        c.commit()
+        db.migrate(c, old, upto=39)
+        assert dict(c.execute("SELECT id, account_id FROM album").fetchall()) == {1: 1, 2: 2}
+        assert dict(c.execute("SELECT id, account_id FROM tour").fetchall()) == {1: 1, 2: 2}
+    finally:
+        c.close()
+    old, c = older(cfg, tmp_path / "two admins", 38)
+    try:
+        c.execute("INSERT INTO account(id, email, role, created_at) VALUES (1, 'sam@example.com', 'admin', 'x'), "
+                  "(2, 'nell@example.com', 'admin', 'x')")
+        c.execute("INSERT INTO album(id, name, created_at, changed_at) VALUES (1, 'Admins', 'x', 'x')")
+        c.execute("INSERT INTO tour(id, name, spec, created_at) VALUES (1, 'Admins', '{}', 'x')")
+        c.commit()
+        db.migrate(c, old, upto=39)
+        assert c.execute("SELECT account_id FROM album").fetchone()[0] is None
+        assert c.execute("SELECT account_id FROM tour").fetchone()[0] is None
+    finally:
+        c.close()

@@ -137,6 +137,8 @@
   {%- if remove %}
   <button type="submit" data-label="{{ _('Move {n} to Removed') }}" disabled title="{{ remove }}">{% trans %}Move 0 to Removed{% endtrans %}</button>
   {%- endif %}
+  {#- places.py: the ticked photos go to the map, where one place is saved for all of them #}
+  <button type="button" data-place-ticked data-label="{{ _('Put {n} on the map') }}" disabled title="{{ _('Say where the ticked photos were taken: one place for all of them, on the map') }}">{% trans %}Put 0 on the map{% endtrans %}</button>
   <button type="button" data-download data-most="{{ zip_most }}" title="{{ _("The ticked photos' originals, as a zip") }}">{% trans %}Download{% endtrans %}</button>
 </div>
 {% endmacro %}
@@ -188,6 +190,10 @@
   </ul>
   {%- else %}
   <p class="hint">{% trans %}Not shared with anyone yet.{% endtrans %}{% if not p.admin %} {% trans %}You, the admins and whoever is in its photos see it.{% endtrans %}{% endif %}</p>
+  {%- endif %}
+  {%- if p.partners %}
+  <p class="hint">{% trans who=p.partners|join(", ") %}{{ who }} sees this already: a couple see each other's albums, tours
+    and uploads without sharing them.{% endtrans %}</p>
   {%- endif %}
   <form class="share-form" data-api="/api/shares" data-reload>
     <input type="hidden" name="{{ p.kind }}_id" value="{{ p.item_id }}">
@@ -249,13 +255,15 @@
 {% endmacro %}
 
 {# Albums (albums.py) as cards with their covers: on Albums and on the Tours page. #}
-{% macro album_cards(albums) %}
+{% macro album_cards(albums, least=2) %}
 <div class="folders albums">
 {%- for a in albums %}
   <a class="folder-card" href="/album/{{ a.id }}">
     {% if a.cover %}<img src="/t/{{ a.cover }}" loading="lazy" alt="">{% else %}<span class="ph"></span>{% endif %}
     <span class="label"><span class="name">{{ a.name }}</span><span class="count">{{ a.count|number }}</span></span>
     {%- if a.from %}<span class="label from">{% trans from_=a.from %}album, from {{ from_ }}{% endtrans %}</span>{% elif a.shared %}<span class="label from">{% trans %}shared{% endtrans %}</span>{% endif %}
+    {#- an album whose photos are in two or more places draws a journey (journeys.py): open it to see it #}
+    {%- if (a.stops or 0) >= least %}<span class="label journey">{% trans count=a.stops, stops=a.stops %}🗺 a journey of {{ stops }} stop{% pluralize %}🗺 a journey of {{ stops }} stops{% endtrans %}</span>{% endif %}
   </a>
 {%- endfor %}
 </div>

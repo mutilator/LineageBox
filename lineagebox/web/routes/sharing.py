@@ -20,8 +20,9 @@ ACCESS = {
 
 @router.get("/folders", response_class=HTMLResponse)
 def folders_page(request: Request, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
-    """A member's folders: their uploads, what others share with them, and what they share, each with whom. For an
-    admin, everything anyone shares (the library's folders are on Folders, at /)."""
+    """A member's folders: their uploads, what others share with them (their partner's among it, shared by nobody),
+    and what they share, each with whom. For an admin, everything anyone shares (the library's folders are on
+    Folders, at /)."""
     tree = catalog.folder_tree(c)
     by_path = {f.path: f for f in tree.values()}
     mine = v.account["upload_folder"] if v.account else None
@@ -39,9 +40,11 @@ def folders_page(request: Request, v=Depends(viewer), c=Depends(con), w=Depends(
     for x in shares:
         if x["kind"] == "folder":
             x["folder_name"] = labels.get(x["folder_path"]) or x["folder_name"] or "All folders"
+    # a partner sees what they add without any of this: the page says so instead of listing it as theirs to stop
+    partners = [r["name"] or "Your partner" for r in access.partner_accounts(w, v.account_id)] if v.account_id else []
     return page(request, "folders.html", nav="folders", uploads=uploads,
                 subfolders=[f for f in uploads.children if f.total] if uploads else [],
-                shared=_shared_with_me(w, c, v), shares=shares)
+                shared=_shared_with_me(w, c, v), shares=shares, partners=partners)
 
 
 def _shareable(c, v: access.Viewer, kind: str, item_id: int) -> str:

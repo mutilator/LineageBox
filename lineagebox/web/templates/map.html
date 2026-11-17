@@ -16,7 +16,7 @@ where the camera or the folder says when, lighter where only the file's time doe
 <section class="map-placing" id="placing" hidden aria-labeledby="placing-title">
   <img id="placing-thumb" alt="" hidden>
   <div>
-    <h2 id="placing-title">{% trans %}Where was <span id="placing-what">this photo</span> taken?{% endtrans %}</h2>
+    <h2 id="placing-title">{% trans %}Where was this photo taken?{% endtrans %}</h2>
     <p class="hint" id="placing-where">{% trans %}Click the map where it was taken, or find a town, then drag the pin to the spot.{% endtrans %}</p>
     <p class="placing-find"><label>{% trans %}Find a town{% endtrans %} <input type="search" id="placing-town" autocomplete="off" placeholder="{{ _('town or city') }}"></label>
       <button type="button" class="quiet" id="placing-center" title="{{ _('Move the map with the arrow keys and + and −, then put the pin in its middle') }}">{% trans %}Pin the middle of the map{% endtrans %}</button></p>
@@ -38,6 +38,8 @@ where the camera or the folder says when, lighter where only the file's time doe
   at the map's top right. To put a photo on the map yourself, open it and pick “Put it on the map” in its Details.{% endtrans %}
   {%- if not cfg.places_lookup %} {% trans %}Places named in folders and life events show once <a href="/settings#map">finding them
   with OpenStreetMap</a> is on.{% endtrans %}{% endif %}</p>
+<p class="hint">{% trans %}A trip from place to place is a journey: put its photos in <a href="/albums">an album</a>, in
+  the order you travelled, and the album draws the way you went on a map of its own, stop by stop.{% endtrans %}</p>
 <p class="hint">{% trans %}Town names for photos with GPS: <a href="https://www.geonames.org/" target="_blank"
   rel="noopener">GeoNames</a>, <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY
   4.0</a>. The list of towns comes with LineageBox, so naming places sends nothing anywhere.{% endtrans %}</p>

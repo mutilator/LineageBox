@@ -151,9 +151,10 @@ The guides go step by step:
   Play slideshows such as "the grandchildren, summer 2021", with a title card, the family's captions and dates as
   exact as they are known ("Summer 1987"), and save one as a video file to send. Home opens on memories: this week in
   earlier years, a birthday coming up, someone through the years.
-- **Albums and favorites.** Pick photos by hand for a wedding or a reunion, put them in order, choose a cover, caption
-  each and share the album with the family. A heart on a photo makes it a favorite, which tours and memories show
-  first.
+- **Albums, journeys and favorites.** Pick photos by hand for a wedding or a reunion, put them in order, choose a
+  cover, caption each and share the album with the family. An album of a trip, in the order you travelled, draws its
+  journey on a map of its own: each place in turn, the way from one to the next, and a light that follows it. A heart
+  on a photo makes it a favorite, which tours and memories show first.
 - **Tidies up safely.** It lists duplicate copies, burst shots, smaller copies, blank and blurry shots, photos on their
   side, and files a disk has damaged. Nothing is removed until you pick it, and removed files can be restored.
 - **Plays every video in the browser,** making 720p copies of camcorder and old phone formats that browsers can't

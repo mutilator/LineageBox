@@ -93,6 +93,10 @@ class Config:
     uploads_folder: str = "Family uploads"            # members' uploads: <watched folder>/<this>/<person id>
     uploads_into: str = ""                            # the watched folder that holds it; "" for the first one
     upload_max_gb: int = 4                            # the most one uploaded file may be
+    # A couple's own albums, tours, journeys and uploads are seen by each other without either having to share
+    # them (access.partner_shares). Changed on Settings → Family accounts, not in this file: access.py reads it
+    # from the catalog.
+    partners_share: bool = True
     # Updates (updates.py): once a day the newest release's version number is asked of GitHub, for admins to see
     update_check: bool = True
     update_repository: str = "mutilator/LineageBox"   # owner/name on GitHub; a fork's Docker image names its own

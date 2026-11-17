@@ -56,7 +56,8 @@ MENU = (("/upload", N_("Add photos"), N_("photos and videos from this computer o
 
 SELECTING = (N_("Ticking photos: click a photo (or Tab to it and press Space) to tick it; ↗ opens it in a new tab. The "
                 "bar at the bottom tags the ticked photos, adds someone to them, dates them, adds them to an album "
-                "(type its name; a new name makes a new album), has the AI describe them again, or moves them to the "
+                "(type its name; a new name makes a new album), puts them all on the map at one place, has the AI "
+                "describe them again, or moves them to the "
                 "Removed folder, from which they can be put back. Hold Shift and click another photo to tick every "
                 "photo between the two. Ticks stay as more photos load and on the list's other pages, until you press "
                 "Clear; Select all ticks the whole list, also the photos further down."))
@@ -101,6 +102,8 @@ PAGES = {
            "Select photos in a folder to move only those."),
         N_("Shared with you: folders, tours and photos others in the family shared with you or with everyone. You see "
            "their photos as you see your own family's."),
+        N_("What your husband, wife or partner adds is here too, if an admin has couples sharing: a couple see each "
+           "other's albums, tours, journeys and uploads without either of them having to share anything."),
         N_("What you share: everything you shared and with whom. Stop sharing takes it back at once."),
         N_("An admin sees here everything anyone shares."))),
     "error": Page(N_("A page that can't be shown"), (
@@ -200,6 +203,9 @@ PAGES = {
            "who they are, their role and their exceptions; it stays open while you do. Find an account narrows the "
            "list as you type a name, an email address, admin or member."),
         N_("Exceptions show someone more, or less, to one account: alone, or with their family."),
+        N_("Couples, in Sign-in: with Partners see what each other adds on, the albums, tours, journeys and photos one "
+           "of a couple adds are seen by the other, without either having to share them. Who is a couple comes from "
+           "the family tree: whoever is marked as someone's current partner, married or not."),
         N_("Passkeys, for those without a Google account: Make a passkey link on an account gives a link (and a QR "
            "code for their phone's camera) that makes their first passkey. It works once, for a week (a day for an "
            "admin's account). Their passkeys are listed on their account, each with Take it away. Passkeys need HTTPS, "
@@ -250,6 +256,13 @@ PAGES = {
            "moves to the confirmed ones; untick a kind in the box at the top right to see only those left to check."),
         N_("Photos with GPS are named after the nearest town, from a list that comes with LineageBox (nothing is asked "
            "online for that)."),
+        N_("A trip from place to place is a journey: put its photos in an album, in the order you travelled, and the "
+           "album draws the way you went on a map of its own, stop by stop (Albums → an album → See the "
+           "journey). Journeys, in the box at the top right, draws them on this map too, with an arrow on each leg; "
+           "click a line for its stops and a way into it."),
+        N_("Many at once: tick photos on any page of photos and press Put N on the map in the bar at the bottom, or "
+           "open an album of your own and press Put them on the map. The map then asks for one place for all of "
+           "them, and Undo in the message takes the lot back."),
         N_("To put a photo on the map yourself, open it and pick Put it on the map in its Details (admins: a folder, "
            "from the folder's page). Click where it was taken, or find a town by name, drag the pin to the spot and "
            "press Save; Undo in the message puts it back. A place given this way wins over the photo's GPS and its "
@@ -433,6 +446,8 @@ PAGES = {
            "changed or added in Settings."),
         N_("Shared with you: tours others in the family made and shared with you. You see each as it shows its photos "
            "to whoever made it."),
+        N_("A tour of yours is marked shared while someone else can see it -- including your partner, who sees what "
+           "you add while an admin has couples sharing."),
         N_("Albums, below your tours: photos picked by hand instead of by rules. All albums opens Albums."))),
     "tour": Page(N_("A tour"), (
         N_("Its photos, best of each group of similar shots; your favorites (♡ on a photo) come before others like "
@@ -456,6 +471,9 @@ PAGES = {
         N_("Make one here by its name, or tick photos on any page of photos and type an album's name in the bar at the "
            "bottom (a new name makes a new album). A photo's page adds it too, under Albums."),
         N_("Shared with you: albums others in the family made and shared with you."),
+        N_("Your partner's albums are here too while an admin has couples sharing, with no sharing needed."),
+        N_("An album whose photos were taken in two or more places is marked as a journey: open it and press See "
+           "the journey to follow the trip on the map."),
         N_("Your favorites: the photos you gave a heart (♡ on a photo's page)."))),
     "album": Page(N_("An album"), (
         N_("Its photos in its own order, each with the album's caption for it; where the album has none, the photo's "
@@ -465,11 +483,28 @@ PAGES = {
            "↑ and ↓), ★ makes one the cover, type a caption under a photo and press Enter, and × takes a photo out of "
            "the album (it stays in your photos; Undo puts it back)."),
         N_("While you drag a photo, hold it near the top or bottom of the window to scroll the page."),
+        N_("Put in date order, in your own album, puts its photos in the order they were taken, earliest first: the "
+           "order a trip was travelled, without dragging every photo. Undo in the message puts the order back."),
+        N_("See the journey, once its photos were taken in two or more places, follows the album on the map: each "
+           "place in turn, in the album's own order, with the way from one to the next."),
         N_("Sharing, at the bottom of your own album: share it with one family account or with everyone who has one. "
            "They see its photos in its order, also those of your family they couldn't see before. Photos others shared "
            "with you are not passed on.")), (
         ("Space", N_("pause or go on (in the slideshow)")), ("← →", N_("previous or next photo (in the slideshow)")),
         ("Esc", N_("leave the slideshow, or put back a photo you are dragging")))),
+    "journey": Page(N_("A journey"), (
+        N_("An album read as a trip: its photos in the album's own order, those taken near one another gathered into "
+           "one stop, and an arc from each stop to the next drawn the way you travelled. It draws itself when the "
+           "page opens, a place at a time; the arrows show which way it went, and coming back at the end to where "
+           "you set out is a stop of its own."),
+        N_("Follow the journey runs a light along the line, waiting at each place; press it again to stop. Click a "
+           "numbered pin, or a stop's name below the map, for its photos."),
+        N_("Places this close are one stop: 5 km keeps neighboring towns apart, 100 km makes a day's drive one stop."),
+        N_("The order is the album's own, so put its photos in the order you travelled (drag them on the album's "
+           "page, or press Put in date order there). A photo with no place yet is left off the line: open it and "
+           "pick Put it on the map in its Details."),
+        N_("Nothing here is kept: the journey is read from the album every time it is shown, so putting its photos "
+           "in another order, or on the map, changes it at once."))),
     "favorites": Page(N_("Your favorites"), (
         N_("The photos you gave a heart (♡ on a photo's page), the latest first. Tours pick a favorite before other "
            "photos like it, and memories on Home use one as their cover."),

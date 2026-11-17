@@ -58,6 +58,13 @@ Nothing here can be changed.{% endtrans %}</p>
       </select></label>
       <label>{% trans %}at most{% endtrans %} <input name="upload_max_gb" type="number" min="1" max="100" value="{{ cfg.upload_max_gb }}"> {% trans %}GB a file{% endtrans %}</label>
       <span class="hint">{% trans %}Each member's uploads go to <code>{{ uploads_root }}/&lt;their person's number&gt;</code>.{% endtrans %}</span></p>
+    <h3 id="couples">{% trans %}Couples{% endtrans %}</h3>
+    <p><label><input type="checkbox" name="partners_share"{% if cfg.partners_share %} checked{% endif %}>
+      {% trans %}Partners see what each other adds{% endtrans %}</label>
+      <span class="hint">{% trans %}On: the albums, tours, journeys and photos one of a couple adds are seen by the other,
+      without either of them having to share anything. It follows the family tree -- whoever is marked as someone's
+      current partner, married or not -- so it starts and stops with the couple. Off: they share with each other like
+      anyone else.{% endtrans %}</span></p>
     <p><button type="submit" class="primary">{% trans %}Save{% endtrans %}</button> <span class="hint inline" id="accounts-saved"></span></p>
   </form>
 </section>

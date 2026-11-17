@@ -105,6 +105,13 @@ def _distance(lat: float, lon: float, lats: np.ndarray, lons: np.ndarray) -> np.
     return 2 * EARTH_KM * np.arcsin(np.sqrt(np.minimum(a, 1.0)))
 
 
+def km_between(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """How far apart two places are, in km as the crow flies (haversine). _distance, for two points at a time."""
+    a, b = math.radians(lat1), math.radians(lat2)
+    gap = math.sin((b - a) / 2) ** 2 + math.cos(a) * math.cos(b) * math.sin(math.radians(lon2 - lon1) / 2) ** 2
+    return 2 * EARTH_KM * math.asin(math.sqrt(min(gap, 1.0)))
+
+
 def _towns() -> _Towns | None:
     global _loaded, _missing
     if _loaded is None and not _missing:

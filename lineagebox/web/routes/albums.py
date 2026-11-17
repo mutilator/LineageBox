@@ -2,13 +2,13 @@
 captions, the cover, sharing it, and saving it as a video; and favorites (favorites.py), the hearts on photos."""
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
-from lineagebox import access, accounts, albums, catalog, changes, favorites, sharing, slideshow, tours
+from lineagebox import access, accounts, albums, catalog, changes, favorites, journeys, sharing, slideshow, tours
 from lineagebox.catalog import VISIBLE
-from lineagebox.web.common import MEMBER, _by, _from_app, _images_or_404, _share_panel
+from lineagebox.web.common import MEMBER, _from_app, _images_or_404, _share_panel
 from lineagebox.web.deps import con, page, site, viewer, writer
 from lineagebox.web.routes.tours import ask_for_video, video_file, video_part
 from lineagebox.web.routes.uploads import zipped
@@ -20,6 +20,7 @@ ACCESS = {
     "/favorites": MEMBER,
     "/favourites": MEMBER,          # what the page was called before the spelling was put right
     "/album/{album_id}": MEMBER,
+    "/album/{album_id}/journey": MEMBER,
     "/album/{album_id}/video": MEMBER,
     "/download/album/{album_id}": MEMBER,
     "/download/album/{album_id}/video": MEMBER,
@@ -28,6 +29,7 @@ ACCESS = {
     "/api/albums/names": MEMBER,
     "/api/albums/{album_id}": MEMBER,
     "/api/albums/{album_id}/order": MEMBER,
+    "/api/albums/{album_id}/by-date": MEMBER,
     "/api/albums/{album_id}/cover": MEMBER,
     "/api/albums/{album_id}/caption": MEMBER,
     "/api/albums/{album_id}/remove": MEMBER,
@@ -37,6 +39,7 @@ ACCESS = {
     "/api/images/{image_id}/favourite": MEMBER,   # the same, under its old spelling
 }
 SECONDS = 5  # each photo's in an album's slideshow
+JOURNEYS_FOR = 60  # seconds the stop counts of every album are kept for (they read every album's photos)
 
 
 class AlbumBody(BaseModel):
@@ -112,8 +115,10 @@ def passed_on(s: Site, album: dict) -> list[int]:
 
 
 def remember(s: Site, w, album: dict) -> None:
-    """Keep what a shared album passes on, now that it may have changed; those it is shared with see it at once."""
-    if sharing.is_shared(w, "album", album["id"]) and sharing.remember_album(w, album["id"], passed_on(s, album)):
+    """Keep what a shared album passes on, now that it may have changed; those it is shared with -- or whoever made
+    it is partnered with -- see it at once."""
+    if (sharing.seen_by_others(w, "album", album["id"], album["account_id"])
+            and sharing.remember_album(w, album["id"], passed_on(s, album))):
         s.viewers.changed()
 
 
@@ -131,20 +136,26 @@ def _track(w, v: access.Viewer, summary: str, album_ids):
 # ---- pages ---------------------------------------------------------------------------------------------------------
 
 @router.get("/albums", response_class=HTMLResponse)
-def albums_page(request: Request, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
+def albums_page(request: Request, v=Depends(viewer), c=Depends(con), w=Depends(writer),
+                s: Site = Depends(site)):
     """Their own albums (an admin's: every album), those others shared with them, and their favorites."""
     every = albums.listing(c)
     shared = {r[0] for r in w.execute("SELECT DISTINCT album_id FROM main.share WHERE album_id IS NOT NULL")}
-    from_whom = {x["item_id"]: x["by_name"] for x in sharing.with_me(w, v.account_id) if x["kind"] == "album"} \
+    from_whom = {x["item_id"]: x["by_name"] for x in sharing.with_me(w, v) if x["kind"] == "album"} \
         if v.limited else {}
     for a in every:
-        a["shared"] = a["id"] in shared
+        # their partner sees what they add without a share of its own (access.partner_shares)
+        a["shared"] = a["id"] in shared or (bool(v.partners) and a["account_id"] == v.account_id)
         a["from"] = from_whom.get(a["id"])
     mine = [a for a in every if albums.theirs(v, a)]
+    # which of them draw a journey: every album's photos are read for this, so the answer is kept for a minute
+    stops = s.keep(v, ("album journeys",), JOURNEYS_FOR, lambda: journeys.how_many(c, [a["id"] for a in every]))
+    for a in every:
+        a["stops"] = stops.get(a["id"], 0)
     loved = [i for i in favorites.mine(w, v) if v.sees_image(i)]
     cover = catalog.image(c, loved[0]) if loved else None
     return page(request, "albums.html", nav="tours", albums=mine, others=[a for a in every if a not in mine],
-                favorites=len(loved), favorite_cover=cover["sha256"] if cover else None)
+                favorites=len(loved), favorite_cover=cover["sha256"] if cover else None, least=journeys.LEAST)
 
 
 @router.get("/favourites", include_in_schema=False)
@@ -177,12 +188,13 @@ def album_page(request: Request, album_id: int, v=Depends(viewer), c=Depends(con
     chosen = tours.picked(c, [p["id"] for p in photos])
     slides = [tours.title_card(a["name"], chosen, a["about"]),
               *tours.slides(c, chosen, {p["id"]: p["caption"] for p in photos})] if chosen else []
-    from_whom = next((x["by_name"] for x in sharing.with_me(w, v.account_id)
+    from_whom = next((x["by_name"] for x in sharing.with_me(w, v)
                       if x["kind"] == "album" and x["item_id"] == album_id), None) if not mine else None
     signed_in = getattr(request.state, "account", None)
     cover = albums.cover(c, a)
     return page(request, "album.html", nav="tours", album=a, photos=photos, slides=slides, mine=mine,
                 from_whom=from_whom, ctx=f"album:{album_id}", seconds=SECONDS, cover=cover,
+                stops=journeys.how_many(c, [album_id])[album_id], least=journeys.LEAST,
                 sharing=_share_panel(w, v, "album", album_id) if mine and signed_in else None,
                 video=video_part("album", album_id, slideshow.latest(w, v.account_id, "album", album_id)))
 
@@ -193,6 +205,18 @@ def album_video_part(request: Request, album_id: int, v=Depends(viewer), c=Depen
     _album_or_404(c, album_id)
     return page(request, "_slideshow_video.html",
                 video=video_part("album", album_id, slideshow.latest(w, v.account_id, "album", album_id), polled=True))
+
+
+@router.get("/album/{album_id}/journey", response_class=HTMLResponse)
+def album_journey(request: Request, album_id: int, near: str = Query("", max_length=8),
+                  v=Depends(viewer), c=Depends(con), w=Depends(writer), s: Site = Depends(site)):
+    """The album read as a trip: its stops in its own order, drawn on the map with the way between them."""
+    a = _album_or_404(c, album_id)
+    remember(s, w, a)  # what a shared album passes on follows its maker's part of the family, as on its own page
+    near_km = journeys.nearness(near)
+    return page(request, "journey.html", nav="tours", album=a, journey=journeys.of_album(c, album_id, near_km),
+                mine=albums.theirs(v, a), ctx=f"album:{album_id}", near=near_km, nearness=journeys.NEARNESS,
+                least=journeys.LEAST, cfg=s.live(c))
 
 
 @router.get("/download/album/{album_id}")
@@ -220,12 +244,13 @@ def album_names(v=Depends(viewer), w=Depends(writer)):
 # ---- changes -------------------------------------------------------------------------------------------------------
 
 @router.post("/api/albums", dependencies=[Depends(_from_app)])
-def create_album(body: AlbumBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
+def create_album(body: AlbumBody, v=Depends(viewer), c=Depends(con), w=Depends(writer), s: Site = Depends(site)):
     """A new album, with the photos given (favorites made into an album), or none yet."""
     ids = _seen(c, v, body.image_ids)
-    album_id = albums.create(w, body.name, _by(v), body.about)
+    album_id = albums.create(w, body.name, v.account_id, body.about)  # whoever made it, an admin as well
     albums.add(w, album_id, ids)
     w.commit()
+    remember(s, w, albums.get(w, album_id))  # a partner sees it from the first, without waiting for it to be opened
     return {"go": f"/album/{album_id}"}
 
 
@@ -246,7 +271,7 @@ def add_to_album(body: AddBody, v=Depends(viewer), c=Depends(con), w=Depends(wri
     with _track(w, v, f"Added photos to the album “{a['name'] if a else body.album.strip()}”",
                 [a["id"] if a else top + 1]) as kept:
         if a is None:
-            a = albums.get(w, albums.create(w, body.album, _by(v)))
+            a = albums.get(w, albums.create(w, body.album, v.account_id))
         added = albums.add(w, a["id"], ids)
     remember(s, w, a)
     there = len(ids) - added
@@ -270,6 +295,16 @@ def order_album(album_id: int, body: PhotosBody, v=Depends(viewer), c=Depends(co
     albums.reorder(w, album_id, body.image_ids)
     w.commit()
     return {}
+
+
+@router.post("/api/albums/{album_id}/by-date", dependencies=[Depends(_from_app)])
+def order_album_by_date(album_id: int, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
+    """The album's photos in the order they were taken: a trip put in the order it was travelled, without dragging
+    a few hundred photos. Tracked, so Undo puts the order back."""
+    a = _own_album(c, v, album_id)
+    with _track(w, v, f"Put the album “{a['name']}” in date order", [album_id]) as kept:
+        albums.reorder(w, album_id, albums.in_date_order(c, album_id))
+    return {"message": "In the order the photos were taken.", "undo": kept.id, "reload": True}
 
 
 @router.post("/api/albums/{album_id}/cover", dependencies=[Depends(_from_app)])
@@ -307,10 +342,10 @@ def remove_from_album(album_id: int, body: PhotosBody, v=Depends(viewer), c=Depe
 @router.post("/api/albums/{album_id}/delete", dependencies=[Depends(_from_app)])
 def delete_album(album_id: int, v=Depends(viewer), c=Depends(con), w=Depends(writer), s: Site = Depends(site)):
     a = _own_album(c, v, album_id)
-    shared = sharing.is_shared(w, "album", album_id)
+    shared = sharing.seen_by_others(w, "album", album_id, a["account_id"])
     with _track(w, v, f"Deleted the album “{a['name']}”", [album_id]) as kept:
         albums.delete(w, album_id)
-    if shared:  # those it was shared with see its photos no more
+    if shared:  # those it was shared with, or a partner, see its photos no more
         s.viewers.changed()
     return {"go": "/albums", "message": f"The album “{a['name']}” was deleted; its photos are where they were.",
             "undo": kept.id}

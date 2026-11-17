@@ -29,6 +29,10 @@ own, which you can then share.{% endtrans %}</p>
 {% endif %}
 
 <h2 id="shared">{% trans %}Shared with you{% endtrans %}</h2>
+{%- if partners %}
+<p class="meta">{% trans who=partners|join(", ") %}What {{ who }} adds is here too: a couple see each other's albums, tours
+and uploads, without either of them having to share anything.{% endtrans %}</p>
+{%- endif %}
 {% if shared.folders or shared.tours or shared.photos or shared.albums %}
 {{ m.shared_with_you(shared) }}
 {% else %}
@@ -39,6 +43,10 @@ own, which you can then share.{% endtrans %}</p>
 <h2 id="yours">{% if viewer.limited %}{% trans %}What you share{% endtrans %}{% else %}{% trans %}What is shared{% endtrans %}{% endif %}</h2>
 {% if viewer.admin %}<p class="meta">{% trans %}Everything family members and admins share, newest first. Members see the photos
 of what is shared with them as they see their own family's. <a href="/">All folders</a>{% endtrans %}</p>{% endif %}
+{%- if partners and viewer.limited %}
+<p class="meta">{% trans who=partners|join(", ") %}{{ who }} sees your albums, tours and uploads already, without your
+sharing them. Anything here is shared with someone else as well.{% endtrans %}</p>
+{%- endif %}
 {% if shares %}
 <ul class="share-list wide">
 {%- for x in shares %}

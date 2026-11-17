@@ -4,8 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
-from lineagebox import catalog, changes, places, towns, writeback
-from lineagebox.web.common import ADMIN, MEMBER, PlaceBody, PlaceConfirmBody, _from_app, _images_or_404
+import json
+
+from lineagebox import albums, catalog, changes, journeys, places, towns, writeback
+from lineagebox.web.common import ADMIN, MEMBER, ImageIds, PlaceBody, PlaceConfirmBody, _from_app, _images_or_404
 from lineagebox.web.deps import con, page, site, viewer, writer
 from lineagebox.web.site import Site
 
@@ -18,6 +20,7 @@ ACCESS = {
     "/api/places/target": MEMBER,
     "/api/towns": MEMBER,
     "/api/images/{image_id}/place": MEMBER,
+    "/api/selection/place": MEMBER,
     "/api/folders/{folder_id}/place": ADMIN,
     "/api/images/{image_id}/write-file": ADMIN,
 }
@@ -30,16 +33,34 @@ class SpotBody(BaseModel):
     clear: bool = False
 
 
+class SpotsBody(ImageIds):
+    """The same, for the photos ticked on a page or the photos of an album: one place for all of them."""
+    lat: float | None = None
+    lon: float | None = None
+    clear: bool = False
+
+
+def _photos(n: int) -> str:
+    return "1 photo" if n == 1 else f"{n:,} photos"
+
+
 @router.get("/map", response_class=HTMLResponse)
 def map_page(request: Request, c=Depends(con), s: Site = Depends(site)):
     return page(request, "map.html", nav="map", cfg=s.live(c))
 
 
+JOURNEYS_FOR = 60  # seconds the map's journeys are kept for each viewer: they read every album's photos
+
+
 @router.get("/api/map")
-def map_api(year: int | None = None, v=Depends(viewer), c=Depends(con)):
+def map_api(year: int | None = None, v=Depends(viewer), c=Depends(con), s: Site = Depends(site)):
     data = places.map_data(c, year)
     if v.limited:  # place names still to look up are the admins' business
         data.update(to_find=0, not_found=0)
+    # the journeys of the albums the viewer sees (journeys.py), for the map's own layer: worked out for every year
+    # at once and kept a minute, since the year is changed by dragging a slider
+    every = s.keep(v, ("map journeys",), JOURNEYS_FOR, lambda: journeys.on_map(c))
+    data["journeys"] = [j for j in every if year is None or year in j["years"]]
     return data
 
 
@@ -65,8 +86,9 @@ def confirm_place(body: PlaceConfirmBody, c=Depends(con)):
 
 
 @router.get("/api/places/target")
-def place_target(kind: str = Query(pattern="^(image|folder)$"), id: int = Query(), v=Depends(viewer), c=Depends(con)):
-    """What the map is placing by hand (a photo, or for an admin a folder), and where it is now, if anywhere."""
+def place_target(kind: str = Query(pattern="^(image|folder|album)$"), id: int = Query(), v=Depends(viewer), c=Depends(con)):
+    """What the map is placing by hand (a photo, an album's photos, or for an admin a folder), and where it is
+    now, if anywhere. An album answers with its photos' ids: they are placed together, as ticked photos are."""
     if kind == "image":
         img = catalog.image(c, id)
         if img is None:
@@ -76,6 +98,17 @@ def place_target(kind: str = Query(pattern="^(image|folder)$"), id: int = Query(
                 "lat": where["lat"] if where else None, "lon": where["lon"] if where else None,
                 "how": where["how"] if where else None, "label": where["label"] if where else None,
                 "by_hand": bool(where and where["how"] == "photo")}
+    if kind == "album":
+        album = albums.get(c, id)
+        if album is None:
+            raise HTTPException(404, "No such album")
+        ids = albums.photo_ids(c, id)
+        if not ids:
+            raise HTTPException(404, "No photos in that album")
+        first = catalog.image(c, ids[0])
+        return {"kind": kind, "id": id, "ids": ids, "sha": first["sha256"] if first else None,
+                "title": f"the {_photos(len(ids))} of “{album['name']}”", "back": f"/album/{id}",
+                "lat": None, "lon": None, "how": None, "label": None, "by_hand": False}
     if v.limited:
         raise HTTPException(404, "No such folder")
     folder = c.execute("SELECT id, name, path FROM folder WHERE id = ?", (id,)).fetchone()
@@ -113,6 +146,33 @@ def place_image(image_id: int, body: SpotBody, v=Depends(viewer), c=Depends(con)
     where = places.photo_place(c, image_id, catalog.image(c, image_id))
     return {"undo": kept.id, "label": where["label"] if where else None,
             "message": "Taken off the map." if body.clear else "Saved where it was taken."}
+
+
+@router.post("/api/selection/place", dependencies=[Depends(_from_app)])
+def place_selection(body: SpotsBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
+    """Put photos on the map at one place, all at once: those ticked on any page of photos, or an album's. Anyone may
+    place the photos they see, and the one message undoes the lot. A place given here wins over the photos' own GPS,
+    and over a place one of them was given by hand before."""
+    ids = list(dict.fromkeys(body.image_ids))
+    _images_or_404(c, v, ids)
+    if not body.clear and (body.lat is None or body.lon is None):
+        raise HTTPException(400, "Click the map where they were taken first.")
+    there = json.dumps(ids)
+    spec = lambda new: [("image_place", "image_id IN (SELECT value FROM json_each(?))", (there,))]  # noqa: E731
+    summary = (f"Took {_photos(len(ids))} off the map" if body.clear else f"Put {_photos(len(ids))} on the map")
+    try:
+        with changes.tracking(w, v, "places", summary, spec) as kept:
+            for image_id in ids:
+                if body.clear:
+                    places.unplace_photo(w, image_id)
+                else:
+                    places.place_photo(w, image_id, body.lat, body.lon, v.account_id)
+    except places.Problem as e:
+        raise HTTPException(400, str(e)) from None
+    label = None if body.clear else towns.label(body.lat, body.lon)
+    message = (f"Took {_photos(len(ids))} off the map." if body.clear else
+               f"Saved {_photos(len(ids))}" + (f" at {label}." if label else " where they were taken."))
+    return {"undo": kept.id, "label": label, "message": message}
 
 
 @router.post("/api/folders/{folder_id}/place", dependencies=[Depends(_from_app)])

@@ -6,6 +6,11 @@ has an account. Those it is shared with see its photos as they see their own fam
 the tour's or album's page, Home, search, the timeline and the map. People in them from outside their part of the family are named
 without a link, as on any photo they see.
 
+A couple need not share with each other at all: while Settings → Family accounts says so, the albums, tours and
+uploads one of them adds are seen by the other (access.partner_shares), and a journey with its album. Those shares are
+worked out every time from the family tree, so they follow a couple who come together or part; they are shown and
+counted like any other, but there is nothing to stop sharing.
+
 A tour picks its photos again each time it is opened, from what its maker sees. Sharing it shares those photos: they are
 kept in tour_photo whenever it is saved, shared or opened (remember), and that is what the others may see. Photos
 shared with the maker by someone else are not passed on: a tour is shared as its maker's own part of the family and
@@ -73,18 +78,48 @@ def everything(con: sqlite3.Connection, account_id: int | None = None) -> list[d
     return out
 
 
-def with_me(con: sqlite3.Connection, account_id: int) -> list[dict]:
-    """What others share with this account that still holds (access.active_shares), with who shared it, on a
-    connection that sees everything. Newest first."""
+def with_me(con: sqlite3.Connection, viewer: access.Viewer) -> list[dict]:
+    """What others share with this viewer that still holds (access.active_shares), with who shared it, on a
+    connection that sees everything. What their partner adds comes first, then the rest newest first."""
     names = dict(con.execute("""SELECT a.id, p.name FROM main.account a JOIN main.person p ON p.id = a.person_id"""))
     out = []
-    for r in reversed(access.active_shares(con, account_id)):
+    for r in reversed(access.active_shares(con, viewer.account_id, partners=bool(viewer.partners))):
         kind = next(k for k in KINDS if r[f"{k}_id"] is not None)
         out.append({"id": r["id"], "kind": kind, "item_id": r[f"{kind}_id"], "by_id": r["account_id"],
                     "by_name": names.get(r["account_id"]) or ("an admin" if r["by_role"] == "admin" else "someone"),
                     "by_uploads": r["by_uploads"], "with_everyone": r["with_id"] is None,
-                    "created_at": r["created_at"]})
+                    "automatic": access.automatic(r), "created_at": r["created_at"]})
     return out
+
+
+def goes_to_partners(con: sqlite3.Connection, viewer: access.Viewer, kind: str, item_id: int) -> list[str]:
+    """The partners who see this folder, photo, album or tour of the viewer's own without it being shared with them
+    (access.partner_shares), by name: for the sharing panel, which says so instead of offering it again. Empty when
+    the thing isn't theirs, when they have no partner with an account, or while couples don't share."""
+    assert kind in KINDS
+    if viewer.account_id is None or not (them := access.partner_accounts(con, viewer.account_id)):
+        return []
+    uploads = viewer.account["upload_folder"]
+    if kind in ("album", "tour"):
+        row = con.execute(f"SELECT account_id FROM main.{kind} WHERE id = ?", (item_id,)).fetchone()
+        theirs = row is not None and row["account_id"] is not None and row["account_id"] == viewer.account_id
+    elif kind == "folder":
+        row = con.execute("SELECT path FROM main.folder WHERE id = ?", (item_id,)).fetchone()
+        theirs = row is not None and access.within(row["path"], uploads)
+    else:
+        theirs = access.theirs_to_share(con, {"folder_id": None, "tour_id": None, "album_id": None,
+                                              "image_id": item_id, "account_id": viewer.account_id,
+                                              "by_uploads": uploads})
+    return [r["name"] or "Your partner" for r in them] if theirs else []
+
+
+def seen_by_others(con: sqlite3.Connection, kind: str, item_id: int, maker_id: int | None) -> bool:
+    """Whether what is kept of this tour or album -- the photos it passes on -- is anyone else's to see: it was
+    shared by hand, or whoever made it has a partner who sees what they add without being asked. One with no account
+    on it is the admins' own, nobody's in particular, so it goes nowhere by itself."""
+    if is_shared(con, kind, item_id):
+        return True
+    return maker_id is not None and bool(access.partner_accounts(con, maker_id))
 
 
 def who(viewer: access.Viewer, person_id: int | None, name: str | None, email: str | None) -> str:

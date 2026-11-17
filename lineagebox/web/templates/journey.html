@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{#- A journey (journeys.py, routes/albums.py): an album's photos in its own order, read as a trip from place to place,
+    drawn on the map with the way from each stop to the next. journey.js draws it from the JSON at the foot and
+    follows it stop by stop when Follow the journey is pressed. #}
+{% block title %}{% trans name=album.name %}{{ name }}: the journey{% endtrans %}{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/vendor/leaflet-1.9.4/leaflet.css">
+<script src="/static/vendor/leaflet-1.9.4/leaflet.js" defer></script>
+<script src="/static/journey.js?v={{ static_version }}" defer></script>
+{% endblock %}
+{% block main %}
+{%- set stops = journey.stops %}
+<nav class="crumbs"><a href="/albums">{% trans %}Albums{% endtrans %}</a><span class="sep">/</span>
+  <a href="/album/{{ album.id }}">{{ album.name }}</a><span class="sep">/</span><h1>{% trans %}The journey{% endtrans %}</h1></nav>
+<p class="meta">{% trans count=stops|length, stops=stops|length|number %}{{ stops }} stop{% pluralize %}{{ stops }} stops{% endtrans %}
+  {%- if journey.km %} · {% trans km=journey.km|number %}{{ km }} km in all, as the crow flies{% endtrans %}{% endif %}
+  {%- if journey.days %} · {% trans count=journey.days, days=journey.days|number %}{{ days }} day{% pluralize %}{{ days }} days{% endtrans %}{% endif %}
+  {%- if journey.placed %} · {% trans count=journey.placed, photos=journey.placed|number %}{{ photos }} photo on the map{% pluralize %}{{ photos }} photos on the map{% endtrans %}{% endif %}</p>
+
+{% if stops|length < least %}
+<p class="note">{% trans %}This album doesn't draw a journey yet.{% endtrans %}
+  {%- if journey.unplaced %} {% trans count=journey.unplaced, photos=journey.unplaced|number %}{{ photos }} of its photos has no place yet.{% pluralize %}{{ photos }} of its photos have no place yet.{% endtrans %}
+  {%- elif stops %} {% trans %}All of its photos were taken in one place.{% endtrans %}{% endif %}</p>
+<p>{% trans %}A journey is drawn from two or more places. Open a photo from the album and pick <b>Put it on the map</b>
+  in its Details to say where it was taken; a photo whose camera recorded where it was is already on the map. Then come
+  back here.{% endtrans %}</p>
+<p class="hint">{% trans id=album.id %}The order matters: the album's own order is the order travelled, so put its photos
+  in the order the trip was made (<a href="/album/{{ id }}">the album</a> drags them into place, or puts them in the
+  order they were taken).{% endtrans %}</p>
+{% else %}
+
+<p class="journey-bar">
+  <button type="button" class="primary" id="journey-play" data-key="p" data-key-label="{{ _('Follow the journey') }}">{% trans %}▶ Follow the journey{% endtrans %}</button>
+  <a class="button quiet" href="/album/{{ album.id }}">{% trans %}The album{% endtrans %}</a>
+  <span class="journey-near">{% trans %}Places this close are one stop:{% endtrans %}
+    {%- for km in nearness %}
+    <a class="chip{% if km == near %} on{% endif %}" href="/album/{{ album.id }}/journey?near={{ km|int }}"
+       {%- if km == near %} aria-current="true"{% endif %}>{% trans km=km|int %}{{ km }} km{% endtrans %}</a>
+    {%- endfor %}
+  </span>
+</p>
+<div id="map" data-tiles="{{ cfg.map_tiles }}" data-attribution="{{ cfg.map_attribution }}"></div>
+<p class="hint">{% trans %}The line goes from each stop to the next in the album's order; the arrows show which way.
+  <b>Follow the journey</b> runs along it, stopping at each place. Click a numbered pin, or a stop below, for its
+  photos.{% endtrans %}
+  {%- if journey.unplaced %} {% trans count=journey.unplaced, photos=journey.unplaced|number %}{{ photos }} photo in this album has no place yet and isn't on the line.{% pluralize %}{{ photos }} photos in this album have no place yet and aren't on the line.{% endtrans %}{% endif %}</p>
+
+<ol class="journey-stops">
+  {%- for s in stops %}
+  <li class="journey-stop" id="stop{{ s.n }}" data-stop="{{ s.n }}">
+    <b class="journey-n" aria-hidden="true">{{ s.n }}</b>
+    <div class="journey-what">
+      <h2><button type="button" class="journey-go" data-stop="{{ s.n }}"
+          title="{{ _('Show this stop on the map') }}">{{ s.name }}</button></h2>
+      <p class="hint">{% if s.km %}{% trans km=s.km|number %}{{ km }} km from the stop before{% endtrans %} · {% endif %}
+        {%- trans count=s.count, photos=s.count|number %}{{ photos }} photo{% pluralize %}{{ photos }} photos{% endtrans %}
+        {%- if s.from %} · {{ s.from|date(false) }}{% if s.to and s.to != s.from %}–{{ s.to|date(false) }}{% endif %}{% endif %}</p>
+      {%- if s.words %}<p class="said">{{ s.words }}</p>{% endif %}
+      <div class="journey-photos">
+        {%- for p in s.photos %}
+        <a class="journey-photo" href="/image/{{ p.id }}?ctx={{ ctx|urlencode }}"><img src="/t/{{ p.sha }}" loading="lazy"
+           alt="{{ _('A photo at %(place)s', place=s.name) }}"></a>
+        {%- endfor %}
+        {%- if s.count > s.photos|length %}<a class="more" href="/album/{{ album.id }}">{% trans more=(s.count - s.photos|length)|number %}{{ more }} more{% endtrans %}</a>{% endif %}
+      </div>
+    </div>
+  </li>
+  {%- endfor %}
+</ol>
+<script type="application/json" id="journey">{{ journey|tojson }}</script>
+{% endif %}
+
+<p class="hint">{% trans %}A journey is read from the album every time it is shown: put its photos in another order, or
+  on the map, and it changes at once. Nothing here is kept in the catalog.{% endtrans %}</p>
+<p class="hint">{% trans %}Town names: <a href="https://www.geonames.org/" target="_blank" rel="noopener">GeoNames</a>,
+  <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>. The list comes
+  with LineageBox, so naming places sends nothing anywhere.{% endtrans %}</p>
+{% endblock %}
