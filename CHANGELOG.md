@@ -6,15 +6,6 @@ copies it there when the version is tagged ([releases](docs/development.md#relea
 A **catalog update** adds to the catalog's tables. LineageBox copies the catalog before it updates it, and earlier
 versions can't open the updated one.
 
-## Unreleased
-
-### Updated
-
-- **American spelling throughout**, in what the site says and in the code: Favorites (was Favourites), colors,
-  recognized, catalog, license, center, gray, labeled, neighbor. `/favourites` still opens Favorites, and the
-  heart's old address still works, so bookmarks, shared links and a phone that cached the old page keep working.
-  An export's `photos.json` now writes `favorites` and `favorite_of`.
-
 ## 1.8.0 (2026-11-16)
 
 **Catalog update** (migrations 036 to 038).
@@ -46,6 +37,7 @@ versions can't open the updated one.
   family only when they had children together, so an ex-wife of many years, in hundreds of photos, was missing from
   People and her photos were not shown. Other people's former partners are unchanged: those still need a child in
   the family.
+- **American spelling throughout**, in what the site says and in the code: Favorites (was Favourites), colors,     recognized, catalog, license, center, gray, labeled, neighbor. `/favourites` still opens Favorites, and the  heart's old address still works, so bookmarks, shared links and a phone that cached the old page keep working.  An export's `photos.json` now writes `favorites` and `favorite_of`.
 - **WebM videos** are read like any other, and play without a 720p copy when the browser can show them (VP8 or VP9
   with Opus or Vorbis sound).
 
