@@ -6,7 +6,7 @@ copies it there when the version is tagged ([releases](docs/development.md#relea
 A **catalog update** adds to the catalog's tables. LineageBox copies the catalog before it updates it, and earlier
 versions can't open the updated one.
 
-## Unreleased
+## 1.10.0 (2026-11-17)
 
 **Catalog update** (migration 039).
 
