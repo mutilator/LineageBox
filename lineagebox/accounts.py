@@ -25,13 +25,13 @@ import struct
 import threading
 import time
 from collections import defaultdict, deque
-from datetime import datetime, timedelta
+from datetime import timedelta
 from urllib.parse import quote, urlencode
 
 import httpx
 import segno
 
-from lineagebox import errors
+from lineagebox import clock, errors
 from lineagebox.catalog import under
 
 ROLES = ("admin", "member")
@@ -45,10 +45,6 @@ _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 class Problem(errors.Problem):
     """Something that keeps an account from being added or someone from signing in; the message is shown."""
-
-
-def _now() -> datetime:
-    return datetime.now().replace(microsecond=0)
 
 
 # ---- accounts ------------------------------------------------------------------------------------------------------
@@ -66,7 +62,7 @@ def add(con: sqlite3.Connection, email: str, person_id: int | None, role: str = 
     if con.execute("SELECT 1 FROM account WHERE email = ?", (email,)).fetchone():
         raise Problem(f"{email} already has an account.")
     return con.execute("INSERT INTO account(email, person_id, role, created_at) VALUES (?, ?, ?, ?)",
-                       (email, person_id, role, _now().isoformat())).lastrowid
+                       (email, person_id, role, clock.now_datetime().isoformat())).lastrowid
 
 
 def update(con: sqlite3.Connection, account_id: int, *, role: str | None = None, person_id: int | None = None,
@@ -88,7 +84,7 @@ def update(con: sqlite3.Connection, account_id: int, *, role: str | None = None,
         if disabled and row["role"] == "admin":
             _not_the_last_admin(con, account_id)
         con.execute("UPDATE account SET disabled_at = ? WHERE id = ?",
-                    (_now().isoformat() if disabled else None, account_id))
+                    (clock.now_datetime().isoformat() if disabled else None, account_id))
         if disabled:
             end_sessions(con, account_id)
 
@@ -124,7 +120,7 @@ def everyone(con: sqlite3.Connection) -> list[sqlite3.Row]:
                                   AND s.expires_at > :now) AS sessions
                           FROM account a LEFT JOIN person p ON p.id = a.person_id
                           ORDER BY a.role = 'admin' DESC, p.name COLLATE NOCASE, a.email""",
-                       {"now": _now().isoformat()}).fetchall()
+                       {"now": clock.now_datetime().isoformat()}).fetchall()
 
 
 def admins_exist(con: sqlite3.Connection) -> bool:
@@ -133,7 +129,8 @@ def admins_exist(con: sqlite3.Connection) -> bool:
 
 # ---- sessions ------------------------------------------------------------------------------------------------------
 
-def _hash(token: str) -> str:
+def token_hash(token: str) -> str:
+    """A secret token as the catalog keeps it: only its hash, so a copy of the catalog signs nobody in."""
     return hashlib.sha256(token.encode()).hexdigest()
 
 
@@ -142,12 +139,12 @@ def new_session(con: sqlite3.Connection, account_id: int, days: int, ip: str = "
     """Sign someone in: returns the token for their cookie. passkey_id: the passkey they signed in with, whose
     removal ends this session. The account's first sign-in ever is marked (passkeys.may_add)."""
     token = secrets.token_urlsafe(32)
-    now = _now()
+    now = clock.now_datetime()
     first = con.execute("SELECT last_seen_at IS NULL FROM account WHERE id = ?", (account_id,)).fetchone()
     con.execute("""INSERT INTO session(token_hash, account_id, created_at, last_seen_at, expires_at, ip, user_agent,
                                        passkey_id, first_sign_in)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (_hash(token), account_id, now.isoformat(), now.isoformat(),
+                (token_hash(token), account_id, now.isoformat(), now.isoformat(),
                  (now + timedelta(days=days)).isoformat(), ip[:64], user_agent[:300], passkey_id,
                  int(bool(first and first[0]))))
     con.execute("UPDATE account SET last_seen_at = ? WHERE id = ?", (now.isoformat(), account_id))
@@ -163,18 +160,18 @@ def session_account(con: sqlite3.Connection, token: str | None, days: int) -> sq
     disabled; None otherwise."""
     if not token or len(token) > 100:
         return None
-    h = _hash(token)
+    h = token_hash(token)
     row = con.execute("""SELECT a.*, s.last_seen_at AS session_seen, s.created_at AS session_made,
                                 s.first_sign_in AS session_first, s.passkey_id AS session_passkey,
                                 p.name AS person_name
                          FROM session s JOIN account a ON a.id = s.account_id LEFT JOIN person p ON p.id = a.person_id
                          WHERE s.token_hash = ? AND s.expires_at > ? AND a.disabled_at IS NULL""",
-                      (h, _now().isoformat())).fetchone()
+                      (h, clock.now_datetime().isoformat())).fetchone()
     if row is None:
         return None
     if time.monotonic() - _touched.get(h, -1e9) > TOUCH_EVERY:
         _touched[h] = time.monotonic()
-        now = _now()
+        now = clock.now_datetime()
         try:
             con.execute("UPDATE session SET last_seen_at = ?, expires_at = ? WHERE token_hash = ?",
                         (now.isoformat(), (now + timedelta(days=days)).isoformat(), h))
@@ -188,7 +185,7 @@ def session_account(con: sqlite3.Connection, token: str | None, days: int) -> sq
 
 def end_session(con: sqlite3.Connection, token: str | None) -> None:
     if token:
-        con.execute("DELETE FROM session WHERE token_hash = ?", (_hash(token),))
+        con.execute("DELETE FROM session WHERE token_hash = ?", (token_hash(token),))
         con.commit()
 
 
@@ -400,6 +397,6 @@ def claim_uploads(con: sqlite3.Connection) -> int:
                             SELECT f.image_id, ?, ?, min(f.path) FROM file f JOIN image i ON i.id = f.image_id
                             WHERE f.path LIKE ? ESCAPE '!' AND NOT f.missing AND i.error IS NULL
                             GROUP BY f.image_id""",
-                         (account_id, _now().isoformat(), pattern)).rowcount
+                         (account_id, clock.now_datetime().isoformat(), pattern)).rowcount
     con.commit()
     return n

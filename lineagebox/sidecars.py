@@ -226,7 +226,7 @@ def run(con: sqlite3.Connection, cfg: Config, stop: Callable[[], bool] | None = 
         # the triggers note changes either way; turning sidecars on goes through every photo instead
         if con.execute("SELECT 1 FROM sidecar_stale LIMIT 1").fetchone() or settings.get(con, SWEPT):
             con.execute("DELETE FROM sidecar_stale")
-            con.execute("DELETE FROM settings WHERE key = ?", (SWEPT,))
+            settings.forget(con, SWEPT)
             con.commit()
         return stats
     from lineagebox import reorganize  # it needs more of LineageBox than this does

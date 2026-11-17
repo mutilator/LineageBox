@@ -298,7 +298,7 @@ def _video_frames(cfg: Config, path, p: video.Probe, sha: str,
         sharp, fingerprint = quality.sharpness_of(im), media.phash(im)
         if sharp < BLANK_FRAME or any(_bits(fingerprint ^ k[1]) <= SAME_FRAME for k in kept):
             continue
-        media._atomic_save(im, cfg.frame_path(sha, len(kept)), "JPEG", quality=85)
+        media.atomic_save(im, cfg.frame_path(sha, len(kept)), "JPEG", quality=85)
         if poster is None or sharp > poster[0]:
             poster = (sharp, im)
         kept.append((at, fingerprint))
@@ -307,7 +307,7 @@ def _video_frames(cfg: Config, path, p: video.Probe, sha: str,
     if not kept:  # only blank frames: keep one anyway, so the video can be seen and played
         if first is None:
             raise video.Error("no frame could be read")
-        media._atomic_save(first[1], cfg.frame_path(sha, 0), "JPEG", quality=85)
+        media.atomic_save(first[1], cfg.frame_path(sha, 0), "JPEG", quality=85)
         kept, poster = [(first[0], 0)], (0.0, first[1])
     media.save_derivatives(poster[1], cfg.preview_path(sha), cfg.thumb_path(sha), cfg.thumb_size)
     return [(idx, at) for idx, (at, _) in enumerate(kept)]
@@ -335,7 +335,7 @@ def _rebuild(con: sqlite3.Connection, cfg: Config, stop: Callable[[], bool] | No
                 for idx, at in con.execute("SELECT idx, at FROM video_frame WHERE image_id = ? ORDER BY idx",
                                            (r["id"],)).fetchall():
                     im = video.frame(path, at, cfg.preview_size, p)
-                    media._atomic_save(im, cfg.frame_path(r["sha256"], idx), "JPEG", quality=85)
+                    media.atomic_save(im, cfg.frame_path(r["sha256"], idx), "JPEG", quality=85)
                     sharp = quality.sharpness_of(im)
                     if poster is None or sharp > poster[0]:
                         poster = (sharp, im)

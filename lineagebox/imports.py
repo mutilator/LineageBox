@@ -157,7 +157,7 @@ class Reader:
                     continue  # ffffffffffffffff: a face Picasa found that nobody named
                 v = int(m[1].zfill(16), 16)
                 left, top, right, bottom = ((v >> s) & 0xFFFF for s in (48, 32, 16, 0))
-                if box := _box(left / 65535, top / 65535, right / 65535, bottom / 65535):
+                if box := xmp.inside_box(left / 65535, top / 65535, right / 65535, bottom / 65535):
                     found.regions.append((who, *box))
             found.keywords = [k.strip() for k in keys.get("keywords", "").split(",") if k.strip()]
             if (caption := keys.get("caption", "").strip()) and not xmp.CAMERA_WORDS.match(caption):
@@ -270,11 +270,6 @@ def _contacts(path: Path) -> dict[str, str]:
         if (cid := c.get("id")) and (name := " ".join((c.get("name") or "").split())):
             out[cid.lower()] = name
     return out
-
-
-def _box(x1, y1, x2, y2):
-    x1, y1, x2, y2 = (min(1.0, max(0.0, v)) for v in (x1, y1, x2, y2))
-    return (x1, y1, x2, y2) if x2 - x1 > 0.002 and y2 - y1 > 0.002 else None
 
 
 # ---- bringing it in -----------------------------------------------------------------------------------------------

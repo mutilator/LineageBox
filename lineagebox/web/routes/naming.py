@@ -24,10 +24,10 @@ from pydantic import BaseModel, Field
 from lineagebox import access, catalog, changes, errors, people
 from lineagebox.catalog import VISIBLE
 from lineagebox.folders import FolderIndex
-from lineagebox.web.common import MEMBER, _by, _face_to_change, _faces_spec, _from_app, _people_or_404
+from lineagebox.web.common import MEMBER, added_by, face_to_change, faces_spec, from_app, people_or_404
 from lineagebox.web.deps import con, page, site, viewer, writer
 from lineagebox.web.routes import face_checks
-from lineagebox.web.routes.browse import COUNTS_FOR, _faces_to_confirm
+from lineagebox.web.routes.browse import COUNTS_FOR, faces_to_confirm
 from lineagebox.web.routes.home import who_is_this
 from lineagebox.web.site import Site
 
@@ -140,7 +140,7 @@ def _next(s: Site, v: access.Viewer, c, w, state: dict, every_count: bool = Fals
         return (waiting[0] if waiting else None), len(waiting)
 
     def suggested():
-        groups, _ = _faces_to_confirm(s, v, c)
+        groups, _ = faces_to_confirm(s, v, c)
         waiting = [(f["id"], g["person_id"], f["score"], f.get("sure")) for g in groups for f in g["faces"]
                    if f["id"] not in passed]
         return (waiting[0] if waiting else None), len(waiting)
@@ -270,7 +270,7 @@ def _sure_enough(s: Site, v: access.Viewer, c, step: str, bar: float) -> dict[in
     if step == "recognized":
         found = people.recognized_sure(c, bar)
     else:
-        groups, _ = _faces_to_confirm(s, v, c)
+        groups, _ = faces_to_confirm(s, v, c)
         found = {g["person_id"]: [f["id"] for f in g["faces"] if (f.get("sure") or 0) >= bar - 1e-9] for g in groups}
     unknown = {r[0] for r in c.execute("SELECT face_id FROM face_question_skip WHERE account_id = ?",
                                        (v.account_id or 0,))}
@@ -349,12 +349,12 @@ def _answerable(c, v: access.Viewer, face_id: int, person_id: int) -> tuple:
     f = catalog.face(c, face_id)
     if f is None:
         raise HTTPException(404, "No such face")
-    _face_to_change(c, v, face_id)
-    _people_or_404(c, person_id)
+    face_to_change(c, v, face_id)
+    people_or_404(c, person_id)
     return f, catalog.person(c, person_id)["name"]
 
 
-@router.post("/api/faces/{face_id}/yes", dependencies=[Depends(_from_app)])
+@router.post("/api/faces/{face_id}/yes", dependencies=[Depends(from_app)])
 def yes(face_id: int, body: PersonBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     """It is them: named as them by hand (people.is_them), unless someone has since named it as someone else by hand,
     or said it isn't a face."""
@@ -363,25 +363,25 @@ def yes(face_id: int, body: PersonBody, v=Depends(viewer), c=Depends(con), w=Dep
         raise Problem("Someone said this isn't a face. Look for faces again, on its photo, brings it back.")
     if f["assigned_by"] == "user" and f["person_id"] != body.person_id:
         raise Problem("Someone has named this face by hand since: Fix, on its photo, puts a wrong name right.")
-    with changes.tracking(w, v, "faces", f"Named a face {name}", _faces_spec(v, [face_id])) as kept:
-        people.is_them(w, body.person_id, [face_id], _by(v))
+    with changes.tracking(w, v, "faces", f"Named a face {name}", faces_spec(v, [face_id])) as kept:
+        people.is_them(w, body.person_id, [face_id], added_by(v))
     return {"person_id": body.person_id, "message": f"Named {name}.", "undo": kept.id}
 
 
-@router.post("/api/faces/{face_id}/no", dependencies=[Depends(_from_app)])
+@router.post("/api/faces/{face_id}/no", dependencies=[Depends(from_app)])
 def no(face_id: int, body: NoBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     """It isn't them (people.not_this_person), nor any of also (Neither: not the name a face was recognized as, nor
     whom it looks more like). /api/faces/{id}/who then says who else it may be."""
     pids = list(dict.fromkeys([body.person_id, *body.also]))
     names = [_answerable(c, v, face_id, pid)[1] for pid in pids]
     said = names[0] if len(names) == 1 else f"{', '.join(names[:-1])} or {names[-1]}"
-    with changes.tracking(w, v, "faces", f"Said a face isn't {said}", _faces_spec(v, [face_id])) as kept:
+    with changes.tracking(w, v, "faces", f"Said a face isn't {said}", faces_spec(v, [face_id])) as kept:
         for pid in pids:
             people.not_this_person(w, pid, [face_id])
     return {"message": f"Not {said}: noted.", "undo": kept.id}
 
 
-@router.post("/api/faces/sure-yes", dependencies=[Depends(_from_app)])
+@router.post("/api/faces/sure-yes", dependencies=[Depends(from_app)])
 def sure_yes(body: SureBody, v=Depends(viewer), c=Depends(con), w=Depends(writer), s: Site = Depends(site)):
     """Yes to every face of a step of the queue (SURE_STEPS) at least so sure, worked out again now: each named as its
     person by hand (people.is_them; recognition then learns from it), all as one change to undo."""
@@ -392,23 +392,23 @@ def sure_yes(body: SureBody, v=Depends(viewer), c=Depends(con), w=Depends(writer
     if not ids:
         return {"message": "No faces are that sure just now.", "reload": True}
     with changes.tracking(w, v, "faces", f"Said yes to {len(ids):,} faces at least {body.at_least}% sure",
-                          _faces_spec(v, ids)) as kept:
-        named = sum(len(people.is_them(w, pid, faces, _by(v))) for pid, faces in found.items())
+                          faces_spec(v, ids)) as kept:
+        named = sum(len(people.is_them(w, pid, faces, added_by(v))) for pid, faces in found.items())
     return {"named": named, "undo": kept.id, "reload": True,
             "message": f"Said yes to {named:,} face{'' if named == 1 else 's'}."}
 
 
-@router.post("/api/people/{person_id}/yes", dependencies=[Depends(_from_app)])
+@router.post("/api/people/{person_id}/yes", dependencies=[Depends(from_app)])
 def yes_faces(person_id: int, body: YesBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     """Check faces: the faces ticked are them (people.is_them); one named by hand as someone else since keeps that."""
-    _people_or_404(c, person_id)
+    people_or_404(c, person_id)
     for face_id in body.yes:
         if catalog.face(c, face_id) is None:
             raise HTTPException(404, "No such face")
-        _face_to_change(c, v, face_id)
+        face_to_change(c, v, face_id)
     name = catalog.person(c, person_id)["name"]
     with changes.tracking(w, v, "faces", f"Confirmed {len(body.yes)} faces as {name}",
-                          _faces_spec(v, body.yes)) as kept:
-        named = people.is_them(w, person_id, body.yes, _by(v))
+                          faces_spec(v, body.yes)) as kept:
+        named = people.is_them(w, person_id, body.yes, added_by(v))
     return {"named": len(named), "undo": kept.id,
             "message": f"{len(named):,} face{'' if len(named) == 1 else 's'} confirmed as {name}."}

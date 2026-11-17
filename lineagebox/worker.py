@@ -25,7 +25,7 @@ from datetime import datetime, timedelta
 
 from lineagebox import (accounts, backup, check, cleanup, dedup, faces, orientation, people, places, quality, search,
                         settings, slideshow, speech, storage, updates, video)
-from lineagebox import imports, sidecars
+from lineagebox import clock, imports, sidecars
 from lineagebox import chapters, stories
 from lineagebox import changes, outbox
 from lineagebox import scan_dates  # the dates written on scanned documents, read by the AI
@@ -54,7 +54,7 @@ class PassResult:
 
 def set_state(con: sqlite3.Connection, **changes) -> None:
     state = settings.get(con, "worker", {})
-    state.update(changes, heartbeat=_now())
+    state.update(changes, heartbeat=clock.now())
     settings.put(con, "worker", state)
 
 
@@ -67,7 +67,7 @@ class Stopper:
 
     def __init__(self, con: sqlite3.Connection, base: Config, budget_seconds: float):
         self.con, self.base = con, base
-        self.started, self.started_at = time.monotonic(), _now()
+        self.started, self.started_at = time.monotonic(), clock.now()
         self.budget = budget_seconds
         self.looked = 0.0
         self.reason: str | None = None
@@ -122,7 +122,7 @@ def run_once(con: sqlite3.Connection, cfg: Config, stop: Stopper | None = None) 
     result = PassResult()
 
     def stage(name, fn):
-        set_state(con, stage=name, stage_since=_now())
+        set_state(con, stage=name, stage_since=clock.now())
         try:
             return fn()
         except Exception:  # one broken stage must not stop the others, or the next pass
@@ -194,7 +194,8 @@ def run_once(con: sqlite3.Connection, cfg: Config, stop: Stopper | None = None) 
     # long videos' chapters, and the frames they lack (chapters.py): before the faces stage, so that a tape read just
     # now has its faces found on those frames too
     if video.available() and chapters.count_pending(con):
-        if (ch := stage("chapters", lambda: chapters.find(con, cfg, stop=_for_minutes(CHAPTER_MINUTES, stop))))                 and ch.done:
+        if (ch := stage("chapters", lambda: chapters.find(con, cfg, stop=_for_minutes(CHAPTER_MINUTES, stop)))) \
+                and ch.done:
             log(con, f"chapters: {ch.chapters} chapters and {ch.frames} more frames in {ch.done} long videos "
                      f"in {ch.seconds / 60:.0f} min" + (f", {ch.failed} failed" if ch.failed else "")
                 + (f", {ch.pending - ch.done - ch.failed} left" if ch.stopped else ""))
@@ -205,7 +206,7 @@ def run_once(con: sqlite3.Connection, cfg: Config, stop: Stopper | None = None) 
         ollama = Ollama(cfg)
         online = ollama.reachable()
         was_online = settings.get(con, "worker", {}).get("ollama")
-        set_state(con, ollama=online, ollama_checked=_now())
+        set_state(con, ollama=online, ollama_checked=clock.now())
         if not online and was_online is not False:
             log(con, f"Ollama at {cfg.ollama_url} is not answering; descriptions wait for a later pass")
         if online:
@@ -400,7 +401,7 @@ def run_forever(con: sqlite3.Connection, base: Config) -> None:
             elif waiting_for == "ollama" and time.monotonic() - ollama_tried >= OLLAMA_RETRY:
                 ollama_tried = time.monotonic()
                 online = Ollama(cfg).reachable()
-                set_state(con, ollama=online, ollama_checked=_now())
+                set_state(con, ollama=online, ollama_checked=clock.now())
                 if online:
                     reason = "Ollama is answering again"
             elif waiting_for == "model" and time.monotonic() - ollama_tried >= OLLAMA_RETRY:
@@ -408,7 +409,7 @@ def run_forever(con: sqlite3.Connection, base: Config) -> None:
                 if Ollama(cfg).reachable() and Ollama(cfg).model_problem() is None:
                     reason = "Ollama's model is ready"
             if reason:
-                last_start = _now()
+                last_start = clock.now()
                 set_state(con, pass_started=last_start, pass_reason=reason, next_pass=None)
                 if reason != "scheduled":
                     log(con, f"pass started: {reason}")
@@ -420,7 +421,7 @@ def run_forever(con: sqlite3.Connection, base: Config) -> None:
                 next_pass = time.monotonic() if result.run_again else started + budget
                 waiting_for, ollama_tried = result.waiting_for, time.monotonic()
                 wait = max(0.0, next_pass - time.monotonic())
-                set_state(con, pass_finished=_now(), waiting_for=waiting_for,
+                set_state(con, pass_finished=clock.now(), waiting_for=waiting_for,
                           next_pass=(datetime.now() + timedelta(seconds=wait)).isoformat(timespec="seconds"))
                 continue
             try:
@@ -442,7 +443,3 @@ def _note_progress(con: sqlite3.Connection, cfg: Config) -> None:
         progress.record(con, cfg)
     except sqlite3.OperationalError:
         con.rollback()
-
-
-def _now() -> str:
-    return datetime.now().isoformat(timespec="seconds")

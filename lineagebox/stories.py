@@ -17,7 +17,8 @@ import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from lineagebox import errors, video
+from lineagebox import clock, errors, video
+from lineagebox.comments import may_change  # noqa: F401 (whoever recorded a story, or an admin: as a comment)
 from lineagebox.config import Config
 
 MOST_BYTES = 60 * 2**20  # an hour of a phone's voice memo; 30 minutes recorded in the browser is about 8 MB
@@ -60,10 +61,6 @@ def path_of(cfg: Config, row) -> Path:
 def kind_of(head: bytes) -> str | None:
     """The kind of sound a file is, from its first bytes (KINDS); None if it isn't one taken."""
     return next((k for k, (_, looks) in KINDS.items() if looks(head)), None)
-
-
-def _now() -> str:
-    return datetime.now().isoformat(timespec="seconds")
 
 
 def _title(text: str | None) -> str | None:
@@ -111,7 +108,7 @@ def save(con: sqlite3.Connection, cfg: Config, data: bytes, account_id: int | No
                                                  account_id, at)
                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                        (image_id, person_id, event_id, rel, KINDS[kind][0], len(data), seconds, title, account_id,
-                        _now())).lastrowid
+                        clock.now())).lastrowid
 
 
 def _length(path: Path) -> float | None:
@@ -130,14 +127,9 @@ def get(con: sqlite3.Connection, story_id: int) -> sqlite3.Row | None:
     return con.execute("SELECT * FROM story WHERE id = ? AND removed_at IS NULL", (story_id,)).fetchone()
 
 
-def may_change(row, account_id: int | None, admin: bool) -> bool:
-    """A story's words are corrected, or it is taken away, by whoever recorded it, or by an admin."""
-    return admin or (account_id is not None and row["account_id"] == account_id)
-
-
 def remove(con: sqlite3.Connection, story_id: int) -> None:
     """Take a story away: hidden at once, deleted for good after KEEP_REMOVED_DAYS (purge). Doesn't commit."""
-    con.execute("UPDATE main.story SET removed_at = ? WHERE id = ? AND removed_at IS NULL", (_now(), story_id))
+    con.execute("UPDATE main.story SET removed_at = ? WHERE id = ? AND removed_at IS NULL", (clock.now(), story_id))
 
 
 def correct(con: sqlite3.Connection, story_id: int, title: str | None, words: str | None) -> None:

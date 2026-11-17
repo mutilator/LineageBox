@@ -13,7 +13,7 @@ import sqlite3
 from datetime import datetime, time, timedelta
 from pathlib import Path
 
-from lineagebox import accounts, config, demo, errors, https, mounts, scan
+from lineagebox import accounts, clock, config, demo, errors, https, mounts, scan
 from lineagebox.config import Config
 
 EDITABLE = ("folders", "ignore_dirs", "ingest_threads", "worker_interval_minutes", "describe_schedule", "describe_from",
@@ -86,7 +86,7 @@ def save(con: sqlite3.Connection, cfg: Config, changes: dict) -> Config:
                     [(k, json.dumps(list(v) if isinstance(v, tuple) else v)) for k, v in clean.items()])
     if clean.get("southern_hemisphere", now.southern_hemisphere) != now.southern_hemisphere:
         con.execute("DELETE FROM search_fts")  # season words in it change: the worker makes it again on its pass
-    con.execute("INSERT OR REPLACE INTO settings(key, value) VALUES ('saved_at', ?)", (json.dumps(_now()),))
+    con.execute("INSERT OR REPLACE INTO settings(key, value) VALUES ('saved_at', ?)", (json.dumps(clock.now()),))
     con.commit()
     return dataclasses.replace(now, **clean)
 
@@ -237,10 +237,24 @@ def get(con: sqlite3.Connection, key: str, default=None):
     return json.loads(row[0]) if row else default
 
 
-def put(con: sqlite3.Connection, key: str, value) -> None:
-    """Store one value and commit: only called between the worker's stages, never inside another write."""
+def put(con: sqlite3.Connection, key: str, value, commit: bool = True) -> None:
+    """Store one value and commit. commit False: it goes with the caller's write (rows it marks as done, say), which
+    commits both."""
     con.execute("INSERT OR REPLACE INTO settings(key, value) VALUES (?, ?)", (key, json.dumps(value)))
-    con.commit()
+    if commit:
+        con.commit()
+
+
+def forget(con: sqlite3.Connection, key: str) -> None:
+    """Take a value away; it goes with the caller's write (doesn't commit)."""
+    con.execute("DELETE FROM settings WHERE key = ?", (key,))
+
+
+def starting_with(con: sqlite3.Connection, prefix: str) -> dict:
+    """Every value whose key starts with prefix (one for each download, say): key -> value."""
+    like = prefix.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%"
+    return {k: json.loads(v) for k, v in con.execute("SELECT key, value FROM settings WHERE key LIKE ? ESCAPE '!'",
+                                                     (like,))}
 
 
 PROBLEM_SERVICES = {"ollama": "Ollama", "whisper": "Whisper", "https": "HTTPS", "ffmpeg": "Videos",
@@ -255,7 +269,7 @@ def set_problem(con: sqlite3.Connection, service: str, message: str | None) -> b
     if (get(con, f"problem:{service}") or {}).get("message") == message:
         return False
     if message:
-        put(con, f"problem:{service}", {"message": message, "at": _now()})
+        put(con, f"problem:{service}", {"message": message, "at": clock.now()})
     else:
         con.execute("DELETE FROM settings WHERE key = ?", (f"problem:{service}",))
         con.commit()
@@ -265,10 +279,6 @@ def set_problem(con: sqlite3.Connection, service: str, message: str | None) -> b
 def problems(con: sqlite3.Connection) -> dict[str, dict]:
     """service -> {"message", "at"} for each service with a problem."""
     return {s: p for s in PROBLEM_SERVICES if (p := get(con, f"problem:{s}"))}
-
-
-def _now() -> str:
-    return datetime.now().isoformat(timespec="seconds")
 
 
 # ---- checks, one per editable setting ------------------------------------------------------------------------------
@@ -611,3 +621,9 @@ _CHECKS = {
 _CHECKS["ollama_embed_model"] = _embed_model
 _CHECKS.update(sidecars_enabled=_switch, import_enabled=_switch)
 _CHECKS["whisper_language"] = _whisper_language
+
+
+def check(key: str, value, cfg: Config):
+    """One setting's value as the Settings page saves it (a model's name as Ollama lists it, a switch as True or
+    False), for a page that takes it on its own; raises Invalid with what is wrong, as the Settings page says it."""
+    return _CHECKS[key](value, cfg)

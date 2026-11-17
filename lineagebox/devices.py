@@ -10,10 +10,9 @@ and videos on that list. Every other page and API refuses it, as if it weren't t
 """
 import secrets
 import sqlite3
-from datetime import datetime
 
-from lineagebox import errors
-from lineagebox.accounts import _hash
+from lineagebox import clock, errors
+from lineagebox.accounts import token_hash
 
 # what a link can show; each has a picker for its photos in web/frames.PICKERS
 VIEWS = {"memories": "Memories", "tour": "A tour", "album": "An album"}
@@ -24,10 +23,6 @@ SEEN_EVERY = 600  # seconds between writing a link's last use: the frame asks fo
 
 class Problem(errors.Problem):
     """Something that keeps a link from being made; the message is shown."""
-
-
-def _now() -> str:
-    return datetime.now().isoformat(timespec="seconds")
 
 
 def make(con: sqlite3.Connection, name: str, view: str, *, account_id: int | None = None, tour_id: int | None = None,
@@ -58,8 +53,8 @@ def make(con: sqlite3.Connection, name: str, view: str, *, account_id: int | Non
     link_id = con.execute("""INSERT INTO main.device_link(name, token_hash, view, account_id, tour_id, album_id,
                                                           home_only, seconds, made_by, made_at)
                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                          (name, _hash(token), view, account_id, tour_id, album_id, int(bool(home_only)), seconds,
-                           made_by, _now())).lastrowid
+                          (name, token_hash(token), view, account_id, tour_id, album_id, int(bool(home_only)), seconds,
+                           made_by, clock.now())).lastrowid
     con.commit()
     return link_id, token
 
@@ -67,7 +62,7 @@ def make(con: sqlite3.Connection, name: str, view: str, *, account_id: int | Non
 def revoke(con: sqlite3.Connection, link_id: int) -> bool:
     """Turn a link off for good. True if it was on. Commits."""
     n = con.execute("UPDATE main.device_link SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL",
-                    (_now(), link_id)).rowcount
+                    (clock.now(), link_id)).rowcount
     con.commit()
     return n == 1
 
@@ -114,7 +109,7 @@ def by_token(con: sqlite3.Connection, token: str | None) -> dict | None:
         return None
     row = con.execute("""SELECT d.* FROM main.device_link d LEFT JOIN main.account a ON a.id = d.account_id
                          WHERE d.token_hash = ? AND d.revoked_at IS NULL
-                           AND (d.account_id IS NULL OR a.disabled_at IS NULL)""", (_hash(token),)).fetchone()
+                           AND (d.account_id IS NULL OR a.disabled_at IS NULL)""", (token_hash(token),)).fetchone()
     return dict(row) if row else None
 
 
@@ -122,7 +117,7 @@ def seen(con: sqlite3.Connection, link_id: int, ip: str) -> None:
     """When and from where a link was last used, for the list on Settings. Commits; busy is no matter."""
     try:
         con.execute("UPDATE main.device_link SET last_seen_at = ?, last_seen_ip = ? WHERE id = ?",
-                    (_now(), ip[:64], link_id))
+                    (clock.now(), ip[:64], link_id))
         con.commit()
     except sqlite3.OperationalError:
         con.rollback()

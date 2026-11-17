@@ -13,7 +13,7 @@ The `gate` middleware in `lineagebox/web/app.py` answers only:
 
 Behind a reverse proxy, the client's address and scheme come from `X-Forwarded-For` and `X-Forwarded-Proto`, but only
 when the request comes from one of `trusted_proxies`. Every POST also needs `X-Requested-With: lineagebox`
-(`_from_app`). A cross-site form can't set that header. Two plain posts change nothing and do without it: the phone's
+(`from_app`). A cross-site form can't set that header. Two plain posts change nothing and do without it: the phone's
 share sheet (`/upload/shared`, which only leads to Upload) and the ticked photos' zip (`/download`, a form, so that the
 browser saves the file). `tests/test_access_web.py` fails for any other POST without the check, and for a GET that
 changes the catalog.
@@ -220,7 +220,7 @@ In a route:
 - `w=Depends(writer)` is for changes. For an admin it is the same connection, and for a member one that sees
   everything.
 
-Check a member's ids on `c` (or with `_people_or_404`, `_images_or_404`, `_face_to_change`), then write on `w`.
+Check a member's ids on `c` (or with `people_or_404`, `images_or_404`, `face_to_change`), then write on `w`.
 Derived data (the search index, names in videos) must be worked out on `w`, never on a member's views. Admin
 connections and the worker get no views.
 

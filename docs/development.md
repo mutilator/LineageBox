@@ -79,7 +79,7 @@ applying new ones, and refuse a catalog newer than they know.
   query string needs its addresses added to `queries`). The `swept` fixture adds stories, a source, a place by hand,
   comments and a device link for the two sweeps, which also check that no GET changed the catalog (`_snapshot`: add a
   new table of the family's there). The same sweep runs through a photo frame's device link (`/d/<token>` + each
-  address), where only `frames.ROUTES` may answer. A new POST without `_from_app` fails
+  address), where only `frames.ROUTES` may answer. A new POST without `from_app` fails
   `test_every_change_comes_from_the_apps_own_scripts` unless it is one of `PLAIN_POSTS`.
 - A GEDCOM round trip into an empty catalog: a second `Config` with another `data_dir` and `db.connect` on it, as
   `tests/test_life_story.py` does (`test_an_export_comes_back_whole_in_another_catalog`), for 7.0 and 5.5.1 both.
@@ -198,7 +198,7 @@ page to its list when it shows something the others don't.
    which the help's "Every page" list shows; `test_every_page_list_matches_the_menu` checks an admin's and a
    member's.
 4. For a member route, read with `c=Depends(con)`, the viewer's filtered connection. Check ids with
-   `_people_or_404`, `_images_or_404` or `_face_to_change`.
+   `people_or_404`, `images_or_404` or `face_to_change`.
 5. Run `tests/test_access_web.py`. It requests every GET route with every id, as each kind of member, looking for
    leaks, and through a photo frame's device link. A device link opens a route only when it is in `frames.ROUTES`
    (`web/frames.py`); leave it out unless a frame needs it.
@@ -208,7 +208,7 @@ page to its list when it shows something the others don't.
 
 ### An API
 
-- POST routes take `dependencies=[Depends(_from_app)]`, which requires `X-Requested-With: lineagebox`.
+- POST routes take `dependencies=[Depends(from_app)]`, which requires `X-Requested-With: lineagebox`.
 - Write on `w=Depends(writer)`, after checking a member's ids on `c`. Every change goes through `changes.tracking`
   (a member's, an admin's, or anyone's at home), so it shows on Recent changes and can be undone. Its `specs` name
   the rows the change can touch; `with changes.tracking(...) as kept:` gives the change's id after the block, and a

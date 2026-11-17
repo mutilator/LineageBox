@@ -276,7 +276,7 @@ async function smaller(file, most = 2000) {
     return new Promise((done, failed) => {
       const reader = new FileReader();
       reader.onload = () => done(reader.result);
-      reader.onerror = failed;
+      reader.onerror = () => failed(reader.error ?? new Error(file.name));  // the error, not the event: it has words
       reader.readAsDataURL(file);
     });
   }
@@ -366,7 +366,8 @@ document.addEventListener("submit", (e) => {
   } else if ("files" in form.dataset) {
     filesBody(form).then((body) => run(form, form.dataset.api, body));
   } else if ("photos" in form.dataset) {
-    photosBody(form).then((body) => run(form, form.dataset.api, body), (err) => notice(t("A photo couldn't be read: {why}", { why: err }), { error: true }));
+    photosBody(form).then((body) => run(form, form.dataset.api, body),
+      (err) => notice(t("A photo couldn't be read: {why}", { why: err?.message || String(err) }), { error: true }));
   } else if ("faces" in form.dataset) {
     // faces suggested as someone: the ticked ones are them and the rest are not; "None of these" says none are
     const boxes = [...form.querySelectorAll('input[name="face"]')];
@@ -2509,7 +2510,7 @@ document.addEventListener("submit", (e) => {
   run(form, form.dataset.yesFaces, { yes });
 });
 
-// ---- An app on the phone, and New for you (N7, N8) -----------------------------------------------------------------
+// ---- An app on the phone, and New for you --------------------------------------------------------------------------
 // The service worker (/sw.js, routes/phone.py) lets a phone keep LineageBox on its home screen and share photos to it.
 // Browsers run one only over HTTPS (or on the machine itself): over plain http at home nothing is registered, and every
 // page works as it always has.
@@ -2905,7 +2906,7 @@ document.addEventListener("click", (e) => {
   if (e.target.closest("[data-print]")) window.print();
 });
 
-// ---- A shorter menu, first steps, plain words, light or dark, printing (U8, U9, U10, U12; base.html, home.html) ----
+// ---- A shorter menu, first steps, plain words, light or dark, printing (base.html, home.html) ----------------------
 // The round button's panel (who is signed in, how the site looks): it closes when the keyboard moves on out of it,
 // so it never stays open over what has the focus next.
 document.querySelector(".top .profile")?.addEventListener("focusout", (e) => {
@@ -3183,7 +3184,7 @@ addEventListener("afterprint", () => {
   printUnfolded = [];
 });
 
-// ---- Big pages in pieces, ticking photos, and keyboard and screen readers (U6, U11) --------------------------------
+// ---- Big pages in pieces, ticking photos, and keyboard and screen readers ------------------------------------------
 // Keys of one letter or sign (?, /, g then a letter, and every data-key) can be turned off in the help panel: then a
 // screen reader's or speech software's own keys reach it, and nothing happens when one is pressed by mistake. The
 // arrow keys, Esc, Tab and Enter still work. Kept in this browser. (The key handlers above ask lettersOff().)
@@ -3456,7 +3457,7 @@ document.querySelectorAll(".life-story").forEach((life) => {
   new MutationObserver(watch).observe(life, { childList: true, subtree: true });
 });
 
-// ---- Other languages (N13, i18n.py, docs/translating.md) ------------------------------------------------------------
+// ---- Other languages (i18n.py, docs/translating.md) -----------------------------------------------------------------
 // Every message a script shows goes through t("English text", { name: value }), and one that counts something through
 // tn("{n} photo", "{n} photos", n). A page in another language carries its translations (#lineagebox-text, from
 // i18n.script_catalog); an English page carries none, and each text is shown as it is written. {name} in a text is

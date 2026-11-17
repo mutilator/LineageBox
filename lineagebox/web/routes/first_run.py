@@ -3,7 +3,7 @@ for good. Home and the empty start page work the list out themselves (home.py, b
 from fastapi import APIRouter, Depends
 
 from lineagebox import first_run
-from lineagebox.web.common import ADMIN, _from_app
+from lineagebox.web.common import ADMIN, from_app
 from lineagebox.web.deps import con
 
 router = APIRouter()
@@ -12,7 +12,7 @@ ACCESS = {
 }
 
 
-@router.post("/api/first-run/hide", dependencies=[Depends(_from_app)])
+@router.post("/api/first-run/hide", dependencies=[Depends(from_app)])
 def hide(c=Depends(con)):
     """Put away for good, for every admin: the steps are what any LineageBox needs once, not one person's to-do."""
     first_run.hide(c)

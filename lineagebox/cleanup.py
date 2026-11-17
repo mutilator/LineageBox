@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from lineagebox import live, media, mounts, scan, search, sidecars, video
+from lineagebox import clock, live, media, mounts, scan, search, sidecars, video
 from lineagebox.catalog import VISIBLE, under
 from lineagebox.config import Config
 from lineagebox.faces import usable_faces_sql
@@ -74,7 +74,7 @@ def remove_files(con: sqlite3.Connection, cfg: Config, file_ids: list[int], reas
                     removed_to[watched] = removed_folder(cfg, watched)
                 target = _free_name(cfg.share_root, f"{removed_to[watched]}{f['path'][len(watched):]}")
                 try:
-                    _move(cfg.share_root / f["path"], cfg.share_root / target, like=cfg.share_root / watched)
+                    move_file(cfg.share_root / f["path"], cfg.share_root / target, like=cfg.share_root / watched)
                 except OSError as e:
                     result.errors.append(f"{f['path']}: {e.strerror or e}")
                     continue
@@ -141,7 +141,7 @@ def restore(con: sqlite3.Connection, cfg: Config, file_ids: list[int] | None = N
                     continue
                 beside = live.clips_beside(con, fid, removed=True)
                 try:
-                    _move(cfg.share_root / f["removed_path"], cfg.share_root / f["path"],
+                    move_file(cfg.share_root / f["removed_path"], cfg.share_root / f["path"],
                           like=cfg.share_root / watched_folder(cfg, f["path"]))
                 except OSError as e:
                     result.errors.append(f"{f['path']}: {e.strerror or e}")
@@ -252,7 +252,9 @@ def removed_folder(cfg: Config, watched: str) -> str:
     return f"{watched}-Removed"
 
 
-def _move(src: Path, dst: Path, like: Path) -> None:
+def move_file(src: Path, dst: Path, like: Path) -> None:
+    """Move a file within the share (cleanup, reorganize.py, the copies service), never over another; folders it
+    makes on the way get those of `like` (the watched folder)'s owner and permissions."""
     if dst.exists():
         raise FileExistsError(0, "something else is already at that path")  # rename would silently replace it
     missing = [p for p in reversed(dst.parents) if not p.exists()]
@@ -270,8 +272,8 @@ def _move(src: Path, dst: Path, like: Path) -> None:
 
 def _move_sidecar(cfg: Config, from_rel: str, to_rel: str, result: Moved) -> None:
     """Move the photo's XMP sidecar (IMG_1234.JPG.xmp, LineageBox's or another program's) with it."""
-    if problem := sidecars.move_along(cfg, from_rel, to_rel,
-                                      lambda src, dst: _move(src, dst, like=cfg.share_root / watched_folder(cfg, to_rel))):
+    like = cfg.share_root / watched_folder(cfg, to_rel)
+    if problem := sidecars.move_along(cfg, from_rel, to_rel, lambda src, dst: move_file(src, dst, like=like)):
         result.errors.append(problem)
 
 
@@ -281,7 +283,7 @@ def _move_copy(cfg: Config, from_rel: str, to_rel: str, result: Moved) -> None:
     if not src.is_file() or dst.exists():
         return
     try:
-        _move(src, dst, like=cfg.share_root / watched_folder(cfg, to_rel))
+        move_file(src, dst, like=cfg.share_root / watched_folder(cfg, to_rel))
     except OSError as e:
         result.errors.append(f"{src.name}: {e.strerror or e}")
 
@@ -308,7 +310,7 @@ def keep_images(con: sqlite3.Connection, image_ids: list[int], keep: bool = True
         chunk = image_ids[start:start + CHUNK]
         if keep:
             n += con.execute(f"UPDATE image SET kept_at = ? WHERE kept_at IS NULL AND id IN ({','.join('?' * len(chunk))})",
-                             (_now(), *chunk)).rowcount
+                             (clock.now(), *chunk)).rowcount
         else:
             n += con.execute(f"UPDATE image SET kept_at = NULL WHERE id IN ({','.join('?' * len(chunk))})",
                              chunk).rowcount
@@ -318,7 +320,7 @@ def keep_images(con: sqlite3.Connection, image_ids: list[int], keep: bool = True
 
 def remove_similar(con: sqlite3.Connection, cfg: Config, kind: str, keep_raw: bool = True) -> Moved:
     """Move what this kind of similar-shot group ticks, in every group at once (copies of one picture only)."""
-    if kind not in _COPY_KINDS:
+    if kind not in COPY_KINDS:
         raise ValueError(f"{kind}: only copies of one picture are removed in bulk")
     label = SIMILAR_KINDS[kind] + (" (kept the RAW)" if kind == "raw" and keep_raw else
                                    " (kept the JPEG)" if kind == "raw" else "")
@@ -335,7 +337,8 @@ def keep_copies(con: sqlite3.Connection, a: int, b: int, keep: bool = True) -> N
     """Stop (or start again) listing this pair of folders under Duplicate copies."""
     a, b = min(a, b), max(a, b)
     if keep:
-        con.execute("INSERT OR IGNORE INTO kept_copies(folder_a, folder_b, kept_at) VALUES (?, ?, ?)", (a, b, _now()))
+        con.execute("INSERT OR IGNORE INTO kept_copies(folder_a, folder_b, kept_at) VALUES (?, ?, ?)",
+                    (a, b, clock.now()))
     else:
         con.execute("DELETE FROM kept_copies WHERE folder_a = ? AND folder_b = ?", (a, b))
     con.commit()
@@ -349,10 +352,6 @@ def kept(con: sqlite3.Connection) -> tuple[list[sqlite3.Row], list[dict]]:
               "a_path": _folder_path(con, r["folder_a"]), "b_path": _folder_path(con, r["folder_b"])}
              for r in con.execute("SELECT * FROM kept_copies ORDER BY kept_at DESC")]
     return images, pairs
-
-
-def _now() -> str:
-    return datetime.now().isoformat(timespec="seconds")
 
 
 def _after_change(con: sqlite3.Connection, image_ids: set[int]) -> None:
@@ -472,7 +471,7 @@ SIMILAR_HINTS = {
     "burst": "Shots taken seconds apart. The sharpest of the largest is suggested; look before you move.",
     "big": "Groups of 4 or more photos, usually bursts.",
 }
-_COPY_KINDS = ("smaller", "same", "raw", "undated")  # copies of one picture: safe to clear on every page at once
+COPY_KINDS = ("smaller", "same", "raw", "undated")  # copies of one picture: safe to clear on every page at once
 
 
 def similar_groups(con: sqlite3.Connection, kind: str = "all", keep_raw: bool = True, offset: int = 0,

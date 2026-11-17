@@ -20,7 +20,7 @@ from tests.test_access_web import signed_in, site  # noqa: F401 - site is a fixt
 
 APP = {"X-Requested-With": "lineagebox"}
 TODAY = date.today()
-FIVE_AGO = memories._same_day(TODAY, TODAY.year - 5)
+FIVE_AGO = memories.same_day(TODAY, TODAY.year - 5)
 
 
 @pytest.fixture
@@ -28,7 +28,7 @@ def dated(con, cfg, library):
     """Five photos from this week five years ago (over two days), two from three years ago (too few for a memory),
     one from yesterday and one from 40 days ago. Returns file name -> image id."""
     shots = {f"ago5_{i}.jpg": FIVE_AGO - timedelta(days=i % 2) for i in range(5)}
-    shots |= {f"ago3_{i}.jpg": memories._same_day(TODAY, TODAY.year - 3) for i in range(2)}
+    shots |= {f"ago3_{i}.jpg": memories.same_day(TODAY, TODAY.year - 3) for i in range(2)}
     shots |= {"yesterday.jpg": TODAY - timedelta(days=1), "earlier.jpg": TODAY - timedelta(days=40)}
     for i, (name, day) in enumerate(shots.items()):
         write_jpeg(library / "Dated" / name, size=(150, 100), color=(25 * i, 90, 140),
@@ -305,7 +305,7 @@ def test_each_year_on_the_timeline_has_its_events(dated, cfg, con):
     assert "<html" not in events and f"<b>A wedding, {FIVE_AGO.year}</b>" in events and "5 photos" in events
     href = re.search(r'class="event-card" href="([^"]+)"', events).group(1).replace("&amp;", "&")
     assert client.get(href).status_code == 200 and sha(con, dated["ago5_0.jpg"]) in client.get(href).text
-    three_ago = memories._same_day(TODAY, TODAY.year - 3).year
+    three_ago = memories.same_day(TODAY, TODAY.year - 3).year
     assert "No events in" in client.get(f"/timeline/{three_ago}/events").text  # two photos: not an event
     assert 'data-later="/timeline/' in client.get(f"/timeline/{FIVE_AGO.year}").text  # the year's own page too
 

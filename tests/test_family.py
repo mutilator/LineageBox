@@ -93,6 +93,33 @@ def test_one_current_partner_and_no_loops(con, fam):
         family.link(con, pa, "father", b)
 
 
+def test_a_brother_is_never_a_parent_too(con):
+    """Siblings share their parents (Graph), so someone entered as both a brother and a father, either way round, or
+    as a sibling of a grandparent's, would be their own ancestor: refused, and the tree stays without loops."""
+    ann, bob, cy, gran = (con.execute("INSERT INTO person(name) VALUES (?)", (n,)).lastrowid
+                          for n in ("Ann", "Bob", "Cy", "Gran"))
+    family.link(con, ann, "brother", bob)
+    with pytest.raises(family.Problem, match="Bob is entered as Ann's brother or sister"):
+        family.link(con, ann, "father", bob)
+    with pytest.raises(family.Problem, match="Bob is entered as Ann's brother or sister"):
+        family.link(con, bob, "daughter", ann)
+    family.link(con, cy, "father", bob)  # Bob is Cy's father: Cy can't be Ann's brother as well
+    with pytest.raises(family.Problem, match="can't be brothers or sisters"):
+        family.link(con, ann, "brother", cy)
+    with pytest.raises(family.Problem, match="A brother or sister of Ann is already Cy's ancestor"):
+        family.link(con, ann, "father", cy)  # Bob's son as his sister's father
+    family.link(con, gran, "son", bob)  # Bob's mother is Ann's too: she can't be her daughter
+    with pytest.raises(family.Problem, match="Gran is already Ann's ancestor"):
+        family.link(con, ann, "daughter", gran)
+    family.unlink(con, "sibling", ann, bob)
+    family.link(con, ann, "father", bob)
+    with pytest.raises(family.Problem, match="Bob is already Ann's ancestor"):
+        family.link(con, ann, "brother", bob)
+    g = family.load(con)
+    assert all(p not in g.ancestors[p] or g.ancestors[p][p] == 0 for p in g.people)
+    assert all(p not in g.effective_parents.get(p, ()) for p in g.people)
+
+
 def test_a_couple_who_never_married(con, cfg, fam):
     """A boyfriend or a girlfriend is a couple in the tree like any other, so their children and photos are the
     family's; but nobody married in, so there are no in-laws and no step-family."""

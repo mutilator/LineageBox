@@ -16,7 +16,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 from lineagebox import access, accounts, activity, passkeys
 from lineagebox.web.common import (ADMIN, MEMBER, PASSKEY_STARTED, PUBLIC, InviteBody, PasskeyBody, PasskeyName,
-                                   PasskeyStart, _from_app, _local_path, _recently_signed_in, tries_from)
+                                   PasskeyStart, from_app, local_path, recently_signed_in, tries_from)
 from lineagebox.web.deps import page, site, viewer
 from lineagebox.web.routes.signin import start_session
 from lineagebox.web.site import Site
@@ -90,7 +90,7 @@ def _signed_in(request: Request) -> dict:
 
 # ---- signing in ----------------------------------------------------------------------------------------------------
 
-@router.post("/auth/passkey/start", dependencies=[Depends(_from_app)])
+@router.post("/auth/passkey/start", dependencies=[Depends(from_app)])
 def sign_in_start(request: Request, body: PasskeyStart, s: Site = Depends(site)):
     now = s.shared_cfg()
     if not now.accounts_enabled:
@@ -99,11 +99,11 @@ def sign_in_start(request: Request, body: PasskeyStart, s: Site = Depends(site))
     if not s.passkey_tries.allow(tries_from(request)):
         raise HTTPException(429, TOO_MANY)
     options, challenge = passkeys.start_signing_in(now)
-    return _keep(s, request, {"kind": "sign-in", "challenge": challenge, "next": _local_path(body.next)},
+    return _keep(s, request, {"kind": "sign-in", "challenge": challenge, "next": local_path(body.next)},
                  {"options": options})
 
 
-@router.post("/auth/passkey/finish", dependencies=[Depends(_from_app)])
+@router.post("/auth/passkey/finish", dependencies=[Depends(from_app)])
 def sign_in_finish(request: Request, body: PasskeyBody, s: Site = Depends(site)):
     now = s.shared_cfg()
     if not now.accounts_enabled:
@@ -135,7 +135,7 @@ def invite_page(request: Request, s: Site = Depends(site)):
                 here=passkeys.here(now, request.url.scheme, request.headers.get("host", "")))
 
 
-@router.post("/auth/invite/check", dependencies=[Depends(_from_app)])
+@router.post("/auth/invite/check", dependencies=[Depends(from_app)])
 def invite_check(request: Request, body: InviteBody, s: Site = Depends(site)):
     """Whom a link is for, to say so before the passkey is made: it is made for that account, whoever holds the
     phone."""
@@ -148,7 +148,7 @@ def invite_check(request: Request, body: InviteBody, s: Site = Depends(site)):
     return {"who": row["person_name"] or row["email"], "email": row["email"]}
 
 
-@router.post("/auth/invite/start", dependencies=[Depends(_from_app)])
+@router.post("/auth/invite/start", dependencies=[Depends(from_app)])
 def invite_start(request: Request, body: InviteBody, s: Site = Depends(site)):
     _here(s, request)
     if not s.passkey_tries.allow(tries_from(request)):
@@ -162,7 +162,7 @@ def invite_start(request: Request, body: InviteBody, s: Site = Depends(site)):
                  {"options": options})
 
 
-@router.post("/auth/invite/finish", dependencies=[Depends(_from_app)])
+@router.post("/auth/invite/finish", dependencies=[Depends(from_app)])
 def invite_finish(request: Request, body: PasskeyBody, s: Site = Depends(site)):
     """The passkey made, the link used up (in one transaction: two pages with one link can't both make one), and its
     owner signed in."""
@@ -197,7 +197,7 @@ def passkeys_page(request: Request, made: bool = False, s: Site = Depends(site))
                 minutes=passkeys.RECENT_MINUTES, hours=passkeys.FIRST_HOURS)
 
 
-@router.post("/api/passkeys/start", dependencies=[Depends(_from_app)])
+@router.post("/api/passkeys/start", dependencies=[Depends(from_app)])
 def add_start(request: Request, s: Site = Depends(site)):
     you = _signed_in(request)
     with s.own_con() as c:
@@ -211,7 +211,7 @@ def add_start(request: Request, s: Site = Depends(site)):
     return _keep(s, request, {"kind": "add", "challenge": challenge, "account_id": you["id"]}, {"options": options})
 
 
-@router.post("/api/passkeys/finish", dependencies=[Depends(_from_app)])
+@router.post("/api/passkeys/finish", dependencies=[Depends(from_app)])
 def add_finish(request: Request, body: PasskeyBody, s: Site = Depends(site)):
     you = _signed_in(request)
     keep = _kept(s, request, "add")
@@ -238,7 +238,7 @@ def _passkey(c, request: Request, v: access.Viewer, passkey_id: int):
     return row
 
 
-@router.post("/api/passkeys/{passkey_id}/rename", dependencies=[Depends(_from_app)])
+@router.post("/api/passkeys/{passkey_id}/rename", dependencies=[Depends(from_app)])
 def rename(passkey_id: int, body: PasskeyName, request: Request, v: access.Viewer = Depends(viewer),
            s: Site = Depends(site)):
     with s.own_con() as c:
@@ -247,7 +247,7 @@ def rename(passkey_id: int, body: PasskeyName, request: Request, v: access.Viewe
     return {"reload": True}
 
 
-@router.post("/api/passkeys/{passkey_id}/remove", dependencies=[Depends(_from_app)])
+@router.post("/api/passkeys/{passkey_id}/remove", dependencies=[Depends(from_app)])
 def remove(passkey_id: int, request: Request, v: access.Viewer = Depends(viewer), s: Site = Depends(site)):
     """It no longer signs in, and the sessions started with it end: the phone it is on is signed out."""
     with s.own_con() as c:
@@ -259,7 +259,7 @@ def remove(passkey_id: int, request: Request, v: access.Viewer = Depends(viewer)
 
 # ---- admins' links -------------------------------------------------------------------------------------------------
 
-@router.post("/api/accounts/{account_id}/invite", dependencies=[Depends(_from_app)])
+@router.post("/api/accounts/{account_id}/invite", dependencies=[Depends(from_app)])
 def make_invite(account_id: int, request: Request, s: Site = Depends(site)):
     """A link for making this account's passkey (the one before it stops working), shown this once: to send, or
     as a QR code for their phone's camera."""
@@ -268,7 +268,7 @@ def make_invite(account_id: int, request: Request, s: Site = Depends(site)):
         now = s.live(c)  # as the Settings pages show it, not as kept a moment
         target = accounts.get(c, account_id)
         if target is not None and (target["role"] == "admin" or (you and you["id"] == account_id)):
-            _recently_signed_in(request, "make a passkey link for yourself or an admin")
+            recently_signed_in(request, "make a passkey link for yourself or an admin")
         token, until = passkeys.make_invite(c, account_id, you["id"] if you else None, now)
         row = accounts.get(c, account_id)
         activity.log(c, f"A link for making a passkey was made for {row['email']}")
@@ -278,7 +278,7 @@ def make_invite(account_id: int, request: Request, s: Site = Depends(site)):
         admin=row["role"] == "admin")}
 
 
-@router.post("/api/accounts/{account_id}/invite/cancel", dependencies=[Depends(_from_app)])
+@router.post("/api/accounts/{account_id}/invite/cancel", dependencies=[Depends(from_app)])
 def cancel_invite(account_id: int, s: Site = Depends(site)):
     with s.own_con() as c:
         passkeys.cancel_invite(c, account_id)

@@ -275,7 +275,7 @@ def test_ages_to_check_with_a_birth_known_to_the_month_and_a_date_set_by_hand(co
     con.commit()
     assert [(c["face_id"], c["why"]) for c in face_ages.age_checks(con)] == [(early, "born after")]
     assert later not in {c["face_id"] for c in face_ages.age_checks(con)}
-    assert face_ages._last("2010-06") == face_ages._last("2010-06-30") and face_ages._first("2010").month == 1
+    assert face_ages.last_day("2010-06") == face_ages.last_day("2010-06-30") and face_ages.first_day("2010").month == 1
 
 
 # ---- a person's details: what can't be found -------------------------------------------------------------------------

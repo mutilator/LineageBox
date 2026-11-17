@@ -5,12 +5,11 @@ its own downloads (see speech.Whisper.health).
 Each download is a row of the settings table, download:<name>, written at most every few seconds, so the web and
 worker containers both see it and neither overwrites the other's.
 """
-import json
 import sqlite3
 import time
 from datetime import datetime, timedelta
 
-from lineagebox import settings
+from lineagebox import clock, settings
 
 PREFIX = "download:"
 EVERY = 2.0                              # seconds between progress writes
@@ -21,7 +20,7 @@ SHOW_FINISHED = timedelta(hours=24)
 class Progress:
     def __init__(self, con: sqlite3.Connection, name: str, label: str):
         self.con, self.key = con, PREFIX + name
-        self.state = {"label": label, "state": "downloading", "done": 0, "total": None, "started": _now(),
+        self.state = {"label": label, "state": "downloading", "done": 0, "total": None, "started": clock.now(),
                       "updated": None, "error": None}
         self.written = 0.0
         self._write()
@@ -40,7 +39,7 @@ class Progress:
         self._write()
 
     def _write(self) -> None:
-        self.state["updated"] = _now()
+        self.state["updated"] = clock.now()
         try:
             settings.put(self.con, self.key, self.state)
             self.written = time.monotonic()
@@ -59,8 +58,7 @@ def current(con: sqlite3.Connection, now: datetime | None = None) -> list[dict]:
     """Downloads running, cut off, or finished or failed in the last day, newest first."""
     now = now or datetime.now()
     out = []
-    for (value,) in con.execute(f"SELECT value FROM settings WHERE key LIKE '{PREFIX}%'"):
-        d = json.loads(value)
+    for d in settings.starting_with(con, PREFIX).values():
         updated = datetime.fromisoformat(d.get("updated") or d["started"])
         if d["state"] == "downloading" and now - updated > STALLED:
             d["state"] = "stalled"
@@ -70,7 +68,3 @@ def current(con: sqlite3.Connection, now: datetime | None = None) -> list[dict]:
         d["updated"], d["started_at"] = updated, datetime.fromisoformat(d["started"])
         out.append(d)
     return sorted(out, key=lambda d: d["started"], reverse=True)
-
-
-def _now() -> str:
-    return datetime.now().isoformat(timespec="seconds")

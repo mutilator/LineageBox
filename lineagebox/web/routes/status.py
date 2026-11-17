@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 from lineagebox import __version__, backup, catalog, progress, settings, storage, updates
-from lineagebox.web.common import ADMIN, IN_DOCKER, _from_app
+from lineagebox.web.common import ADMIN, IN_DOCKER, from_app
 from lineagebox.web.deps import con, page, site, viewer
 from lineagebox.web.site import SLOW_PAGE, Site
 
@@ -50,7 +50,7 @@ def update_status(s: Site = Depends(site)):
     return {"version": __version__, "updater": updates.updater_state(s.cfg)}
 
 
-@router.post("/api/update", dependencies=[Depends(_from_app)])
+@router.post("/api/update", dependencies=[Depends(from_app)])
 def start_update(s: Site = Depends(site)):
     state = updates.updater_state(s.cfg)
     if not state or not state["alive"]:
@@ -63,7 +63,7 @@ def start_update(s: Site = Depends(site)):
     return {"message": "Updating: LineageBox downloads the newest version and restarts with it."}
 
 
-@router.post("/api/update/check", dependencies=[Depends(_from_app)])
+@router.post("/api/update/check", dependencies=[Depends(from_app)])
 def check_for_update(c=Depends(con), s: Site = Depends(site)):
     now = s.live(c)
     if not now.update_check:
@@ -86,7 +86,7 @@ def status_live(request: Request, v=Depends(viewer), c=Depends(con), s: Site = D
     return page(request, "_progress.html", cfg=now, p=_snapshot(s, v, c, now, whisper), whisper=whisper)
 
 
-@router.post("/api/worker/run", dependencies=[Depends(_from_app)])
+@router.post("/api/worker/run", dependencies=[Depends(from_app)])
 def run_worker(c=Depends(con)):
     settings.put(c, "run_requested", datetime.now().isoformat(timespec="seconds"))
     return {"message": "The worker starts a pass within 15 seconds."}

@@ -56,8 +56,8 @@ def suggest(con: sqlite3.Connection, image_id: int) -> dict | None:
     if img is None or img["taken_at_source"] not in NEEDS:
         return None
     why, text, label = [], None, None
-    found = _from_neighbors(con, image_id)
-    lower, upper, people_why = _from_people(con, image_id)
+    found = from_neighbors(con, image_id)
+    lower, upper, people_why = from_people(con, image_id)
     if found:
         text, last_year, reason = found
         if lower is not None and last_year < lower:  # the folder says before someone in it was born: not that
@@ -79,7 +79,7 @@ def suggest(con: sqlite3.Connection, image_id: int) -> dict | None:
     return {"text": text, "label": label, "why": why}
 
 
-def _from_neighbors(con: sqlite3.Connection, image_id: int) -> tuple[str, int, str] | None:
+def from_neighbors(con: sqlite3.Connection, image_id: int) -> tuple[str, int, str] | None:
     """(the date to suggest, the last year it allows, why) from the dated photos in its folders, or None."""
     rows = con.execute(f"""
         WITH came(id) AS (SELECT {ORIGIN} FROM file f WHERE f.image_id = ? AND NOT f.missing)
@@ -124,7 +124,7 @@ def _years(a: datetime, b: datetime) -> str:
     return str(a.year) if a.year == b.year else f"{a.year} and {b.year}"
 
 
-def _from_people(con: sqlite3.Connection, image_id: int) -> tuple[int | None, int | None, list[str]]:
+def from_people(con: sqlite3.Connection, image_id: int) -> tuple[int | None, int | None, list[str]]:
     """(the first year it can be from, the last, why) by who is in it: not before anyone in it was born, nor after
     anyone in it died, nor more than CHILD_AT_MOST years after the birth of someone whose face looks like a young
     child's in it (CHILD_LOOKS)."""

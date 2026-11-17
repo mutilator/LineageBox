@@ -259,7 +259,7 @@ def test_the_catalogs_folder_under_another_path_is_not_scanned_either(con, cfg, 
     photo = (library / "2016" / "IMG_20160811_182239.jpg").read_bytes()
     (inside.data_dir / "previews" / "ab.jpg").write_bytes(photo)
     (library / "docker" / "lineagebox" / "beside.jpg").write_bytes(photo)  # next to the catalog: a photo as any other
-    monkeypatch.setattr(scan_module, "_own_folders", lambda cfg: set())
+    monkeypatch.setattr(scan_module, "own_folders", lambda cfg: set())
     scan(con, inside)
     assert not con.execute("SELECT 1 FROM file WHERE path LIKE '%/data/%'").fetchone()
     assert con.execute("SELECT 1 FROM file WHERE path LIKE '%beside.jpg'").fetchone()

@@ -18,7 +18,7 @@ from starlette.concurrency import run_in_threadpool
 
 from lineagebox import changes, events, search, speech, stories
 from lineagebox.folders import FolderIndex
-from lineagebox.web.common import MEMBER, PRIVATE, _from_app, _image_or_404, _people_or_404
+from lineagebox.web.common import MEMBER, PRIVATE, from_app, image_or_404, people_or_404
 from lineagebox.web.deps import con, page, site, viewer, writer
 from lineagebox.web.site import Site
 
@@ -53,7 +53,7 @@ def about_person(c, person_id: int) -> dict:
 @router.get("/person/{person_id}/stories", response_class=HTMLResponse)
 def person_stories(request: Request, person_id: int, v=Depends(viewer), c=Depends(con)):
     """A person's stories, with the way to record one, for their page (which loads it once it shows)."""
-    _people_or_404(c, person_id)
+    people_or_404(c, person_id)
     return page(request, "_stories.html", stories=stories.named(stories.for_person(c, person_id), v),
                 about=about_person(c, person_id), most_minutes=stories.MOST_SECONDS // 60)
 
@@ -81,7 +81,7 @@ def _indexed(w, image_id: int | None) -> None:
     w.commit()
 
 
-@router.post("/api/stories", dependencies=[Depends(_from_app)])
+@router.post("/api/stories", dependencies=[Depends(from_app)])
 async def record_story(request: Request, image: int | None = None, person: int | None = None,
                        event: int | None = None, title: str = Query("", max_length=stories.TITLE_MOST + 50),
                        seconds: float | None = Query(None, ge=0, le=86400), v=Depends(viewer), c=Depends(con),
@@ -97,9 +97,9 @@ async def record_story(request: Request, image: int | None = None, person: int |
 
     def allowed():  # before anything is read: what it is about must be theirs to see, and not too many at once
         if image is not None:
-            _image_or_404(c, image)
+            image_or_404(c, image)
         else:
-            _people_or_404(c, person)
+            people_or_404(c, person)
             if event is not None and not c.execute("""SELECT 1 FROM event WHERE id = :e AND (person_id = :p
                                                       OR :p IN (couple_a, couple_b))""",
                                                    {"e": event, "p": person}).fetchone():
@@ -142,7 +142,7 @@ class StoryWordsBody(BaseModel):
     words: str | None = Field(default=None, max_length=stories.WORDS_MOST + 500)
 
 
-@router.post("/api/stories/{story_id}/words", dependencies=[Depends(_from_app)])
+@router.post("/api/stories/{story_id}/words", dependencies=[Depends(from_app)])
 def story_words(story_id: int, body: StoryWordsBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     row = _story_to_change(c, v, story_id)
     with changes.tracking(w, v, "story", "Corrected a recorded story's words", _story_spec(story_id)) as kept:
@@ -151,7 +151,7 @@ def story_words(story_id: int, body: StoryWordsBody, v=Depends(viewer), c=Depend
     return {"undo": kept.id, "reload": True}
 
 
-@router.post("/api/stories/{story_id}/remove", dependencies=[Depends(_from_app)])
+@router.post("/api/stories/{story_id}/remove", dependencies=[Depends(from_app)])
 def remove_story(story_id: int, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     row = _story_to_change(c, v, story_id)
     with changes.tracking(w, v, "story", "Took a recorded story away", _story_spec(story_id)) as kept:
@@ -166,10 +166,10 @@ class LineBody(BaseModel):
     heard: bool = False  # put back what Whisper heard
 
 
-@router.post("/api/images/{image_id}/transcript", dependencies=[Depends(_from_app)])
+@router.post("/api/images/{image_id}/transcript", dependencies=[Depends(from_app)])
 def correct_line(image_id: int, body: LineBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     """One line of a video's or recording's transcript put right (or back as Whisper heard it)."""
-    _image_or_404(c, image_id)
+    image_or_404(c, image_id)
     if c.execute("SELECT 1 FROM transcript WHERE image_id = ?", (image_id,)).fetchone() is None:
         raise HTTPException(404, "It hasn't been transcribed yet.")
     summary = "Put a transcript's line back as heard" if body.heard else "Corrected a line of a transcript"

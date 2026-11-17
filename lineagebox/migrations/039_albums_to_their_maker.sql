@@ -1,5 +1,5 @@
 -- Albums and tours with no account on them are the admins' own, nobody's in particular: made before anyone signed
--- in, or by an admin, whose work used to be recorded that way (web/common._by). A couple now see what each other
+-- in, or by an admin, whose work used to be recorded that way (web/common.added_by). A couple now see what each other
 -- adds (access.partner_shares), which needs to know who made a thing, so from here on an admin's album or tour is
 -- recorded as theirs.
 --

@@ -7,7 +7,7 @@ from datetime import datetime
 import pytest
 from fastapi.testclient import TestClient
 
-from lineagebox import access, catalog, folders, reorganize, search
+from lineagebox import access, catalog, cleanup, folders, reorganize, search
 from lineagebox.ingest import STAGE_INGEST, ingest
 from lineagebox.scan import scan
 from lineagebox.web import app as webapp
@@ -220,6 +220,65 @@ def test_a_file_moved_since_stays_where_it_is(lib, cfg, library):
     assert "moved or removed since" in reorganize.latest(con)["problems"]
 
 
+def test_putting_back_that_stopped_at_once_can_be_tried_again(lib, cfg, library, monkeypatch):
+    """Putting back that stopped before a single file went back (the disk away just then) is still to be done: the
+    same reorganization stays the one to put back, with the files it moved."""
+    con = lib
+    before_disk = files_on_disk(library)
+    reorganize.start(con, cfg, by_type=False, account_id=None)
+    run = reorganize.latest(con)
+
+    def away(src, dst, like):
+        raise RuntimeError("the disk went away")
+
+    monkeypatch.setattr(cleanup, "move_file", away)
+    with pytest.raises(RuntimeError):
+        reorganize.undo(con, cfg)
+    monkeypatch.undo()
+    assert reorganize.latest(con)["state"] == "stopped"
+    undoable = reorganize.undoable(con)
+    assert undoable["id"] == run["id"] and undoable["moves"] == run["moved"]
+    reorganize.undo(con, cfg)
+    assert reorganize.latest(con)["state"] == "undone" and files_on_disk(library) == before_disk
+
+
+def test_files_moved_but_not_written_down_go_back(lib, cfg, library):
+    """A run cut short between moving files and writing that down (the web app stopped): each move is recorded
+    before it is made, so putting it back finds those files on the disk too, though the catalog has them where they
+    were."""
+    con = lib
+    blue = image_of(con, BLUE)
+    before_disk = files_on_disk(library)
+    reorganize.start(con, cfg, by_type=False, account_id=None)
+    con.execute("UPDATE file SET path = ? WHERE image_id = ?", (BLUE, blue))  # as if never written down
+    con.execute("UPDATE reorganize_run SET state = 'stopped'")
+    con.commit()
+    assert not (library / "2016" / "IMG_20160811_182239.jpg").exists()
+    reorganize.undo(con, cfg)
+    assert files_on_disk(library) == before_disk and paths(con, blue) == [BLUE]
+    assert reorganize.latest(con)["problems"] is None
+
+
+def test_a_long_look_through_the_folders_gives_signs_of_life(lib, cfg, library, monkeypatch):
+    """Looking through a big share before moving anything takes minutes: the run says it is alive meanwhile, so the
+    scan doesn't take it for one that stopped."""
+    con = lib
+    looked = []
+    reorganize.plan(con, cfg, by_type=False, beat=lambda: looked.append(1))
+    assert len(looked) >= 4  # each folder looked through
+    monkeypatch.setattr(reorganize, "BEAT", 0)
+    beats = []
+    real = reorganize._beater
+
+    def counting(c, run_id):
+        beat = real(c, run_id)
+        return lambda: (beats.append(c.execute("SELECT beat_at FROM reorganize_run WHERE id = ?",
+                                               (run_id,)).fetchone()[0]), beat())
+    monkeypatch.setattr(reorganize, "_beater", counting)
+    reorganize.start(con, cfg, by_type=False, account_id=None, remove_empty=True)
+    assert beats and all(beats) and reorganize.latest(con)["state"] == "done"
+
+
 def test_the_scan_waits_while_files_move(lib, cfg, library, monkeypatch):
     """While a reorganization moves files the scan leaves the folders alone; one that began before throws away what it
     found, so nothing is marked missing or found twice."""
@@ -348,4 +407,4 @@ def test_junk_an_earlier_run_kept_in_other_files(lib, cfg, library):
     assert p.moves == [] and p.junk_count == 2
     reorganize.start(con, cfg, by_type=False, account_id=None, remove_empty=True, remove_junk=True)
     assert sorted(os.listdir(library / "Other files")) == ["broken.jpg", "notes.txt"]
-    assert reorganize.latest(con)["junk"] == 2 and reorganize.undoable(con)["moved"] > 0
+    assert reorganize.latest(con)["junk"] == 2 and reorganize.undoable(con)["moves"] > 0

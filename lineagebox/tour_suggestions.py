@@ -206,7 +206,7 @@ def _yearly_days(con, facts: _Facts, mode: str, people: set[int]) -> list[tuple[
                                         WHERE tag = 'MARR' AND sort_date IS NOT NULL""")]
     out = {}
     for pid, text in rows:
-        if pid in people and (month_day := tours._birthday(text)):
+        if pid in people and (month_day := tours.month_and_day(text)):
             out[pid] = (_coming(month_day, facts.today), pid, month_day)
     return list(out.values())
 
@@ -328,8 +328,8 @@ def _occasions(con, facts: _Facts) -> list[tuple[str, int, float]]:
 
 def _coming(month_day: tuple[int, int], today: date) -> int:
     """Days from today to the next time it is this month and day; 0 is today."""
-    day = tours._on(month_day, today.year)
-    return ((day if day >= today else tours._on(month_day, today.year + 1)) - today).days
+    day = tours.in_year(month_day, today.year)
+    return ((day if day >= today else tours.in_year(month_day, today.year + 1)) - today).days
 
 
 def _as_month_day(day_of_year: float) -> tuple[int, int]:

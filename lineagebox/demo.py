@@ -149,10 +149,6 @@ def visitor(con: sqlite3.Connection, cfg: Config, admin: bool = False) -> int:
     return account_id
 
 
-def is_visitor(email: str | None) -> bool:
-    return bool(email) and email.startswith("visitor-") and email.endswith("@demo.invalid")
-
-
 # ---- uploads from each address -------------------------------------------------------------------------------------
 
 def _counts(con: sqlite3.Connection) -> dict:

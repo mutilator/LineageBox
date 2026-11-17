@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse, PlainTextResponse, Response
 
 from lineagebox import access, catalog, copies, sidecars, video
-from lineagebox.web.common import MEMBER, PRIVATE, PUBLIC, SHA256, _attachment, _derivative
+from lineagebox.web.common import MEMBER, PRIVATE, PUBLIC, SHA256, attachment, derivative
 from lineagebox.web.deps import con, site, viewer
 from lineagebox.web import remake, tiles
 from lineagebox.web.site import Site
@@ -51,7 +51,7 @@ def _picture(s: Site, v: access.Viewer, sha: str, path) -> Path | None:
 
 @router.get("/t/{sha}")
 def thumbnail(sha: str, v=Depends(viewer), s: Site = Depends(site)):
-    return _derivative(_picture(s, v, sha, s.cfg.thumb_path(sha)), "image/webp")
+    return derivative(_picture(s, v, sha, s.cfg.thumb_path(sha)), "image/webp")
 
 
 @router.get("/t2/{sha}")
@@ -64,7 +64,7 @@ def sharp_thumbnail(sha: str, v=Depends(viewer), s: Site = Depends(site)):
         remake.again(s, sha)
     made = tiles.sharp(s.cfg, sha)
     if made:
-        return _derivative(made, "image/webp")
+        return derivative(made, "image/webp")
     # the thumbnail stands in only for now (no preview yet, the disk nearly full, busy making others): not kept by the
     # browser for a year like the tile itself, but asked for again the next time the page shows it
     thumb = s.cfg.thumb_path(sha)
@@ -75,12 +75,12 @@ def sharp_thumbnail(sha: str, v=Depends(viewer), s: Site = Depends(site)):
 
 @router.get("/p/{sha}")
 def preview(sha: str, v=Depends(viewer), s: Site = Depends(site)):
-    return _derivative(_picture(s, v, sha, s.cfg.preview_path(sha)), "image/jpeg")
+    return derivative(_picture(s, v, sha, s.cfg.preview_path(sha)), "image/jpeg")
 
 
 @router.get("/frame/{sha}/{idx}")
 def video_frame(sha: str, idx: int, v=Depends(viewer), s: Site = Depends(site)):
-    return _derivative(_picture(s, v, sha, s.cfg.frame_path(sha, idx)) if 0 <= idx < 1000 else None, "image/jpeg")
+    return derivative(_picture(s, v, sha, s.cfg.frame_path(sha, idx)) if 0 <= idx < 1000 else None, "image/jpeg")
 
 
 @router.get("/play/{image_id}")
@@ -125,4 +125,5 @@ def original_xmp(file_id: int, c=Depends(con)):
     if data is None:
         raise HTTPException(404, "Nothing has been given to this photo to go with it")
     name = f["path"].rsplit("/", 1)[-1] + sidecars.SUFFIX
-    return Response(data, media_type="application/rdf+xml", headers={"Content-Disposition": _attachment(name), **PRIVATE})
+    return Response(data, media_type="application/rdf+xml",
+                    headers={"Content-Disposition": attachment(name), **PRIVATE})

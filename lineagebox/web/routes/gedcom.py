@@ -6,7 +6,7 @@ from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
 from lineagebox import events, family, gedcom, gedcom_import, people, uploads
-from lineagebox.web.common import ADMIN, MEMBER, PRIVATE, _attachment, _from_app
+from lineagebox.web.common import ADMIN, MEMBER, PRIVATE, attachment, from_app
 from lineagebox.web.deps import con, page, site, viewer
 from lineagebox.web.site import Site
 
@@ -22,7 +22,7 @@ ACCESS = {
 BODIES = {"/api/family/import": None}  # over common.BODY_MOST: read in pieces, to gedcom_import.MOST
 
 
-@router.post("/api/family/import", dependencies=[Depends(_from_app)])
+@router.post("/api/family/import", dependencies=[Depends(from_app)])
 async def import_gedcom(request: Request, name: str = "family.ged", c=Depends(con)):
     """A GEDCOM file (the request's body) to merge in: read and matched, then shown for checking. The reading and
     matching take a while for a big tree, so they run beside the site, not in its way."""
@@ -55,7 +55,7 @@ def import_page(request: Request, import_id: int, c=Depends(con), s: Site = Depe
                 ai_on=s.live(c).describe_enabled)
 
 
-@router.post("/api/family/import/{import_id}/choices", dependencies=[Depends(_from_app)])
+@router.post("/api/family/import/{import_id}/choices", dependencies=[Depends(from_app)])
 def import_choices(import_id: int, body: dict, c=Depends(con)):
     if gedcom_import.load(c, import_id) is None:
         raise HTTPException(404, "No such import")
@@ -70,7 +70,7 @@ def import_choices(import_id: int, body: dict, c=Depends(con)):
     return {"message": "Saved."}
 
 
-@router.post("/api/family/import/{import_id}/ai", dependencies=[Depends(_from_app)])
+@router.post("/api/family/import/{import_id}/ai", dependencies=[Depends(from_app)])
 def import_ai(import_id: int, c=Depends(con), s: Site = Depends(site)):
     found = gedcom_import.load(c, import_id)
     if found is None:
@@ -84,7 +84,7 @@ def import_ai(import_id: int, c=Depends(con), s: Site = Depends(site)):
     return {"message": f"The AI looked at {n} unsure match{'' if n == 1 else 'es'}."}
 
 
-@router.post("/api/family/import/{import_id}/apply", dependencies=[Depends(_from_app)])
+@router.post("/api/family/import/{import_id}/apply", dependencies=[Depends(from_app)])
 def import_apply(import_id: int, c=Depends(con)):
     if gedcom_import.load(c, import_id) is None:
         raise HTTPException(404, "No such import")
@@ -104,7 +104,7 @@ def export_family(version: str = "7.0", photos: bool = False, private: bool = Fa
     if photos and s.limits(v) and not s.zip_tries.allow(str(v.account_id)):
         raise HTTPException(429, "That's a lot of downloads in one hour. Wait a while, then try again.")
     data, media, name = gedcom.export_parts(c, s.cfg, version, photos=photos, private_living=private)
-    headers = {"Content-Disposition": _attachment(name), **PRIVATE}
+    headers = {"Content-Disposition": attachment(name), **PRIVATE}
     if not photos:
         return Response(data, media_type="text/vnd.familysearch.gedcom", headers=headers)
     files = [(source, path) for path, source in media.items()]

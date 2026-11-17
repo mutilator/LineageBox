@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 from lineagebox import accounts, activity, albums, devices, tours
 from lineagebox.web import frames
-from lineagebox.web.common import ADMIN, MEMBER, _from_app
+from lineagebox.web.common import ADMIN, MEMBER, from_app
 from lineagebox.web.deps import con, page, site, viewer, writer
 from lineagebox.web.routes.tours import shown
 from lineagebox.web.site import Site
@@ -111,7 +111,7 @@ def devices_panel(request: Request, c=Depends(con), s: Site = Depends(site)):
     return HTMLResponse(_panel(request, s, c))
 
 
-@router.post("/api/devices", dependencies=[Depends(_from_app)])
+@router.post("/api/devices", dependencies=[Depends(from_app)])
 def make_device(request: Request, body: DeviceBody, v=Depends(viewer), c=Depends(con), s: Site = Depends(site)):
     """A new device link, shown this once (only its hash is kept), with a QR code for a tablet to open it by."""
     account_id = int(body.account_id) if body.account_id.isdecimal() else None
@@ -126,7 +126,7 @@ def make_device(request: Request, body: DeviceBody, v=Depends(viewer), c=Depends
     return {"html": _panel(request, s, c, made)}
 
 
-@router.post("/api/devices/{device_id}/revoke", dependencies=[Depends(_from_app)])
+@router.post("/api/devices/{device_id}/revoke", dependencies=[Depends(from_app)])
 def revoke_device(request: Request, device_id: int, c=Depends(con), s: Site = Depends(site)):
     """Turn a link off: the frame shows that it was turned off from its next picture on."""
     row = devices.get(c, device_id)
@@ -137,7 +137,7 @@ def revoke_device(request: Request, device_id: int, c=Depends(con), s: Site = De
     return {"html": _panel(request, s, c), "message": f"{row['name']}: turned off."}
 
 
-@router.post("/api/devices/{device_id}/delete", dependencies=[Depends(_from_app)])
+@router.post("/api/devices/{device_id}/delete", dependencies=[Depends(from_app)])
 def delete_device(request: Request, device_id: int, c=Depends(con), s: Site = Depends(site)):
     """Take a turned-off link off the list (one still on is turned off first)."""
     row = devices.get(c, device_id)

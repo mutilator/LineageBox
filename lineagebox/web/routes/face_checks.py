@@ -24,7 +24,7 @@ from fastapi.responses import HTMLResponse
 
 from lineagebox import camera_clock, catalog, changes, face_ages, faces, headcount, people, settings
 from lineagebox.catalog import VISIBLE
-from lineagebox.web.common import ADMIN, ImageIds, _from_app
+from lineagebox.web.common import ADMIN, ImageIds, from_app
 from lineagebox.web.deps import con, page, paging, site, viewer
 from lineagebox.web.site import Site
 
@@ -91,7 +91,7 @@ def looks_like(v, c, w, cluster_ids) -> dict[int, dict]:
     return out
 
 
-@router.post("/api/faces/{face_id}/age-ok", dependencies=[Depends(_from_app)])
+@router.post("/api/faces/{face_id}/age-ok", dependencies=[Depends(from_app)])
 def age_ok(face_id: int, c=Depends(con)):
     """Named right, whatever its age says: not listed again."""
     if catalog.face(c, face_id) is None:
@@ -100,7 +100,7 @@ def age_ok(face_id: int, c=Depends(con)):
     return {}
 
 
-@router.post("/api/images/{image_id}/faces-found", dependencies=[Depends(_from_app)])
+@router.post("/api/images/{image_id}/faces-found", dependencies=[Depends(from_app)])
 def faces_found(image_id: int, c=Depends(con)):
     """Every face was found: off the list of photos with faces missed."""
     if catalog.image(c, image_id) is None:
@@ -125,17 +125,17 @@ def no_faces_page(request: Request, pg: int = Query(1, alias="page", ge=1), per:
                 sure_at=round(headcount.SURE * 100), to_count=len(headcount.waiting(c)))
 
 
-def _known(c, ids: list[int]) -> list[int]:
+def in_catalog(c, ids: list[int]) -> list[int]:
     """Of these photo ids, those in the catalog, in their order, each once."""
     there = {r[0] for r in c.execute("SELECT id FROM image WHERE id IN (SELECT value FROM json_each(?))",
                                      (json.dumps(ids),))}
     return list(dict.fromkeys(i for i in ids if i in there))
 
 
-@router.post("/api/images/look-again", dependencies=[Depends(_from_app)])
+@router.post("/api/images/look-again", dependencies=[Depends(from_app)])
 def look_again_later(body: ImageIds, c=Depends(con)):
     """The worker looks at these again, more closely, as soon as it can (a pass starts now, as Check now starts one)."""
-    ids = _known(c, body.image_ids)
+    ids = in_catalog(c, body.image_ids)
     if not ids:
         raise HTTPException(404, "No such photo")
     waiting = settings.get(c, faces.LOOK_AGAIN_KEY, [])
@@ -146,7 +146,7 @@ def look_again_later(body: ImageIds, c=Depends(con)):
                        "the faces found are recognized where they clearly match.", "reload": True}
 
 
-@router.post("/api/faces/look-again-all", dependencies=[Depends(_from_app)])
+@router.post("/api/faces/look-again-all", dependencies=[Depends(from_app)])
 def look_again_at_all(c=Depends(con)):
     """Look closely at every photo again, from now, in the background (a pass starts now, as Check now starts one)."""
     if faces.round_progress(c)["left"]:
@@ -157,10 +157,10 @@ def look_again_at_all(c=Depends(con)):
                        "recognized where they clearly match.", "reload": True}
 
 
-@router.post("/api/images/no-faces-ok", dependencies=[Depends(_from_app)])
+@router.post("/api/images/no-faces-ok", dependencies=[Depends(from_app)])
 def no_faces_ok(body: ImageIds, v=Depends(viewer), c=Depends(con)):
     """No faces to find in these photos: not listed again (Undo, or Recent changes, lists them again)."""
-    ids = _known(c, body.image_ids)
+    ids = in_catalog(c, body.image_ids)
     if not ids:
         raise HTTPException(404, "No such photo")
     n = len(ids)

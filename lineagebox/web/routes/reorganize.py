@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from lineagebox import db, reorganize
-from lineagebox.web.common import ADMIN, _from_app
+from lineagebox.web.common import ADMIN, from_app
 from lineagebox.web.deps import con, page, site, viewer, writer
 from lineagebox.web.site import Site
 
@@ -70,7 +70,7 @@ def progress(request: Request, w=Depends(writer)):
     return page(request, "_reorganize_progress.html", last=last)
 
 
-@router.post("/api/reorganize/start", dependencies=[Depends(_from_app)])
+@router.post("/api/reorganize/start", dependencies=[Depends(from_app)])
 def start(body: StartBody, v=Depends(viewer), c=Depends(con), w=Depends(writer), s: Site = Depends(site)):
     account_id = v.account["id"] if v.account else None
     run_id = reorganize.start(w, s.live(c), body.by_type, account_id, connect=_connect(s),
@@ -78,13 +78,13 @@ def start(body: StartBody, v=Depends(viewer), c=Depends(con), w=Depends(writer),
     return {"ok": True, "id": run_id, "go": "/settings/reorganize"}
 
 
-@router.post("/api/reorganize/stop", dependencies=[Depends(_from_app)])
+@router.post("/api/reorganize/stop", dependencies=[Depends(from_app)])
 def stop():
     reorganize.stop()
     return {"ok": True}
 
 
-@router.post("/api/reorganize/undo", dependencies=[Depends(_from_app)])
+@router.post("/api/reorganize/undo", dependencies=[Depends(from_app)])
 def undo(c=Depends(con), w=Depends(writer), s: Site = Depends(site)):
     run_id = reorganize.undo(w, s.live(c), connect=_connect(s))
     return {"ok": True, "id": run_id, "go": "/settings/reorganize"}

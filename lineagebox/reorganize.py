@@ -42,7 +42,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from lineagebox import errors, scan, video
+from lineagebox import clock, errors, scan, video
 from lineagebox.config import Config
 
 KINDS = {"photo": "Photos", "scan": "Scans", "video": "Videos", "audio": "Recordings"}  # the folders at the top
@@ -50,6 +50,7 @@ OTHER = "Other files"
 UNDATED = "Undated"
 CHUNK = 200       # files moved in one write: the web app waits for each
 STALE = 600       # seconds without a sign of life after which a run has stopped (the web app restarted meanwhile)
+BEAT = 60         # seconds between signs of life while it looks through the folders or tidies up after the moves
 EXAMPLES = 12     # moves the preview shows
 MOST_PROBLEMS = 50
 MADE_KIND = {"top": "media_type", "date": "date", "other": "misc"}  # folder.kind of the folders made: never parsed
@@ -128,9 +129,11 @@ class Plan:
 
 # ---- what goes where -------------------------------------------------------------------------------------------------
 
-def plan(con: sqlite3.Connection, cfg: Config, by_type: bool, remove_junk: bool = False) -> Plan:
+def plan(con: sqlite3.Connection, cfg: Config, by_type: bool, remove_junk: bool = False, beat=None) -> Plan:
     """Where every file of the watched folders goes, without moving any: the preview, and what run() does.
-    remove_junk: what is junk (JUNK_FILES, JUNK_DIRS) is to be deleted rather than moved to Other files."""
+    remove_junk: what is junk (JUNK_FILES, JUNK_DIRS) is to be deleted rather than moved to Other files. beat: called
+    for each folder looked through (run() gives a sign of life with it: a big share takes minutes)."""
+    beat = beat or (lambda: None)
     out = Plan()
     images = {r["id"]: r for r in con.execute(
         "SELECT id, media, taken_at, taken_at_source, date_from, date_to, live_of, error FROM image")}
@@ -187,6 +190,7 @@ def plan(con: sqlite3.Connection, cfg: Config, by_type: bool, remove_junk: bool 
         stack = [watched]
         while stack:
             rel = stack.pop()
+            beat()
             try:
                 with os.scandir(cfg.share_root / rel) as listing:
                     entries = sorted(listing, key=lambda e: e.name)
@@ -298,14 +302,15 @@ def plan(con: sqlite3.Connection, cfg: Config, by_type: bool, remove_junk: bool 
                     out.made.setdefault("/".join(parts[:depth]), "other")
                 out.moves.append(Move(f"{rel}/{name}", f"{to}/{new}", row["id"] if row is not None else None))
         if remove_junk:  # Other files is left as it is, but for junk an earlier reorganization put there
-            _junk_in(cfg, f"{watched}/{OTHER}", out, alive, files, images)
+            _junk_in(cfg, f"{watched}/{OTHER}", out, alive, files, images, beat)
     out.shared_folders = len(moved_from_shared)
     return out
 
 
-def _junk_in(cfg: Config, top: str, out: Plan, alive: set[str], files: dict, images: dict) -> None:
+def _junk_in(cfg: Config, top: str, out: Plan, alive: set[str], files: dict, images: dict, beat) -> None:
     """The junk in a folder and below it (Other files), for plan(): junk folders whole, junk files one by one."""
     for folder, dirs, names in os.walk(cfg.share_root / top):
+        beat()
         rel = Path(folder).relative_to(cfg.share_root).as_posix()
         for d in list(dirs):
             if d.lower() in JUNK_DIRS:
@@ -430,7 +435,7 @@ def _left_alone(con: sqlite3.Connection, cfg: Config) -> set[str]:
     out.add(f"{into}/{cfg.uploads_folder}".strip("/"))
     if _has_table(con, "account"):
         out |= {r[0] for r in con.execute("SELECT upload_folder FROM account WHERE upload_folder IS NOT NULL")}
-    out |= scan._own_folders(cfg)
+    out |= scan.own_folders(cfg)
     out |= {r[0] for r in con.execute("SELECT path FROM folder WHERE ignored AND source = 'user'")}
     return out
 
@@ -480,7 +485,7 @@ def start(con: sqlite3.Connection, cfg: Config, by_type: bool, account_id: int |
     try:
         if busy(con):
             raise Problem("Files are being moved already: wait until that is done.")
-        now = _now()
+        now = clock.now()
         run_id = con.execute("""INSERT INTO reorganize_run(started_at, by_type, account_id, state, beat_at,
                                                            remove_empty, remove_junk)
                                 VALUES (?, ?, ?, 'moving', ?, ?, ?)""",
@@ -510,7 +515,7 @@ def undo(con: sqlite3.Connection, cfg: Config, connect=None) -> int:
         if row is None:
             raise Problem("There is no reorganization to undo.")
         con.execute("UPDATE reorganize_run SET state = 'undoing', moved = 0, problems = NULL, beat_at = ? WHERE id = ?",
-                    (_now(), row["id"]))
+                    (clock.now(), row["id"]))
         con.commit()
     except BaseException:
         con.rollback()
@@ -526,11 +531,13 @@ def undo(con: sqlite3.Connection, cfg: Config, connect=None) -> int:
 
 def undoable(con: sqlite3.Connection) -> sqlite3.Row | None:
     """The reorganization that can be put back: the latest that moved files, when none after it did (one that only
-    took away empty folders is passed over) and it isn't put back already."""
-    for row in con.execute("SELECT * FROM reorganize_run ORDER BY id DESC"):
+    took away empty folders is passed over) and it isn't put back already. Its "moves" are the files it moved, by
+    what it recorded: its own count is what was put back while it is put back, and none when that stopped at once."""
+    for row in con.execute("""SELECT r.*, (SELECT count(*) FROM reorganize_move m WHERE m.run_id = r.id) AS moves
+                              FROM reorganize_run r ORDER BY r.id DESC"""):
         if row["state"] in ("moving", "undoing", "undone"):
             return None
-        if row["moved"]:
+        if row["moves"]:
             return row
     return None
 
@@ -548,26 +555,63 @@ def _beside(connect, work, cfg: Config, run_id: int) -> None:
         con.close()
 
 
+def _beater(con: sqlite3.Connection, run_id: int):
+    """A sign of life for a run, given at most every BEAT seconds: while it looks through the folders before moving
+    anything, and while it tidies up after, as the moves themselves do for each CHUNK. Without it a big share looks
+    like a run that stopped (STALE), and the scan would start meanwhile."""
+    last = time.monotonic()
+
+    def beat() -> None:
+        nonlocal last
+        if time.monotonic() - last < BEAT:
+            return
+        last = time.monotonic()
+        try:
+            con.execute("UPDATE reorganize_run SET beat_at = ? WHERE id = ?", (clock.now(), run_id))
+            con.commit()
+        except sqlite3.OperationalError:  # the catalog busy just now: the next one
+            con.rollback()
+    return beat
+
+
 def run(con: sqlite3.Connection, cfg: Config, run_id: int) -> None:
-    """Move every file as plan() says, CHUNK a write, each recorded in reorganize_move; then take away the folders
-    it emptied."""
+    """Move every file as plan() says, CHUNK a write, each recorded in reorganize_move before it is moved (a run cut
+    short half way through a chunk, the web app stopped, leaves no file moved that put_back() can't find); then take
+    away the folders it emptied."""
+    from lineagebox import cleanup  # moves files as it does to the Removed folders (the scan imports this module)
+
     try:
         asked = con.execute("SELECT by_type, remove_empty, remove_junk FROM reorganize_run WHERE id = ?",
                             (run_id,)).fetchone()
-        p = plan(con, cfg, bool(asked["by_type"]), remove_junk=bool(asked["remove_junk"]))
-        con.execute("UPDATE reorganize_run SET planned = ? WHERE id = ?", (len(p.moves), run_id))
+        beat = _beater(con, run_id)
+        p = plan(con, cfg, bool(asked["by_type"]), remove_junk=bool(asked["remove_junk"]), beat=beat)
+        con.execute("UPDATE reorganize_run SET planned = ?, beat_at = ? WHERE id = ?",
+                    (len(p.moves), clock.now(), run_id))
         con.commit()
-        problems, seq, emptied, stayed = [], 0, set(), set()
+        problems, seq, moved, emptied, stayed = [], 0, 0, set(), set()
         folder_ids = {r["path"]: r["id"] for r in con.execute("SELECT id, path FROM folder")}
         for start_at in range(0, len(p.moves), CHUNK):
             if _stop.is_set():
                 break
+            chunk = p.moves[start_at:start_at + CHUNK]
+            # what is about to be moved, kept first: those it doesn't move after all are taken off again below
             con.execute("BEGIN IMMEDIATE")
             try:
-                for m in p.moves[start_at:start_at + CHUNK]:
+                con.executemany("""INSERT INTO reorganize_move(run_id, seq, file_id, old_path, new_path, old_from)
+                                   VALUES (?, ?, ?, ?, ?, (SELECT from_folder_id FROM file WHERE id = ?))""",
+                                [(run_id, seq + n, m.file_id, m.old, m.new, m.file_id) for n, m in enumerate(chunk)])
+                con.commit()
+            except BaseException:
+                con.rollback()
+                raise
+            con.execute("BEGIN IMMEDIATE")
+            try:
+                for n, m in enumerate(chunk):
                     if _stop.is_set():
+                        con.execute("DELETE FROM reorganize_move WHERE run_id = ? AND seq >= ? AND seq < ?",
+                                    (run_id, seq + n, seq + len(chunk)))
                         break
-                    watched = _watched(cfg, m.old)
+                    watched = cleanup.watched_folder(cfg, m.old)
                     problem = "the photo it goes with stayed" if m.of in stayed else None
                     # the catalog's row must still be at the path the plan saw
                     if problem is None and m.file_id is not None:
@@ -580,31 +624,29 @@ def run(con: sqlite3.Connection, cfg: Config, run_id: int) -> None:
                             problem = "the catalog has another file at its new path"
                     if problem is None:
                         try:
-                            _move(cfg.share_root / m.old, cfg.share_root / m.new, like=cfg.share_root / watched)
+                            cleanup.move_file(cfg.share_root / m.old, cfg.share_root / m.new,
+                                              like=cfg.share_root / watched)
                         except OSError as e:
                             problem = e.strerror or str(e)
                     if problem is not None:
                         stayed.add(m.old)
                         if len(problems) < MOST_PROBLEMS:
                             problems.append(f"{m.old}: {problem}")
+                        con.execute("DELETE FROM reorganize_move WHERE run_id = ? AND seq = ?", (run_id, seq + n))
                         continue
                     if m.file_id is not None:
                         new_folder = _folder_id(con, folder_ids, m.new.rpartition("/")[0], p.made)
                         con.execute("""UPDATE file SET path = ?, folder_id = ?,
                                        from_folder_id = coalesce(from_folder_id, ?) WHERE id = ?""",
                                     (m.new, new_folder, row["folder_id"], m.file_id))
-                    else:
-                        row = None
-                    con.execute("""INSERT INTO reorganize_move(run_id, seq, file_id, old_path, new_path, old_from)
-                                   VALUES (?, ?, ?, ?, ?, ?)""",
-                                (run_id, seq, m.file_id, m.old, m.new, row["from_folder_id"] if row else None))
-                    seq += 1
+                    moved += 1
                     emptied.add(m.old.rpartition("/")[0])
                 con.execute("UPDATE reorganize_run SET moved = ?, problems = ?, beat_at = ? WHERE id = ?",
-                            (seq, json.dumps(problems) if problems else None, _now(), run_id))
+                            (moved, json.dumps(problems) if problems else None, clock.now(), run_id))
             finally:
                 con.commit()
-        deleted = 0 if _stop.is_set() else _delete_junk(cfg, p, problems, emptied)
+            seq += len(chunk)
+        deleted = 0 if _stop.is_set() else _delete_junk(cfg, p, problems, emptied, beat)
         # every folder it made, in the catalog's tree as it is on the disk, saying nothing of its own: else the scan
         # would add those under Other files (with no photos) for the AI to be asked what their names mean
         con.execute("BEGIN IMMEDIATE")
@@ -614,13 +656,14 @@ def run(con: sqlite3.Connection, cfg: Config, run_id: int) -> None:
                     _folder_id(con, folder_ids, path, p.made)
         finally:
             con.commit()
-        gone = _take_away_empty(cfg, emptied, keep=set(p.made))
+        gone = _take_away_empty(cfg, emptied, keep=set(p.made), beat=beat)
         if asked["remove_empty"] and not _stop.is_set():
-            gone += take_away_empty(con, cfg)
+            gone += take_away_empty(con, cfg, beat=beat)
         state = "stopped" if _stop.is_set() else "done"
         con.execute("UPDATE reorganize_run SET state = ?, moved = ?, problems = ?, finished_at = ?, beat_at = ?, "
                     "emptied = ?, junk = ? WHERE id = ?",
-                    (state, seq, json.dumps(problems) if problems else None, _now(), _now(), gone, deleted, run_id))
+                    (state, moved, json.dumps(problems) if problems else None, clock.now(), clock.now(), gone,
+                     deleted, run_id))
         con.commit()
         _after(con)
     except BaseException as e:
@@ -629,11 +672,12 @@ def run(con: sqlite3.Connection, cfg: Config, run_id: int) -> None:
         raise
 
 
-def _delete_junk(cfg: Config, p: Plan, problems: list[str], emptied: set[str]) -> int:
+def _delete_junk(cfg: Config, p: Plan, problems: list[str], emptied: set[str], beat) -> int:
     """Delete what the plan found to be junk; returns how many files went (those in junk folders too). It can't be
     put back, and holds nothing of the family's."""
     deleted = 0
     for path in p.junk:
+        beat()
         try:
             (cfg.share_root / path).unlink()
         except FileNotFoundError:
@@ -645,6 +689,7 @@ def _delete_junk(cfg: Config, p: Plan, problems: list[str], emptied: set[str]) -
         deleted += 1
         emptied.add(path.rpartition("/")[0])
     for folder, n in p.junk_dirs.items():
+        beat()
         try:
             shutil.rmtree(cfg.share_root / folder)
         except OSError as e:
@@ -659,6 +704,8 @@ def _delete_junk(cfg: Config, p: Plan, problems: list[str], emptied: set[str]) -
 def put_back(con: sqlite3.Connection, cfg: Config, run_id: int) -> None:
     """Move what a reorganization moved back where it was, last first. A file that changed since (moved or removed
     again) stays where it is now."""
+    from lineagebox import cleanup  # moves files as it does to the Removed folders (the scan imports this module)
+
     try:
         moves = con.execute("SELECT * FROM reorganize_move WHERE run_id = ? ORDER BY seq DESC", (run_id,)).fetchall()
         folder_ids = {r["path"]: r["id"] for r in con.execute("SELECT id, path FROM folder")}
@@ -673,10 +720,21 @@ def put_back(con: sqlite3.Connection, cfg: Config, run_id: int) -> None:
                         break
                     problem = None
                     src, dst = cfg.share_root / m["new_path"], cfg.share_root / m["old_path"]
+                    like = cfg.share_root / cleanup.watched_folder(cfg, m["old_path"])
                     if m["file_id"] is not None:
                         row = con.execute("SELECT path, missing FROM file WHERE id = ?", (m["file_id"],)).fetchone()
                         if row is not None and row["path"] == m["old_path"]:
-                            continue  # back already (an undo stopped half way, then started again)
+                            # back already (an undo stopped half way, then started again), or never written down as
+                            # moved (the run was cut short between moving it and that): then only the file goes back
+                            if src.exists() and not dst.exists():
+                                try:
+                                    cleanup.move_file(src, dst, like=like)
+                                    done += 1
+                                    emptied.add(m["new_path"].rpartition("/")[0])
+                                except OSError as e:
+                                    if len(problems) < MOST_PROBLEMS:
+                                        problems.append(f"{m['new_path']}: {e.strerror or e}")
+                            continue
                         if row is None or row["path"] != m["new_path"] or row["missing"]:
                             problem = "it was moved or removed since"
                         elif con.execute("SELECT 1 FROM file WHERE path = ? AND id != ?",
@@ -686,7 +744,7 @@ def put_back(con: sqlite3.Connection, cfg: Config, run_id: int) -> None:
                         continue  # back already
                     if problem is None:
                         try:
-                            _move(src, dst, like=cfg.share_root / _watched(cfg, m["old_path"]))
+                            cleanup.move_file(src, dst, like=like)
                         except OSError as e:
                             problem = e.strerror or str(e)
                     if problem is not None:
@@ -700,13 +758,13 @@ def put_back(con: sqlite3.Connection, cfg: Config, run_id: int) -> None:
                     done += 1
                     emptied.add(m["new_path"].rpartition("/")[0])
                 con.execute("UPDATE reorganize_run SET moved = ?, problems = ?, beat_at = ? WHERE id = ?",
-                            (done, json.dumps(problems) if problems else None, _now(), run_id))
+                            (done, json.dumps(problems) if problems else None, clock.now(), run_id))
             finally:
                 con.commit()
         _take_away_empty(cfg, emptied, keep=set())
         stopped = _stop.is_set()
         con.execute("UPDATE reorganize_run SET state = ?, undone_at = ?, beat_at = ? WHERE id = ?",
-                    ("stopped" if stopped else "undone", None if stopped else _now(), _now(), run_id))
+                    ("stopped" if stopped else "undone", None if stopped else clock.now(), clock.now(), run_id))
         con.commit()
         _after(con)
     except BaseException as e:
@@ -722,7 +780,7 @@ def _failed(con: sqlite3.Connection, run_id: int, e: BaseException) -> None:
         problems = json.loads(row["problems"] or "[]") if row else []
         problems.append(f"stopped: {e}")
         con.execute("UPDATE reorganize_run SET state = 'stopped', problems = ?, beat_at = ? WHERE id = ?",
-                    (json.dumps(problems), _now(), run_id))
+                    (json.dumps(problems), clock.now(), run_id))
         con.commit()
     except sqlite3.Error:
         con.rollback()
@@ -741,14 +799,6 @@ def _after(con: sqlite3.Connection) -> None:
                  + (f"; {problems} could not be moved" if problems else ""))
 
 
-def _watched(cfg: Config, path: str) -> str:
-    return next((w for w in cfg.folders if path.startswith(w + "/")), path.split("/")[0])
-
-
-def _move(src: Path, dst: Path, like: Path) -> None:
-    from lineagebox import cleanup  # it moves files to the Removed folders the same way
-    cleanup._move(src, dst, like)
-
 
 def _folder_id(con: sqlite3.Connection, ids: dict[str, int], path: str, made: dict[str, str]) -> int:
     """The catalog's folder at path, recorded with those above it if new. One this makes says nothing of its own
@@ -763,12 +813,14 @@ def _folder_id(con: sqlite3.Connection, ids: dict[str, int], path: str, made: di
     return ids[path]
 
 
-def _take_away_empty(cfg: Config, folders: set[str], keep: set[str]) -> int:
+def _take_away_empty(cfg: Config, folders: set[str], keep: set[str], beat=None) -> int:
     """Remove the folders moving files out of left empty, and those above them left so, up to the watched folders.
     Returns how many."""
     stop_at = set(cfg.folders) | keep
     gone = 0
     for folder in sorted(folders, key=lambda f: -f.count("/")):
+        if beat:
+            beat()
         while folder and folder not in stop_at and any(folder.startswith(w + "/") for w in cfg.folders):
             path = cfg.share_root / folder
             try:
@@ -782,10 +834,10 @@ def _take_away_empty(cfg: Config, folders: set[str], keep: set[str]) -> int:
     return gone
 
 
-def take_away_empty(con: sqlite3.Connection, cfg: Config) -> int:
+def take_away_empty(con: sqlite3.Connection, cfg: Config, beat=None) -> int:
     """Remove every folder in the watched folders with nothing in it, or only empty folders (left so by cleanup's
     moves to Removed, or by hand), but for those a reorganization leaves alone (plan()) and one the catalog still has
-    a file in (a disk mounted there and away just now looks empty too). Returns how many."""
+    a file in (a disk mounted there and away just now looks empty too). Returns how many. beat: as for plan()."""
     alive = _alive(con)
     leave = _left_alone(con, cfg) - {f"{w}/{OTHER}" for w in cfg.folders}  # its folders left empty go too
     gone = 0
@@ -793,6 +845,8 @@ def take_away_empty(con: sqlite3.Connection, cfg: Config) -> int:
     def visit(folder: str, rel: str, device: int) -> bool:
         """Take away what is empty in folder, then folder itself if that leaves it empty; whether it went."""
         nonlocal gone
+        if beat:
+            beat()
         try:
             with os.scandir(folder) as listing:
                 entries = list(listing)
@@ -824,7 +878,3 @@ def take_away_empty(con: sqlite3.Connection, cfg: Config) -> int:
             continue  # away just now
         visit(str(cfg.share_root / watched), watched, device)
     return gone
-
-
-def _now() -> str:
-    return datetime.now().isoformat(timespec="seconds")

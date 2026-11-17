@@ -38,12 +38,12 @@ OK_KEY = "ages_ok"   # settings: faces an admin said are named right whatever th
 SURE = ("exif", "camera", "filename", "copy")
 
 
-def _first(born: str) -> date:
+def first_day(born: str) -> date:
     """The earliest day a birth date (ISO, as much as is known: "1984-06-12", "1984-06", "1984") allows."""
     return date(int(born[:4]), int(born[5:7]) if len(born) >= 7 else 1, int(born[8:10]) if len(born) >= 10 else 1)
 
 
-def _last(born: str) -> date:
+def last_day(born: str) -> date:
     """The latest day a birth date allows."""
     if len(born) >= 10:
         return date.fromisoformat(born[:10])
@@ -93,10 +93,10 @@ def age_checks(con: sqlite3.Connection, ok: set[int] = frozenset()) -> list[dict
             continue
         b = born[r["person_id"]]
         why = None
-        if days[1] < _first(b):
+        if days[1] < first_day(b):
             why = "born after"
         elif (r["usable"] and r["est_age"] is not None and r["est_age"] < CHILD_LOOKS
-              and (days[0] - _last(b)).days / 365.25 >= GROWN_UP
+              and (days[0] - last_day(b)).days / 365.25 >= GROWN_UP
               and (r["taken_at_source"] == "user" or r["image_id"] in dated_right)):
             why = "child"
         if why:

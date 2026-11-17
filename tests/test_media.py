@@ -102,11 +102,11 @@ def test_save_tolerates_locked_existing_file(tmp_path, monkeypatch):
     existing = tmp_path / "ab" / "ab12.webp"
     existing.parent.mkdir()
     existing.write_bytes(b"identical derivative already written")
-    media._atomic_save(im, existing, "WEBP")
+    media.atomic_save(im, existing, "WEBP")
     assert list(existing.parent.iterdir()) == [existing]  # temp file cleaned up
 
     with pytest.raises(PermissionError):
-        media._atomic_save(im, tmp_path / "ab" / "cd34.webp", "WEBP")
+        media.atomic_save(im, tmp_path / "ab" / "cd34.webp", "WEBP")
 
 
 @pytest.mark.skipif(not SAMPLE_NEF.is_file(), reason="set LINEAGEBOX_SAMPLE_NEF to a real .NEF file")

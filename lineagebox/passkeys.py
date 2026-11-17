@@ -17,7 +17,6 @@ that name over HTTPS; browsers refuse it anywhere else. So passkeys are only set
 on and the name is listed, exactly, under Host names (why_not). Changing the address later leaves the passkeys made for
 the old name unusable: everyone makes new ones.
 """
-import hashlib
 import hmac
 import ipaddress
 import json
@@ -34,7 +33,7 @@ from webauthn.helpers.structs import (AuthenticatorSelectionCriteria, Authentica
                                       PublicKeyCredentialDescriptor, ResidentKeyRequirement,
                                       UserVerificationRequirement)
 
-from lineagebox import errors, https
+from lineagebox import accounts, clock, errors, https
 from lineagebox.config import Config
 
 RP_NAME = "Family photos"  # what a phone may show beside the site's name when it offers the passkey
@@ -48,10 +47,6 @@ NOT_CHECKED = "That passkey couldn't be checked. Try again."
 
 class Problem(errors.Problem):
     """Why a passkey can't be made or used; the message is shown."""
-
-
-def _now() -> datetime:
-    return datetime.now().replace(microsecond=0)
 
 
 # ---- where passkeys work -------------------------------------------------------------------------------------------
@@ -182,7 +177,7 @@ def add(con: sqlite3.Connection, account_id: int, credential: dict, challenge: b
                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                            (account_id, made.credential_id, made.credential_public_key, made.sign_count, domain(cfg),
                             json.dumps(transports), int(made.credential_backed_up), _name(name) or "A passkey",
-                            _now().isoformat())).lastrowid
+                            clock.now_datetime().isoformat())).lastrowid
     except sqlite3.IntegrityError:
         raise Problem("That passkey is kept here already.") from None
 
@@ -192,7 +187,7 @@ def may_add(account: dict, what: str | None = None) -> str | None:
     FIRST_HOURS when that was the account's first sign-in. what: something else that gives a lasting way in, held to
     the same rule (common._recently_signed_in)."""
     until = add_until(account)
-    if until is not None and _now() <= until:
+    if until is not None and clock.now_datetime() <= until:
         return None
     if what:
         return (f"To {what}, sign out and in again first. It can be done within {RECENT_MINUTES} minutes of signing "
@@ -247,16 +242,12 @@ def sign_in(con: sqlite3.Connection, credential: dict, challenge: bytes, cfg: Co
     if row["disabled_at"]:
         raise Problem("This account is switched off. Ask whoever looks after the photos.")
     con.execute("UPDATE passkey SET sign_count = ?, synced = ?, last_used_at = ? WHERE id = ?",
-                (used.new_sign_count, int(used.credential_backed_up), _now().isoformat(), row["id"]))
+                (used.new_sign_count, int(used.credential_backed_up), clock.now_datetime().isoformat(), row["id"]))
     con.commit()
     return row["account_id"], row["id"]
 
 
 # ---- an admin's links ----------------------------------------------------------------------------------------------
-
-def _hash(token: str) -> str:
-    return hashlib.sha256(token.encode()).hexdigest()
-
 
 def make_invite(con: sqlite3.Connection, account_id: int, made_by: int | None, cfg: Config) -> tuple[str, datetime]:
     """A link's token for making a passkey for this account (shown once), and when it runs out. It replaces the
@@ -268,11 +259,11 @@ def make_invite(con: sqlite3.Connection, account_id: int, made_by: int | None, c
         raise Problem("No such account.")
     if row["disabled_at"]:
         raise Problem("This account is switched off: switch it back on first.")
-    token, now = secrets.token_urlsafe(32), _now()
+    token, now = secrets.token_urlsafe(32), clock.now_datetime()
     until = now + (timedelta(hours=ADMIN_INVITE_HOURS) if row["role"] == "admin" else timedelta(days=INVITE_DAYS))
     con.execute("DELETE FROM passkey_invite WHERE account_id = ?", (account_id,))
     con.execute("INSERT INTO passkey_invite(token_hash, account_id, made_by, made_at, expires_at) VALUES (?, ?, ?, ?, ?)",
-                (_hash(token), account_id, made_by, now.isoformat(), until.isoformat()))
+                (accounts.token_hash(token), account_id, made_by, now.isoformat(), until.isoformat()))
     con.commit()
     return token, until
 
@@ -291,13 +282,13 @@ def invited(con: sqlite3.Connection, token: str) -> sqlite3.Row | None:
                           FROM passkey_invite i JOIN account a ON a.id = i.account_id
                           LEFT JOIN person p ON p.id = a.person_id
                           WHERE i.token_hash = ? AND i.expires_at > ? AND a.disabled_at IS NULL""",
-                       (_hash(token), _now().isoformat())).fetchone()
+                       (accounts.token_hash(token), clock.now_datetime().isoformat())).fetchone()
 
 
 def use_invite(con: sqlite3.Connection, token: str) -> bool:
     """Take a link out of use, in one statement: two pages with one link can't both make a passkey. Doesn't commit."""
     return con.execute("DELETE FROM passkey_invite WHERE token_hash = ? AND expires_at > ?",
-                       (_hash(token), _now().isoformat())).rowcount == 1
+                       (accounts.token_hash(token), clock.now_datetime().isoformat())).rowcount == 1
 
 
 def cancel_invite(con: sqlite3.Connection, account_id: int) -> None:
@@ -308,7 +299,7 @@ def cancel_invite(con: sqlite3.Connection, account_id: int) -> None:
 def invites(con: sqlite3.Connection) -> dict[int, str]:
     """Each account's link that still works: when it runs out."""
     return {r[0]: r[1] for r in con.execute("SELECT account_id, expires_at FROM passkey_invite WHERE expires_at > ?",
-                                            (_now().isoformat(),))}
+                                            (clock.now_datetime().isoformat(),))}
 
 
 # ---- the passkeys kept ---------------------------------------------------------------------------------------------

@@ -5,7 +5,7 @@ Dates are kept as GEDCOM date values, so what is known is kept as it is known: "
 "ABT 1950", "BEF 1960", "BET 1950 AND 1955". Each also has a sort date (ISO: "1984-06-12", "1984-06", "1984"), for
 ordering and ages. People type dates however they like (see parse_date).
 
-person.birth_date and person.deceased are kept in step with the BIRT and DEAT events (see _sync_person): ages in
+person.birth_date and person.deceased are kept in step with the BIRT and DEAT events (see sync_person): ages in
 tours, the family tree's order and the partner rules read them.
 """
 import json
@@ -200,7 +200,7 @@ def save(con: sqlite3.Connection, event_id: int | None, *, tag: str, person_id: 
         con.execute("""UPDATE event SET person_id = ?, couple_a = ?, couple_b = ?, tag = ?, type = ?, date = ?,
                        sort_date = ?, place = ?, note = ? WHERE id = ?""", (*values, event_id))
     if person_id is not None:
-        _sync_person(con, person_id)
+        sync_person(con, person_id)
     return event_id
 
 
@@ -208,10 +208,10 @@ def delete(con: sqlite3.Connection, event_id: int) -> None:
     row = con.execute("SELECT person_id FROM event WHERE id = ?", (event_id,)).fetchone()
     con.execute("DELETE FROM event WHERE id = ?", (event_id,))
     if row and row[0] is not None:
-        _sync_person(con, row[0])
+        sync_person(con, row[0])
 
 
-def _sync_person(con: sqlite3.Connection, pid: int) -> None:
+def sync_person(con: sqlite3.Connection, pid: int) -> None:
     birth = con.execute("SELECT sort_date FROM event WHERE person_id = ? AND tag = 'BIRT'", (pid,)).fetchone()
     died = con.execute("SELECT 1 FROM event WHERE person_id = ? AND tag IN ('DEAT', 'BURI', 'CREM')", (pid,)).fetchone()
     con.execute("UPDATE person SET birth_date = ?, deceased = ? WHERE id = ?",
@@ -225,7 +225,7 @@ def set_deceased(con: sqlite3.Connection, pid: int, deceased: bool) -> None:
             con.execute("INSERT INTO event(person_id, tag) VALUES (?, 'DEAT')", (pid,))
     else:
         con.execute("DELETE FROM event WHERE person_id = ? AND tag IN ('DEAT', 'BURI', 'CREM')", (pid,))
-    _sync_person(con, pid)
+    sync_person(con, pid)
 
 
 def move(con: sqlite3.Connection, old: int, new: int) -> None:
@@ -236,7 +236,7 @@ def move(con: sqlite3.Connection, old: int, new: int) -> None:
             con.execute("DELETE FROM event WHERE id = ?", (row["id"],))
         else:
             con.execute("UPDATE event SET person_id = ? WHERE id = ?", (new, row["id"]))
-    _sync_person(con, new)
+    sync_person(con, new)
 
 
 def move_couple(con: sqlite3.Connection, old_pair: tuple[int, int], new_pair: tuple[int, int]) -> None:

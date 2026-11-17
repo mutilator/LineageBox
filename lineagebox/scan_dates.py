@@ -55,7 +55,6 @@ NAMED = ("(f.path LIKE :scan OR (f.from_folder_id IS NOT NULL AND (SELECT d.path
          "WHERE d.id = f.from_folder_id) LIKE :scan))")
 NO_DATE = ("mtime",)  # dated only by its file's time: no date of its own (a folder's is someone's word)
 DOCUMENT = "document/screenshot"  # the AI's photo_type for a picture of a document
-TRUSTED = ("user", "copy")  # a date set by hand, or a copy's camera date: not suggested over
 OK_KEY = "scan_dates_ok"  # settings: scans an admin said are dated right
 STAGE = "dates"  # retry.py
 PROMPT_VERSION = 1
@@ -184,7 +183,7 @@ def young(con: sqlite3.Connection, ok: set[int] = frozenset()) -> dict[int, list
         by_person[r["person_id"]].append(r)
     out: dict[int, list[dict]] = defaultdict(list)
     for pid, faces in by_person.items():
-        first = face_ages._first(born[pid])
+        first = face_ages.first_day(born[pid])
         looks = [bool(r["usable"]) and r["est_age"] is not None and r["est_age"] < face_ages.CHILD_LOOKS for r in faces]
         # the faces whose age is known: a child's (True), a grown-up's (False)
         refs, kinds, days = [], [], []
@@ -402,8 +401,8 @@ def suggestions(con: sqlite3.Connection, item: dict, south: bool = False, day_fi
         add(dates.photo_date(f"between {year} and {year + face_ages.CHILD_AT_MOST}", south),
             f"{f['name']} looks like a child in it, {face_ages.CHILD_AT_MOST} or younger; its date makes {f['name']}"
             f" {f['age']}.", label=f"between {year} and {year + face_ages.CHILD_AT_MOST}")
-    lower, upper, why = date_hints._from_people(con, item["id"])
-    if item.get("found") == "no date" and (near := date_hints._from_neighbors(con, item["id"])):
+    lower, upper, why = date_hints.from_people(con, item["id"])
+    if item.get("found") == "no date" and (near := date_hints.from_neighbors(con, item["id"])):
         said, last, reason = near  # not a scan: the camera-dated photos beside it are from its time (date_hints)
         if lower is None or last >= lower:
             try:

@@ -16,8 +16,8 @@ from lineagebox import embeddings  # search by meaning
 from lineagebox import albums, favorites  # the albums a photo is in, the viewer's heart on it
 from lineagebox import headcount  # how many people a photo shows, and how sure the AI is of it
 from lineagebox.folders import FolderIndex
-from lineagebox.web.common import (ADMIN, MEMBER, _covers, _kin_labels, _name_choices, _others_by_whose, _share_panel,
-                                   _upload_labels, _within, years_of)
+from lineagebox.web.common import (ADMIN, MEMBER, cover_faces, kin_labels, name_choices, others_by_whose, share_panel,
+                                   upload_labels, within, years_of)
 from lineagebox.web.deps import con, page, paging, site, viewer, writer
 from lineagebox.web import pieces  # big pages a piece at a time, with a scrubber
 from lineagebox import date_hints, face_ages  # date help for scans; a birth year from the faces
@@ -80,7 +80,7 @@ def folder_page(request: Request, folder_id: int, select: bool = False, v=Depend
     top = None  # where a member's browsing starts: their uploads, or a folder shared with them (the outermost)
     if folder is not None and v.limited:
         top = next((p for p in sorted(filter(None, (uploads, *v.shared_folders)), key=len)
-                    if _within(folder.path, p)), None)
+                    if within(folder.path, p)), None)
     if folder is None or v.limited and top is None:
         raise HTTPException(404, "No such folder")
     images = catalog.folder_images(c, folder_id)
@@ -89,13 +89,13 @@ def folder_page(request: Request, folder_id: int, select: bool = False, v=Depend
         return page(request, "_piece.html", p=photos)
     crumbs = []
     node = folder
-    while node is not None and (v.admin or _within(node.path, top)):
+    while node is not None and (v.admin or within(node.path, top)):
         crumbs.insert(0, node)
         node = tree.get(node.parent_id)
     subfolders = [f for f in folder.children if f.total or f.ignored]
     shown = {f.path for f in (*crumbs, *subfolders)}
-    labels = {path: name for path, name in _upload_labels(w, v).items() if path in shown}
-    own = v.admin or _within(folder.path, uploads)
+    labels = {path: name for path, name in upload_labels(w, v).items() if path in shown}
+    own = v.admin or within(folder.path, uploads)
     watched = s.live(c).folders
     from_whom = None
     if not own:  # who shared the folder they are in
@@ -104,9 +104,9 @@ def folder_page(request: Request, folder_id: int, select: bool = False, v=Depend
     return page(request, "folder.html", folder=folder, crumbs=crumbs, labels=labels, subfolders=subfolders,
                 images=images, photos=photos, everything=[r["id"] for r in images] if select else None,
                 ctx=f"folder:{folder_id}", select=select, own=own,
-                from_whom=from_whom, removable=own and folder.path != "" and not any(_within(p, folder.path)
+                from_whom=from_whom, removable=own and folder.path != "" and not any(within(p, folder.path)
                                                                                     for p in watched),
-                sharing=_share_panel(w, v, "folder", folder_id) if own and folder.path and getattr(
+                sharing=share_panel(w, v, "folder", folder_id) if own and folder.path and getattr(
                     request.state, "account", None) else None,
                 folder_hidden=bool(c.execute("SELECT hidden FROM folder WHERE id = ?", (folder_id,)).fetchone()[0]),
                 meaning=_meaning(c, folder_id) if v.admin and folder.path else None)
@@ -235,7 +235,7 @@ def search_page(request: Request, q: str = "", select: bool = False, pg: int = Q
                 to_describe=st["to_describe"], select=select, paging=p,
                 page_query={**f.params(q), **({"select": 1} if select else {})}, here_query=f.params(q),
                 people_found=cards,
-                kin=_kin_labels(c), asked=asked, chips=chips, kept=f.params(), ideas=ideas[:8],
+                kin=kin_labels(c), asked=asked, chips=chips, kept=f.params(), ideas=ideas[:8],
                 heading=f"“{q}”" if q else ", ".join(chip["label"] for chip in chips) or "Search",
                 media=[("Photos and videos", href(media=""), not f.media), ("Photos", href(media="photos"),
                         f.media == "photos"), ("Videos", href(media="videos"), f.media == "videos"),
@@ -258,7 +258,7 @@ def search_suggest(q: str = "", people: str = "", v=Depends(viewer), c=Depends(c
     the viewer: this is asked again with each letter. people: those already asked for, not offered again."""
     keep = lambda name, work: s.keep(v, name, COUNTS_FOR, work)  # noqa: E731
     chosen = {int(x) for x in people.split(",") if x.strip().isdecimal()}
-    items = search.suggest(q[:200], keep(("people names", v.me), lambda: _name_choices(c)),
+    items = search.suggest(q[:200], keep(("people names", v.me), lambda: name_choices(c)),
                            keep(("family words", v.me), lambda: search.family_words(c)),
                            keep(("search places",), lambda: search.places(c)),
                            keep(("tags", "count"), lambda: catalog.tags(c, "", "count", limit=None)[0]),
@@ -275,7 +275,7 @@ def image_page(request: Request, image_id: int, ctx: str = "", v=Depends(viewer)
     files = catalog.image_files(c, image_id)
     download = next((f["id"] for f in files if not f["missing"]), None)
     if v.limited:  # a member's own copies; the folders of the others are the admins'
-        files = [f for f in files if _within(f["path"], v.account["upload_folder"])]
+        files = [f for f in files if within(f["path"], v.account["upload_folder"])]
     tour = tours.tour(c, int(ctx[5:])) if ctx.startswith("tour:") and ctx[5:].isdecimal() else None
     if tour:
         ids = [p["id"] for p in tour_shown(s, v, c, w, tour)[0]]
@@ -339,7 +339,7 @@ def image_page(request: Request, image_id: int, ctx: str = "", v=Depends(viewer)
                 people_seen=headcount.shown(c, analysis),
                 folder_ctx=FolderIndex(c).context(image_id), similar=catalog.group_members(c, image_id),
                 date_hint=date_hints.suggest(c, image_id),  # a photo dated only by file time or folder: a year
-                faces=faces, kin=_kin_labels(c), tags=tagging.for_image(c, image_id), linked=linked,
+                faces=faces, kin=kin_labels(c), tags=tagging.for_image(c, image_id), linked=linked,
                 ages=events.ages(c, img, [f["person_id"] for f in faces] + [p["id"] for p in linked]),
                 doc=doc, doc_kinds=documents.KINDS, citations=documents.citations(c, image_id) if doc else [],
                 cite_targets=documents.targets(c) if doc else [], suggested=suggested,
@@ -350,12 +350,12 @@ def image_page(request: Request, image_id: int, ctx: str = "", v=Depends(viewer)
                 place=map_places.photo_place(c, image_id, img), xmp=sidecars.packet(c, image_id) is not None,
                 live=catalog.live_clip(c, image_id) if not is_video else None,
                 favorite=favorites.has(w, v, image_id), in_albums=albums.containing(c, image_id),
-                sharing=_share_panel(w, v, "image", image_id) if getattr(request.state, "account", None) and (
+                sharing=share_panel(w, v, "image", image_id) if getattr(request.state, "account", None) and (
                     v.admin or any(not f["missing"] for f in files)) else None)
 
 
 COUNTS_FOR = 60  # seconds tag and people counts are kept (Site.kept: a change made on the site counts them again)
-FACES_FOR = 300  # seconds Cleanup → Faces keeps who the unnamed faces may be (see _faces_to_confirm)
+FACES_FOR = 300  # seconds Cleanup → Faces keeps who the unnamed faces may be (see faces_to_confirm)
 
 
 def _stats(s: Site, v, c) -> dict:
@@ -422,14 +422,14 @@ def people_page(request: Request, v=Depends(viewer), c=Depends(con), s: Site = D
     added by a reading or an import, or a name typed by mistake - is on no other list, so leaving them out left no
     way to open them at all. Their unnamed faces wait under Cleanup → Confirm faces. The counts are kept a minute."""
     named = s.keep(v, ("people, everyone",), COUNTS_FOR, lambda: catalog.people(c, everyone=True))
-    return page(request, "people.html", nav="people", named=named, s=_stats(s, v, c), kin=_kin_labels(c),
+    return page(request, "people.html", nav="people", named=named, s=_stats(s, v, c), kin=kin_labels(c),
                 no_photos=sum(1 for p in named if not p["photos"]),
                 circles=people.groups(c), also=people.also_known(c),
                 total_groups=s.keep(v, ("face groups",), COUNTS_FOR, lambda: catalog.clusters(c, 0, 0)[1]),
                 beside=s.keep(v, ("beside named",), COUNTS_FOR, lambda: people.beside_named(c)))
 
 
-def _faces_to_confirm(s: Site, v, c) -> tuple[list[dict], int]:
+def faces_to_confirm(s: Site, v, c) -> tuple[list[dict], int]:
     """Who the unnamed faces beside named people may be (people.together) and how many such faces there are. Working
     it out takes seconds on a big library, and the page reloads after each confirm, so it is kept FACES_FOR seconds
     even through changes, and what changed since is taken out of it each time: faces named, set aside or turned down
@@ -463,8 +463,8 @@ def cleanup_faces_page(request: Request, show: str | None = None, pg: int = Quer
     or more people named and someone not yet, and the groups of faces nobody has named. Seen together comes first
     while it has faces: each takes one click. For a member, people named in a photo outside their part of the
     family are shown without a link, as on the photo's page. The page reloads after each click, so what takes a while
-    is kept, through those changes: Seen together for FACES_FOR seconds (_faces_to_confirm), the counts a minute."""
-    groups, beside = _faces_to_confirm(s, v, c)
+    is kept, through those changes: Seen together for FACES_FOR seconds (faces_to_confirm), the counts a minute."""
+    groups, beside = faces_to_confirm(s, v, c)
     kept = lambda name, work: s.keep(v, name, COUNTS_FOR, work, through_changes=True)
     total_groups = lambda: kept(("face groups",), lambda: catalog.clusters(c, 0, 0)[1])
     finish = None if show == "finish" else kept(("to finish",), lambda: people.to_finish(c, 0, 0)[1])
@@ -614,8 +614,8 @@ def family_page(request: Request, root: int | None = None, center: int | None = 
     return page(request, "family.html", nav="family", g=g, ego=ego, kin=kin,
                 view=family.view(g, center, ego) if center is not None else None, line_root=line_root,
                 groups=[(name, groups[name]) for name in family.GROUPS if name in groups],
-                others=_others_by_whose(g),
-                unplaced=_unplaced(c, named, linked), covers=_covers(named), circles=circles,
+                others=others_by_whose(g),
+                unplaced=_unplaced(c, named, linked), covers=cover_faces(named), circles=circles,
                 names_to_check=c.execute("SELECT count(*) FROM person WHERE NOT names_checked").fetchone()[0],
                 **reading)
 
@@ -645,4 +645,4 @@ def family_tree_page(request: Request, root: int | None = None, person: int | No
     return page(request, "family_tree.html", nav="family", g=g, ego=ego,
                 kin=family.relations_to(g, ego) if ego else {}, tops=tops, root=root, top_names=top_names,
                 tree=family.tree(g, root) if root is not None else None,
-                person=person if person in g.people else None, covers=_covers(catalog.people(c)))
+                person=person if person in g.people else None, covers=cover_faces(catalog.people(c)))

@@ -87,7 +87,7 @@ def years_ago(con, today: date, blurry_below: float | None = None, people: list[
     for year in sorted({int(d[:4]) for d in days if d[:4].isdecimal()}):
         if not 1800 <= year < today.year:
             continue
-        middle = _same_day(today, year)
+        middle = same_day(today, year)
         first, last = middle - timedelta(days=AROUND), middle + timedelta(days=AROUND)
         n = sum(days.get((first + timedelta(days=k)).isoformat(), 0) for k in range((last - first).days + 1))
         if n >= LEAST:
@@ -108,7 +108,7 @@ def years_ago(con, today: date, blurry_below: float | None = None, people: list[
     return out
 
 
-def _same_day(today: date, year: int) -> date:
+def same_day(today: date, year: int) -> date:
     try:
         return today.replace(year=year)
     except ValueError:  # the 29th of February, in a year without one

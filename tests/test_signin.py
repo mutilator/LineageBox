@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 from lineagebox import accounts, activity, cli, people, settings
 from lineagebox.web import app as webapp
+from lineagebox.web import common
 from lineagebox.web import site as site_module
 from tests.conftest import LAN
 
@@ -323,8 +324,8 @@ def test_nothing_large_before_signing_in(setup):
 @pytest.mark.parametrize("where", ["/\t/evil.example", "/\n/evil.example", "//evil.example", "/\x5cevil.example",
                                    "https://evil.example", "/ok page"])
 def test_after_signing_in_only_pages_of_this_site(where):
-    assert webapp._local_path(where) == "/"
-    assert webapp._local_path("/people?q=a") == "/people?q=a"
+    assert common.local_path(where) == "/"
+    assert common.local_path("/people?q=a") == "/people?q=a"
 
 
 def test_the_sign_in_page_shows_no_words_from_its_address(setup):

@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 
 from lineagebox import catalog, dates, events, scan_dates, settings
-from lineagebox.web.common import ADMIN, _from_app
+from lineagebox.web.common import ADMIN, from_app
 from lineagebox.web.deps import con, page, paging, site, viewer
 from lineagebox.web.site import Site
 
@@ -54,7 +54,7 @@ def suggested_dates_page(request: Request, show: str = "documents", pg: int = Qu
                 ai_on=s.live(c).describe_enabled)
 
 
-@router.post("/api/images/{image_id}/read-date", dependencies=[Depends(_from_app)])
+@router.post("/api/images/{image_id}/read-date", dependencies=[Depends(from_app)])
 def read_date(image_id: int, c=Depends(con), s: Site = Depends(site)):
     """The AI reads the dates written on it, now."""
     if catalog.image(c, image_id) is None:
@@ -67,7 +67,7 @@ def read_date(image_id: int, c=Depends(con), s: Site = Depends(site)):
             "reload": True}
 
 
-@router.post("/api/images/{image_id}/date-ok", dependencies=[Depends(_from_app)])
+@router.post("/api/images/{image_id}/date-ok", dependencies=[Depends(from_app)])
 def date_ok(image_id: int, c=Depends(con)):
     """Its date is right as it is: off the list."""
     if catalog.image(c, image_id) is None:

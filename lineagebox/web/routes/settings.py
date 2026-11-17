@@ -14,8 +14,8 @@ from lineagebox import backup, db, export, https, llm, passkeys, serving, settin
 from lineagebox import faces, imports, sidecars, writeback
 from lineagebox.llm import Ollama
 from lineagebox.storage import fmt_size
-from lineagebox.web.common import (ADMIN, PRIVATE, FolderBody, _attachment, _cert_name, _from_app, _host_allowed,
-                                   _net_folders, _photos_per_watched)
+from lineagebox.web.common import (ADMIN, PRIVATE, FolderBody, attachment, cert_name, from_app, host_allowed,
+                                   net_folders, photos_per_watched)
 from lineagebox.web.deps import con, page, site
 from lineagebox.web.site import Site
 
@@ -47,13 +47,13 @@ def settings_page(request: Request, browse: str = "", c=Depends(con), s: Site = 
         browse = ""
     cert = https.about(now)
     host = request.headers.get("host", "")
-    return page(request, "settings.html", nav="settings", cfg=now, counts=_photos_per_watched(c, now.folders),
+    return page(request, "settings.html", nav="settings", cfg=now, counts=photos_per_watched(c, now.folders),
                 browse=browse, crumbs=browse.split("/") if browse else [],
                 subfolders=settings.subfolders(now, browse), data_dir=s.cfg.data_dir, tour_types=tours.types(c),
                 sources=settings.sources(s.cfg), problems=settings.problems(c),
-                net_folders=_net_folders(now, settings.sources(s.cfg)), net_paths=dict(now.network_paths),
+                net_folders=net_folders(now, settings.sources(s.cfg)), net_paths=dict(now.network_paths),
                 cert=cert, host=host, cert_covers=cert is not None and https.covers(cert.names, host),
-                cert_name=_cert_name(cert, now.allowed_hosts, host), proxied="x-forwarded-for" in request.headers,
+                cert_name=cert_name(cert, now.allowed_hosts, host), proxied="x-forwarded-for" in request.headers,
                 passkey_problem=passkeys.why_not(now), passkey_domain=passkeys.domain(now),
                 passkey_count=c.execute("SELECT count(*) FROM passkey WHERE rp_id = ?",
                                         (passkeys.domain(now),)).fetchone()[0],
@@ -62,14 +62,14 @@ def settings_page(request: Request, browse: str = "", c=Depends(con), s: Site = 
                 exiftool=writeback.exiftool() is not None, face_round=faces.round_progress(c))
 
 
-@router.post("/api/settings", dependencies=[Depends(_from_app)])
+@router.post("/api/settings", dependencies=[Depends(from_app)])
 def save_settings(body: dict, c=Depends(con), s: Site = Depends(site)):
     settings.save(c, s.cfg, body)
     s.shared["at"] = -1e9
     return {"message": "Saved."}
 
 
-@router.post("/api/settings/network-paths", dependencies=[Depends(_from_app)])
+@router.post("/api/settings/network-paths", dependencies=[Depends(from_app)])
 def save_network_paths(body: dict, c=Depends(con), s: Site = Depends(site)):
     """The Settings page's network path for each source: fields named net:<folder> (net: for the share)."""
     paths = {k[4:]: v for k, v in body.items() if k.startswith("net:")}
@@ -78,14 +78,14 @@ def save_network_paths(body: dict, c=Depends(con), s: Site = Depends(site)):
     return {"message": "Saved."}
 
 
-@router.post("/api/settings/address", dependencies=[Depends(_from_app)])
+@router.post("/api/settings/address", dependencies=[Depends(from_app)])
 def save_address(request: Request, body: dict, c=Depends(con), s: Site = Depends(site)):
     """Host names and reverse proxies. A list without the name this page was opened by is refused: the next page
     would be."""
     def save():
         hosts = settings.host_names(body.get("allowed_hosts", ""))
         host = request.headers.get("host", "")
-        if not _host_allowed(host, hosts):
+        if not host_allowed(host, hosts):
             raise settings.Invalid(f"This page was opened as {host}: keep that name in the list, or open the page "
                                    "by this machine's address first.")
         settings.save(c, s.cfg, {"allowed_hosts": hosts, "trusted_proxies": body.get("trusted_proxies", "")})
@@ -120,43 +120,43 @@ def switch_https(s: Site, request: Request, c, on: bool, files) -> dict:
     return {"message": message, "go": go, "wait": 3}
 
 
-@router.post("/api/https", dependencies=[Depends(_from_app)])
+@router.post("/api/https", dependencies=[Depends(from_app)])
 def use_certificate(request: Request, body: dict, c=Depends(con), s: Site = Depends(site)):
     """Certificate and key files this machine has: fields tls_cert and tls_key, as paths."""
     cert, key = str(body.get("tls_cert", "")).strip(), str(body.get("tls_key", "")).strip()
     return switch_https(s, request, c, bool(cert or key), lambda: (cert, key))
 
 
-@router.post("/api/https/upload", dependencies=[Depends(_from_app)])
+@router.post("/api/https/upload", dependencies=[Depends(from_app)])
 def upload_certificate(request: Request, body: dict, c=Depends(con), s: Site = Depends(site)):
     """A certificate and key chosen in the browser: their text, as fields cert and key."""
     return switch_https(s, request, c, True, lambda: https.store(s.cfg, str(body.get("cert", "")),
                                                               str(body.get("key", ""))))
 
 
-@router.post("/api/https/off", dependencies=[Depends(_from_app)])
+@router.post("/api/https/off", dependencies=[Depends(from_app)])
 def https_off(request: Request, c=Depends(con), s: Site = Depends(site)):
     return switch_https(s, request, c, False, lambda: ("", ""))
 
 
-@router.post("/api/folders/watch", dependencies=[Depends(_from_app)])
+@router.post("/api/folders/watch", dependencies=[Depends(from_app)])
 def watch_folder(body: FolderBody, c=Depends(con), s: Site = Depends(site)):
     settings.watch(c, s.cfg, body.path)
     return {}
 
 
-@router.post("/api/folders/unwatch", dependencies=[Depends(_from_app)])
+@router.post("/api/folders/unwatch", dependencies=[Depends(from_app)])
 def unwatch_folder(body: FolderBody, c=Depends(con), s: Site = Depends(site)):
     settings.unwatch(c, s.cfg, body.path)
     return {}
 
 
-@router.post("/api/ollama/check", dependencies=[Depends(_from_app)])
+@router.post("/api/ollama/check", dependencies=[Depends(from_app)])
 def check_ollama(c=Depends(con), s: Site = Depends(site)):
     return {"message": Ollama(s.live(c)).check()}
 
 
-@router.post("/api/ollama/pull", dependencies=[Depends(_from_app)])
+@router.post("/api/ollama/pull", dependencies=[Depends(from_app)])
 def pull_model(model: str = "", c=Depends(con), s: Site = Depends(site)):
     """Have Ollama download the chosen model (model=meaning: the one for search by meaning); the Status page shows
     how far it is."""
@@ -177,12 +177,12 @@ def pull_model(model: str = "", c=Depends(con), s: Site = Depends(site)):
                        f"page shows how far it is."}
 
 
-@router.post("/api/whisper/check", dependencies=[Depends(_from_app)])
+@router.post("/api/whisper/check", dependencies=[Depends(from_app)])
 def check_whisper(c=Depends(con), s: Site = Depends(site)):
     return {"message": speech.Whisper(s.live(c)).check()}
 
 
-@router.post("/api/backup", dependencies=[Depends(_from_app)])
+@router.post("/api/backup", dependencies=[Depends(from_app)])
 def back_up_now(c=Depends(con), s: Site = Depends(site)):
     """Back up now: a copy made beside the web app, so it doesn't wait for the worker to finish what it is doing (a
     backlog of faces can take hours). The answer waits for it a while; a big catalog on a slow disk carries on."""
@@ -218,4 +218,4 @@ def download_export(s: Site = Depends(site)):
         path.unlink(missing_ok=True)
         raise
     return FileResponse(path, media_type="application/zip", background=BackgroundTask(path.unlink, missing_ok=True),
-                        headers={"Content-Disposition": _attachment(export.file_name()), **PRIVATE})
+                        headers={"Content-Disposition": attachment(export.file_name()), **PRIVATE})

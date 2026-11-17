@@ -11,7 +11,7 @@ from lineagebox import (accounts, catalog, changes, check, cleanup, family, fami
 from lineagebox import face_ages, faces  # Cleanup → Camera clocks' count; Confirm faces' ages and faces missed
 from lineagebox import scan_dates  # Cleanup → Suggested dates' count
 from lineagebox import private  # Cleanup → Private papers' count
-from lineagebox.web.common import ADMIN, MEMBER, ImageIds, SameBody, UndoSinceBody, _from_app, _merge_spec, _moved
+from lineagebox.web.common import ADMIN, MEMBER, ImageIds, SameBody, UndoSinceBody, from_app, merge_spec, moved_answer
 from lineagebox.web.deps import con, page, paging, site, viewer, writer
 from lineagebox.web.site import Site
 
@@ -32,7 +32,7 @@ ACCESS = {
     "/api/same/merge": ADMIN,
     "/api/same/different": ADMIN,
     "/cleanup/copies": ADMIN,
-    "/cleanup/similar": MEMBER,  # a member: of their own uploads (_own_uploads)
+    "/cleanup/similar": MEMBER,  # a member: of their own uploads (own_uploads)
     "/api/similar/remove-all": ADMIN,
     "/cleanup/blurry": MEMBER,  # a member: of their own uploads
     "/cleanup/reference/{kind}": ADMIN,
@@ -128,7 +128,7 @@ def cleanup_counts(request: Request, part: str, v=Depends(viewer), c=Depends(con
         raise HTTPException(404)
     # kept a minute (Site.kept): coming back to Cleanup counts nothing again, unless something was changed meanwhile
     if v.limited and part in OWN_COUNTS:  # of what they uploaded
-        work = lambda: OWN_COUNTS[part](c, now, _own_uploads(c, v))  # noqa: E731
+        work = lambda: OWN_COUNTS[part](c, now, own_uploads(c, v))  # noqa: E731
     else:
         work = lambda: COUNTS[part](c, now)  # noqa: E731
     n = s.keep(v, ("cleanup", part, now.blurry_below, now.turn_suggest), COUNTS_FOR, work)
@@ -164,16 +164,16 @@ def damaged_page(request: Request, c=Depends(con)):
     return page(request, "cleanup_damaged.html", nav="cleanup", files=check.damaged(c), p=check.progress(c))
 
 
-@router.post("/api/damaged/remove", dependencies=[Depends(_from_app)])
+@router.post("/api/damaged/remove", dependencies=[Depends(from_app)])
 def remove_damaged(body: ImageIds, c=Depends(con), s: Site = Depends(site)):
     """The ticked damaged files (their file ids, sent as image_ids by the tick-photos form) to the Removed folder,
     the only copy of a photo too: a damaged copy is no copy."""
     ids = [r[0] for r in c.execute("""SELECT id FROM file WHERE damage IS NOT NULL AND NOT missing
                                        AND id IN (SELECT value FROM json_each(?))""", (json.dumps(body.image_ids),))]
-    return _moved(cleanup.remove_files(c, s.live(c), ids, body.reason, keep_last_copy=False))
+    return moved_answer(cleanup.remove_files(c, s.live(c), ids, body.reason, keep_last_copy=False))
 
 
-@router.post("/api/damaged/ok", dependencies=[Depends(_from_app)])
+@router.post("/api/damaged/ok", dependencies=[Depends(from_app)])
 def damaged_ok(body: ImageIds, c=Depends(con)):
     """Looked at and fine as they are: not listed, nor checked again."""
     check.mark_fine(c, body.image_ids)
@@ -192,7 +192,7 @@ def recent_changes_page(request: Request, members: bool = False, c=Depends(con))
                 emails={a["id"]: a["email"] for a in everyone})
 
 
-@router.post("/api/changes/{change_id}/undo", dependencies=[Depends(_from_app)])
+@router.post("/api/changes/{change_id}/undo", dependencies=[Depends(from_app)])
 def undo_change(change_id: int, c=Depends(con)):
     try:
         summary = changes.undo(c, change_id)
@@ -201,7 +201,7 @@ def undo_change(change_id: int, c=Depends(con)):
     return {"message": f"Undone: {summary}", "reload": True}
 
 
-@router.post("/api/changes/{change_id}/undo-own", dependencies=[Depends(_from_app)])
+@router.post("/api/changes/{change_id}/undo-own", dependencies=[Depends(from_app)])
 def undo_own_change(change_id: int, v=Depends(viewer), w=Depends(writer)):
     """The Undo shown just after a change: a member's own, for a while; anything, for an admin."""
     try:
@@ -211,7 +211,7 @@ def undo_own_change(change_id: int, v=Depends(viewer), w=Depends(writer)):
     return {"message": f"Undone: {summary}", "reload": True}
 
 
-@router.post("/api/changes/undo-since", dependencies=[Depends(_from_app)])
+@router.post("/api/changes/undo-since", dependencies=[Depends(from_app)])
 def undo_changes_since(body: UndoSinceBody, c=Depends(con)):
     done, skipped = changes.undo_since(c, body.account_id, body.since)
     return {"message": f"Undid {done} change{'' if done == 1 else 's'}."
@@ -227,7 +227,7 @@ def same_person_page(request: Request, c=Depends(con)):
                 emails={a["id"]: (a["person_name"] or a["email"]) for a in accounts.everyone(c)})
 
 
-@router.post("/api/same/merge", dependencies=[Depends(_from_app)])
+@router.post("/api/same/merge", dependencies=[Depends(from_app)])
 def merge_same(body: SameBody, v=Depends(viewer), c=Depends(con)):
     """The same person: the one a member added goes into the other. keep_seeing: the member who added them goes
     on seeing them (an exception on their account), whether they are family or a friend from another tree."""
@@ -236,7 +236,7 @@ def merge_same(body: SameBody, v=Depends(viewer), c=Depends(con)):
         raise HTTPException(404, "No such person")
     other = catalog.person(c, body.other)
     with changes.tracking(c, v, "person", f"Merged {added['name']} into {other['name']}",
-                          _merge_spec(c, v, body.added, body.other)):
+                          merge_spec(c, v, body.added, body.other)):
         if body.keep_seeing and added["added_by"]:
             c.execute("INSERT OR IGNORE INTO access_rule(account_id, person_id, show, branch) VALUES (?, ?, 1, 0)",
                       (added["added_by"], body.other))
@@ -244,7 +244,7 @@ def merge_same(body: SameBody, v=Depends(viewer), c=Depends(con)):
     return {"reload": True}
 
 
-@router.post("/api/same/different", dependencies=[Depends(_from_app)])
+@router.post("/api/same/different", dependencies=[Depends(from_app)])
 def not_the_same(body: SameBody, c=Depends(con)):
     pairs = settings.get(c, people.SAME_OK_KEY, [])
     pair = f"{min(body.added, body.other)}-{max(body.added, body.other)}"
@@ -268,9 +268,9 @@ def similar_page(request: Request, kind: str = "all", keep: str = "raw", pg: int
     if kind not in cleanup.SIMILAR_KINDS:
         raise HTTPException(404)
     p = paging(request, "similar", pg, per, "25")
-    own = _own_uploads(c, v) if v.limited else None
+    own = own_uploads(c, v) if v.limited else None
     groups, p.total = cleanup.similar_groups(c, kind, keep != "jpeg", p.offset, p.size, own)
-    bulk = kind in cleanup._COPY_KINDS and not v.limited
+    bulk = kind in cleanup.COPY_KINDS and not v.limited
     return page(request, "cleanup_similar.html", groups=groups, total=p.total, paging=p,
                 kind=kind, keep=keep, kinds=cleanup.SIMILAR_KINDS,
                 hint=cleanup.SIMILAR_HINTS[kind], counts=cleanup.similar_counts(c, own),
@@ -278,11 +278,11 @@ def similar_page(request: Request, kind: str = "all", keep: str = "raw", pg: int
                 page_query={"kind": kind, "keep": keep} if kind == "raw" else {"kind": kind})
 
 
-@router.post("/api/similar/remove-all", dependencies=[Depends(_from_app)])
+@router.post("/api/similar/remove-all", dependencies=[Depends(from_app)])
 def remove_all_similar(kind: str = Query(), keep: str = "raw", c=Depends(con), s: Site = Depends(site)):
-    if kind not in cleanup._COPY_KINDS:
+    if kind not in cleanup.COPY_KINDS:
         raise HTTPException(400, "Only copies of one picture can be removed from every group at once.")
-    return _moved(cleanup.remove_similar(c, s.live(c), kind, keep != "jpeg"))
+    return moved_answer(cleanup.remove_similar(c, s.live(c), kind, keep != "jpeg"))
 
 
 @router.get("/cleanup/blurry", response_class=HTMLResponse)
@@ -291,14 +291,14 @@ def blurry_page(request: Request, pg: int = Query(1, alias="page", ge=1), per: s
     """Photos with almost no sharp detail, worst first; a member's of their own uploads only."""
     p = paging(request, "blurry", pg, per, "100")
     below = s.live(c).blurry_below
-    own = _own_uploads(c, v) if v.limited else None
+    own = own_uploads(c, v) if v.limited else None
     images, p.total = cleanup.blurry(c, below, p.offset, p.size, own)
     return page(request, "cleanup_list.html", title="Blank and blurry", images=images, total=p.total, paging=p,
                 reason="blank or blurry", kind="blurry",
                 unmeasured=0 if v.limited else cleanup.summary(c, below, {"unmeasured"})["unmeasured"])
 
 
-def _own_uploads(c, v) -> set[int]:
+def own_uploads(c, v) -> set[int]:
     """The photos a member uploaded and nobody else has: every copy of them on the share is in their uploads folder.
     Those are theirs to move to Removed (routes/photos.py); a photo with a copy elsewhere is the library's, for an
     admin to clean up."""
@@ -338,6 +338,6 @@ def kept_page(request: Request, c=Depends(con)):
     return page(request, "cleanup_kept.html", images=images, pairs=pairs)
 
 
-@router.post("/api/cleanup/copies", dependencies=[Depends(_from_app)])
+@router.post("/api/cleanup/copies", dependencies=[Depends(from_app)])
 def remove_copies(remove_from: int = Query(), keep_in: int = Query(), c=Depends(con), s: Site = Depends(site)):
-    return _moved(cleanup.remove_copies(c, s.live(c), remove_from, keep_in))
+    return moved_answer(cleanup.remove_copies(c, s.live(c), remove_from, keep_in))

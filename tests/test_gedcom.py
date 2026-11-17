@@ -153,6 +153,7 @@ def test_export_gedcom_7(fam, cfg):
     asso = s.first("ASSO")
     assert asso.payload == f"@I{ids['Rex']}@" and asso.value("ROLE") == "OTHER" and asso.first("ROLE").value("PHRASE") == "Pet"
     assert indi["Owen /Miller/"].first("ASSO").value("ROLE") == "FRIEND"  # Jake
+    assert gedcom.ROLES["neighbour"] == gedcom.ROLES["neighbor"] == "NGHBR"  # a relation typed in British English
     assert all(r.value("UID") for r in recs if r.tag in ("INDI", "FAM"))
 
 

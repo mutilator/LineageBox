@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 from lineagebox import changes, tagging
 from lineagebox.catalog import tag_name
-from lineagebox.web.common import ADMIN, _from_app, _photos
+from lineagebox.web.common import ADMIN, from_app, photos_text
 from lineagebox.web.deps import site, viewer, writer
 from lineagebox.web.site import Site
 
@@ -41,7 +41,7 @@ def _spec(w, *names: str):
                         ("tag_alias", f"name {among} OR tag_id {among}", (json.dumps(names), ids))]
 
 
-@router.post("/api/tags/rename", dependencies=[Depends(_from_app)])
+@router.post("/api/tags/rename", dependencies=[Depends(from_app)])
 def rename_tag(body: RenameBody, v=Depends(viewer), w=Depends(writer), s: Site = Depends(site)):
     """Rename a tag on every photo. A name another tag has is answered with a question first (app.js asks it, then
     sends merge)."""
@@ -56,12 +56,12 @@ def rename_tag(body: RenameBody, v=Depends(viewer), w=Depends(writer), s: Site =
     later = len(ids) > tagging.REINDEX_AT_ONCE
     if later:
         s.ask_worker()
-    return {"message": f"“{old}” is “{name}” now, on {_photos(len(ids))}."
+    return {"message": f"“{old}” is “{name}” now, on {photos_text(len(ids))}."
                        + (" Search finds them by it in a few minutes." if later else ""),
             "undo": kept.id, "go": f"/tag/{quote(name)}", "wait": 1.5}
 
 
-@router.post("/api/tags/remove-everywhere", dependencies=[Depends(_from_app)])
+@router.post("/api/tags/remove-everywhere", dependencies=[Depends(from_app)])
 def remove_tag_everywhere(body: TagBody, v=Depends(viewer), w=Depends(writer), s: Site = Depends(site)):
     """Take a tag off every photo, for good: the AI doesn't give it again (tagging.remove_everywhere)."""
     old = tag_name(body.tag)
@@ -69,5 +69,5 @@ def remove_tag_everywhere(body: TagBody, v=Depends(viewer), w=Depends(writer), s
         ids = tagging.remove_everywhere(w, old)
     if len(ids) > tagging.REINDEX_AT_ONCE:
         s.ask_worker()
-    return {"message": f"“{old}” is off {_photos(len(ids))} for good, and the AI won't give it again.",
+    return {"message": f"“{old}” is off {photos_text(len(ids))} for good, and the AI won't give it again.",
             "undo": kept.id, "go": "/tags", "wait": 1.5}

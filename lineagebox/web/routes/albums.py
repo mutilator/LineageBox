@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 from lineagebox import access, accounts, albums, catalog, changes, favorites, journeys, sharing, slideshow, tours
 from lineagebox.catalog import VISIBLE
-from lineagebox.web.common import MEMBER, _from_app, _images_or_404, _share_panel
+from lineagebox.web.common import MEMBER, from_app, images_or_404, share_panel
 from lineagebox.web.deps import con, page, site, viewer, writer
 from lineagebox.web.routes.tours import ask_for_video, video_file, video_part
 from lineagebox.web.routes.uploads import zipped
@@ -93,7 +93,7 @@ def _own_album(c, v: access.Viewer, album_id: int) -> dict:
 def _seen(c, v: access.Viewer, image_ids) -> list[int]:
     """The photos, once each, refused as a whole when any of them isn't the viewer's to see (or isn't there)."""
     ids = list(dict.fromkeys(image_ids))
-    _images_or_404(c, v, ids)
+    images_or_404(c, v, ids)
     if ids and c.execute(f"SELECT count(*) FROM image i WHERE i.id IN (SELECT value FROM json_each(?)) AND {VISIBLE}",
                          (_json(ids),)).fetchone()[0] != len(ids):
         raise HTTPException(404, "No such photo")
@@ -195,7 +195,7 @@ def album_page(request: Request, album_id: int, v=Depends(viewer), c=Depends(con
     return page(request, "album.html", nav="tours", album=a, photos=photos, slides=slides, mine=mine,
                 from_whom=from_whom, ctx=f"album:{album_id}", seconds=SECONDS, cover=cover,
                 stops=journeys.how_many(c, [album_id])[album_id], least=journeys.LEAST,
-                sharing=_share_panel(w, v, "album", album_id) if mine and signed_in else None,
+                sharing=share_panel(w, v, "album", album_id) if mine and signed_in else None,
                 video=video_part("album", album_id, slideshow.latest(w, v.account_id, "album", album_id)))
 
 
@@ -243,7 +243,7 @@ def album_names(v=Depends(viewer), w=Depends(writer)):
 
 # ---- changes -------------------------------------------------------------------------------------------------------
 
-@router.post("/api/albums", dependencies=[Depends(_from_app)])
+@router.post("/api/albums", dependencies=[Depends(from_app)])
 def create_album(body: AlbumBody, v=Depends(viewer), c=Depends(con), w=Depends(writer), s: Site = Depends(site)):
     """A new album, with the photos given (favorites made into an album), or none yet."""
     ids = _seen(c, v, body.image_ids)
@@ -254,7 +254,7 @@ def create_album(body: AlbumBody, v=Depends(viewer), c=Depends(con), w=Depends(w
     return {"go": f"/album/{album_id}"}
 
 
-@router.post("/api/albums/add", dependencies=[Depends(_from_app)])
+@router.post("/api/albums/add", dependencies=[Depends(from_app)])
 def add_to_album(body: AddBody, v=Depends(viewer), c=Depends(con), w=Depends(writer), s: Site = Depends(site)):
     """Put photos at the end of an album of the viewer's, picked by its id or by its name; with a name they have no
     album of, a new album of that name."""
@@ -280,7 +280,7 @@ def add_to_album(body: AddBody, v=Depends(viewer), c=Depends(con), w=Depends(wri
     return {"message": message + ".", "undo": kept.id, "album_id": a["id"]}
 
 
-@router.post("/api/albums/{album_id}", dependencies=[Depends(_from_app)])
+@router.post("/api/albums/{album_id}", dependencies=[Depends(from_app)])
 def rename_album(album_id: int, body: AlbumBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     _own_album(c, v, album_id)
     albums.rename(w, album_id, body.name, body.about)
@@ -288,7 +288,7 @@ def rename_album(album_id: int, body: AlbumBody, v=Depends(viewer), c=Depends(co
     return {"reload": True}
 
 
-@router.post("/api/albums/{album_id}/order", dependencies=[Depends(_from_app)])
+@router.post("/api/albums/{album_id}/order", dependencies=[Depends(from_app)])
 def order_album(album_id: int, body: PhotosBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     """The album's photos in a new order (dragged, or moved up and down): those the viewer sees, in the order sent."""
     _own_album(c, v, album_id)
@@ -297,7 +297,7 @@ def order_album(album_id: int, body: PhotosBody, v=Depends(viewer), c=Depends(co
     return {}
 
 
-@router.post("/api/albums/{album_id}/by-date", dependencies=[Depends(_from_app)])
+@router.post("/api/albums/{album_id}/by-date", dependencies=[Depends(from_app)])
 def order_album_by_date(album_id: int, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     """The album's photos in the order they were taken: a trip put in the order it was travelled, without dragging
     a few hundred photos. Tracked, so Undo puts the order back."""
@@ -307,7 +307,7 @@ def order_album_by_date(album_id: int, v=Depends(viewer), c=Depends(con), w=Depe
     return {"message": "In the order the photos were taken.", "undo": kept.id, "reload": True}
 
 
-@router.post("/api/albums/{album_id}/cover", dependencies=[Depends(_from_app)])
+@router.post("/api/albums/{album_id}/cover", dependencies=[Depends(from_app)])
 def album_cover(album_id: int, body: PhotoBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     _own_album(c, v, album_id)
     _seen(c, v, [body.image_id])
@@ -316,7 +316,7 @@ def album_cover(album_id: int, body: PhotoBody, v=Depends(viewer), c=Depends(con
     return {"reload": True}
 
 
-@router.post("/api/albums/{album_id}/caption", dependencies=[Depends(_from_app)])
+@router.post("/api/albums/{album_id}/caption", dependencies=[Depends(from_app)])
 def album_caption(album_id: int, body: CaptionBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     """The album's words for one of its photos ("" takes them off: the photo's own caption shows instead)."""
     _own_album(c, v, album_id)
@@ -326,7 +326,7 @@ def album_caption(album_id: int, body: CaptionBody, v=Depends(viewer), c=Depends
     return {"message": "Caption saved." if text else "Caption taken off."}
 
 
-@router.post("/api/albums/{album_id}/remove", dependencies=[Depends(_from_app)])
+@router.post("/api/albums/{album_id}/remove", dependencies=[Depends(from_app)])
 def remove_from_album(album_id: int, body: PhotosBody, v=Depends(viewer), c=Depends(con), w=Depends(writer),
                       s: Site = Depends(site)):
     """Take photos out of the album; the photos themselves stay where they are."""
@@ -339,7 +339,7 @@ def remove_from_album(album_id: int, body: PhotosBody, v=Depends(viewer), c=Depe
     return {"message": "Taken out of the album.", "undo": kept.id}
 
 
-@router.post("/api/albums/{album_id}/delete", dependencies=[Depends(_from_app)])
+@router.post("/api/albums/{album_id}/delete", dependencies=[Depends(from_app)])
 def delete_album(album_id: int, v=Depends(viewer), c=Depends(con), w=Depends(writer), s: Site = Depends(site)):
     a = _own_album(c, v, album_id)
     shared = sharing.seen_by_others(w, "album", album_id, a["account_id"])
@@ -351,7 +351,7 @@ def delete_album(album_id: int, v=Depends(viewer), c=Depends(con), w=Depends(wri
             "undo": kept.id}
 
 
-@router.post("/api/albums/{album_id}/video", dependencies=[Depends(_from_app)])
+@router.post("/api/albums/{album_id}/video", dependencies=[Depends(from_app)])
 def album_video(album_id: int, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     """Save as a video: the album's slideshow as the viewer sees it, made by the worker."""
     a = _album_or_404(c, album_id)
@@ -362,8 +362,8 @@ def album_video(album_id: int, v=Depends(viewer), c=Depends(con), w=Depends(writ
     return ask_for_video(w, v, "album", album_id, a["name"], slides, SECONDS)
 
 
-@router.post("/api/images/{image_id}/favorite", dependencies=[Depends(_from_app)])
-@router.post("/api/images/{image_id}/favourite", dependencies=[Depends(_from_app)], include_in_schema=False)
+@router.post("/api/images/{image_id}/favorite", dependencies=[Depends(from_app)])
+@router.post("/api/images/{image_id}/favourite", dependencies=[Depends(from_app)], include_in_schema=False)
 def favorite(image_id: int, body: HeartBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     """The viewer's heart on a photo, given or taken off. Only theirs: it changes nothing anyone else sees, so it
     isn't kept on Recent changes (pressing ♡ again takes it back)."""

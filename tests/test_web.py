@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from lineagebox.ingest import ingest
 from lineagebox.scan import scan
 from lineagebox.web import app as webapp
+from lineagebox.web import common
 from tests.conftest import LAN, rel, write_jpeg
 
 ZOO = rel("2012", "Zoo")
@@ -143,8 +144,8 @@ def test_copy_network_path(client, cfg, con):
     on_nas = TestClient(webapp.create_app(dataclasses.replace(cfg, share_path="\\\\nas\\photos")), client=LAN)
     image = con.execute("SELECT image_id FROM file WHERE path = ?", (rel(ZOO, "DSC_0002.jpg"),)).fetchone()[0]
     assert 'data-copy="\\\\nas\\photos\\lib\\2012\\Zoo\\DSC_0002.jpg"' in on_nas.get(f"/image/{image}").text
-    assert webapp.network_path("/mnt/photos/", "2012/Zoo/x.jpg") == "/mnt/photos/2012/Zoo/x.jpg"
-    assert webapp.network_path("P:\\Photos", "2012/Zoo/x.jpg") == "P:\\Photos\\2012\\Zoo\\x.jpg"
+    assert common.network_path("/mnt/photos/", "2012/Zoo/x.jpg") == "/mnt/photos/2012/Zoo/x.jpg"
+    assert common.network_path("P:\\Photos", "2012/Zoo/x.jpg") == "P:\\Photos\\2012\\Zoo\\x.jpg"
 
 
 @pytest.mark.parametrize("host, allowed", [("10.20.30.40", True), ("192.168.1.9", True), ("172.20.0.3", True),
@@ -192,10 +193,10 @@ def test_health_and_plain_http_cookies(client):
 
 def test_network_paths_per_source(client, cfg, con):
     sources = dataclasses.replace(cfg, share_path="/srv/photos", network_paths=(("lib/2012", "\\\\nas\\y2012"),))
-    assert webapp.locate(sources, "lib/2012/Zoo/x.jpg") == "\\\\nas\\y2012\\Zoo\\x.jpg"
-    assert webapp.locate(sources, "lib/2012") == "\\\\nas\\y2012"
-    assert webapp.locate(sources, "lib/2016/a.jpg") == "/srv/photos/lib/2016/a.jpg"
-    assert webapp.locate(sources, "") == "/srv/photos"
+    assert common.locate(sources, "lib/2012/Zoo/x.jpg") == "\\\\nas\\y2012\\Zoo\\x.jpg"
+    assert common.locate(sources, "lib/2012") == "\\\\nas\\y2012"
+    assert common.locate(sources, "lib/2016/a.jpg") == "/srv/photos/lib/2016/a.jpg"
+    assert common.locate(sources, "") == "/srv/photos"
     page = TestClient(webapp.create_app(sources), client=LAN).get(f"/image/{image_id(con, rel(ZOO, 'DSC_0002.jpg'))}")
     assert 'data-copy="\\\\nas\\y2012\\Zoo\\DSC_0002.jpg"' in page.text
 
@@ -245,7 +246,7 @@ def test_watched_folders_are_shown_where_lineagebox_reads_them(client, cfg, con)
     page = shared.get("/settings").text
     assert f"<b>{(cfg.share_root / 'lib').as_posix()}</b>" in page and r"on the network: \\nas\photos" in page
     assert f"<code>{(cfg.share_root / 'lib').as_posix()}</code>" in shared.get("/status").text
-    assert webapp.on_network(cfg, "lib") == ""
+    assert common.on_network(cfg, "lib") == ""
 
 
 def test_network_paths_are_set_on_the_settings_page(client, cfg, con):

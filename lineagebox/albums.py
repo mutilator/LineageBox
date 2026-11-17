@@ -17,9 +17,8 @@ albums that are theirs or shared with them, and of each only the photos they see
 """
 import json
 import sqlite3
-from datetime import datetime
 
-from lineagebox import errors
+from lineagebox import clock, errors
 from lineagebox.catalog import VISIBLE
 
 MOST = 2000      # photos in one album: a slideshow and a page that still open quickly
@@ -30,10 +29,6 @@ CAPTION = 500    # in its caption for one photo
 
 class Problem(errors.Problem):
     """What was asked of an album can't be done; the message says why, to whoever asked."""
-
-
-def _now() -> str:
-    return datetime.now().isoformat(timespec="seconds")
 
 
 def _words(text, most: int) -> str:
@@ -51,7 +46,7 @@ def create(con: sqlite3.Connection, name: str, account_id: int | None, about: st
     name = _words(name, NAME)
     if not name:
         raise Problem("Give the album a name.")
-    now = _now()
+    now = clock.now()
     return con.execute("""INSERT INTO main.album(name, about, account_id, created_at, changed_at)
                           VALUES (?, ?, ?, ?, ?)""", (name, _words(about, ABOUT), account_id, now, now)).lastrowid
 
@@ -140,7 +135,7 @@ def _all_ids(con: sqlite3.Connection, album_id: int) -> list[int]:
 
 
 def _touched(con: sqlite3.Connection, album_id: int) -> None:
-    con.execute("UPDATE main.album SET changed_at = ? WHERE id = ?", (_now(), album_id))
+    con.execute("UPDATE main.album SET changed_at = ? WHERE id = ?", (clock.now(), album_id))
 
 
 def add(con: sqlite3.Connection, album_id: int, image_ids) -> int:
@@ -153,7 +148,7 @@ def add(con: sqlite3.Connection, album_id: int, image_ids) -> int:
         raise Problem(f"An album holds up to {MOST:,} photos; this one has {len(there):,}.")
     start = con.execute("SELECT coalesce(max(position) + 1, 0) FROM main.album_photo WHERE album_id = ?",
                         (album_id,)).fetchone()[0]
-    now = _now()
+    now = clock.now()
     con.executemany("INSERT INTO main.album_photo(album_id, image_id, position, added_at) VALUES (?, ?, ?, ?)",
                     ((album_id, i, start + k, now) for k, i in enumerate(new)))
     if new:
@@ -216,7 +211,7 @@ def rename(con: sqlite3.Connection, album_id: int, name: str, about: str) -> Non
     if not name:
         raise Problem("Give the album a name.")
     con.execute("UPDATE main.album SET name = ?, about = ?, changed_at = ? WHERE id = ?",
-                (name, _words(about, ABOUT), _now(), album_id))
+                (name, _words(about, ABOUT), clock.now(), album_id))
 
 
 def delete(con: sqlite3.Connection, album_id: int) -> None:

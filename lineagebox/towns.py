@@ -19,7 +19,6 @@ from pathlib import Path
 import numpy as np
 
 DATA = Path(__file__).resolve().parent / "data" / "towns.tsv.gz"
-ATTRIBUTION = "Town names: GeoNames (geonames.org), CC BY 4.0"
 NEAR_KM = 10      # closer than this, a photo was taken in the town: "Springfield"
 AROUND_KM = 50    # closer than this, near it: "near Springfield"; farther, how far: "60 km from Springfield"
 EARTH_KM = 6371.0

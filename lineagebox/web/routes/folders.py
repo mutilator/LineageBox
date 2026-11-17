@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from lineagebox import changes, folders
-from lineagebox.web.common import ADMIN, _from_app
+from lineagebox.web.common import ADMIN, from_app
 from lineagebox.web.deps import con, viewer
 
 router = APIRouter()
@@ -34,7 +34,7 @@ def _done(n: int) -> str:
     return f"Saved for its {n:,} photo{'' if n == 1 else 's'}."
 
 
-@router.post("/api/folders/{folder_id}/meaning", dependencies=[Depends(_from_app)])
+@router.post("/api/folders/{folder_id}/meaning", dependencies=[Depends(from_app)])
 def save_meaning(folder_id: int, body: MeaningBody, v=Depends(viewer), c=Depends(con)):
     row = _folder(c, folder_id)
     with changes.tracking(c, v, "folders", f"Said what the folder {row['name']} means",
@@ -44,7 +44,7 @@ def save_meaning(folder_id: int, body: MeaningBody, v=Depends(viewer), c=Depends
     return {"message": _done(n), "undo": kept.id, "reload": True}
 
 
-@router.post("/api/folders/{folder_id}/meaning/again", dependencies=[Depends(_from_app)])
+@router.post("/api/folders/{folder_id}/meaning/again", dependencies=[Depends(from_app)])
 def read_meaning_again(folder_id: int, v=Depends(viewer), c=Depends(con)):
     row = _folder(c, folder_id)
     with changes.tracking(c, v, "folders", f"Had the folder {row['name']} read again",

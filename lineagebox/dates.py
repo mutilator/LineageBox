@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
-from lineagebox.events import Problem, day_first, exact_date
+from lineagebox.events import Problem, exact_date
 
 MIN_YEAR = 1800  # as dates.photo_date: old prints, scanned with their own date written in
 # The dates cameras and computers write when their clock was never set; a real photo on one of these days is rare

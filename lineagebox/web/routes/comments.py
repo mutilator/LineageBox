@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 from lineagebox import changes, comments, search
 from lineagebox.folders import FolderIndex
-from lineagebox.web.common import MEMBER, _from_app, _image_or_404
+from lineagebox.web.common import MEMBER, from_app, image_or_404
 from lineagebox.web.deps import con, viewer, writer
 
 router = APIRouter()
@@ -41,9 +41,9 @@ def _comment_to_change(c, w, v, comment_id: int):
     return row
 
 
-@router.post("/api/images/{image_id}/caption", dependencies=[Depends(_from_app)])
+@router.post("/api/images/{image_id}/caption", dependencies=[Depends(from_app)])
 def save_caption(image_id: int, body: WordsBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
-    _image_or_404(c, image_id)
+    image_or_404(c, image_id)
     summary = "Wrote a photo's caption" if body.text.strip() else "Took a photo's caption off"
     with changes.tracking(w, v, "words", summary, _spec(image_id)) as kept:
         text = comments.set_caption(w, image_id, body.text, v.account_id)
@@ -51,16 +51,16 @@ def save_caption(image_id: int, body: WordsBody, v=Depends(viewer), c=Depends(co
     return {"caption": text, "undo": kept.id, "reload": True}
 
 
-@router.post("/api/images/{image_id}/comments", dependencies=[Depends(_from_app)])
+@router.post("/api/images/{image_id}/comments", dependencies=[Depends(from_app)])
 def add_comment(image_id: int, body: WordsBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
-    _image_or_404(c, image_id)
+    image_or_404(c, image_id)
     with changes.tracking(w, v, "words", "Wrote a comment on a photo", _spec(image_id)):
         comment_id = comments.add_comment(w, image_id, body.text, v.account_id)
     _indexed(w, image_id)
     return {"id": comment_id, "reload": True}
 
 
-@router.post("/api/comments/{comment_id}/edit", dependencies=[Depends(_from_app)])
+@router.post("/api/comments/{comment_id}/edit", dependencies=[Depends(from_app)])
 def edit_comment(comment_id: int, body: WordsBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     row = _comment_to_change(c, w, v, comment_id)
     with changes.tracking(w, v, "words", "Changed a comment on a photo", _spec(row["image_id"])):
@@ -69,7 +69,7 @@ def edit_comment(comment_id: int, body: WordsBody, v=Depends(viewer), c=Depends(
     return {"reload": True}
 
 
-@router.post("/api/comments/{comment_id}/delete", dependencies=[Depends(_from_app)])
+@router.post("/api/comments/{comment_id}/delete", dependencies=[Depends(from_app)])
 def delete_comment(comment_id: int, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     row = _comment_to_change(c, w, v, comment_id)
     with changes.tracking(w, v, "words", "Took a comment off a photo", _spec(row["image_id"])) as kept:

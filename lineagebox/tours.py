@@ -12,7 +12,7 @@ import sqlite3
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
-from lineagebox import comments, dates, errors, events, family, favorites
+from lineagebox import comments, dates, errors, events, family, favorites, settings
 from lineagebox.catalog import VISIBLE
 
 SEASONS = dates.SEASONS
@@ -331,14 +331,14 @@ def word_list(words: str) -> list[str]:
 
 def _around_birthday(con, found: dict[int, dict], spec: dict) -> dict[int, dict]:
     row = con.execute("SELECT birth_date FROM person WHERE id = ?", (spec["who"]["person_ids"][0],)).fetchone()
-    born = _birthday(row[0] if row else None)
+    born = month_and_day(row[0] if row else None)
     if born is None:
         return found  # no birth date: the birthday words alone decide
     days = spec["when"]["days"]
     out = {}
     for k, p in found.items():
         taken = datetime.fromisoformat(p["taken"]).date()
-        nearest = min(abs((taken - _on(born, taken.year + dy)).days) for dy in (-1, 0, 1))
+        nearest = min(abs((taken - in_year(born, taken.year + dy)).days) for dy in (-1, 0, 1))
         if nearest <= days:
             out[k] = p
     return out
@@ -351,13 +351,13 @@ def _around_events(con, found: dict[int, dict], spec: dict) -> dict[int, dict]:
     rows = con.execute("""SELECT tag, sort_date FROM event WHERE sort_date IS NOT NULL
                           AND (person_id = :p OR :p IN (couple_a, couple_b))""", {"p": pid}).fetchall()
     if spec["when"]["mode"] == "anniversary":
-        weddings = [_birthday(r["sort_date"]) for r in rows if r["tag"] == "MARR"]
+        weddings = [month_and_day(r["sort_date"]) for r in rows if r["tag"] == "MARR"]
         weddings = [w for w in weddings if w]
         if not weddings:
             return {}
         return {k: p for k, p in found.items()
-                if min(abs((datetime.fromisoformat(p["taken"]).date() - _on(w, datetime.fromisoformat(p["taken"]).year
-                                                                            + dy)).days)
+                if min(abs((datetime.fromisoformat(p["taken"]).date()
+                            - in_year(w, datetime.fromisoformat(p["taken"]).year + dy)).days)
                        for w in weddings for dy in (-1, 0, 1)) <= days}
     spans = []
     for r in rows:
@@ -373,12 +373,12 @@ def _around_events(con, found: dict[int, dict], spec: dict) -> dict[int, dict]:
             if any(a <= datetime.fromisoformat(p["taken"]).date() <= b for a, b in spans)}
 
 
-def _birthday(text: str | None) -> tuple[int, int] | None:
+def month_and_day(text: str | None) -> tuple[int, int] | None:
     m = re.match(r"^(?:\d{4}-)?(\d{1,2})-(\d{1,2})$", text or "")
     return (int(m[1]), int(m[2])) if m else None
 
 
-def _on(month_day: tuple[int, int], year: int) -> date:
+def in_year(month_day: tuple[int, int], year: int) -> date:
     month, day = month_day
     try:
         return date(year, month, day)
@@ -514,11 +514,10 @@ def picked(con: sqlite3.Connection, image_ids: list[int]) -> list[dict]:
 def types(con: sqlite3.Connection) -> list[dict]:
     """The tour types, with the built-in ones added the first time (deleted ones stay deleted)."""
     for key, added in (("tour_types_added", DEFAULT_TYPES), ("tour_types_events_added", EVENT_TYPES)):
-        if not con.execute("SELECT 1 FROM settings WHERE key = ?", (key,)).fetchone():
+        if not settings.get(con, key):
             for t in added:
                 con.execute("INSERT INTO tour_type(name, spec) VALUES (?, ?)", (t["name"], json.dumps(clean(t))))
-            con.execute("INSERT INTO settings(key, value) VALUES (?, 'true')", (key,))
-            con.commit()
+            settings.put(con, key, True)  # with the types: commits both
     return [{"id": r["id"], "name": r["name"], "spec": json.loads(r["spec"])}
             for r in con.execute("SELECT * FROM tour_type ORDER BY id")]
 

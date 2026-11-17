@@ -7,9 +7,8 @@ routes (changes.tracking), like their other changes.
 """
 import json
 import sqlite3
-from datetime import datetime
 
-from lineagebox import errors, outbox
+from lineagebox import clock, errors, outbox
 
 MOST = 2000  # characters in one caption or comment: a memory, not a document
 
@@ -25,10 +24,6 @@ def _text(text: str) -> str:
     if len(text) > MOST:
         raise Problem(f"That is {len(text):,} characters: keep it under {MOST:,}.")
     return text
-
-
-def _now() -> str:
-    return datetime.now().isoformat(timespec="seconds")
 
 
 def caption(con: sqlite3.Connection, image_id: int) -> str | None:
@@ -69,10 +64,10 @@ def set_caption(con: sqlite3.Connection, image_id: int, text: str, account_id: i
     if con.execute("SELECT 1 FROM main.comment WHERE image_id = ? AND kind = 'caption'", (image_id,)).fetchone():
         con.execute("""UPDATE main.comment SET text = ?, account_id = ?, edited_at = ?
                        WHERE image_id = ? AND kind = 'caption' AND text != ?""",
-                    (text, account_id, _now(), image_id, text))
+                    (text, account_id, clock.now(), image_id, text))
     else:
         con.execute("""INSERT INTO main.comment(image_id, kind, text, account_id, at)
-                       VALUES (?, 'caption', ?, ?, ?)""", (image_id, text, account_id, _now()))
+                       VALUES (?, 'caption', ?, ?, ?)""", (image_id, text, account_id, clock.now()))
     return text
 
 
@@ -82,7 +77,7 @@ def add_comment(con: sqlite3.Connection, image_id: int, text: str, account_id: i
     if not text:
         raise Problem("Type what you'd like to say first.")
     comment_id = con.execute("""INSERT INTO main.comment(image_id, kind, text, account_id, at)
-                                VALUES (?, 'comment', ?, ?, ?)""", (image_id, text, account_id, _now())).lastrowid
+                                VALUES (?, 'comment', ?, ?, ?)""", (image_id, text, account_id, clock.now())).lastrowid
     outbox.commented(con, comment_id)  # news for whoever uploaded it, is in it or wrote on it before (New for you)
     return comment_id
 
@@ -92,7 +87,8 @@ def get(con: sqlite3.Connection, comment_id: int) -> sqlite3.Row | None:
 
 
 def may_change(row, account_id: int | None, admin: bool) -> bool:
-    """A comment is changed or taken away by whoever wrote it, or by an admin."""
+    """A comment is changed or taken away by whoever wrote it, or by an admin; so are a recorded story's words, by
+    whoever recorded it (stories.py)."""
     return admin or (account_id is not None and row["account_id"] == account_id)
 
 
@@ -101,7 +97,7 @@ def edit_comment(con: sqlite3.Connection, comment_id: int, text: str) -> None:
     if not text:
         raise Problem("A comment needs some words: Delete takes it away.")
     con.execute("UPDATE main.comment SET text = ?, edited_at = ? WHERE id = ? AND text != ?",
-                (text, _now(), comment_id, text))
+                (text, clock.now(), comment_id, text))
 
 
 def delete_comment(con: sqlite3.Connection, comment_id: int) -> None:

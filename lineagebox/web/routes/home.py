@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 from lineagebox import access, catalog, family, first_run, memories, outbox, storage, tours
-from lineagebox.web.common import MEMBER, _from_app, _people_or_404, _shared_with_me, years_of
+from lineagebox.web.common import MEMBER, from_app, people_or_404, shared_with_me, years_of
 from lineagebox.web.deps import con, page, site, viewer, writer
 from lineagebox.web.routes.tours import suggestions
 from lineagebox.web.site import Site
@@ -77,7 +77,7 @@ def home_page(request: Request, v: access.Viewer, c) -> HTMLResponse:
                              ORDER BY i.id DESC LIMIT 12""", (v.account_id, catalog.under(folder))).fetchall()
     you = c.execute("SELECT name FROM person WHERE id = ?", (v.me,)).fetchone()
     with site(request).own_con() as w:
-        shared = _shared_with_me(w, c, v)
+        shared = shared_with_me(w, c, v)
     disks = s.keep(v, ("storage",), 60, lambda: storage.disks(c, s.live(c))) if v.admin else []
     me = own_person(v, c)
     buttons = faces_of(c, kin or closest(c, me, formers))  # theirs first, then their family's: an admin's too
@@ -208,7 +208,7 @@ def home_family(request: Request, before: date, month: str = "", person: int | N
     """The next older photos of a member's family on Home (Show older photos), back to the first; or of one person
     (their Home, /home/person)."""
     if person is not None:
-        _people_or_404(c, person)
+        people_or_404(c, person)
     kin = [person] if person is not None else kin_of(v, c, formers_shown(request))
     ours, older = latest(c, date.today(), kin, FAMILY_MORE, FAMILY_MOST, before=before) if kin else ([], False)
     shown = tuple(int(x) for x in month.split("-")[:2]) if month[:4].isdecimal() and month[5:7].isdecimal() else None
@@ -220,7 +220,7 @@ def home_family(request: Request, before: date, month: str = "", person: int | N
 def person_home(request: Request, person_id: int, v=Depends(viewer), c=Depends(con)):
     """Home as it would be of one person (a button on Home, for the viewer and each of their closest family): their
     memories and their newest photos, however long ago, then older ones."""
-    _people_or_404(c, person_id)
+    people_or_404(c, person_id)
     today = date.today()
     theirs, older = latest(c, today, [person_id], FAMILY, FAMILY_MOST)
     more, more_all = not_by_day(c, person_id, today)
@@ -234,7 +234,7 @@ def person_home(request: Request, person_id: int, v=Depends(viewer), c=Depends(c
 def person_memories(request: Request, person_id: int, v=Depends(viewer), c=Depends(con), s: Site = Depends(site)):
     """That person's memories, loaded after the page: their biggest days of photos and their latest, and this week in
     earlier years in their photos; kept 10 minutes for each viewer."""
-    _people_or_404(c, person_id)
+    people_or_404(c, person_id)
     today = date.today()
 
     def work():
@@ -248,7 +248,7 @@ def person_memories(request: Request, person_id: int, v=Depends(viewer), c=Depen
 def person_years_panel(request: Request, person_id: int, v=Depends(viewer), c=Depends(con), s: Site = Depends(site)):
     """Through the years as a panel on their Home, loaded after the page: their face a year, playing on its own, which
     opens the whole of it (/person/{id}/years). Nothing for someone with fewer than two years to show."""
-    _people_or_404(c, person_id)
+    people_or_404(c, person_id)
     found = years_of(s, v, c, person_id)
     return page(request, "_years_panel.html", who=catalog.person(c, person_id), years=found if len(found) > 1 else [])
 
@@ -294,7 +294,7 @@ def home_route(request: Request, v=Depends(viewer), c=Depends(con)):
     return home_page(request, v, c)
 
 
-@router.post("/api/faces/{face_id}/ask", dependencies=[Depends(_from_app)])
+@router.post("/api/faces/{face_id}/ask", dependencies=[Depends(from_app)])
 def ask_who(face_id: int, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     """Who is this? The face goes on Home for everyone who sees its photo, until someone names it."""
     f = catalog.face(c, face_id)
@@ -310,7 +310,7 @@ def ask_who(face_id: int, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     return {"message": "Asked: it is on Home for everyone who sees this photo."}
 
 
-@router.post("/api/faces/{face_id}/skip", dependencies=[Depends(_from_app)])
+@router.post("/api/faces/{face_id}/skip", dependencies=[Depends(from_app)])
 def skip_who(face_id: int, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     """Don't know them: not asked of this viewer again."""
     if catalog.face(c, face_id) is None:

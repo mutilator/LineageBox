@@ -24,8 +24,9 @@ from lineagebox.catalog import VISIBLE
 
 KINDS = {"id": "Identity cards", "money": "Money and taxes", "health": "Health records",
          "certificates": "Certificates of living people"}
+# Matched against what the AI wrote, which may be British English: "licence" and "cheque" stay as they are.
 PHRASES = {
-    "id": ["driver's license", "drivers license", "driver license", "driver's license", "driving license", "id card",
+    "id": ["driver's license", "drivers license", "driver license", "driver's licence", "driving licence", "id card",
            "identification card", "identity card", "photo id", "state id", "passport", "social security card",
            "social security number", "green card", "permanent resident card", "military id", "student id"],
     "money": ["credit card", "debit card", "bank card", "bank statement", "checkbook", "check book", "personal check",

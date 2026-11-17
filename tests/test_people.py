@@ -422,6 +422,81 @@ def test_faces_of_a_video_and_photos_to_finish(lib, cfg):
     assert 'aria-current="page">Photos to finish' in page
 
 
+def test_two_faces_on_one_frame_are_never_named_as_one_person(lib):
+    """Two unnamed faces on one frame of a video, both like someone named on another: only the likelier of them is
+    named after them (nobody is on a frame twice), the other is left to be named."""
+    con = lib
+    video = image(con, rel("Lucas", "l3.jpg"))
+    con.execute("UPDATE image SET media = 'video' WHERE id = ?", (video,))
+
+    def face(emb, frame, x=0.0):
+        return con.execute("""INSERT INTO face(image_id, x1, y1, x2, y2, det_score, quality, embedding, frame)
+                              VALUES (?, ?, 0, ?, 1, 0.9, 22, ?, ?)""", (video, x, x + 0.5, emb.tobytes(),
+                                                                          frame)).lastrowid
+
+    named = face(like(A, noise=0.1), 0)
+    closer, further = face(like(A, noise=0.1), 1), face(like(A, noise=0.4), 1, x=0.5)
+    con.commit()
+    owen = people.name_faces(con, [named], "Owen")
+    who = lambda f: con.execute("SELECT person_id FROM face WHERE id = ?", (f,)).fetchone()[0]
+    assert (who(closer), who(further)) == (owen, None)
+    assert people.name_in_videos(con) == 0  # and not on a later pass either
+
+
+def test_check_faces_and_name_faces_go_least_sure_first_alike(lib):
+    """A person's Check faces and the Name faces queue give recognized faces in one order, those that now look more
+    like someone else first, however far behind."""
+    con = lib
+    owen = [image(con, rel("Owen", f"o{i}.jpg")) for i in range(6)]
+    pid = people.name_faces(con, [add_face(con, owen[0], like(A))], "Owen")
+    faces = [add_face(con, i, like(A)) for i in owen[1:5]]
+    for f, (score, lead) in zip(faces, [(0.6, -0.2), (0.3, -0.1), (0.7, 0.3), (0.55, 0.02)]):
+        con.execute("""UPDATE face SET person_id = ?, assigned_by = 'auto', assign_score = ?, assign_lead = ?
+                       WHERE id = ?""", (pid, score, lead, f))
+    con.commit()
+    queue = [f for f, _ in people.recognized_to_check(con)]
+    rows = con.execute("SELECT * FROM face WHERE assigned_by = 'auto'").fetchall()
+    assert [f["id"] for f in people.least_sure_first(rows)] == queue == [faces[0], faces[1], faces[3], faces[2]]
+
+
+def test_a_name_taken_off_forgets_who_gave_it(lib):
+    """Whichever way a face's name comes off (not them, set aside, no to "Is this them?"), nothing of it is left: not
+    the account that named it either."""
+    con = lib
+    owen = [image(con, rel("Owen", f"o{i}.jpg")) for i in range(3)]
+    faces = [add_face(con, i, like(A)) for i in owen]
+    member = con.execute("""INSERT INTO account(email, role, created_at)
+                            VALUES ('ann.miller@example.com', 'member', '2026-11-17')""").lastrowid
+    con.commit()
+    pid = people.name_faces(con, faces, "Owen", by=member)
+    assert {r[0] for r in con.execute("SELECT named_by FROM face")} == {member}
+    people.not_them(con, [faces[0]])
+    people.set_aside(con, [faces[1]])
+    people.not_this_person(con, pid, [faces[2]])
+    assert [tuple(r) for r in con.execute("SELECT person_id, named_by, assign_score FROM face ORDER BY id")] == [
+        (None, None, None)] * 3
+
+
+def test_the_faces_named_by_hand_are_read_again_when_they_change(lib):
+    """Who a face looks like goes by the faces named by hand, kept in memory between photos' pages: read again as soon
+    as one is named or its name taken off, and told apart by the index alone."""
+    con = lib
+    owen = people.name_faces(con, [add_face(con, image(con, rel("Owen", "o0.jpg")), like(A))], "Owen")
+    probe = add_face(con, image(con, rel("Owen", "o3.jpg")), like(B))
+    con.commit()
+    face = con.execute("SELECT id, embedding FROM face WHERE id = ?", (probe,)).fetchall()
+    assert people._person_scores(con, face)[0] == [owen]
+    lucas_face = add_face(con, image(con, rel("Lucas", "l0.jpg")), like(B))
+    lucas = people.name_faces(con, [lucas_face], "Lucas")
+    who, scores = people._person_scores(con, face)
+    assert who == sorted([owen, lucas]) and scores[0][who.index(lucas)] > 0.8
+    people.not_them(con, [lucas_face])
+    assert people._person_scores(con, face)[0] == [owen]
+    plan = " ".join(r[3] for r in con.execute("""EXPLAIN QUERY PLAN SELECT count(*), max(id), total(person_id)
+                                                 FROM face WHERE assigned_by = 'user'"""))
+    assert "COVERING INDEX face_assigned" in plan
+
+
 def test_a_rename_or_merge_reindexes_photos_they_were_added_to(cfg, con, library):
     """Someone added to a photo by hand (no face found) is found by search under their new name after a rename, and
     under the kept name after a merge."""

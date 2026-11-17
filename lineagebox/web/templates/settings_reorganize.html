@@ -121,7 +121,7 @@
   {%- endif %}
   {%- if undoable and not (last and last.active) %}
   <p><button type="button" class="quiet" data-api="/api/reorganize/undo" data-busy="{{ _('Starting…') }}"
-    data-confirm="{{ _('Move the files of the reorganization of %(at)s back where they were? Files moved or removed since stay where they are now.', at=undoable.started_at|date) }}">{% trans count=undoable.moved, n=undoable.moved|number %}Put back the {{ n }} file it moved…{% pluralize %}Put back the {{ n }} files it moved…{% endtrans %}</button>
+    data-confirm="{{ _('Move the files of the reorganization of %(at)s back where they were? Files moved or removed since stay where they are now.', at=undoable.started_at|date) }}">{% trans count=undoable.moves, n=undoable.moves|number %}Put back the {{ n }} file it moved…{% pluralize %}Put back the {{ n }} files it moved…{% endtrans %}</button>
     {%- if last.id != undoable.id %} <span class="hint inline">{% trans at=undoable.started_at|date %}(the reorganization of {{ at }}){% endtrans %}</span>{% endif %}</p>
   {%- endif %}
 </section>

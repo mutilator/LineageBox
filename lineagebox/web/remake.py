@@ -15,14 +15,14 @@ gets a 404 for now and the picture is made the next time the page is shown. One 
 again for AGAIN seconds, so that a damaged original isn't read whole on every view. Nothing is made while the disk is
 nearly full (uploads.MARGIN).
 """
-import shutil
 import sqlite3
 import threading
 import time
 
-from lineagebox import ingest
+from lineagebox import check, ingest
 from lineagebox.catalog import ON_SHARE
 from lineagebox.uploads import MARGIN
+from lineagebox.web import tiles
 
 MAKING = threading.Semaphore(2)
 WAIT = 2  # seconds
@@ -49,7 +49,7 @@ def again(s, sha: str) -> bool:
         return False
     if img["media"] != "photo":  # ffmpeg's work, minutes for a long tape: the worker's next ingest (ingest._rebuild)
         # only for a picture it has that is gone, not a frame asked for that the video never had
-        gone = not _whole(cfg, sha) or not all(_has(cfg.frame_path(sha, i)) for i in frames)
+        gone = not _whole(cfg, sha) or not all(check.non_empty(cfg.frame_path(sha, i)) for i in frames)
         if gone and img["stage"] & ingest.STAGE_INGEST:
             _set_ingested(s, img["id"], False)
         return False
@@ -60,7 +60,7 @@ def again(s, sha: str) -> bool:
     try:
         if _whole(cfg, sha):  # made while this waited
             return True
-        if _room(cfg) < MARGIN:  # the room left goes to the photos themselves
+        if tiles.free_space(cfg) < MARGIN:  # the room left goes to the photos themselves
             return False
         # the first copy still there: one may have moved since the last scan (the folder being sorted just now)
         path = next((p for p in map(cfg.source_path, paths) if p.is_file()), None)
@@ -94,18 +94,6 @@ def _set_ingested(s, image_id: int, done: bool) -> None:
 
 
 def _whole(cfg, sha: str) -> bool:
-    return _has(cfg.preview_path(sha)) and _has(cfg.thumb_path(sha))
+    return check.non_empty(cfg.preview_path(sha)) and check.non_empty(cfg.thumb_path(sha))
 
 
-def _has(path) -> bool:
-    try:
-        return path.stat().st_size > 0
-    except OSError:
-        return False
-
-
-def _room(cfg) -> int:
-    try:
-        return shutil.disk_usage(cfg.data_dir).free
-    except OSError:
-        return 0

@@ -26,6 +26,7 @@ def test_what_looks_private():
     seen = lambda caption, kind="document/screenshot", text=None, tags=(): private.looks_private(  # noqa: E731
         caption, json.dumps({"tags": list(tags)}), text, kind)
     assert seen("A driver's license with a photo of an adult woman.") == ("id", "driver's license")
+    assert seen("A UK driving licence with a photo of a man.") == ("id", "driving licence")  # British English too
     assert seen("Two copies of a 2019 W-2 Wage and Tax Statement.") == ("money", "w-2")
     assert seen("A close-up of an insurance card on a table.") == ("health", "insurance card")
     assert seen("A certified copy of a birth certificate.") == ("certificates", "birth certificate")

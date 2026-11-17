@@ -462,13 +462,13 @@ def test_a_photo_edited_on_the_share_takes_its_new_sidecar(con, cfg, named):
 def test_a_sidecar_that_cant_be_moved_with_its_photo_is_said(con, cfg, named, monkeypatch):
     """Cleanup moves the photo even when its sidecar can't go with it (the photo is what was asked for), and says so."""
     sidecars.run(con, on(cfg))
-    real = cleanup._move
+    real = cleanup.move_file
 
     def no_sidecars(src, dst, like):
         if src.name.endswith(".xmp"):
             raise PermissionError(13, "Permission denied")
         return real(src, dst, like)
-    monkeypatch.setattr(cleanup, "_move", no_sidecars)
+    monkeypatch.setattr(cleanup, "move_file", no_sidecars)
     file_id = con.execute("SELECT id FROM file WHERE image_id = ?", (named["image"],)).fetchone()[0]
     moved = cleanup.remove_files(con, cfg, [file_id], "test", keep_last_copy=False)
     assert moved.moved == 1 and moved.errors == ["IMG_0001.jpg.xmp: Permission denied"]

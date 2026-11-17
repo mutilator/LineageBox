@@ -6,6 +6,40 @@ copies it there when the version is tagged ([releases](docs/development.md#relea
 A **catalog update** adds to the catalog's tables. LineageBox copies the catalog before it updates it, and earlier
 versions can't open the updated one.
 
+## 1.10.1 (2026-11-17)
+
+**Catalog update** (migration 040).
+
+### Updated
+
+- **Photos open faster.** A photo's page compares each face in it with every face named by hand, and read all of
+  those from the catalog each time a photo was opened; they are now kept in memory until one is named or taken off,
+  which a large library on a small machine notices most. Uploading a large file no longer holds up the rest of the
+  site while it is written to disk.
+
+### Fixed
+
+- **Put back finds every file Reorganize folders moved.** If LineageBox stopped (a restart, a power cut) while files
+  were moving, the last few moved could be missing from what it had written down, and **Put back** left them where
+  they were; each move is now written down before the file moves. A **Put back** stopped before it had moved
+  anything can be tried again, where before the button was gone. And on a large share, working out where
+  everything goes, or clearing empty folders afterwards, could take long enough for the run to look stopped, and
+  the folder scan then started while files were still moving.
+- **Nobody can be their own ancestor in the family tree.** Someone could be entered as a person's brother and as
+  their father too, either way round, or linked through a brother or sister in some other way that made them their
+  own ancestor. The person page now says why it can't, and **Read into the family tree** and a family tree import
+  leave such a link out and list it with what they skipped.
+- **Two people in one video frame are never both named as the same person.** When a face is named in a video, the
+  same person is looked for on its other frames, and two faces side by side could both be given that name; now only
+  the closer match is.
+- **Read into the family tree keeps what it made if it stops part-way.** If something unexpected stopped it while
+  making the changes, the people already added were forgotten, and making the changes again added them a second
+  time. The page now keeps what was made and says where it stopped. A photo picked for it that the browser can't
+  open says why, not "[object ProgressEvent]".
+- **British spellings are understood again**, after 1.8.0 made everything American: **Cleanup → Private papers**
+  catches a photo the AI calls a "driving licence" or "driver's licence", a reading no longer takes a "Community
+  Centre" for a town, and someone entered as a "neighbour" goes into a GEDCOM 7 file as a neighbor.
+
 ## 1.10.0 (2026-11-17)
 
 **Catalog update** (migration 039).

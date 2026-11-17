@@ -10,8 +10,9 @@ from fastapi.testclient import TestClient
 from lineagebox import access, accounts, catalog, devices, memories, outbox, settings, sharing, tours
 from lineagebox import albums, cleanup, comments, documents, face_ages, favorites, life, places, stories
 from lineagebox.web import app as webapp
+from lineagebox.web import common
 from lineagebox.web import site as site_module
-from lineagebox.web.common import _from_app
+from lineagebox.web.common import from_app
 from lineagebox.web.routes import cleanup as cleanup_routes
 from lineagebox.web.routes import naming as naming_routes
 from tests import family_fixture as fx
@@ -119,7 +120,7 @@ def test_every_change_comes_from_the_apps_own_scripts(cfg):
     """Every POST needs X-Requested-With (common._from_app), which a page on another site can't send: so no other
     site can make a signed-in browser change anything."""
     def needs(dependant):
-        return any(d.call is _from_app or needs(d) for d in dependant.dependencies)
+        return any(d.call is from_app or needs(d) for d in dependant.dependencies)
     app = webapp.create_app(cfg)
     posts = {r.path: r for r in webapp.all_routes(app) if "POST" in getattr(r, "methods", ())}
     assert len(posts) > 100
@@ -613,13 +614,13 @@ def test_see_as(site, cfg, con):
     zed = site["photos"]["zed.jpg"]
     r = admin.post("/api/see-as", json={"account_id": site["who"]["Cora"]["id"]}, headers=APP)
     assert r.json()["go"] == "/"
-    admin.cookies.set(webapp.SEE_AS, r.cookies[webapp.SEE_AS])
+    admin.cookies.set(common.SEE_AS, r.cookies[common.SEE_AS])
     assert admin.get(f"/image/{zed}").status_code == 404 and admin.get("/settings").status_code == 404
     assert "seeing the site as cora@example.com" in admin.get("/home").text
     r = admin.post(f"/api/images/{site['photos']['cora_bart.jpg']}/tags", json={"tag": "x"}, headers=APP)
     assert r.status_code == 403  # nothing changes while seeing as someone
     assert admin.post("/api/see-as/stop", headers=APP).status_code == 200
-    admin.cookies.delete(webapp.SEE_AS)
+    admin.cookies.delete(common.SEE_AS)
     over_https = TestClient(webapp.create_app(cfg), client=LAN, base_url="https://testserver", follow_redirects=False)
     over_https.cookies.set(accounts.COOKIE, accounts.new_session(con, site["who"]["Sam"]["id"], 30))
     r = over_https.post("/api/see-as", json={"account_id": site["who"]["Cora"]["id"]}, headers=APP)
@@ -627,7 +628,7 @@ def test_see_as(site, cfg, con):
     assert admin.get(f"/image/{zed}").status_code == 200
     # a member's own See-as cookie does nothing
     cora = signed_in(cfg, con, site["who"]["Cora"])
-    cora.cookies.set(webapp.SEE_AS, str(site["who"]["Tina"]["id"]))
+    cora.cookies.set(common.SEE_AS, str(site["who"]["Tina"]["id"]))
     assert cora.get(f"/image/{site['photos']['hank.jpg']}").status_code == 404
 
 

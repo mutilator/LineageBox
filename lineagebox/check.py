@@ -179,12 +179,13 @@ def missing_derivatives(con: sqlite3.Connection, cfg: Config) -> list[int]:
         paths = [cfg.preview_path(r["sha256"]), cfg.thumb_path(r["sha256"])]
         if r["media"] == "video":
             paths += [cfg.frame_path(r["sha256"], idx) for idx in frames.get(r["id"], [])]
-        if any(not _has(p) for p in paths):
+        if any(not non_empty(p) for p in paths):
             out.append(r["id"])
     return out
 
 
-def _has(path: Path) -> bool:
+def non_empty(path: Path) -> bool:
+    """Whether a file is there with something in it (a preview cut off at 0 bytes is gone)."""
     try:
         return path.stat().st_size > 0
     except OSError:

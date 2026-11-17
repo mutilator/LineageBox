@@ -275,7 +275,8 @@ def look_again(con: sqlite3.Connection, cfg: Config, image_id: int, app=None, ba
                               float(f.det_score), float(f.embedding_norm), None if f.age is None else int(f.age),
                               f.sex, f.normed_embedding.astype(np.float32).tobytes(), frame))
         found_turned = False
-        if turned and img["media"] == "photo" and not found and not back                 and all(k["assigned_by"] == "not_a_face" for k in known):
+        if (turned and img["media"] == "photo" and not found and not back
+                and all(k["assigned_by"] == "not_a_face" for k in known)):
             found = _found_turned(app, rgb, image_id)
             found_turned = bool(found)
     if img["media"] == "video":  # one face per person, and none of someone the video already has a face of
@@ -499,7 +500,8 @@ def look_again_all(con: sqlite3.Connection, cfg: Config, every_months: int, stop
     state = round_state(con)
     if not state.get("started"):
         start_round(con, now)
-    elif every_months and state.get("finished") and             state["finished"] < (now - timedelta(days=round(every_months * 30.44))).isoformat(timespec="seconds"):
+    elif every_months and state.get("finished") and state["finished"] < (
+            now - timedelta(days=round(every_months * 30.44))).isoformat(timespec="seconds"):
         start_round(con, now)
     state = round_state(con)
     where, args = _due(state)

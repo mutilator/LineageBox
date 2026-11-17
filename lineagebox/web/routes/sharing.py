@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 from lineagebox import access, albums, catalog, changes, sharing, tours
-from lineagebox.web.common import MEMBER, ShareBody, _from_app, _shared_with_me, _upload_labels
+from lineagebox.web.common import MEMBER, ShareBody, from_app, shared_with_me, upload_labels
 from lineagebox.web.deps import con, page, site, viewer, writer
 from lineagebox.web.routes.albums import passed_on
 from lineagebox.web.routes.tours import maker_photos
@@ -36,7 +36,7 @@ def folders_page(request: Request, v=Depends(viewer), c=Depends(con), w=Depends(
                                                                                 x["with_email"])
         x["by"] = None if x["by_id"] == v.account_id else sharing.who(v, x["by_person"], x["by_name"], x["by_email"])
         shares.append(x)
-    labels = _upload_labels(w, v)
+    labels = upload_labels(w, v)
     for x in shares:
         if x["kind"] == "folder":
             x["folder_name"] = labels.get(x["folder_path"]) or x["folder_name"] or "All folders"
@@ -44,7 +44,7 @@ def folders_page(request: Request, v=Depends(viewer), c=Depends(con), w=Depends(
     partners = [r["name"] or "Your partner" for r in access.partner_accounts(w, v.account_id)] if v.account_id else []
     return page(request, "folders.html", nav="folders", uploads=uploads,
                 subfolders=[f for f in uploads.children if f.total] if uploads else [],
-                shared=_shared_with_me(w, c, v), shares=shares, partners=partners)
+                shared=shared_with_me(w, c, v), shares=shares, partners=partners)
 
 
 def _shareable(c, v: access.Viewer, kind: str, item_id: int) -> str:
@@ -75,7 +75,7 @@ def _shareable(c, v: access.Viewer, kind: str, item_id: int) -> str:
     return "a photo"
 
 
-@router.post("/api/shares", dependencies=[Depends(_from_app)])
+@router.post("/api/shares", dependencies=[Depends(from_app)])
 def share(body: ShareBody, v=Depends(viewer), c=Depends(con), w=Depends(writer), s: Site = Depends(site)):
     """Share one folder, photo, tour or album with an account, or with everyone who has one."""
     if v.account_id is None:
@@ -102,7 +102,7 @@ def share(body: ShareBody, v=Depends(viewer), c=Depends(con), w=Depends(writer),
     return {"reload": True}
 
 
-@router.post("/api/shares/{share_id}/delete", dependencies=[Depends(_from_app)])
+@router.post("/api/shares/{share_id}/delete", dependencies=[Depends(from_app)])
 def unshare(share_id: int, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     """Stop sharing something with someone: what they shared themselves, for a member (their connection holds only
     those); any, for an admin."""

@@ -21,7 +21,7 @@ import json
 import sqlite3
 from datetime import date, datetime, timedelta
 
-from lineagebox import settings
+from lineagebox import clock, settings
 from lineagebox.catalog import VISIBLE
 
 KEEP_DAYS = 90  # events older than this are deleted
@@ -38,10 +38,6 @@ OLLAMA_UP = "outbox_ollama_up"  # settings: when Ollama last answered the worker
 DISKS_ON = "outbox_disks_on"  # settings: the day the disks were last looked at
 PRIVATE_TOLD = "outbox_private_told"  # settings: the photos of private papers admins were told of
 ALERTS = ("damaged", "disk_low", "service", "update", "private")
-
-
-def _now() -> str:
-    return datetime.now().isoformat(timespec="seconds")
 
 
 # ---- writing -------------------------------------------------------------------------------------------------------
@@ -61,7 +57,7 @@ def add(con: sqlite3.Connection, kind: str, *, admins: bool = False, to: int | N
         return con.execute("""INSERT INTO main.outbox(at, kind, admins, to_account, by_account, image_id, face_id,
                                                       share_id, comment_id, data, key)
                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                           (_now(), kind, int(admins), to, by, image_id, face_id, share_id, comment_id,
+                           (clock.now(), kind, int(admins), to, by, image_id, face_id, share_id, comment_id,
                             json.dumps(data or {}, separators=(",", ":")), key)).lastrowid
     except sqlite3.OperationalError:
         return None
@@ -204,7 +200,7 @@ def ollama_away(con: sqlite3.Connection, cfg) -> int:
         return 0
     state = settings.get(con, "worker", {}) or {}
     if state.get("ollama"):
-        settings.put(con, OLLAMA_UP, _now())
+        settings.put(con, OLLAMA_UP, clock.now())
         return 0
     up = settings.get(con, OLLAMA_UP)
     if state.get("ollama") is not False or not up or datetime.now() - datetime.fromisoformat(up) < OLLAMA_AWAY:

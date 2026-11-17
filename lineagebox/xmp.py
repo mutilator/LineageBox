@@ -277,7 +277,7 @@ def _mwg_regions(desc: ET.Element) -> list:
             if not dim_w or not dim_h:
                 continue
             x, w, y, h = x / dim_w, w / dim_w, y / dim_h, h / dim_h
-        if box := _box(x - w / 2, y - h / 2, x + w / 2, y + h / 2):
+        if box := inside_box(x - w / 2, y - h / 2, x + w / 2, y + h / 2):
             out.append((name, *box))
     return out
 
@@ -295,12 +295,13 @@ def _mp_regions(desc: ET.Element) -> list:
         if not name or len(parts) != 4 or None in parts:
             continue
         x, y, w, h = parts
-        if box := _box(x, y, x + w, y + h):
+        if box := inside_box(x, y, x + w, y + h):
             out.append((name, *box))
     return out
 
 
-def _box(x1, y1, x2, y2):
+def inside_box(x1, y1, x2, y2):
+    """A face's box (0 to 1 across the picture) held inside it; None for one with no size left."""
     x1, y1, x2, y2 = (min(1.0, max(0.0, v)) for v in (x1, y1, x2, y2))
     return (x1, y1, x2, y2) if x2 - x1 > 0.002 and y2 - y1 > 0.002 else None
 

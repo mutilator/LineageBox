@@ -569,24 +569,16 @@ def link(con: sqlite3.Connection, pid: int, word: str, other: int, with_parent: 
             con.execute("UPDATE person SET sex = ? WHERE id = ? AND sex IS NULL", (sex, other))
         how = PEDI_OF_WORD.get(word.split()[0])  # "adopted son": adopted; "son": by birth, or as entered before
         if kind == "parent":
-            _add_parent(con, child=pid, parent=other, shown=shown, pedi=how)
+            add_parent(con, child=pid, parent=other, shown=shown, pedi=how)
         elif kind == "child":
-            _add_parent(con, child=other, parent=pid, shown=shown, pedi=how)
+            add_parent(con, child=other, parent=pid, shown=shown, pedi=how)
             if with_parent and with_parent not in (pid, other):
-                _add_parent(con, child=other, parent=with_parent, shown=shown, pedi=how)
+                add_parent(con, child=other, parent=with_parent, shown=shown, pedi=how)
         elif kind == "sibling":
-            con.execute("INSERT OR IGNORE INTO sibling(a, b) VALUES (?, ?)", (min(pid, other), max(pid, other)))
+            add_sibling(con, pid, other)
         else:
-            current = kind == "partner"
-            bond = BONDS[word.removeprefix("ex-")]
-            if current:
-                _no_other_current_partner(con, pid, other, shown)
-                _no_other_current_partner(con, other, pid, shown)
-            con.execute("""INSERT INTO partner(a, b, current, married, dating, uid) VALUES (?, ?, ?, ?, ?, ?)
-                           ON CONFLICT(a, b) DO UPDATE SET current = excluded.current, married = excluded.married,
-                                                           dating = excluded.dating""",
-                        (min(pid, other), max(pid, other), int(current), int(bond == "married"),
-                         int(bond == "dating"), str(uuid.uuid4())))
+            add_partner(con, pid, other, current=kind == "partner", bond=BONDS[word.removeprefix("ex-")],
+                        shown=shown)
     elif word:
         if len(word) > 40:
             raise Problem("That relationship is too long; a word or two, like coworker.")
@@ -619,16 +611,27 @@ def _not_worked_out(word: str) -> None:
         raise Problem(f"{word.capitalize()} is worked out from parents, siblings and partners: enter those instead.")
 
 
-def _add_parent(con, child: int, parent: int, shown: set[int] | None = None, pedi: str | None = None) -> None:
+def _name(con, pid: int) -> str:
+    return (con.execute("SELECT name FROM person WHERE id = ?", (pid,)).fetchone() or ("?",))[0]
+
+
+def add_parent(con, child: int, parent: int, shown: set[int] | None = None, pedi: str | None = None) -> None:
     """parent is child's parent: by birth, adopted or foster (pedi). pedi None: by birth, or a link already entered
-    stays as it is; given, it changes one already entered."""
+    stays as it is; given, it changes one already entered. Refused when it would make someone their own ancestor:
+    when the child, or a brother or sister entered as such (who shares the child's parents, Graph), is the parent or
+    the parent's ancestor already. Doesn't commit."""
     def name(pid):
-        return (con.execute("SELECT name FROM person WHERE id = ?", (pid,)).fetchone() or ("?",))[0]
+        return _name(con, pid)
 
     if pedi not in (None, *PEDI):
         raise Problem("Unknown kind of parent.")
     if _is_ancestor(con, child, parent):
         raise Problem(f"{name(child)} is already {name(parent)}'s ancestor.")
+    siblings = _siblings_of(con, child)
+    if parent in siblings:
+        raise Problem(f"{name(parent)} is entered as {name(child)}'s brother or sister: remove that first.")
+    if any(_is_ancestor(con, s, parent) for s in siblings):
+        raise Problem(f"A brother or sister of {name(child)} is already {name(parent)}'s ancestor.")
     kind = pedi or (con.execute("SELECT pedi FROM parent WHERE child_id = ? AND parent_id = ?", (child, parent))
                     .fetchone() or ("birth",))[0]
     _room_for(con, child, parent, kind, shown, name)
@@ -656,8 +659,7 @@ def set_pedi(con: sqlite3.Connection, child: int, parent: int, pedi: str, shown:
         raise Problem("Unknown kind of parent.")
     if not con.execute("SELECT 1 FROM parent WHERE child_id = ? AND parent_id = ?", (child, parent)).fetchone():
         raise Problem("They aren't entered as parent and child.")
-    _room_for(con, child, parent, pedi, shown,
-              lambda pid: (con.execute("SELECT name FROM person WHERE id = ?", (pid,)).fetchone() or ("?",))[0])
+    _room_for(con, child, parent, pedi, shown, lambda pid: _name(con, pid))
     con.execute("UPDATE parent SET pedi = ? WHERE child_id = ? AND parent_id = ?", (pedi, child, parent))
     con.commit()
 
@@ -699,6 +701,49 @@ def _siblings_of(con, pid: int) -> set[int]:
     return group - {pid}
 
 
+def add_sibling(con, a: int, b: int) -> bool:
+    """a and b are brothers or sisters, entered as such (for when their parents aren't: they share those of either,
+    Graph). Refused when that would make someone their own ancestor: one of them, or a brother or sister of theirs,
+    an ancestor of a parent they would share. Returns whether it is new. Doesn't commit."""
+    if a == b:
+        raise Problem("Someone cannot be their own relative.")
+    for x, y in ((a, b), (b, a)):
+        if _is_ancestor(con, x, y):
+            raise Problem(f"{_name(con, x)} is already {_name(con, y)}'s ancestor.")
+    group = {a, b} | _siblings_of(con, a) | _siblings_of(con, b)
+    shared = {r[0] for r in con.execute("""SELECT parent_id FROM parent
+                                           WHERE child_id IN (SELECT value FROM json_each(?))""",
+                                        (json.dumps(sorted(group)),))}
+    if any(_is_ancestor(con, x, q) for x in group for q in shared):
+        raise Problem(f"{_name(con, a)} and {_name(con, b)} can't be brothers or sisters: one of their brothers or "
+                      f"sisters would be an ancestor of a parent they share.")
+    return bool(con.execute("INSERT OR IGNORE INTO sibling(a, b) VALUES (?, ?)", (min(a, b), max(a, b))).rowcount)
+
+
+def add_partner(con, a: int, b: int, current: bool, bond: str, shown: set[int] | None = None, replace: bool = True,
+                uid: str | None = None) -> None:
+    """a and b are a couple: married, partners or going out together (bond, one of BONDS' kinds), now or before; a
+    current couple only when neither has another current partner living. replace: a couple entered already becomes
+    this one, else stays as it was. uid: the couple's GEDCOM UID, when they come with one. Doesn't commit."""
+    if current:
+        _no_other_current_partner(con, a, b, shown)
+        _no_other_current_partner(con, b, a, shown)
+    keep = ("DO UPDATE SET current = excluded.current, married = excluded.married, dating = excluded.dating"
+            if replace else "DO NOTHING")
+    con.execute(f"""INSERT INTO partner(a, b, current, married, dating, uid) VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(a, b) {keep}""",
+                (min(a, b), max(a, b), int(current), int(bond == "married"), int(bond == "dating"),
+                 uid or str(uuid.uuid4())))
+
+
+def change_current(con, a: int, b: int, current: bool, shown: set[int] | None = None) -> None:
+    """A couple are together now, or were (divorced, separated, broken up). Doesn't commit."""
+    if current:
+        _no_other_current_partner(con, a, b, shown)
+        _no_other_current_partner(con, b, a, shown)
+    con.execute("UPDATE partner SET current = ? WHERE a = ? AND b = ?", (int(current), min(a, b), max(a, b)))
+
+
 def _no_other_current_partner(con, pid: int, new: int, shown: set[int] | None = None) -> None:
     row = con.execute("""SELECT p.id, p.name FROM partner r
                          JOIN person p ON p.id = (CASE r.a WHEN ? THEN r.b ELSE r.a END)
@@ -729,10 +774,7 @@ def unlink(con: sqlite3.Connection, kind: str, a: int, b: int, what: str = "") -
 
 
 def set_current(con: sqlite3.Connection, a: int, b: int, current: bool, shown: set[int] | None = None) -> None:
-    if current:
-        _no_other_current_partner(con, a, b, shown)
-        _no_other_current_partner(con, b, a, shown)
-    con.execute("UPDATE partner SET current = ? WHERE a = ? AND b = ?", (int(current), min(a, b), max(a, b)))
+    change_current(con, a, b, current, shown)
     con.commit()
 
 

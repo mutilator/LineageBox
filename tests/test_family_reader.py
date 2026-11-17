@@ -5,6 +5,7 @@ import base64
 import copy
 import io
 import json
+import sqlite3
 
 import pytest
 from fastapi.testclient import TestClient
@@ -323,6 +324,10 @@ def test_dates_and_places_as_the_tree_keeps_them():
     assert fr.tidy_place("Lakeview", "Ohio") == "Lakeview, Ohio, USA"
     assert fr.tidy_place("Toronto, Ontario, Canada") == "Toronto, Ontario, Canada"
     assert fr.tidy_place("unknown") is None
+    # a building given as the place of death is told from the town, whichever way it is spelled
+    assert fr._town_of("Mercy Medical Center, Lima, Ohio") == ("Lima, Ohio", "Mercy Medical Center")
+    assert fr._town_of("Kingston General Health Centre, Kingston, Ontario") == (
+        "Kingston, Ontario", "Kingston General Health Centre")
 
 
 def test_who_is_who_goes_by_the_relatives(con, tree):
@@ -413,6 +418,33 @@ def test_a_refused_change_leaves_the_others(con, tree):
                                  "Mark that one as former first (on James Miller's page), or add this one as an ex."]
     assert {"p3", "p8", "p12"} <= set(report["added"])  # Kim is added all the same; the rest is made
     assert not family.load(con).partners.get(report["added"]["p8"])
+
+
+def test_a_change_that_fails_unexpectedly_keeps_what_was_made(con, tree, monkeypatch):
+    """Something unexpected stopping the changes half way (the catalog busy for long): the people added before it
+    stay with the reading as added, and its report says what was made, so nobody is offered as new a second time."""
+    rid = fr.start(con, TEXT, SOURCE)
+    found = fr.tidy(copy.deepcopy(ANSWER))
+    con.execute("UPDATE family_reading SET state = 'ready', found = ?, choices = ? WHERE id = ?",
+                (json.dumps(found), json.dumps(fr.match(con, found)), rid))
+    con.commit()
+    _, found, choices = fr.load(con, rid)
+    prop = fr.propose(con, found, choices, SOURCE)
+    real = fr._apply_one
+
+    def busy(con_, c, who, report):
+        if c.kind == "link":
+            raise sqlite3.OperationalError("database is locked")
+        return real(con_, c, who, report)
+
+    monkeypatch.setattr(fr, "_apply_one", busy)
+    with pytest.raises(sqlite3.OperationalError):
+        fr.apply_kept(con, rid, {c.key for c in prop.changes if c.on})
+    row, _, choices = fr.load(con, rid)
+    report = json.loads(row["report"])
+    assert report["added"] and all(choices[x]["how"] == "added" for x in report["added"])
+    assert report["done"] and report["skipped"] == ["Stopped before the rest: database is locked"]
+    assert all(fr.load_tree(con).g.people.get(pid) for pid in report["added"].values())
 
 
 def test_choices_by_hand(con, tree):

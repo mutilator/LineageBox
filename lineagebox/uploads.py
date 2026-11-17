@@ -8,6 +8,7 @@ Windows can't have, nothing hidden, no folder the scan skips), only photo and vi
 taken, their first bytes must look like that type (an .html file named .jpg is refused), and a name already there gets
 " (2)".
 """
+import asyncio
 import os
 import re
 import shutil
@@ -144,9 +145,10 @@ def _room(folder: Path, need: int) -> None:
 async def receive(chunks, target: Path, most: int, expected: int = 0) -> int:
     """Write the chunks (an async iterator of bytes) to target, through .<name>.part. Returns the size; raises
     Problem (nothing kept) when it is too big, not the type its name says, or the disk it goes on is too full for
-    `expected` bytes (the size the browser gave, if any) and MARGIN, then or while it is written."""
-    target.parent.mkdir(parents=True, exist_ok=True)
-    _room(target.parent, expected)
+    `expected` bytes (the size the browser gave, if any) and MARGIN, then or while it is written. The disk is written
+    in a thread: a slow one (a USB drive, a network share) keeps the web app answering everyone else meanwhile."""
+    await asyncio.to_thread(target.parent.mkdir, parents=True, exist_ok=True)
+    await asyncio.to_thread(_room, target.parent, expected)
     part = target.with_name(f".{target.name}.part")
     size, looked, head, checked = 0, 0, b"", False
     try:
@@ -163,9 +165,9 @@ async def receive(chunks, target: Path, most: int, expected: int = 0) -> int:
                         if not looks_like(target.name, head):
                             raise Problem(f"{target.name} isn't a {target.suffix.lstrip('.').upper()} file.")
                         checked = True
-                f.write(chunk)
+                await asyncio.to_thread(f.write, chunk)
                 if size - looked >= ROOM_EVERY:
-                    _room(part.parent, 0)
+                    await asyncio.to_thread(_room, part.parent, 0)
                     looked = size
         if size == 0:
             raise Problem(f"{target.name} is empty.")

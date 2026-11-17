@@ -200,7 +200,7 @@ def sharp(cfg: Config, sha: str) -> Path | None:
     try:
         if _fresh(path, made_from):  # made while this waited
             return path
-        if _room(cfg) < MARGIN:  # the disk is nearly full: what room there is goes to the photos (uploads.MARGIN)
+        if free_space(cfg) < MARGIN:  # the disk is nearly full: what room there is goes to the photos (uploads.MARGIN)
             return None
         try:
             with Image.open(preview) as im:
@@ -211,7 +211,7 @@ def sharp(cfg: Config, sha: str) -> Path | None:
             return None
         tile.thumbnail((size, size), Image.Resampling.LANCZOS)
         try:
-            media._atomic_save(tile, path, "WEBP", quality=80)
+            media.atomic_save(tile, path, "WEBP", quality=80)
         except OSError:  # a full disk, a data folder it can't write: the thumbnail does
             return None
     finally:
@@ -219,7 +219,8 @@ def sharp(cfg: Config, sha: str) -> Path | None:
     return path
 
 
-def _room(cfg: Config) -> int:
+def free_space(cfg: Config) -> int:
+    """Bytes free on the disk the catalog's pictures are on (0 when it can't be told)."""
     try:
         return shutil.disk_usage(cfg.data_dir).free
     except OSError:

@@ -9,8 +9,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse
 
 from lineagebox import access, accounts, albums, catalog, dates, sharing, slideshow, tour_suggestions, tours
-from lineagebox.web.common import (ADMIN, MEMBER, PRIVATE, _attachment, _covers, _from_app, _own_tour,
-                                   _people_or_404, _share_panel)
+from lineagebox.web.common import (ADMIN, MEMBER, PRIVATE, attachment, cover_faces, from_app, own_tour, people_or_404,
+                                   share_panel)
 from lineagebox.web.deps import con, page, site, viewer, writer
 from lineagebox.web import pieces  # a tour's photos a piece at a time
 from lineagebox.web.site import Site
@@ -152,7 +152,7 @@ def wizard(request: Request, c, tour_type: dict | None, tour: dict | None):
     named = catalog.people(c)
     return page(request, "tour_wizard.html", nav="tours", type=tour_type, tour=tour, spec=spec,
                 asked=tours.questions(tour_type["spec"]) if tour_type else [],
-                people=named, covers=_covers(named), relations=tours.relation_choices(c),
+                people=named, covers=cover_faces(named), relations=tours.relation_choices(c),
                 years=sorted(catalog.timeline(c), reverse=True), seasons=tours.SEASONS, south=dates.south(c))
 
 
@@ -184,7 +184,7 @@ def tour_page(request: Request, tour_id: int, select: bool = False, v=Depends(vi
                 photos=pieces.part(request, images, f"tour:{tour_id}", select), select=select,
                 everything=[p["id"] for p in images] if select else None,
                 about=tours.describe(c, t["spec"]), ctx=f"tour:{tour_id}", theirs=theirs, from_whom=from_whom,
-                sharing=_share_panel(w, v, "tour", tour_id) if theirs and signed_in else None,
+                sharing=share_panel(w, v, "tour", tour_id) if theirs and signed_in else None,
                 video=video_part("tour", tour_id, slideshow.latest(w, v.account_id, "tour", tour_id)))
 
 
@@ -214,10 +214,10 @@ def video_file(s: Site, w, v: access.Viewer, kind: str, item_id: int, name: str)
         raise HTTPException(404, "There is no video of it yet")
     plain = re.sub(r"[^\w -]+", "", name).strip() or kind
     return FileResponse(found, media_type="video/mp4",
-                        headers={"Content-Disposition": _attachment(f"{plain}.mp4"), **PRIVATE})
+                        headers={"Content-Disposition": attachment(f"{plain}.mp4"), **PRIVATE})
 
 
-@router.post("/api/tours/{tour_id}/video", dependencies=[Depends(_from_app)])
+@router.post("/api/tours/{tour_id}/video", dependencies=[Depends(from_app)])
 def tour_video(tour_id: int, v=Depends(viewer), c=Depends(con), w=Depends(writer), s: Site = Depends(site)):
     """Save as a video: the tour as the viewer sees it, made by the worker."""
     t = tours.tour(c, tour_id)
@@ -266,7 +266,7 @@ def tour_from(c, v: access.Viewer, body: dict, tour_id: int | None = None) -> tu
         if t is None and old is None:
             raise HTTPException(404, "No such tour type")
         spec = tours.answer(t["spec"], body) if t else old["spec"]
-    _people_or_404(c, *spec["who"]["person_ids"])
+    people_or_404(c, *spec["who"]["person_ids"])
     return spec, type_id
 
 
@@ -275,7 +275,7 @@ def tour_name(c, body: dict, spec: dict) -> str:
     return str(body.get("name") or "").strip() or tours.title(c, spec)
 
 
-@router.post("/api/tours/preview", dependencies=[Depends(_from_app)])
+@router.post("/api/tours/preview", dependencies=[Depends(from_app)])
 def preview_tour(body: dict, tour: int | None = None, v=Depends(viewer), c=Depends(con), s: Site = Depends(site)):
     try:
         spec, _ = tour_from(c, v, body, tour)
@@ -285,17 +285,17 @@ def preview_tour(body: dict, tour: int | None = None, v=Depends(viewer), c=Depen
     return {"count": n, "name": tours.title(c, spec), "message": f"{n:,} photo{'' if n == 1 else 's'}"}
 
 
-@router.post("/api/tours", dependencies=[Depends(_from_app)])
+@router.post("/api/tours", dependencies=[Depends(from_app)])
 def create_tour(body: dict, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     spec, type_id = tour_from(c, v, body)
     # whoever made it, an admin as well: a tour of the admins' own is one from before, or one made without accounts
     return {"go": f"/tour/{tours.save_tour(w, None, type_id, spec, tour_name(c, body, spec), v.account_id)}"}
 
 
-@router.post("/api/tours/{tour_id}", dependencies=[Depends(_from_app)])
+@router.post("/api/tours/{tour_id}", dependencies=[Depends(from_app)])
 def update_tour(tour_id: int, body: dict, v=Depends(viewer), c=Depends(con), w=Depends(writer),
                 s: Site = Depends(site)):
-    _own_tour(c, v, tour_id)
+    own_tour(c, v, tour_id)
     spec, type_id = tour_from(c, v, body, tour_id)
     tours.save_tour(w, tour_id, type_id, spec, tour_name(c, body, spec))
     t = tours.tour(w, tour_id)
@@ -304,9 +304,9 @@ def update_tour(tour_id: int, body: dict, v=Depends(viewer), c=Depends(con), w=D
     return {"go": f"/tour/{tour_id}"}
 
 
-@router.post("/api/tours/{tour_id}/delete", dependencies=[Depends(_from_app)])
+@router.post("/api/tours/{tour_id}/delete", dependencies=[Depends(from_app)])
 def delete_tour(tour_id: int, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
-    _own_tour(c, v, tour_id)
+    own_tour(c, v, tour_id)
     w.execute("DELETE FROM tour WHERE id = ?", (tour_id,))
     w.commit()
     return {"go": "/tours"}
@@ -324,21 +324,21 @@ def tour_type_page(request: Request, type_id: str, c=Depends(con)):
                 pick=tours.PICK, media=tours.MEDIA)
 
 
-@router.post("/api/tour-types", dependencies=[Depends(_from_app)])
+@router.post("/api/tour-types", dependencies=[Depends(from_app)])
 def create_tour_type(body: dict, c=Depends(con), s: Site = Depends(site)):
     tours.save_type(c, None, body)
     s.suggested.clear()  # suggestions are made from the types
     return {"go": "/settings#tours"}
 
 
-@router.post("/api/tour-types/{type_id}", dependencies=[Depends(_from_app)])
+@router.post("/api/tour-types/{type_id}", dependencies=[Depends(from_app)])
 def update_tour_type(type_id: int, body: dict, c=Depends(con), s: Site = Depends(site)):
     tours.save_type(c, type_id, body)
     s.suggested.clear()
     return {"go": "/settings#tours"}
 
 
-@router.post("/api/tour-types/{type_id}/delete", dependencies=[Depends(_from_app)])
+@router.post("/api/tour-types/{type_id}/delete", dependencies=[Depends(from_app)])
 def delete_tour_type(type_id: int, c=Depends(con), s: Site = Depends(site)):
     c.execute("DELETE FROM tour_type WHERE id = ?", (type_id,))
     c.commit()

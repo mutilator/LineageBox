@@ -131,8 +131,9 @@ def test_choosing_who_is_who(fam, cfg):
     c = TestClient(webapp.create_app(cfg), client=LAN)
     url = f"/api/family/import/{import_id}/choices"
     r = c.post(url, json={"name:@P6@": "Ann Miller"}, headers=APP)
-    assert r.status_code == 400 and "2 people here are called Ann Miller" in r.json()["detail"]
-    assert c.post(url, json={"name:@P6@": "Nobody Here"}, headers=APP).status_code == 400
+    assert r.status_code == 400 and "2 people are called Ann Miller" in r.json()["detail"]
+    r = c.post(url, json={"name:@P6@": "Nobody Here"}, headers=APP)
+    assert r.status_code == 400 and "Nobody in the tree is called Nobody Here" in r.json()["detail"]
     assert c.post(url, json={"name:@P6@": "Ann Miller", "name:@P6@_id": anns[1]}, headers=APP).status_code == 200
     assert gedcom_import.load(con, import_id)[2]["@P6@"]["choice"] == anns[1]
     people.merge(con, anns[1], ids["Edna Baker"])  # merged away while the import waits

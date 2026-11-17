@@ -1239,7 +1239,7 @@ fieldset.demo-locked { border: 0; margin: 0; padding: 0; min-width: 0; }  /* a d
   .check-faces .face button::after { content: ""; position: absolute; inset: -5px; }  /* 46 px to tap */
 }
 
-/* ---- An app on the phone, New for you, photo frames (N7, N8, N9) ---------------------------------------------- */
+/* ---- An app on the phone, New for you, photo frames ----------------------------------------------------------- */
 /* New for you, at the top: a bell, and how many are new on it */
 .news-button { position: relative; flex: none; display: grid; place-items: center; width: 30px; height: 30px;
                border: 1px solid var(--edge); border-radius: 50%; color: var(--muted); }
@@ -1269,7 +1269,7 @@ fieldset.demo-locked { border: 0; margin: 0; padding: 0; min-width: 0; }  /* a d
 .device-links button { margin-left: 8px; }
 .device-made { padding: 12px; border: 1px solid var(--accent); border-radius: 10px; }
 
-/* ---- Places by hand, town names, XMP sidecars and other apps' names (D8, N4, N5) -------------------------------- */
+/* ---- Places by hand, town names, XMP sidecars and other apps' names --------------------------------------------- */
 .swatch.placed { border-color: #b35c00; background: rgb(179 92 0 / .45); }
 .map-placing { display: flex; gap: 14px; align-items: flex-start; margin: 12px 0; padding: 12px 14px;
                border: 1px solid var(--accent); border-radius: 10px; background: var(--surface); }
@@ -1608,7 +1608,7 @@ ul.life-events > li { margin: 2px 0; display: flex; flex-wrap: wrap; align-items
   .tag-change button { min-height: 44px; }
 }
 
-/* ---- A shorter menu, first steps, plain words, light or dark, printing (U8, U9, U10, U12) --------------------- */
+/* ---- A shorter menu, first steps, plain words, light or dark, printing ---------------------------------------- */
 /* the logo: the picture and the name, the picture alone on a phone; it always goes Home */
 .brand { display: flex; flex: none; align-items: center; gap: 8px; }
 .brand:hover { text-decoration: none; }
@@ -1696,7 +1696,7 @@ ul.life-events > li { margin: 2px 0; display: flex; flex-wrap: wrap; align-items
   .person-page main > form.name-form, .person-page .stories-panel:not(:has(.story)) { display: none !important; }
 }
 
-/* ---- Big pages in pieces, sharper tiles, ticking, keyboard and screen readers (U6, U11: _pieces.html, app.js) ---- */
+/* ---- Big pages in pieces, sharper tiles, ticking, keyboard and screen readers (_pieces.html, app.js) ------------- */
 .pieced.scrubbed { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 14px; align-items: start; }
 .pieced.scrubbed > .pieces { grid-column: 1; grid-row: 1; min-width: 0; }
 /* the years and months at the side, which stay in view as the photos scroll */

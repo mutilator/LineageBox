@@ -28,12 +28,11 @@ import uuid
 import zipfile
 import zlib
 from collections import defaultdict
-from datetime import datetime
 from difflib import SequenceMatcher
 
 import httpx
 
-from lineagebox import documents, errors, events, family, gedcom, people, search
+from lineagebox import clock, documents, errors, events, family, gedcom, people, search
 from lineagebox.catalog import VISIBLE
 from lineagebox.config import Config
 from lineagebox.folders import FolderIndex
@@ -70,10 +69,10 @@ NICKNAMES = [
     "sandra sandy", "angelena angelina angie", "isabelle isabel isabella izzy", "judith judy", "mildred millie",
     "sarah sally sadie", "helen nell nellie", "eleanor ellie nell", "emily emmy", "nathaniel nathan nate nat",
     "gwendolyn gwen", "patrick pat paddy", "josephine jo josie", "beverly bev", "marilyn lynn", "jacqueline jackie", "dennis denny"]
-_SAME_NAME = {}
+SAME_NAME = {}
 for _group in NICKNAMES:
     for _name in _group.split():
-        _SAME_NAME.setdefault(_name, set()).update(_group.split())
+        SAME_NAME.setdefault(_name, set()).update(_group.split())
 AI_SCHEMA = {"type": "object", "properties": {"same": {"type": "boolean"}, "confidence": {"type": "number"},
                                               "reason": {"type": "string"}}, "required": ["same", "confidence", "reason"]}
 AI_SYSTEM = """You help merge family trees. You are shown a person from a GEDCOM file and a person already in a family
@@ -281,7 +280,7 @@ def _date(text: str) -> tuple[str | None, str | None]:
 
 # ---- 2. matching ---------------------------------------------------------------------------------------------------
 
-def _norm(text: str) -> str:
+def norm(text: str) -> str:
     return " ".join(re.sub(r"[^\w\s]", " ", text.lower()).split())
 
 
@@ -292,37 +291,37 @@ def _birth_year(evts) -> int | None:
     return None
 
 
-def _ours(con: sqlite3.Connection) -> dict[int, dict]:
+def people_here(con: sqlite3.Connection) -> dict[int, dict]:
     out = {}
     for r in con.execute("SELECT id, name, given_name, surname, sex, uid FROM person"):
-        variants = {_norm(r["name"])}
+        variants = {norm(r["name"])}
         if r["given_name"]:
-            variants.add(_norm(f"{r['given_name']} {r['surname'] or ''}"))
+            variants.add(norm(f"{r['given_name']} {r['surname'] or ''}"))
         given, surname = (r["given_name"], r["surname"]) if r["given_name"] else events.split_name(r["name"])
         out[r["id"]] = {"name": r["name"], "sex": r["sex"], "uid": r["uid"], "variants": variants, "born": None,
-                        "parts": [(_norm(given or "").split()[:1], _norm(surname or ""))]}
+                        "parts": [(norm(given or "").split()[:1], norm(surname or ""))]}
     for pid, name, given, surname in con.execute("SELECT person_id, name, given_name, surname FROM person_name"):
-        out[pid]["variants"].add(_norm(name))
-        out[pid]["parts"].append((_norm(given or name).split()[:1], _norm(surname or "")))
+        out[pid]["variants"].add(norm(name))
+        out[pid]["parts"].append((norm(given or name).split()[:1], norm(surname or "")))
     for pid, sort in con.execute("SELECT person_id, sort_date FROM event WHERE tag = 'BIRT' AND sort_date IS NOT NULL"):
         out[pid]["born"] = int(sort[:4])
     return out
 
 
-def _name_score(theirs: dict, ours: dict) -> tuple[float, str]:
+def name_score(theirs: dict, ours: dict) -> tuple[float, str]:
     """How alike two people's names are, 0 to 1: first names and surnames apart (a shared surname alone makes no
     match: Ruth and Walter Miller), over every name either has (maiden names, nicknames)."""
-    if {_norm(n["full"]) for n in theirs["names"]} & ours["variants"]:
+    if {norm(n["full"]) for n in theirs["names"]} & ours["variants"]:
         return 1.0, f"same name ({ours['name']})"
     best, why = 0.0, ""
     for n in theirs["names"]:
-        first, surname = _norm(n["given"] or "").split()[:1], _norm(n["surname"] or "")
+        first, surname = norm(n["given"] or "").split()[:1], norm(n["surname"] or "")
         for our_first, our_surname in ours["parts"]:
             if not first or not our_first:
                 continue
             if first == our_first:
                 fs = 1.0
-            elif our_first[0] in _SAME_NAME.get(first[0], ()):
+            elif our_first[0] in SAME_NAME.get(first[0], ()):
                 fs = 0.8  # Mike and Michael
             else:
                 fs = SequenceMatcher(None, first[0], our_first[0]).ratio()
@@ -344,7 +343,7 @@ def _name_score(theirs: dict, ours: dict) -> tuple[float, str]:
 def match(con: sqlite3.Connection, data: dict) -> dict:
     """GEDCOM id -> {'choice': person id or None (a new person), 'how': uid|sure|likely|unsure|new, 'why',
     'candidates': [[person id, score, why]], 'ai': None}."""
-    ours = _ours(con)
+    ours = people_here(con)
     by_uid = {o["uid"]: pid for pid, o in ours.items() if o["uid"]}
     by_uid.update(dict(con.execute("SELECT uid, person_id FROM external_id")))
     g = family.load(con)
@@ -364,7 +363,7 @@ def match(con: sqlite3.Connection, data: dict) -> dict:
                 continue
             if born and o["born"] and abs(born - o["born"]) > 2:
                 continue
-            score, why = _name_score(p, o)
+            score, why = name_score(p, o)
             if score >= 0.5:
                 if born and o["born"]:
                     score, why = min(1.0, score + 0.05), why + f", born {o['born']}"
@@ -515,7 +514,7 @@ def start(con: sqlite3.Connection, file_name: str, raw: bytes) -> int:
     data = read(raw)
     matches = match(con, data)
     import_id = con.execute("""INSERT INTO gedcom_import(file_name, created_at, data, matches) VALUES (?, ?, ?, ?)""",
-                            (file_name[:200], _now(), json.dumps(data), json.dumps(matches))).lastrowid
+                            (file_name[:200], clock.now(), json.dumps(data), json.dumps(matches))).lastrowid
     con.commit()
     return import_id
 
@@ -541,18 +540,13 @@ def set_choices(con: sqlite3.Connection, import_id: int, choices: dict[str, str]
         value = str(value).strip()
         if value == "new":
             matches[x]["choice"], matches[x]["how"] = None, "new"
-        elif value.isdecimal():
-            if not con.execute("SELECT 1 FROM person WHERE id = ?", (int(value),)).fetchone():
-                raise Problem("Someone picked was merged or removed since the page was opened: reload it and pick "
-                              "again.")
-            if matches[x]["choice"] != int(value):
-                matches[x]["choice"], matches[x]["how"] = int(value), "chosen"
         else:
-            found = [r[0] for r in con.execute("SELECT id FROM person WHERE lower(name) = lower(?)", (value,))]
-            if len(found) != 1:
-                raise Problem(f"{len(found)} people here are called {value}: pick one from the suggestions as you "
-                              f"type." if found else f"Nobody here is called {value}.")
-            matches[x]["choice"], matches[x]["how"] = found[0], "chosen"
+            try:
+                pid = people.person_from_box(con, value)
+            except people.Problem as e:  # this import's own, as its page expects
+                raise Problem(str(e)) from None
+            if matches[x]["choice"] != pid:
+                matches[x]["choice"], matches[x]["how"] = pid, "chosen"
     save_matches(con, import_id, matches)
 
 
@@ -586,7 +580,7 @@ def apply(con: sqlite3.Connection, import_id: int) -> dict:
     for fam in data["families"].values():
         _merge_family(con, fam, pid_of, data, report, found)
     con.execute("UPDATE gedcom_import SET applied_at = ?, report = ? WHERE id = ?",
-                (_now(), json.dumps(report), import_id))
+                (clock.now(), json.dumps(report), import_id))
     con.commit()
     if found.photos:  # people added to photos: those photos are found by their names now
         folders = FolderIndex(con)
@@ -620,7 +614,7 @@ def _merge_person(con, pid: int, p: dict, report: dict, matched: bool, found: "_
     if matched and not here["names_checked"] and first["given"]:
         con.execute("UPDATE person SET given_name = ?, surname = ? WHERE id = ?", (first["given"], first["surname"], pid))
     for n in p["names"] if matched else p["names"][1:]:
-        if n["full"] and _norm(n["full"]) != _norm(here["name"]):
+        if n["full"] and norm(n["full"]) != norm(here["name"]):
             kind = {"maiden": "birth", "": "aka"}.get(n["type"], n["type"])
             if con.execute("INSERT OR IGNORE INTO person_name(person_id, name, given_name, surname, type) "
                            "VALUES (?, ?, ?, ?, ?)", (pid, n["full"], n["given"], n["surname"], kind)).rowcount:
@@ -642,7 +636,7 @@ def _merge_person(con, pid: int, p: dict, report: dict, matched: bool, found: "_
         found.cite(f"p:{pid}", p.get("sources", ()))
         for m in p.get("media", ()):
             found.media_of(pid, m)
-    events._sync_person(con, pid)
+    events.sync_person(con, pid)
 
 
 def _merge_event(con, e: dict, report: dict, who: str, person_id: int | None = None,
@@ -683,7 +677,7 @@ def _place(con, e: dict, report: dict) -> None:
         """INSERT INTO place(name, lat, lon, found_as, source, looked_up) VALUES (?, ?, ?, NULL, 'gedcom', ?)
            ON CONFLICT(name) DO UPDATE SET lat = excluded.lat, lon = excluded.lon, found_as = NULL, source = 'gedcom',
            looked_up = excluded.looked_up WHERE place.source = 'osm' AND place.confirmed_at IS NULL""",
-        (e["place"].strip(), e["lat"], e["lon"], _now())).rowcount
+        (e["place"].strip(), e["lat"], e["lon"], clock.now())).rowcount
 
 
 def _merge_family(con, fam: dict, pid_of: dict, data: dict, report: dict, found: "_Sources | None" = None) -> None:
@@ -695,21 +689,16 @@ def _merge_family(con, fam: dict, pid_of: dict, data: dict, report: dict, found:
         tags = {e["tag"] for e in fam["events"]}
         row = con.execute("SELECT * FROM partner WHERE a = ? AND b = ?", (a, b)).fetchone()
         if row is None:
-            current = not tags & {"DIV", "ANUL"}
-            if current:
-                try:
-                    family._no_other_current_partner(con, a, b)
-                    family._no_other_current_partner(con, b, a)
-                except family.Problem:
-                    current = False
-                    report["conflicts"].append(f"{names((a, b))}: added as former partners, since one of them has "
-                                               f"another current partner here")
             married = bool(tags & {"MARR", "DIV", "ANUL", "DIVF"})
-            con.execute("INSERT INTO partner(a, b, current, married, dating, uid) VALUES (?, ?, ?, ?, ?, ?)",
-                        (a, b, int(current), int(married), int(not married and fam.get("bond") == "dating"),
-                         fam["uid"] if fam["uid"] and not con.execute("SELECT 1 FROM partner WHERE uid = ?",
-                                                                      (fam["uid"],)).fetchone()
-                         else str(uuid.uuid4())))
+            bond = "married" if married else "dating" if fam.get("bond") == "dating" else "partner"
+            uid = fam["uid"] if fam["uid"] and not con.execute("SELECT 1 FROM partner WHERE uid = ?",
+                                                               (fam["uid"],)).fetchone() else None
+            try:
+                family.add_partner(con, a, b, not tags & {"DIV", "ANUL"}, bond, uid=uid)
+            except family.Problem:
+                family.add_partner(con, a, b, False, bond, uid=uid)
+                report["conflicts"].append(f"{names((a, b))}: added as former partners, since one of them has "
+                                           f"another current partner here")
             report["links"] += 1
         for e in fam["events"]:
             if e["tag"] in ("MARR", "DIV") and not (e["date"] or e["place"] or e["note"] or e.get("sources")):
@@ -724,16 +713,19 @@ def _merge_family(con, fam: dict, pid_of: dict, data: dict, report: dict, found:
                                               (child, parent)).fetchone():
                 continue  # how a link entered here belongs (birth, adopted) stays as it is
             try:
-                family._add_parent(con, child, parent, pedi=pedi if pedi in family.PEDI else "birth")
+                family.add_parent(con, child, parent, pedi=pedi if pedi in family.PEDI else "birth")
                 report["links"] += 1
             except family.Problem as e:
                 report["skipped"].append(str(e))
     if not partners and len(kids) > 1:  # siblings whose parents aren't known
         for i, x in enumerate(kids):
             for y in kids[i + 1:]:
-                a, b = sorted((pid_of[x], pid_of[y]))
-                if a != b and con.execute("INSERT OR IGNORE INTO sibling(a, b) VALUES (?, ?)", (a, b)).rowcount:
-                    report["links"] += 1
+                a, b = pid_of[x], pid_of[y]
+                try:
+                    if a != b and family.add_sibling(con, a, b):
+                        report["links"] += 1
+                except family.Problem as e:
+                    report["skipped"].append(str(e))
 
 
 class _Library:
@@ -854,10 +846,6 @@ class _Sources:
                                      UNION SELECT 1 FROM image_person WHERE image_id = :i AND person_id = :p""",
                                   {"i": image, "p": pid}).fetchone():
             self.con.execute("INSERT INTO image_person(image_id, person_id, added_at) VALUES (?, ?, ?)",
-                             (image, pid, _now()))
+                             (image, pid, clock.now()))
             self.photos.add(image)
             self.report["photos_found"] += 1
-
-
-def _now() -> str:
-    return datetime.now().isoformat(timespec="seconds")

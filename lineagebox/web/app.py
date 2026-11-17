@@ -33,9 +33,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from lineagebox import access, db, demo, errors, i18n
 from lineagebox.config import Config
 from lineagebox.web import frames, routes
-from lineagebox.web.common import (ADMIN, HERE, PUBLIC, LiveProxyHeaders, _allowed, _body_fits, _content_policy,
-                                   _host_allowed, _is_page, _plain_error, _public_path, _small_body)
-from lineagebox.web.common import SEE_AS, _local_path, locate, network_path, on_network  # as they were: tests use them
+from lineagebox.web.common import (ADMIN, HERE, PUBLIC, LiveProxyHeaders, address_allowed, body_fits, content_policy,
+                                   host_allowed, is_page, plain_error, public_path, small_body)
 from lineagebox.web.deps import answer, viewer
 from lineagebox.web.site import Site
 
@@ -93,13 +92,13 @@ def create_app(cfg: Config, google_http: httpx.Client | None = None) -> FastAPI:
         signing in, from anywhere. Host names are checked either way: that stops DNS rebinding."""
         started = time.perf_counter()
         now = s.shared_cfg()
-        request.state.at_home = _allowed(request.client.host if request.client else "", s.networks)
+        request.state.at_home = address_allowed(request.client.host if request.client else "", s.networks)
         request.state.account = None
         request.state.device = None
         token = request.scope.get(frames.TOKEN)  # a photo frame's link: frames.DevicePath took it off the address
         if not now.accounts_enabled and not request.state.at_home:
             return PlainTextResponse("This photo catalog is only available on the home network.", status_code=403)
-        if not _host_allowed(request.headers.get("host", ""), now.allowed_hosts):
+        if not host_allowed(request.headers.get("host", ""), now.allowed_hosts):
             return PlainTextResponse("This photo catalog is not set up to be reached by this name. Open it by its "
                                      "address and add the name on its Settings page.", status_code=400)
         if token is not None:  # no account, whatever cookies come with it: only the frame and its pictures
@@ -111,16 +110,16 @@ def create_app(cfg: Config, google_http: httpx.Client | None = None) -> FastAPI:
             request.state.device = link
         elif now.accounts_enabled:
             request.state.account = await run_in_threadpool(s.signed_in, request, now)
-            if request.state.account is None and not _public_path(request.url.path):
-                if request.method == "GET" and _is_page(request.url.path):
+            if request.state.account is None and not public_path(request.url.path):
+                if request.method == "GET" and is_page(request.url.path):
                     where = request.url.path + (f"?{request.url.query}" if request.url.query else "")
                     return RedirectResponse("/signin?" + urlencode({"next": where}), 303)
                 return JSONResponse({"detail": "Sign in first."}, status_code=401)
-            if request.state.account is None and request.method not in ("GET", "HEAD") and not _small_body(request):
+            if request.state.account is None and request.method not in ("GET", "HEAD") and not small_body(request):
                 # Signing in needs a few hundred bytes. FastAPI reads a whole body before any check runs, so anyone on
                 # the internet could otherwise fill the memory with one large request.
                 return JSONResponse({"detail": "That request is too large."}, status_code=413)
-        if request.method not in ("GET", "HEAD") and not _body_fits(request, BODIES):
+        if request.method not in ("GET", "HEAD") and not body_fits(request, BODIES):
             return JSONResponse({"detail": "That request is too large."}, status_code=413)
         # every page and answer in the visitor's language (i18n.py): with English only, always English
         request.state.language = i18n.choose(request.headers.get("accept-language", ""),
@@ -142,7 +141,7 @@ def create_app(cfg: Config, google_http: httpx.Client | None = None) -> FastAPI:
         framed = request.state.device is not None  # a photo frame may be shown in a dashboard's frame: it changes nothing
         if not framed:
             response.headers.setdefault("X-Frame-Options", "DENY")
-        response.headers.setdefault("Content-Security-Policy", _content_policy(now.map_tiles, framed))
+        response.headers.setdefault("Content-Security-Policy", content_policy(now.map_tiles, framed))
         if now.accounts_enabled and request.url.scheme == "https":
             response.headers.setdefault("Strict-Transport-Security", "max-age=31536000")
         return response
@@ -164,7 +163,7 @@ def create_app(cfg: Config, google_http: httpx.Client | None = None) -> FastAPI:
     async def does_not_fit(request: Request, exc: RequestValidationError):
         """Something sent that doesn't fit (too long, not a number, missing): one sentence the page can show, not
         FastAPI's list of what was wrong."""
-        return answer(request, 400, _plain_error(exc.errors()))
+        return answer(request, 400, plain_error(exc.errors()))
 
     @app.exception_handler(sqlite3.OperationalError)
     async def busy(request: Request, exc: sqlite3.OperationalError):

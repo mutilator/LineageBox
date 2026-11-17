@@ -7,7 +7,7 @@ from pydantic import BaseModel
 import json
 
 from lineagebox import albums, catalog, changes, journeys, places, towns, writeback
-from lineagebox.web.common import ADMIN, MEMBER, ImageIds, PlaceBody, PlaceConfirmBody, _from_app, _images_or_404
+from lineagebox.web.common import ADMIN, MEMBER, ImageIds, PlaceBody, PlaceConfirmBody, from_app, images_or_404
 from lineagebox.web.deps import con, page, site, viewer, writer
 from lineagebox.web.site import Site
 
@@ -64,7 +64,7 @@ def map_api(year: int | None = None, v=Depends(viewer), c=Depends(con), s: Site 
     return data
 
 
-@router.post("/api/places/fix", dependencies=[Depends(_from_app)])
+@router.post("/api/places/fix", dependencies=[Depends(from_app)])
 def fix_place(body: PlaceBody, c=Depends(con), s: Site = Depends(site)):
     try:
         on_map = places.fix(c, s.cfg, body.name, body.query)
@@ -74,7 +74,7 @@ def fix_place(body: PlaceBody, c=Depends(con), s: Site = Depends(site)):
     return {"on_map": on_map}
 
 
-@router.post("/api/places/confirm", dependencies=[Depends(_from_app)])
+@router.post("/api/places/confirm", dependencies=[Depends(from_app)])
 def confirm_place(body: PlaceConfirmBody, c=Depends(con)):
     """A folder's place is where the map shows it (or that is taken back)."""
     try:
@@ -127,10 +127,10 @@ def find_towns(q: str = Query("", max_length=80)):
     return {"towns": towns.search(q)}
 
 
-@router.post("/api/images/{image_id}/place", dependencies=[Depends(_from_app)])
+@router.post("/api/images/{image_id}/place", dependencies=[Depends(from_app)])
 def place_image(image_id: int, body: SpotBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     """Put a photo on the map by hand (or move it, or with clear take its place by hand away): anyone who sees it."""
-    _images_or_404(c, v, [image_id])
+    images_or_404(c, v, [image_id])
     if catalog.image(c, image_id) is None:
         raise HTTPException(404, "No such photo")
     spec = lambda new: [("image_place", "image_id = ?", (image_id,))]  # noqa: E731
@@ -148,13 +148,13 @@ def place_image(image_id: int, body: SpotBody, v=Depends(viewer), c=Depends(con)
             "message": "Taken off the map." if body.clear else "Saved where it was taken."}
 
 
-@router.post("/api/selection/place", dependencies=[Depends(_from_app)])
+@router.post("/api/selection/place", dependencies=[Depends(from_app)])
 def place_selection(body: SpotsBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     """Put photos on the map at one place, all at once: those ticked on any page of photos, or an album's. Anyone may
     place the photos they see, and the one message undoes the lot. A place given here wins over the photos' own GPS,
     and over a place one of them was given by hand before."""
     ids = list(dict.fromkeys(body.image_ids))
-    _images_or_404(c, v, ids)
+    images_or_404(c, v, ids)
     if not body.clear and (body.lat is None or body.lon is None):
         raise HTTPException(400, "Click the map where they were taken first.")
     there = json.dumps(ids)
@@ -175,7 +175,7 @@ def place_selection(body: SpotsBody, v=Depends(viewer), c=Depends(con), w=Depend
     return {"undo": kept.id, "label": label, "message": message}
 
 
-@router.post("/api/folders/{folder_id}/place", dependencies=[Depends(_from_app)])
+@router.post("/api/folders/{folder_id}/place", dependencies=[Depends(from_app)])
 def place_folder(folder_id: int, body: SpotBody, v=Depends(viewer), c=Depends(con)):
     """Put a folder on the map by hand: its photos, and those of the folders in it, without a place of their own."""
     if c.execute("SELECT 1 FROM folder WHERE id = ?", (folder_id,)).fetchone() is None:
@@ -193,7 +193,7 @@ def place_folder(folder_id: int, body: SpotBody, v=Depends(viewer), c=Depends(co
     return {"undo": kept.id, "message": "Taken off the map." if body.clear else "Saved where its photos were taken."}
 
 
-@router.post("/api/images/{image_id}/write-file", dependencies=[Depends(_from_app)])
+@router.post("/api/images/{image_id}/write-file", dependencies=[Depends(from_app)])
 def write_file(image_id: int, c=Depends(con), s: Site = Depends(site)):
     """Write the names, caption, tags, date and place the family gave a photo into its file (every copy)."""
     if catalog.image(c, image_id) is None:

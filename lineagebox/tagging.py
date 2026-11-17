@@ -16,7 +16,7 @@ import json
 import sqlite3
 from datetime import datetime
 
-from lineagebox import catalog, dates, errors, people, search
+from lineagebox import catalog, dates, errors, events, people, search
 from lineagebox.catalog import tag_name
 from lineagebox.folders import FolderIndex
 
@@ -114,7 +114,7 @@ def set_date(con: sqlite3.Connection, image_ids: list[int], text: str) -> tuple[
     that time (a camera with its clock wrong). The automatic date is kept, to go back to. Returns (photos changed, the
     date)."""
     try:
-        span = dates.photo_date(text, dates.south(con), dates.day_first(con))
+        span = dates.photo_date(text, dates.south(con), events.day_first(con))
     except dates.Problem as e:
         raise Problem(str(e)) from None
     ids = _existing(con, image_ids)

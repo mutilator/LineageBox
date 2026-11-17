@@ -102,7 +102,7 @@ def _frames(cfg: Config, path, p: video.Probe, sha: str, have: dict[int, float],
             if chapter is not None:
                 chapters.append([chapter, None])
             continue
-        media._atomic_save(im, cfg.frame_path(sha, idx), "JPEG", quality=85)
+        media.atomic_save(im, cfg.frame_path(sha, idx), "JPEG", quality=85)
         made.append((idx, at))
         if chapter is not None:
             chapters.append([chapter, idx])

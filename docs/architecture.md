@@ -246,7 +246,7 @@ Templates are in `web/templates`, and `web/static/app.js` drives the pages.
   the help panel shows.
 - Every route has an entry in its module's `ACCESS` (`public`, `member` or `admin`). A route without one answers 500.
   A photo frame's device link may open only `frames.ROUTES`, whatever their class.
-- Every POST API depends on `_from_app`, which requires the header `X-Requested-With: lineagebox`. With SameSite
+- Every POST API depends on `from_app`, which requires the header `X-Requested-With: lineagebox`. With SameSite
   cookies, that stops cross-site requests.
 - Every change goes through `changes.tracking`, which keeps it on Recent changes with what it altered. A route
   returns its change's id as `undo`, and `app.js` shows a note at the foot of the page with an Undo button

@@ -109,7 +109,7 @@ def _follow(con: sqlite3.Connection, cfg: Config, image_id: int, made_for: str, 
         return
     from lineagebox import cleanup
     try:
-        cleanup._move(copy, to, like=cfg.share_root / files[0])
+        cleanup.move_file(copy, to, like=cfg.share_root / files[0])
     except OSError as e:
         print(f"720p copy of {activity.one_line(made_for)} stays where it was made: {e}", flush=True)
 

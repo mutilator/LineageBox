@@ -295,14 +295,14 @@ def phash(im: Image.Image) -> int:
 
 def save_derivatives(im: Image.Image, preview_path: Path, thumb_path: Path, thumb_size: int) -> Image.Image:
     """Write the preview (im as-is) and a thumbnail; returns the thumbnail."""
-    _atomic_save(im, preview_path, "JPEG", quality=85)
+    atomic_save(im, preview_path, "JPEG", quality=85)
     thumb = im.copy()
     thumb.thumbnail((thumb_size, thumb_size), Image.Resampling.LANCZOS)
-    _atomic_save(thumb, thumb_path, "WEBP", quality=80)
+    atomic_save(thumb, thumb_path, "WEBP", quality=80)
     return thumb
 
 
-def _atomic_save(im: Image.Image, path: Path, fmt: str, **kwargs) -> None:
+def atomic_save(im: Image.Image, path: Path, fmt: str, **kwargs) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(f"{path.name}.{threading.get_ident()}.tmp")
     im.save(tmp, fmt, **kwargs)

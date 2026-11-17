@@ -36,8 +36,9 @@ from difflib import SequenceMatcher
 import httpx
 from PIL import Image, ImageOps
 
-from lineagebox import documents, errors, events, family, gedcom_import
+from lineagebox import clock, documents, errors, events, family, gedcom_import
 from lineagebox.config import Config
+from lineagebox.people import person_from_box
 
 PROMPT_VERSION = 4
 MOST_TEXT = 20_000  # characters read at once (in halves when long); an obituary is 300 to 4,000
@@ -402,7 +403,7 @@ def merge_answers(answers: list[dict]) -> dict:
             q = {**p, "id": new_id[(n, pid)], "of": new_id.get((n, _s(p.get("of"))), "")}
             q["also"] = [{**r, "of": new_id.get((n, _s(r.get("of"))), "")} for r in p.get("also") or []
                          if isinstance(r, dict)]
-            key = (gedcom_import._norm(_s(q.get("given"))).split()[:1], gedcom_import._norm(_s(q.get("surname"))),
+            key = (gedcom_import.norm(_s(q.get("given"))).split()[:1], gedcom_import.norm(_s(q.get("surname"))),
                    _s(q.get("is")), q["of"])
             if key[0] and str(key) in seen:  # named in both halves
                 new_id[(n, pid)] = seen[str(key)]
@@ -727,7 +728,7 @@ def _middle_names(people: list, relatives: list, text: str, about: str | None) -
     makes one Walter a middle name, not both."""
     if not text:
         return people, relatives
-    norm = gedcom_import._norm
+    norm = gedcom_import.norm
     first = lambda p: norm((p["given"].split() or [""])[0])
 
     def ties(x: str, besides: str) -> set:
@@ -768,7 +769,7 @@ def _from_text(people: list, relatives: list, text: str, about: str | None) -> t
       no surname, whose given name is their partner's surname: left out."""
     if not text:
         return people, relatives
-    norm = gedcom_import._norm
+    norm = gedcom_import.norm
     by_id = {p["id"]: p for p in people}
     drop = set()
     for p in people:
@@ -818,7 +819,7 @@ def _told_relationships(people: list, relatives: list, text: str, about: str | N
     divorced". Only between people the AI named."""
     if not text:
         return relatives
-    norm = gedcom_import._norm
+    norm = gedcom_import.norm
     out = list(relatives)
     firsts = {}
     for p in people:
@@ -943,7 +944,7 @@ def _mend(by_id: dict, relatives: list, about: str | None, obituary: bool, wed: 
         wife, husband = (x, y) if x["sex"] == "female" and y["sex"] == "male" else (
             (y, x) if y["sex"] == "female" and x["sex"] == "male" else (None, None))
         if wife and husband["surname"] and wife["surname"] and not wife["birth_surname"] and (
-                gedcom_import._norm(wife["surname"]) != gedcom_import._norm(husband["surname"])):
+                gedcom_import.norm(wife["surname"]) != gedcom_import.norm(husband["surname"])):
             wife["birth_surname"], wife["surname"] = wife["surname"], husband["surname"]
             wife["guessed"].append("surname")
     couples = {frozenset((a, b)) for a, w, b in out if KIN[w][0] in ("husband", "former husband")}
@@ -956,8 +957,9 @@ def _mend(by_id: dict, relatives: list, about: str | None, obituary: bool, wed: 
     return out
 
 
+# "centre" as well: a Canadian or British notice's "Medical Centre" (matching words keep their British spelling)
 _BUILDING = re.compile(r"\b(?:hospital|medical|health|nursing|hospice|care|rehabilitation|assisted|manor|home|"
-                       r"center|center|industries|company|co|inc|corporation|corp|commission|department|schools?|"
+                       r"center|centre|industries|company|co|inc|corporation|corp|commission|department|schools?|"
                        r"college|university|academy|factory|mill|plant|store|bank|church|association|services|"
                        r"office|base|station|team)\b", re.I)
 _WED = re.compile(r"\b(?:married|marriage|marry|wed|wedding|united in|vows)\b", re.I)
@@ -997,7 +999,7 @@ def _one_each(answer: dict) -> dict:
     """The answer with anyone listed twice (in two halves of a long text, or twice in one) listed once: the same
     first name and surname (or none), related to the same person in the same way, or not related at all."""
     people = [p for p in answer.get("people") or [] if isinstance(p, dict)]
-    norm = gedcom_import._norm
+    norm = gedcom_import.norm
     kept, same = [], {}
     for p in people:
         pid = _s(p.get("id"))
@@ -1108,7 +1110,7 @@ def _surnames(by_id: dict, relatives: list) -> None:
 class Tree:
     """What matching and proposing need of the catalog, read once."""
     g: family.Graph
-    ours: dict[int, dict]                            # gedcom_import._ours: names, variants, birth years
+    ours: dict[int, dict]                            # gedcom_import.people_here: names, variants, birth years
     firsts: dict[int, set[str]] = field(default_factory=dict)  # every first and middle name each has
     born: dict[int, str] = field(default_factory=dict)  # sort dates
     died: dict[int, str] = field(default_factory=dict)
@@ -1121,7 +1123,7 @@ class Tree:
 
 
 def load_tree(con: sqlite3.Connection) -> Tree:
-    t = Tree(family.load(con), gedcom_import._ours(con))
+    t = Tree(family.load(con), gedcom_import.people_here(con))
     for pid, o in t.ours.items():
         t.firsts[pid] = set(_words(o["name"])[:-1] or _words(o["name"]))
     for pid, given, name in con.execute("SELECT id, given_name, name FROM person"):
@@ -1136,7 +1138,7 @@ def load_tree(con: sqlite3.Connection) -> Tree:
 
 def _words(text: str) -> list[str]:
     """Name words, lowercase, without initials: 'Henry L. Miller' -> ['henry', 'miller']."""
-    return [w for w in gedcom_import._norm(text).split() if len(w) > 1]
+    return [w for w in gedcom_import.norm(text).split() if len(w) > 1]
 
 
 def _first_score(theirs: set[str], ours: set[str]) -> float:
@@ -1147,7 +1149,7 @@ def _first_score(theirs: set[str], ours: set[str]) -> float:
         for b in ours:
             if a == b:
                 return 1.0
-            if b in gedcom_import._SAME_NAME.get(a, ()):
+            if b in gedcom_import.SAME_NAME.get(a, ()):
                 best = max(best, 0.85)
             elif min(len(a), len(b)) >= 2 and (a.startswith(b) or b.startswith(a)):
                 best = max(best, 0.8)  # a name cut short: Kayti for Kaytilynn
@@ -1221,7 +1223,7 @@ def match(con: sqlite3.Connection, found: dict, keep: dict | None = None, tree: 
         for pid, o in tree.ours.items():
             if not _fits(tree, p, pid, written):
                 continue
-            score, why = gedcom_import._name_score(theirs, o)
+            score, why = gedcom_import.name_score(theirs, o)
             if score >= 0.5:
                 born = next((f["sort"] for f in p["facts"] if f["tag"] == "BIRT" and f["sort"]), None)
                 if born and len(born) == 10 and tree.born.get(pid) == born:
@@ -1271,7 +1273,7 @@ def match(con: sqlite3.Connection, found: dict, keep: dict | None = None, tree: 
             if role in ("husband", "father") and len(unnamed) == 1 and unnamed[0] not in cands:
                 pid = unnamed[0]
                 ours = {s for _, s in tree.ours[pid]["parts"] if s}
-                theirs = {gedcom_import._norm(s) for s in (p["surname"], p["birth_surname"]) if s}
+                theirs = {gedcom_import.norm(s) for s in (p["surname"], p["birth_surname"]) if s}
                 if not theirs or not ours or theirs & ours:
                     support.setdefault(pid, []).append(label)
                     by_relation.add(pid)
@@ -1356,8 +1358,9 @@ def display_name(p: dict) -> str:
 
 
 def free_name(con: sqlite3.Connection, p: dict, taken: set[str]) -> str:
-    """display_name, or one told apart from someone of that name already here (names are unique): with all the given
-    names, then the suffix, the birth year, a number."""
+    """display_name, or one told apart from someone of that name already here (two people may share a name, but a
+    new one is easier to pick out with one of their own): with all the given names, then the suffix, the birth year,
+    a number."""
     born = next((f["sort"][:4] for f in p["facts"] if f["tag"] == "BIRT" and f["sort"]), None)
     tries = [display_name(p), " ".join(f"{p['given']} {p['surname']}".split()),
              " ".join(f"{display_name(p)} {p['suffix']}".split())]
@@ -1477,7 +1480,7 @@ def _with_note(*parts: str) -> str:
 def _name_changes(con, tree: Tree, x: str, p: dict, pid: int, name: str) -> list[Change]:
     """Names the text gives that the tree lacks: the full given name (Robert Merle for Robert, Bradley for Brad), a
     birth name, a nickname; and, unticked, a first name or surname the tree spells otherwise, as another name."""
-    norm = gedcom_import._norm
+    norm = gedcom_import.norm
     row = con.execute("SELECT * FROM person WHERE id = ?", (pid,)).fetchone()
     have = {norm(r[0]) for r in con.execute("SELECT name FROM person_name WHERE person_id = ?", (pid,))}
     have |= {norm(row["name"]), norm(f"{row['given_name'] or ''} {row['surname'] or ''}")}
@@ -1487,7 +1490,7 @@ def _name_changes(con, tree: Tree, x: str, p: dict, pid: int, name: str) -> list
     ours, theirs = _words(given_here), _words(p["given"])
     out = []
     if ours and theirs:
-        alike = theirs[0] == ours[0] or theirs[0] in gedcom_import._SAME_NAME.get(ours[0], ())
+        alike = theirs[0] == ours[0] or theirs[0] in gedcom_import.SAME_NAME.get(ours[0], ())
         fuller = len(p["given"].split()) > len(given_here.split()) and (alike or ours[0] in theirs)
         formal = theirs[0] != ours[0] and (alike and len(theirs[0]) > len(ours[0]) or norm(p["nickname"]) == ours[0])
         surname = surname_here or ("" if "surname" in p["guessed"] else p["surname"])
@@ -1536,7 +1539,7 @@ def _name_changes(con, tree: Tree, x: str, p: dict, pid: int, name: str) -> list
 def _same_place(a: str | None, b: str | None) -> bool:
     if not a or not b:
         return False
-    na, nb = gedcom_import._norm(a).replace(" usa", ""), gedcom_import._norm(b).replace(" usa", "")
+    na, nb = gedcom_import.norm(a).replace(" usa", ""), gedcom_import.norm(b).replace(" usa", "")
     return na == nb or na in nb or nb in na
 
 
@@ -1633,7 +1636,7 @@ def _same_event(f: dict, e) -> bool:
     if f["place"] and _same_place(f["place"], e["place"]) and (not f["date"] or not e["date"] or f["sort"][:4] == (
             e["sort_date"] or "")[:4]):
         return True
-    a, b = gedcom_import._norm(f["note"] or f["type"] or ""), gedcom_import._norm(e["note"] or e["type"] or "")
+    a, b = gedcom_import.norm(f["note"] or f["type"] or ""), gedcom_import.norm(e["note"] or e["type"] or "")
     if not a or not b:
         return False
     return a in b or b in a or SequenceMatcher(None, a[:80], b[:len(a) + 10][:80]).ratio() > 0.6
@@ -1654,7 +1657,7 @@ def _links(found: dict) -> list[tuple[str, str, str]]:
         if not any({m["a"], m["b"]} == {a, b} and k in ("partner", "former") for a, k, b in out):
             out.append((m["a"], "partner", m["b"]))
     people = {p["id"]: p for p in found["people"]}
-    norm = gedcom_import._norm
+    norm = gedcom_import.norm
     for a, word, b in found["relatives"]:
         if KIN[word][0] != "son-in-law" or any(a in (x, y) and k in ("partner", "former") for x, k, y in out):
             continue
@@ -1857,42 +1860,49 @@ def _partner_word(p: dict, married: bool, current: bool) -> str:
 
 # ---- 6. applying ---------------------------------------------------------------------------------------------------
 
+def new_report() -> dict:
+    return {"done": [], "skipped": [], "added": {}}
+
+
 def apply(con: sqlite3.Connection, found: dict, choices: dict, keys: set[str], source: str = "",
-          image_id: int | None = None) -> dict:
+          image_id: int | None = None, report: dict | None = None) -> dict:
     """Make the changes whose keys are given, as propose lists them now. Returns {'done': [{'text', 'person'}],
     'skipped': [...], 'added': {text id: person id}}, where 'person' is the one in the tree each change was listed
-    under; choices gains the people added. Commits."""
+    under; choices gains the people added. Each change is committed as it is made, so the report (given as report,
+    new_report()) and choices hold what was made even when something unexpected stops it half way."""
     tree = load_tree(con)
     proposal = propose(con, found, choices, source, tree)
     people = {p["id"]: p for p in found["people"]}
     who = {x: (choices.get(x) or {}).get("choice") for x in people}
     who = {x: pid if pid in tree.g.people else None for x, pid in who.items()}
-    done_keys, report = set(), {"done": [], "skipped": [], "added": {}}
+    done_keys, report = set(), report if report is not None else new_report()
     order = {"person": 0, "name": 1, "sex": 1, "link": 2, "event": 3, "marriage": 4}
     touched = set()
-    for c in sorted((c for c in proposal.changes if c.key in keys), key=lambda c: order.get(c.kind, 9)):
-        missing = [k for k in c.needs if k not in done_keys]
-        if missing:
-            report["skipped"].append(f"{c.text}: only with {', '.join(_text_of(proposal, k) for k in missing)}")
-            continue
-        try:
-            with con:  # each change on its own: one that can't be made leaves the others
-                con.execute("SAVEPOINT change")
-                try:
-                    _apply_one(con, c, who, report)
-                    con.execute("RELEASE change")
-                except Exception:
-                    con.execute("ROLLBACK TO change")
-                    con.execute("RELEASE change")
-                    raise
-        except (family.Problem, events.Problem, documents.Problem, Problem, sqlite3.IntegrityError) as e:
-            report["skipped"].append(f"{c.text}: {e}")
-            continue
-        done_keys.add(c.key)
-        report["done"].append({"text": c.text, "person": who.get(c.who)})
-        touched |= {y for y in [c.who, *(c.data.get(k) for k in ("a", "b", "child", "parent"))] if y in people}
-    for x, pid in report["added"].items():
-        choices[x] = {"choice": pid, "how": "added", "why": "added from this", "candidates": []}
+    try:
+        for c in sorted((c for c in proposal.changes if c.key in keys), key=lambda c: order.get(c.kind, 9)):
+            missing = [k for k in c.needs if k not in done_keys]
+            if missing:
+                report["skipped"].append(f"{c.text}: only with {', '.join(_text_of(proposal, k) for k in missing)}")
+                continue
+            try:
+                with con:  # each change on its own: one that can't be made leaves the others
+                    con.execute("SAVEPOINT change")
+                    try:
+                        _apply_one(con, c, who, report)
+                        con.execute("RELEASE change")
+                    except Exception:
+                        con.execute("ROLLBACK TO change")
+                        con.execute("RELEASE change")
+                        raise
+            except (family.Problem, events.Problem, documents.Problem, Problem, sqlite3.IntegrityError) as e:
+                report["skipped"].append(f"{c.text}: {e}")
+                continue
+            done_keys.add(c.key)
+            report["done"].append({"text": c.text, "person": who.get(c.who)})
+            touched |= {y for y in [c.who, *(c.data.get(k) for k in ("a", "b", "child", "parent"))] if y in people}
+    finally:  # the people added are in the tree now: never offered as new again, whatever stopped it
+        for x, pid in report["added"].items():
+            choices[x] = {"choice": pid, "how": "added", "why": "added from this", "candidates": []}
     with con:
         _note_sources(con, found, who, touched, source)
         if image_id is not None and touched:
@@ -1950,21 +1960,12 @@ def _apply_one(con, c: Change, who: dict, report: dict) -> None:
             for q in d["parents"]:
                 _parent(con, pid(d["child"]), int(q[3:]) if q.startswith("id:") else pid(q))
         elif d["what"] == "sibling":
-            a, b = sorted((pid(d["a"]), pid(d["b"])))
-            con.execute("INSERT OR IGNORE INTO sibling(a, b) VALUES (?, ?)", (a, b))
+            family.add_sibling(con, pid(d["a"]), pid(d["b"]))
         elif d["what"] == "partner":
-            a, b = pid(d["a"]), pid(d["b"])
-            if d["current"]:
-                family._no_other_current_partner(con, a, b)
-                family._no_other_current_partner(con, b, a)
-            con.execute("""INSERT INTO partner(a, b, current, married, uid) VALUES (?, ?, ?, ?, ?)
-                           ON CONFLICT(a, b) DO NOTHING""",
-                        (min(a, b), max(a, b), int(d["current"]), int(d["married"]), str(uuid.uuid4())))
+            family.add_partner(con, pid(d["a"]), pid(d["b"]), d["current"], "married" if d["married"] else "partner",
+                               replace=False)
         elif d["what"] == "current":
-            a, b = pid(d["a"]), pid(d["b"])
-            family._no_other_current_partner(con, a, b)
-            family._no_other_current_partner(con, b, a)
-            con.execute("UPDATE partner SET current = 1 WHERE a = ? AND b = ?", (min(a, b), max(a, b)))
+            family.change_current(con, pid(d["a"]), pid(d["b"]), True)
     elif c.kind == "marriage":
         a, b = pid(d["a"]), pid(d["b"])
         if "event" in d:
@@ -1987,7 +1988,7 @@ def _apply_one(con, c: Change, who: dict, report: dict) -> None:
 def _parent(con, child: int, parent: int, pedi: str | None = None) -> None:
     """A parent link, by birth unless the text said adopted or foster (pedi), which also changes one entered."""
     if pedi or not con.execute("SELECT 1 FROM parent WHERE child_id = ? AND parent_id = ?", (child, parent)).fetchone():
-        family._add_parent(con, child, parent, pedi=pedi)
+        family.add_parent(con, child, parent, pedi=pedi)
 
 
 def _note_sources(con, found: dict, who: dict, touched: set, source: str) -> None:
@@ -2039,7 +2040,7 @@ def start(con: sqlite3.Connection, text: str, source: str = "", image_id: int | 
     """A reading to do: kept at once, so the page can follow it while the AI reads (run, in a thread)."""
     rid = con.execute("""INSERT INTO family_reading(created_at, account_id, title, source, image_id, text, state)
                          VALUES (?, ?, ?, ?, ?, ?, 'reading')""",
-                      (_now(), account_id, "Reading the photos…" if photos else "Reading…",
+                      (clock.now(), account_id, "Reading the photos…" if photos else "Reading…",
                        " ".join(source.split())[:300] or None, image_id, clean_text(text))).lastrowid
     con.commit()
     return rid
@@ -2110,16 +2111,10 @@ def set_choices(con: sqlite3.Connection, reading_id: int, picked: dict[str, str]
             if value == "new":
                 choices[x]["how"] = "chosen"
             continue
-        if value.isdecimal():
-            pid = int(value)
-            if not con.execute("SELECT 1 FROM person WHERE id = ?", (pid,)).fetchone():
-                raise Problem("Someone picked was merged or removed since the page was opened: reload it.")
-        else:
-            found_ids = [r[0] for r in con.execute("SELECT id FROM person WHERE lower(name) = lower(?)", (value,))]
-            if len(found_ids) != 1:
-                raise Problem(f"{len(found_ids)} people are called {value}: pick one from the suggestions as you type."
-                              if found_ids else f"Nobody in the tree is called {value}.")
-            pid = found_ids[0]
+        try:
+            pid = person_from_box(con, value)
+        except errors.Problem as e:  # this reading's own, as its page expects
+            raise Problem(str(e)) from None
         if (choices.get(x) or {}).get("choice") != pid:
             choices[x] = {**(choices.get(x) or {"candidates": []}), "choice": pid, "how": "chosen",
                           "why": "picked by you"}
@@ -2141,16 +2136,28 @@ def save_ticks(con: sqlite3.Connection, reading_id: int, ticked: dict[str, bool]
 
 
 def apply_kept(con: sqlite3.Connection, reading_id: int, keys: set[str]) -> dict:
+    """Make the ticked changes of a kept reading, and keep what was made with it: also when something unexpected
+    stops it half way (what was made then is in the tree), so that the page shows it and offers nobody twice."""
     row, found, choices = load(con, reading_id)
     if found is None:
         raise Problem("It hasn't been read yet.")
-    report = apply(con, found, choices, keys, row["source"] or "", row["image_id"])
-    choices = match(con, found, keep=choices)
-    con.execute("UPDATE family_reading SET choices = ?, report = ?, applied_at = ? WHERE id = ?",
-                (json.dumps(choices), json.dumps(report), _now(), reading_id))
-    con.commit()
+    report = new_report()
+
+    def keep() -> None:
+        kept = match(con, found, keep=choices)
+        con.execute("UPDATE family_reading SET choices = ?, report = ?, applied_at = ? WHERE id = ?",
+                    (json.dumps(kept), json.dumps(report), clock.now(), reading_id))
+        con.commit()
+
+    try:
+        apply(con, found, choices, keys, row["source"] or "", row["image_id"], report=report)
+    except Exception as e:
+        con.rollback()
+        report["skipped"].append(f"Stopped before the rest: {e}")
+        try:
+            keep()
+        except sqlite3.Error:  # the catalog itself is what stopped it: nothing more can be kept now
+            con.rollback()
+        raise
+    keep()
     return report
-
-
-def _now() -> str:
-    return datetime.now().isoformat(timespec="seconds")

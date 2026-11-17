@@ -47,8 +47,9 @@ GROUP_URI = "urn:uuid:2f6e9b0a-41c7-4d38-9a5e-8c1f0d7b3e24"  # and _GROUP: a gro
 BOND_URI = "urn:uuid:9c4a7e62-5b18-4e7a-bf03-2d9a61c8e5f7"   # and _BOND: what a couple are to each other
 BIO_URI = "urn:uuid:9c4e2b17-6d3a-4f85-b0e1-7a5d3c8f2e46"  # and _BIO: the NOTE that is someone's life story
 UID_SPACE = uuid.UUID("0b8f3c1e-5a52-4b8e-9d0f-2a7c6e4d1b93")  # stable UIDs of families with no partner record
+# a relation typed in British English ("neighbour") is the same role: the word is matched, so it keeps that spelling
 ROLES = {"friend": "FRIEND", "best friend": "FRIEND", "family friend": "FRIEND", "neighbor": "NGHBR",
-         "neighbor": "NGHBR", "godparent": "GODP", "godfather": "GODP", "godmother": "GODP"}
+         "neighbour": "NGHBR", "godparent": "GODP", "godfather": "GODP", "godmother": "GODP"}
 NAME_TYPES = {"birth": "BIRTH", "married": "MARRIED", "aka": "AKA"}
 PEDI = {"birth": "BIRTH", "adopted": "ADOPTED", "foster": "FOSTER"}
 SEX = {"male": "M", "female": "F"}

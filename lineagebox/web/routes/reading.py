@@ -12,7 +12,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from lineagebox import catalog, db, events, family_reader, people
-from lineagebox.web.common import ADMIN, _from_app
+from lineagebox.web.common import ADMIN, from_app
 from lineagebox.web.deps import con, page, site, viewer
 from lineagebox.web.site import Site
 
@@ -98,7 +98,7 @@ def read_page(request: Request, image: int | None = None, c=Depends(con), s: Sit
                 ai_on=s.live(c).describe_enabled, most_photos=family_reader.MOST_PHOTOS)
 
 
-@router.post("/api/family/read", dependencies=[Depends(_from_app)])
+@router.post("/api/family/read", dependencies=[Depends(from_app)])
 def start_reading(body: ReadBody, v=Depends(viewer), c=Depends(con), s: Site = Depends(site)):
     """Something to read: the text typed, and photos sent or one of the library's. Kept at once, and read beside the
     site; the answer is where the reading's page is."""
@@ -183,7 +183,7 @@ def reading_progress(request: Request, reading_id: int, c=Depends(con)):
     return page(request, "_family_read_waiting.html", reading=row, took=_took(row))
 
 
-@router.post("/api/family/read/{reading_id}/choices", dependencies=[Depends(_from_app)])
+@router.post("/api/family/read/{reading_id}/choices", dependencies=[Depends(from_app)])
 def reading_choices(reading_id: int, body: dict, c=Depends(con)):
     """Who is who, as picked: text person -> a person here, 'new' or 'skip'; a name typed, as the GEDCOM import's."""
     row, found, _ = _found_or_404(c, reading_id)
@@ -197,7 +197,7 @@ def reading_choices(reading_id: int, body: dict, c=Depends(con)):
     return {}
 
 
-@router.post("/api/family/read/{reading_id}/ticks", dependencies=[Depends(_from_app)])
+@router.post("/api/family/read/{reading_id}/ticks", dependencies=[Depends(from_app)])
 def reading_ticks(reading_id: int, body: TicksBody, c=Depends(con)):
     """The changes ticked and unticked, kept as they are clicked (family_reader.save_ticks)."""
     _found_or_404(c, reading_id)
@@ -205,7 +205,7 @@ def reading_ticks(reading_id: int, body: TicksBody, c=Depends(con)):
     return {}
 
 
-@router.post("/api/family/read/{reading_id}/apply", dependencies=[Depends(_from_app)])
+@router.post("/api/family/read/{reading_id}/apply", dependencies=[Depends(from_app)])
 def reading_apply(reading_id: int, body: ApplyBody, c=Depends(con)):
     row, found, _ = _found_or_404(c, reading_id)
     if found is None or row["state"] != "ready":
@@ -217,7 +217,7 @@ def reading_apply(reading_id: int, body: ApplyBody, c=Depends(con)):
     return {"message": f"{done} change{'' if done == 1 else 's'} made" + (f", {skipped} not" if skipped else "") + "."}
 
 
-@router.post("/api/family/read/{reading_id}/again", dependencies=[Depends(_from_app)])
+@router.post("/api/family/read/{reading_id}/again", dependencies=[Depends(from_app)])
 def reading_again(reading_id: int, body: AgainBody, c=Depends(con), s: Site = Depends(site)):
     """Read it again, as it is or as corrected. Who is who is matched again: anyone added from it is in the tree now,
     and found there."""
@@ -241,7 +241,7 @@ def reading_again(reading_id: int, body: AgainBody, c=Depends(con), s: Site = De
     return {"go": f"/family/read/{reading_id}"}
 
 
-@router.post("/api/family/read/{reading_id}/delete", dependencies=[Depends(_from_app)])
+@router.post("/api/family/read/{reading_id}/delete", dependencies=[Depends(from_app)])
 def reading_delete(reading_id: int, c=Depends(con)):
     """The reading goes; what it changed in the tree stays."""
     _found_or_404(c, reading_id)

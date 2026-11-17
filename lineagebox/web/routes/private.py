@@ -8,10 +8,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 
 from lineagebox import access, changes, private, settings
-from lineagebox.web.common import MEMBER, ImageIds, _from_app
+from lineagebox.web.common import MEMBER, ImageIds, from_app
 from lineagebox.web.deps import con, page, paging, site, viewer, writer
-from lineagebox.web.routes.cleanup import _own_uploads
-from lineagebox.web.routes.face_checks import _known
+from lineagebox.web.routes.cleanup import own_uploads
+from lineagebox.web.routes.face_checks import in_catalog
 from lineagebox.web.site import Site
 
 router = APIRouter()
@@ -25,7 +25,7 @@ FOUND_FOR = 60  # seconds the photos found are kept for each viewer: finding the
 
 def _theirs(c, v: access.Viewer) -> set[int] | None:
     """The photos this viewer manages here: a member's own uploads; None for an admin (all of them)."""
-    return _own_uploads(c, v) if v.limited else None
+    return own_uploads(c, v) if v.limited else None
 
 
 def found(s: Site, v: access.Viewer, c) -> list[dict]:
@@ -39,7 +39,7 @@ def found(s: Site, v: access.Viewer, c) -> list[dict]:
 
 def _ids(c, v: access.Viewer, image_ids: list[int]) -> list[int]:
     """The photos asked about, when they are all the viewer's to manage here."""
-    ids = _known(c, image_ids)
+    ids = in_catalog(c, image_ids)
     if not ids:
         raise HTTPException(404, "No such photo")
     own = _theirs(c, v)
@@ -70,7 +70,7 @@ def private_page(request: Request, kind: str = "", pg: int = Query(1, alias="pag
                 page_query={"kind": kind} if kind else {})
 
 
-@router.post("/api/images/hide-private", dependencies=[Depends(_from_app)])
+@router.post("/api/images/hide-private", dependencies=[Depends(from_app)])
 def hide_private(body: ImageIds, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     """Never shown to family members, whoever is in them (whoever uploaded one still sees it): as the photo page's
     Hide from family members, for the ticked photos at once."""
@@ -83,7 +83,7 @@ def hide_private(body: ImageIds, v=Depends(viewer), c=Depends(con), w=Depends(wr
     return {"undo": kept.id, "message": f"Hidden from family members: {n} photo{'' if n == 1 else 's'}."}
 
 
-@router.post("/api/images/private-ok", dependencies=[Depends(_from_app)])
+@router.post("/api/images/private-ok", dependencies=[Depends(from_app)])
 def private_ok(body: ImageIds, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     """Fine for family members to see: not listed again (Undo, or Recent changes, lists them again)."""
     ids = _ids(c, v, body.image_ids)

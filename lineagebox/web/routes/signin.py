@@ -6,8 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 
 from lineagebox import accounts, activity, demo, passkeys
-from lineagebox.web.common import (MEMBER, PUBLIC, SEE_AS, SIGNING_IN, DemoBody, LocalBody, _client_ip, _from_app,
-                                   _local_path, _redirect_uri, tries_from)
+from lineagebox.web.common import (MEMBER, PUBLIC, SEE_AS, SIGNING_IN, DemoBody, LocalBody, client_ip, from_app,
+                                   local_path, redirect_uri, tries_from)
 from lineagebox.web.deps import page, site
 from lineagebox.web.site import CODE_MISSES, Site
 
@@ -30,7 +30,7 @@ def start_session(s: Site, request: Request, c, account_id: int, response: Respo
                   passkey_id: int | None = None) -> Response:
     """Sign in: the session's cookie on the response. passkey_id: the passkey signed in with (routes/passkeys.py)."""
     now = s.shared_cfg()
-    token = accounts.new_session(c, account_id, now.session_days, _client_ip(request),
+    token = accounts.new_session(c, account_id, now.session_days, client_ip(request),
                                  request.headers.get("user-agent", ""), passkey_id)
     response.set_cookie(accounts.COOKIE, token, max_age=now.session_days * 86400, httponly=True, samesite="lax",
                         secure=request.url.scheme == "https")
@@ -46,12 +46,12 @@ def signin_page(request: Request, next: str = "/", s: Site = Depends(site)):
 def show_signin(s: Site, request: Request, next: str = "/", error: str = ""):
     now = s.shared_cfg()
     if not now.accounts_enabled or getattr(request.state, "account", None):
-        return RedirectResponse(_local_path(next), 303)
+        return RedirectResponse(local_path(next), 303)
     if now.demo_enabled:  # one button, and nothing else
-        return page(request, "signin.html", next=_local_path(next), error=error, demo=True, help_page="signin_demo")
+        return page(request, "signin.html", next=local_path(next), error=error, demo=True, help_page="signin_demo")
     with s.own_con() as c:
         offer = passkeys.any_for(c, now)  # once anyone has one: before that it would only puzzle Google's users
-    return page(request, "signin.html", next=_local_path(next), error=error,
+    return page(request, "signin.html", next=local_path(next), error=error,
                 google=bool(now.google_client_id and now.google_client_secret), at_home=request.state.at_home,
                 passkeys=offer, passkey_here=passkeys.here(now, request.url.scheme, request.headers.get("host", "")),
                 passkey_origin=passkeys.origin(now))
@@ -66,8 +66,8 @@ def google_sign_in(request: Request, next: str = "/", s: Site = Depends(site)):
     if not s.sign_ins.allow(tries_from(request)):
         return show_signin(s, request, next, "Too many sign-ins from here just now. Wait a few minutes, then try "
                                           "again.")
-    url, keep = accounts.google_start(now.google_client_id, _redirect_uri(request, now))
-    keep.update(kind="google", next=_local_path(next) if len(next) <= NEXT_MOST else "/")
+    url, keep = accounts.google_start(now.google_client_id, redirect_uri(request, now))
+    keep.update(kind="google", next=local_path(next) if len(next) <= NEXT_MOST else "/")
     response = RedirectResponse(url, 303)
     # what Google's answer is checked against, in this browser's own cookie (Site.seal): only the browser that
     # started a sign-in can finish it, and nothing is kept here until then
@@ -86,7 +86,7 @@ def google_back(request: Request, code: str = "", state: str = "", error: str = 
     with s.own_con() as c:
         try:
             email = accounts.google_finish(code, keep, now.google_client_id, now.google_client_secret,
-                                           _redirect_uri(request, now), s.google_http)
+                                           redirect_uri(request, now), s.google_http)
         except accounts.Problem as e:
             if isinstance(e, accounts.Refused):  # on the Status page, for an admin setting it up
                 activity.log(c, f"Google refused a sign-in: {e.why or 'no reason given'}")
@@ -100,7 +100,7 @@ def google_back(request: Request, code: str = "", state: str = "", error: str = 
         return start_session(s, request, c, row["id"], RedirectResponse(keep["next"], 303))
 
 
-@router.post("/auth/local", dependencies=[Depends(_from_app)])
+@router.post("/auth/local", dependencies=[Depends(from_app)])
 def local_sign_in(request: Request, body: LocalBody, s: Site = Depends(site)):
     """Admins at home when Google can't be reached: their email and a code from their authenticator app."""
     if not s.shared_cfg().accounts_enabled:
@@ -127,10 +127,10 @@ def local_sign_in(request: Request, body: LocalBody, s: Site = Depends(site)):
                                 "stopped until tomorrow")
             raise HTTPException(400, "That email and code don't go together. The code changes every 30 seconds.")
         activity.log(c, f"{row['email']} signed in with a code, at home")
-        return start_session(s, request, c, row["id"], JSONResponse({"go": _local_path(body.next)}))
+        return start_session(s, request, c, row["id"], JSONResponse({"go": local_path(body.next)}))
 
 
-@router.post("/auth/demo", dependencies=[Depends(_from_app)])
+@router.post("/auth/demo", dependencies=[Depends(from_app)])
 def demo_sign_in(request: Request, body: DemoBody, s: Site = Depends(site)):
     """Sign in to a demo: an account of the visitor's own, made as they click (demo.visitor), a member's or (Sign in
     as an admin) a locked-down admin's."""
@@ -141,7 +141,7 @@ def demo_sign_in(request: Request, body: DemoBody, s: Site = Depends(site)):
         raise HTTPException(429, "Too many sign-ins from here just now. Wait a few minutes, then try again.")
     with s.own_con() as c:
         account_id = demo.visitor(c, now, admin=body.admin)
-        return start_session(s, request, c, account_id, JSONResponse({"go": _local_path(body.next)}))
+        return start_session(s, request, c, account_id, JSONResponse({"go": local_path(body.next)}))
 
 
 @router.get("/demo-preview.jpg")
@@ -163,14 +163,14 @@ def signed_out(response: Response) -> Response:
     return response
 
 
-@router.post("/auth/signout", dependencies=[Depends(_from_app)])
+@router.post("/auth/signout", dependencies=[Depends(from_app)])
 def sign_out(request: Request, s: Site = Depends(site)):
     with s.own_con() as c:
         accounts.end_session(c, request.cookies.get(accounts.COOKIE))
     return signed_out(JSONResponse({"go": "/signin"}))
 
 
-@router.post("/auth/signout-everywhere", dependencies=[Depends(_from_app)])
+@router.post("/auth/signout-everywhere", dependencies=[Depends(from_app)])
 def sign_out_everywhere(request: Request, s: Site = Depends(site)):
     account = getattr(request.state, "account", None)
     if account is None:

@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from lineagebox import errors, i18n
-from lineagebox.web.common import MEMBER, _from_app
+from lineagebox.web.common import MEMBER, from_app
 
 router = APIRouter()
 ACCESS = {
@@ -17,7 +17,7 @@ class LanguageBody(BaseModel):
     lang: str = ""  # one of i18n.installed(); "" for the browser's own choice again
 
 
-@router.post("/api/language", dependencies=[Depends(_from_app)])
+@router.post("/api/language", dependencies=[Depends(from_app)])
 def choose_language(request: Request, body: LanguageBody):
     if body.lang and body.lang not in i18n.installed():
         raise errors.Problem(i18n.gettext("That language isn't installed here."))

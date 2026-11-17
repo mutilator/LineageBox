@@ -20,7 +20,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from lineagebox import camera_clock, changes, face_ages
-from lineagebox.web.common import ADMIN, _by, _from_app
+from lineagebox.web.common import ADMIN, added_by, from_app
 from lineagebox.web.deps import con, page, site, viewer
 from lineagebox.web.site import Site
 
@@ -108,18 +108,18 @@ def _held(c, s: dict) -> int:
     return camera_clock.count(camera_clock.photos(c, s["camera"]), s["first"], s["last"])
 
 
-@router.post("/api/camera-clock", dependencies=[Depends(_from_app)])
+@router.post("/api/camera-clock", dependencies=[Depends(from_app)])
 def new_stretch(body: NewStretch, v=Depends(viewer), c=Depends(con)):
     """The camera's photos from one to another dated as one of them was really taken. Undoable."""
     if not c.execute("SELECT 1 FROM image WHERE camera = ?", (body.camera,)).fetchone():
         raise HTTPException(404, "No photos from that camera")
     with changes.tracking(c, v, "dates", f"Put right {body.camera}'s clock", _specs(body.camera)) as kept:
         new_id = camera_clock.create(c, body.camera, body.first_id, body.last_id, body.image_id, body.day, body.time,
-                                     _by(v))
+                                     added_by(v))
     return {"message": f"Moved the dates of {_photos(_held(c, camera_clock.stretch(c, new_id)))}.", "undo": kept.id}
 
 
-@router.post("/api/camera-clock/{stretch_id}/pin", dependencies=[Depends(_from_app)])
+@router.post("/api/camera-clock/{stretch_id}/pin", dependencies=[Depends(from_app)])
 def pin(stretch_id: int, body: PinBody, v=Depends(viewer), c=Depends(con)):
     """When another of the stretch's photos was really taken: the photos between the two follow the clock's drift."""
     s = _stretch_or_404(c, stretch_id)
@@ -128,7 +128,7 @@ def pin(stretch_id: int, body: PinBody, v=Depends(viewer), c=Depends(con)):
     return {"message": f"Dated. The {_photos(_held(c, s))} with it moved too.", "undo": kept.id, "reload": True}
 
 
-@router.post("/api/camera-clock/{stretch_id}/unpin", dependencies=[Depends(_from_app)])
+@router.post("/api/camera-clock/{stretch_id}/unpin", dependencies=[Depends(from_app)])
 def unpin(stretch_id: int, body: PhotoBody, v=Depends(viewer), c=Depends(con)):
     s = _stretch_or_404(c, stretch_id)
     with changes.tracking(c, v, "dates", f"Put right {s['camera']}'s clock", _specs(s["camera"])) as kept:
@@ -137,7 +137,7 @@ def unpin(stretch_id: int, body: PhotoBody, v=Depends(viewer), c=Depends(con)):
             "reload": True}
 
 
-@router.post("/api/camera-clock/{stretch_id}/bounds", dependencies=[Depends(_from_app)])
+@router.post("/api/camera-clock/{stretch_id}/bounds", dependencies=[Depends(from_app)])
 def bounds(stretch_id: int, body: BoundsBody, v=Depends(viewer), c=Depends(con)):
     """The stretch made to start or end at another photo, or to run on to every later one."""
     s = _stretch_or_404(c, stretch_id)
@@ -149,7 +149,7 @@ def bounds(stretch_id: int, body: BoundsBody, v=Depends(viewer), c=Depends(con))
     return {"message": f"Now {held}.{left}", "undo": kept.id, "reload": True}
 
 
-@router.post("/api/camera-clock/{stretch_id}/remove", dependencies=[Depends(_from_app)])
+@router.post("/api/camera-clock/{stretch_id}/remove", dependencies=[Depends(from_app)])
 def remove(stretch_id: int, v=Depends(viewer), c=Depends(con)):
     s = _stretch_or_404(c, stretch_id)
     held = _held(c, s)

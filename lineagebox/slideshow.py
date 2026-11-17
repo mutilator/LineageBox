@@ -30,7 +30,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-from lineagebox import copies, errors, settings, tools, video
+from lineagebox import clock, copies, errors, settings, tools, video
 from lineagebox.config import Config
 
 WIDTH, HEIGHT = 1280, 720
@@ -61,10 +61,6 @@ class Problem(errors.Problem):
 
 def folder(cfg: Config) -> Path:
     return cfg.data_dir / FOLDER
-
-
-def _now() -> str:
-    return datetime.now().isoformat(timespec="seconds")
 
 
 def seconds_long(slides: list[dict], seconds: int) -> float:
@@ -104,9 +100,8 @@ def ask(con: sqlite3.Connection, account_id: int | None, kind: str, item_id: int
                                                                 asked_at)
                                VALUES (?, ?, ?, ?, ?, ?, ?)""",
                            (account_id, item_id, name[:120], json.dumps(slides), seconds, len(slides),
-                            _now())).lastrowid
-    con.execute("INSERT OR REPLACE INTO settings(key, value) VALUES (?, ?)", (WAKE, json.dumps(_now())))
-    con.commit()
+                            clock.now())).lastrowid
+    settings.put(con, WAKE, clock.now())  # with the video asked for
     return video_id
 
 
@@ -179,7 +174,7 @@ def make_waiting(con: sqlite3.Connection, cfg: Config, stop=None, threads: int =
         if stop is not None and stop():
             break
         con.execute("UPDATE slideshow_video SET state = 'making', started_at = ?, done = 0 WHERE id = ?",
-                    (_now(), row["id"]))
+                    (clock.now(), row["id"]))
         con.commit()
         try:
             file, size = _make(con, cfg, row, threads)
@@ -189,11 +184,11 @@ def make_waiting(con: sqlite3.Connection, cfg: Config, stop=None, threads: int =
                 traceback.print_exc()
             con.rollback()
             con.execute("""UPDATE slideshow_video SET state = 'failed', message = ?, finished_at = ?
-                           WHERE id = ?""", ((str(e) or type(e).__name__)[:300], _now(), row["id"]))
+                           WHERE id = ?""", ((str(e) or type(e).__name__)[:300], clock.now(), row["id"]))
             con.commit()
             continue
         con.execute("""UPDATE slideshow_video SET state = 'done', file = ?, bytes = ?, done = total, finished_at = ?
-                       WHERE id = ?""", (file, size, _now(), row["id"]))
+                       WHERE id = ?""", (file, size, clock.now(), row["id"]))
         con.commit()
         made += 1
     return made

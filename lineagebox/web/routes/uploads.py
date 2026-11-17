@@ -8,8 +8,8 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
 from lineagebox import access, accounts, activity, catalog, db, demo, scan, sidecars, tours, uploads
-from lineagebox.web.common import (ADMIN, MEMBER, PRIVATE, ZIP_BYTES, ZIP_MOST, HiddenBody, _attachment, _client_ip,
-                                   _from_app, _image_or_404, _uploads_root, _within)
+from lineagebox.web.common import (ADMIN, MEMBER, PRIVATE, ZIP_BYTES, ZIP_MOST, HiddenBody, attachment, client_ip,
+                                   from_app, image_or_404, uploads_root, within)
 from lineagebox.web.deps import con, page, site, viewer, writer
 from lineagebox.web.routes.tours import shown
 from lineagebox.web.site import Site
@@ -51,7 +51,7 @@ def upload_page(request: Request, c=Depends(con), w=Depends(writer), s: Site = D
         row = w.execute("SELECT id FROM folder WHERE path = ?", (folder,)).fetchone()
         folder_id = row[0] if row else None
     most = now.demo_upload_max_mb * 2**20 if now.demo_enabled else now.upload_max_gb * 2**30
-    left = demo.uploads_left(w, _client_ip(request), now.demo_uploads) if now.demo_enabled else None
+    left = demo.uploads_left(w, client_ip(request), now.demo_uploads) if now.demo_enabled else None
     no_uploads = ADMIN_NO_UPLOADS if now.demo_enabled and account and account["role"] == "admin" else ""
     return page(request, "upload.html", nav="upload", account=account, counts=counts, mine=mine,
                 folder_id=folder_id, max_size=uploads.size_text(most), demo_left=left, demo_most=now.demo_uploads,
@@ -59,7 +59,7 @@ def upload_page(request: Request, c=Depends(con), w=Depends(writer), s: Site = D
                 extensions=sorted({*now.image_extensions, *now.video_extensions, *now.audio_extensions}))
 
 
-@router.post("/api/upload", dependencies=[Depends(_from_app)])
+@router.post("/api/upload", dependencies=[Depends(from_app)])
 async def upload_file(request: Request, path: str = Query(min_length=1, max_length=1000),
                       folder: str = Query("", max_length=200), s: Site = Depends(site)):
     """One file, as the request's body, into the uploader's own folder (uploads.py)."""
@@ -76,16 +76,16 @@ async def upload_file(request: Request, path: str = Query(min_length=1, max_leng
     if now.demo_enabled:
         def count() -> bool:
             with s.own_con() as c:
-                return demo.take_upload(c, _client_ip(request), now.demo_uploads)
+                return demo.take_upload(c, client_ip(request), now.demo_uploads)
         if not await run_in_threadpool(count):
             raise HTTPException(403, f"That's all the uploads from here: {now.demo_uploads} in this demo, until it "
                                      f"all goes back as it was ({now.demo_resets}).")
-        counted = _client_ip(request)
+        counted = client_ip(request)
 
     def place():
         with s.own_con() as c:
-            into = accounts.upload_folder(c, accounts.get(c, account["id"]), _uploads_root(now), now.folders)
-            watched = next((f for f in now.folders if _within(into, f)), None)
+            into = accounts.upload_folder(c, accounts.get(c, account["id"]), uploads_root(now), now.folders)
+            watched = next((f for f in now.folders if within(into, f)), None)
             if watched is None:  # Settings keeps the uploads folder inside a watched one, so this shouldn't be
                 raise uploads.Problem("Uploads can't be saved just now: their folder isn't one that is read here. "
                                       "Tell an admin.")
@@ -148,7 +148,7 @@ def zipped(s: Site, c, image_ids, name: str) -> StreamingResponse:
     if sum(p.stat().st_size for p, _ in files if not isinstance(p, bytes) and p.is_file()) > ZIP_BYTES:
         raise HTTPException(413, f"That's over {ZIP_BYTES // 2**30} GB: pick fewer photos.")
     return StreamingResponse(uploads.zip_stream(files), media_type="application/zip",
-                             headers={"Content-Disposition": _attachment(f"{name}.zip"), **PRIVATE})
+                             headers={"Content-Disposition": attachment(f"{name}.zip"), **PRIVATE})
 
 
 @router.post("/download")
@@ -184,16 +184,16 @@ def download_tour(tour_id: int, v=Depends(viewer), c=Depends(con), w=Depends(wri
                       re.sub(r"[^\w -]+", "", t["name"]).strip() or "tour")
 
 
-@router.post("/api/images/{image_id}/hidden", dependencies=[Depends(_from_app)])
+@router.post("/api/images/{image_id}/hidden", dependencies=[Depends(from_app)])
 def hide_image(image_id: int, body: HiddenBody, c=Depends(con)):
     """Never shown to family members (papers, medical), whoever is in it; its uploader still sees it."""
-    _image_or_404(c, image_id)
+    image_or_404(c, image_id)
     c.execute("UPDATE image SET hidden = ? WHERE id = ?", (int(body.hidden), image_id))
     c.commit()
     return {"reload": True}
 
 
-@router.post("/api/folders/{folder_id}/hidden", dependencies=[Depends(_from_app)])
+@router.post("/api/folders/{folder_id}/hidden", dependencies=[Depends(from_app)])
 def hide_folder(folder_id: int, body: HiddenBody, c=Depends(con)):
     """Nothing in this folder, or below it, is shown to family members (except to whoever uploaded it)."""
     if not c.execute("SELECT 1 FROM folder WHERE id = ?", (folder_id,)).fetchone():

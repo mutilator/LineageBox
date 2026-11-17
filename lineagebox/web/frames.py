@@ -176,7 +176,7 @@ def memory_photos(c, today: date, blurry: float | None) -> list[dict]:
     for year in years:
         if not 1800 <= year < today.year or len(chosen) >= MOST:
             continue
-        middle = memories._same_day(today, year)
+        middle = memories.same_day(today, year)
         spec = tours.clean({"title": "", "media": "both", "pick": {"mode": "all", "max": 100},
                             "when": {"mode": "range", "from": (middle - timedelta(days=memories.AROUND)).isoformat(),
                                      "to": (middle + timedelta(days=memories.AROUND)).isoformat()}})

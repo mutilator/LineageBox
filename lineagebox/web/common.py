@@ -5,7 +5,7 @@ import ipaddress
 import json
 import re
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote
 
@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-from lineagebox import access, albums, catalog, cleanup, errors, faces, family, https, passkeys, sharing, tours
+from lineagebox import access, albums, catalog, cleanup, family, https, passkeys, people, sharing, tours
 from lineagebox import face_years
 from lineagebox.config import Config
 
@@ -88,7 +88,7 @@ _NOT_PAGES = ("/api/", "/t/", "/t2/", "/p/", "/frame/", "/face/", "/play/", "/or
               "/status/live", "/tours/suggested")
 
 
-def _public_path(path: str) -> bool:
+def public_path(path: str) -> bool:
     """What anyone may reach before signing in: the sign-in page and Google's way back, the stylesheet and script,
     and the health check; and what a phone installing the site asks for on its own, without its cookie (the web
     manifest and the service worker, routes/phone.py); and a demo's photo for link previews (demo.py)."""
@@ -96,12 +96,12 @@ def _public_path(path: str) -> bool:
             or path.startswith(("/auth/", "/static/")))
 
 
-def _is_page(path: str) -> bool:
+def is_page(path: str) -> bool:
     """A page to send someone who isn't signed in to the sign-in page from (the rest just answer 401)."""
     return not path.startswith(_NOT_PAGES)
 
 
-def _local_path(where: str) -> str:
+def local_path(where: str) -> str:
     """Where to go after signing in: a page of this site, never another site. Browsers drop tabs and line breaks from
     an address, so "/\\t/evil.example" would become "//evil.example": no spaces or control characters either."""
     local = where.startswith("/") and not where.startswith("//") and "\\" not in where
@@ -111,7 +111,7 @@ def _local_path(where: str) -> str:
 SMALL_BODY = 64 * 1024  # the most a request may send before signing in
 
 
-def _small_body(request: Request) -> bool:
+def small_body(request: Request) -> bool:
     """A body small enough to read before anyone has signed in: its length is given, and is under SMALL_BODY."""
     length = request.headers.get("content-length", "")
     return length.isdecimal() and int(length) <= SMALL_BODY and "transfer-encoding" not in request.headers
@@ -123,7 +123,7 @@ def _small_body(request: Request) -> bool:
 BODY_MOST = 4 * 2**20
 
 
-def _body_fits(request: Request, larger: dict[str, int | None]) -> bool:
+def body_fits(request: Request, larger: dict[str, int | None]) -> bool:
     """A body this route may take, by the length it says it has. larger: path -> its own most, or None for one the
     route reads in pieces and holds to a limit of its own (uploads); only those may come in pieces of unsaid length."""
     most = larger.get(request.url.path, BODY_MOST)
@@ -135,14 +135,14 @@ def _body_fits(request: Request, larger: dict[str, int | None]) -> bool:
     return length.isdecimal() and int(length) <= most
 
 
-def _client_ip(request: Request) -> str:
+def client_ip(request: Request) -> str:
     return request.client.host if request.client else ""
 
 
 def tries_from(request: Request) -> str:
     """Where a request comes from, for counting its tries (sign-ins, codes): its address, or an IPv6 address's /64,
     the network one home or one server is given whole (each of its billions of addresses would count afresh)."""
-    ip = _client_ip(request)
+    ip = client_ip(request)
     try:
         address = ipaddress.ip_address(ip)
     except ValueError:
@@ -152,7 +152,7 @@ def tries_from(request: Request) -> str:
     return str(getattr(address, "ipv4_mapped", None) or address)
 
 
-def _recently_signed_in(request: Request, what: str) -> None:
+def recently_signed_in(request: Request, what: str) -> None:
     """For what gives a lasting way in (a passkey's link or an authenticator code for oneself or an admin, a new
     admin): only within passkeys.RECENT_MINUTES of signing in, as for adding a passkey, so that nobody who finds a
     phone or computer left signed in can keep a way in of their own. Without family accounts nobody signs in."""
@@ -161,13 +161,13 @@ def _recently_signed_in(request: Request, what: str) -> None:
         raise passkeys.Problem(wait)
 
 
-def _redirect_uri(request: Request, now: Config) -> str:
+def redirect_uri(request: Request, now: Config) -> str:
     """Where Google sends people back to: the address people use from outside (public_url), else this one."""
     base = now.public_url or f"{request.url.scheme}://{request.headers.get('host', '')}"
     return base.rstrip("/") + "/auth/google/callback"
 
 
-def _content_policy(tiles: str, framed: bool = False) -> str:
+def content_policy(tiles: str, framed: bool = False) -> str:
     """Scripts only from this site's own files (pages have no inline scripts), pictures from it and the map's tile
     server, no plugins, frames or forms elsewhere: a name or caption that ever slipped through escaping could not run
     as script with an admin's session. The service worker (routes/phone.py) and the web manifest are this site's own
@@ -188,27 +188,27 @@ def _tile_source(tiles: str) -> str:
     return f"{m[1]}:" if "{" in host else f"{m[1]}://{host}"
 
 
-def _uploads_root(now: Config) -> str:
+def uploads_root(now: Config) -> str:
     """The folder members' uploads folders are in: <watched folder>/<uploads folder>."""
     into = now.uploads_into or (now.folders[0] if now.folders else "")
     return f"{into}/{now.uploads_folder}".strip("/")
 
 
-def _within(path: str, folder: str | None) -> bool:
+def within(path: str, folder: str | None) -> bool:
     return bool(folder) and (path == folder or path.startswith(folder + "/"))
 
 
-def _among(v: access.Viewer) -> set[int] | None:
+def seen_people(v: access.Viewer) -> set[int] | None:
     """The people a name typed by the viewer may mean (None: anyone)."""
     return set(v.people) if v.limited else None
 
 
-def _by(v: access.Viewer) -> int | None:
+def added_by(v: access.Viewer) -> int | None:
     """The member's account recorded on what they add (people, groups, tours, faces they name)."""
     return v.account_id if v.limited else None
 
 
-def _people_or_404(c, *person_ids) -> None:
+def people_or_404(c, *person_ids) -> None:
     """The people a change is about are there (not merged or removed since the page was made) and, for a member, theirs
     to see: c, the viewer's own connection, holds only those. Otherwise it is refused, as for anyone not there."""
     ids = sorted({p for p in person_ids if p is not None})
@@ -217,13 +217,13 @@ def _people_or_404(c, *person_ids) -> None:
         raise HTTPException(404, "No such person")
 
 
-def _images_or_404(c, v: access.Viewer, image_ids) -> None:
+def images_or_404(c, v: access.Viewer, image_ids) -> None:
     """A member's change to photos is refused as a whole when any of them is not theirs to see."""
     if v.limited and any(not v.sees_image(i) for i in image_ids):
         raise HTTPException(404, "No such photo")
 
 
-def _face_to_change(c, v: access.Viewer, face_id: int) -> None:
+def face_to_change(c, v: access.Viewer, face_id: int) -> None:
     """A member names faces in photos they see, but not one named as someone outside their part of the family."""
     if not v.limited:
         return
@@ -235,34 +235,34 @@ def _face_to_change(c, v: access.Viewer, face_id: int) -> None:
                                  "change that.")
 
 
-def _own_files(c, v: access.Viewer, image_ids) -> list[int]:
+def own_files(c, v: access.Viewer, image_ids) -> list[int]:
     """The files a member uploaded of these photos; refused when any photo has none (it isn't theirs to remove)."""
     out = []
     for image_id in image_ids:
         mine = [f["id"] for f in catalog.image_files(c, image_id)
-                if not f["missing"] and _within(f["path"], v.account["upload_folder"])]
+                if not f["missing"] and within(f["path"], v.account["upload_folder"])]
         if not mine:
             raise HTTPException(404, "Only photos you uploaded yourself can be removed.")
         out += mine
     return out
 
 
-def _own_tour(c, v: access.Viewer, tour_id: int) -> None:
+def own_tour(c, v: access.Viewer, tour_id: int) -> None:
     """A member changes only their own tours (those others shared with them are to watch)."""
     if v.limited and ((t := tours.tour(c, tour_id)) is None or t["account_id"] != v.account_id):
         raise HTTPException(404, "No such tour")
 
 
-def _own_folder(c, v: access.Viewer, folder_id: int):
+def own_folder(c, v: access.Viewer, folder_id: int):
     """A folder the viewer may change (move to Removed, share): any, for an admin; for a member, their uploads folder
     or one in it. Others are refused as not there."""
     row = c.execute("SELECT id, path, name, parent_id FROM folder WHERE id = ?", (folder_id,)).fetchone()
-    if row is None or v.limited and not _within(row["path"], v.account["upload_folder"]):
+    if row is None or v.limited and not within(row["path"], v.account["upload_folder"]):
         raise HTTPException(404, "No such folder among your uploads" if v.limited else "No such folder")
     return row
 
 
-def _upload_labels(w, v: access.Viewer) -> dict[str, str]:
+def upload_labels(w, v: access.Viewer) -> dict[str, str]:
     """The folder of each account's uploads (named by their person's number on disk) -> how it is shown: "Your
     uploads", "Cora's uploads". On a connection that sees everyone; a member is shown only folders they may see."""
     out = {}
@@ -273,7 +273,7 @@ def _upload_labels(w, v: access.Viewer) -> dict[str, str]:
     return out
 
 
-def _share_panel(w, v: access.Viewer, kind: str, item_id: int) -> dict:
+def share_panel(w, v: access.Viewer, kind: str, item_id: int) -> dict:
     """What the sharing panel (_macros.share_panel) shows of one folder, photo or tour: whom it is shared with (a
     member sees only what they shared themselves), whom else it may be shared with, and the partner who sees it
     already without being asked (sharing.goes_to_partners). On a connection that sees everyone."""
@@ -288,7 +288,7 @@ def _share_panel(w, v: access.Viewer, kind: str, item_id: int) -> dict:
             "admin": v.admin, "partners": sharing.goes_to_partners(w, v, kind, item_id)}
 
 
-def _shared_with_me(w, c, v: access.Viewer) -> dict:
+def shared_with_me(w, c, v: access.Viewer) -> dict:
     """What others share with a member, newest first, as they may see it: folders, tours and albums (each with its
     count and cover, a tour's from the photos it shares) and single photos, each with who shared it. Nothing for an
     admin, who sees everything anyway."""
@@ -324,25 +324,21 @@ def _shared_with_me(w, c, v: access.Viewer) -> dict:
     return out
 
 
-def _person_named(c, name: str, pid: int | None) -> int:
+def person_named(c, name: str, pid: int | None) -> int:
     """Someone already in the family tree, by the name typed (or picked) in a box: for accounts and exceptions,
-    which never add anyone."""
-    name = " ".join(name.split())
-    if pid is not None and (row := catalog.person(c, pid)) and row["name"].lower() == name.lower():
-        return pid
-    found = [r[0] for r in c.execute("SELECT id FROM person WHERE lower(name) = lower(?)", (name,))]
-    if len(found) == 1:
-        return found[0]
-    if found:
-        raise HTTPException(400, f"{len(found)} people are called {name}: pick the one you mean from the suggestions.")
-    raise HTTPException(400, f"Nobody in the family tree is called {name}. Add them on the Family page first.")
+    which never add anyone (people.existing_person_id; several of that name: people.Problem)."""
+    found = people.existing_person_id(c, name, pid)
+    if found is None:
+        raise HTTPException(400, f"Nobody in the family tree is called {' '.join(name.split())}. Add them on the "
+                                 f"Family page first.")
+    return found
 
 
 def _ids(ids) -> str:
     return json.dumps(sorted({i for i in ids if i is not None}))
 
 
-def _faces_spec(v: access.Viewer, face_ids):
+def faces_spec(v: access.Viewer, face_ids):
     """Faces named or unnamed, with every face of a video among them (naming one names their others in it too,
     people.name_in_videos), and anyone the member added by naming them."""
     ids = _ids(face_ids)
@@ -350,28 +346,28 @@ def _faces_spec(v: access.Viewer, face_ids):
                                WHERE id IN (SELECT value FROM json_each(?)) AND frame IS NOT NULL)"""
     return lambda new: [("face", f"id IN (SELECT value FROM json_each(?)) OR {in_video}", (ids, ids)),
                         ("face_not_person", "face_id IN (SELECT value FROM json_each(?))", (ids,)),
-                        ("person", "id > ? AND added_by IS ?", (new["person"], _by(v)))]
+                        ("person", "id > ? AND added_by IS ?", (new["person"], added_by(v)))]
 
 
-def _tags_spec(image_ids, tag: str):
+def tags_spec(image_ids, tag: str):
     ids, name = _ids(image_ids), catalog.tag_name(tag)
     return lambda new: [("image_tag", "image_id IN (SELECT value FROM json_each(?)) AND tag_id IN "
                                       "(SELECT id FROM main.tag WHERE name = ?)", (ids, name)),
                         ("tag", "id > ? AND name = ?", (new["tag"], name))]
 
 
-def _dates_spec(image_ids):
+def dates_spec(image_ids):
     ids = _ids(image_ids)
     return lambda new: [("image", "id IN (SELECT value FROM json_each(?))", (ids,))]
 
 
-def _photo_people_spec(v: access.Viewer, image_ids):
+def photo_people_spec(v: access.Viewer, image_ids):
     ids = _ids(image_ids)
     return lambda new: [("image_person", "image_id IN (SELECT value FROM json_each(?))", (ids,)),
-                        ("person", "id > ? AND added_by IS ?", (new["person"], _by(v)))]
+                        ("person", "id > ? AND added_by IS ?", (new["person"], added_by(v)))]
 
 
-def _family_spec(v: access.Viewer, *person_ids):
+def family_spec(v: access.Viewer, *person_ids):
     """Everything about these people a family change can touch, and anyone the member added with it: with what
     their life events' removal takes along (documents' and written sources' citations of them), and the written
     sources cited for them (one nothing cites any more goes)."""
@@ -380,7 +376,7 @@ def _family_spec(v: access.Viewer, *person_ids):
     cites = f"""person_id {among} OR event_id IN (SELECT id FROM main.event
                                                  WHERE person_id {among} OR couple_a {among} OR couple_b {among})"""
     return lambda new: [
-        ("person", f"id {among} OR (id > ? AND added_by IS ?)", (ids, new["person"], _by(v))),
+        ("person", f"id {among} OR (id > ? AND added_by IS ?)", (ids, new["person"], added_by(v))),
         ("parent", f"child_id {among} OR parent_id {among}", (ids, ids)),
         ("sibling", f"a {among} OR b {among}", (ids, ids)), ("partner", f"a {among} OR b {among}", (ids, ids)),
         ("relation", f"person_id {among} OR of_id {among}", (ids, ids)),
@@ -392,8 +388,8 @@ def _family_spec(v: access.Viewer, *person_ids):
         ("tree_media", f"person_id {among}", (ids,))]
 
 
-def _merge_spec(w, v: access.Viewer, *person_ids):
-    """Everything merging or removing these people can touch, for its undo: their family (as _family_spec), every
+def merge_spec(w, v: access.Viewer, *person_ids):
+    """Everything merging or removing these people can touch, for its undo: their family (as family_spec), every
     face and photo named as them, their "not them" marks and citations, other trees' ids for them, accounts and access
     exceptions that point at them, the tours that pick them and "This is me". The faces and tours are picked now,
     before the change: a removal takes the name off the faces, which then could no longer be found by it."""
@@ -403,7 +399,7 @@ def _merge_spec(w, v: access.Viewer, *person_ids):
     tours = {t: _ids(r[0] for r in w.execute(f"""SELECT id FROM main.{t} WHERE EXISTS
                                                  (SELECT 1 FROM json_each(spec, '$.who.person_ids') WHERE value {among})""",
                                              (ids,))) for t in ("tour", "tour_type")}
-    family = _family_spec(v, *person_ids)
+    family = family_spec(v, *person_ids)
     events = f"SELECT id FROM main.event WHERE person_id {among} OR couple_a {among} OR couple_b {among}"
     return lambda new: [*family(new), ("face", f"id {among}", (face_ids,)),
                         ("image_person", f"person_id {among}", (ids,)),
@@ -415,11 +411,11 @@ def _merge_spec(w, v: access.Viewer, *person_ids):
                         ("story", f"person_id {among}", (ids,))]  # recorded stories about them (stories.py)
 
 
-def _document_spec(image_id: int):
+def document_spec(image_id: int):
     return lambda new: [("document", "image_id = ?", (image_id,)), ("citation", "image_id = ?", (image_id,))]
 
 
-def _cert_name(cert, allowed_hosts, host: str) -> str:
+def cert_name(cert, allowed_hosts, host: str) -> str:
     """A name to open the site by that its certificate is for (with this request's port), to suggest instead of an
     address the browser warns on: a listed host name it covers, else its own name, unless it is for every name under a
     domain (that domain itself is most likely the family's website, elsewhere)."""
@@ -457,7 +453,7 @@ class LiveProxyHeaders:
         return await self.made[trusted](scope, receive, send)
 
 
-def _allowed(host: str, networks: list) -> bool:
+def address_allowed(host: str, networks: list) -> bool:
     try:
         ip = ipaddress.ip_address(host)
     except ValueError:
@@ -467,7 +463,7 @@ def _allowed(host: str, networks: list) -> bool:
     return any(ip in n for n in networks)
 
 
-def _host_allowed(host_header: str, allowed: tuple[str, ...]) -> bool:
+def host_allowed(host_header: str, allowed: tuple[str, ...]) -> bool:
     """Whether a request's Host is an address, a name only a home network can have (one word, or ending in .lan,
     .local, .home.arpa...), or one of allowed_hosts ("*.example.com" for every name under it, "*" for any)."""
     host = host_header.strip().lower()
@@ -497,7 +493,7 @@ def locate(cfg: Config, rel: str) -> str:
     raise AssertionError("network_roots always ends with the share itself")
 
 
-def _net_folders(now: Config, sources) -> list[str]:
+def net_folders(now: Config, sources) -> list[str]:
     """The folders a network path can be set for on the Settings page: the share itself, each source (in Docker),
     and the top folders of what is watched."""
     folders = {name for name, _ in sources} | {w.split("/")[0] for w in now.folders} | {f for f, _ in now.network_paths}
@@ -524,7 +520,7 @@ def network_path(share: str, rel: str) -> str:
     return share.rstrip("\\/") + sep + rel.replace("/", sep)
 
 
-def _photos_per_watched(c, folders) -> dict[str, int]:
+def photos_per_watched(c, folders) -> dict[str, int]:
     out = {}
     for w in folders:
         out[w] = c.execute("""SELECT count(DISTINCT f.image_id) FROM file f WHERE NOT f.missing
@@ -533,11 +529,11 @@ def _photos_per_watched(c, folders) -> dict[str, int]:
     return out
 
 
-def _photos(n: int) -> str:
+def photos_text(n: int) -> str:
     return f"{n:,} photo" + ("" if n == 1 else "s")
 
 
-def _name_choices(c) -> list[dict]:
+def name_choices(c) -> list[dict]:
     """Everyone with a name, for the boxes names are typed in (app.js suggests from it): with their face, photos,
     years, relationship and other names, so that two people of the same name can be told apart."""
     shown = {p["id"]: p for p in catalog.people(c)}
@@ -545,7 +541,7 @@ def _name_choices(c) -> list[dict]:
     for pid, tag, when in c.execute("""SELECT person_id, tag, sort_date FROM event WHERE person_id IS NOT NULL
                                        AND tag IN ('BIRT', 'DEAT') AND sort_date IS NOT NULL"""):
         years.setdefault(pid, {})[tag] = when[:4]
-    kin, also = _kin_labels(c), dict(c.execute(
+    kin, also = kin_labels(c), dict(c.execute(
         "SELECT person_id, group_concat(name, ' · ') FROM person_name GROUP BY person_id"))
     out = []
     for pid, name in c.execute("SELECT id, name FROM person ORDER BY name COLLATE NOCASE"):
@@ -557,12 +553,12 @@ def _name_choices(c) -> list[dict]:
     return out
 
 
-def _image_or_404(c, image_id: int) -> None:
+def image_or_404(c, image_id: int) -> None:
     if catalog.image(c, image_id) is None:
         raise HTTPException(404, "No such image")
 
 
-def _kin_labels(c) -> dict[int, str]:
+def kin_labels(c) -> dict[int, str]:
     """person id -> what they are to the person marked as "me" (nothing for "me" themselves)."""
     ego = family.me(c)
     if ego is None:
@@ -570,7 +566,7 @@ def _kin_labels(c) -> dict[int, str]:
     return {pid: k.label for pid, k in family.relations_to(family.load(c), ego).items() if pid != ego}
 
 
-def _others_by_whose(g) -> list[tuple[str, list[int]]]:
+def others_by_whose(g) -> list[tuple[str, list[int]]]:
     """The Family page's friends and others, one heading each: "Emma's pets" over Rex, Daisy and Biscuit."""
     groups: dict[tuple[str, int], list[int]] = {}
     for p, of, kind in g.relations:
@@ -579,12 +575,12 @@ def _others_by_whose(g) -> list[tuple[str, list[int]]]:
             for (kind, of), ids in sorted(groups.items(), key=lambda kv: (kv[0][0], g.name(kv[0][1])))]
 
 
-def _covers(named) -> dict[int, int]:
+def cover_faces(named) -> dict[int, int]:
     """person id -> the face shown for them (people with no faces have none)."""
     return {p["id"]: p["cover_face"] for p in named}
 
 
-def _same_group(c, cluster_id: int, faces: list[int]) -> None:
+def same_group(c, cluster_id: int, faces: list[int]) -> None:
     """Groups are renumbered whenever faces are regrouped (new photos, "Find more photos"). The People page sends
     the clearest faces it showed for the group, so a page opened before a regroup cannot name whichever group now has
     the old number. One of them still in the group is enough: faces that don't belong can be taken out one by one."""
@@ -837,18 +833,18 @@ class FolderBody(BaseModel):
     path: str = Field(min_length=1, max_length=1000)
 
 
-def _moved(result: cleanup.Moved) -> dict:
+def moved_answer(result: cleanup.Moved) -> dict:
     return {"moved": result.moved, "errors": result.errors[:50], "more_errors": max(0, len(result.errors) - 50)}
 
 
-def _attachment(name: str) -> str:
+def attachment(name: str) -> str:
     """Content-Disposition for a download, whatever letters its name has (a tour named after Łukasz): the name in
     UTF-8, with a plain one for programs that don't read it. Headers themselves can only hold Latin-1."""
     plain = re.sub(r"[^A-Za-z0-9 ._()-]+", "", name).strip(" .") or "download"
     return f"attachment; filename=\"{plain}\"; filename*=UTF-8''{quote(name)}"
 
 
-def _plain_error(errors) -> str:
+def plain_error(errors) -> str:
     """The first thing FastAPI found wrong with a request, as a sentence for the person who sent it."""
     if not errors:
         return "Something sent with that didn't fit. Reload the page and try again."
@@ -870,14 +866,14 @@ def _plain_error(errors) -> str:
     return f"{what}: {e.get('msg', 'not right')}."
 
 
-def _from_app(x_requested_with: str = Header("")) -> None:
+def from_app(x_requested_with: str = Header("")) -> None:
     """Changes only come from this app's own scripts: browsers cannot add this header to a cross-site request
     without a CORS preflight, which this app never grants."""
     if x_requested_with != "lineagebox":
         raise HTTPException(403)
 
 
-def _derivative(path: Path | None, media_type: str) -> FileResponse:
+def derivative(path: Path | None, media_type: str) -> FileResponse:
     if path is None or not path.is_file():
         raise HTTPException(404)
     return FileResponse(path, media_type=media_type, headers=IMMUTABLE)

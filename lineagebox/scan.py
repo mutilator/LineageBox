@@ -43,7 +43,7 @@ def is_ignored(name: str, patterns: tuple[str, ...]) -> bool:
     return any(fnmatch.fnmatch(name.lower(), p.lower()) for p in patterns)
 
 
-def _own_folders(cfg: Config) -> set[str]:
+def own_folders(cfg: Config) -> set[str]:
     """LineageBox's own folders as paths of the photo folders ('/' separated), when they are inside them: never
     scanned, or its previews, frames and face crops would become photos (settings.folder_path refuses to watch them)."""
     out = set()
@@ -92,7 +92,7 @@ def scan(con: sqlite3.Connection, cfg: Config) -> ScanStats:
     # Walk first, then write: a walk of a slow disk takes minutes, and writing as it went held the database (and
     # every change made on the web pages) for all of that time.
     found_folders = [("", None, "", False)]  # (path with '/' on every system, parent path, name, ignored)
-    own = _own_folders(cfg)  # the catalog's and the face models' folders, if they are in the photo folders
+    own = own_folders(cfg)  # the catalog's and the face models' folders, if they are in the photo folders
     own_ids = _own_ids(cfg)
     found_files = []                         # (path, folder path, size, mtime)
     wanted = {*cfg.image_extensions, *cfg.video_extensions, *cfg.audio_extensions}

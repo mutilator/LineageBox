@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 from lineagebox import describe, embeddings, settings
 from lineagebox.llm import Ollama
-from lineagebox.web.common import ADMIN, MEMBER, _from_app, _image_or_404, _images_or_404, _photos
+from lineagebox.web.common import ADMIN, MEMBER, from_app, image_or_404, images_or_404, photos_text
 from lineagebox.web.deps import con, page, site, viewer, writer
 from lineagebox.web.site import Site
 
@@ -40,7 +40,7 @@ def _ask(s: Site, v, c, w, image_ids: list[int], model: str) -> dict:
         raise HTTPException(409, "Describing with AI is switched off on the Settings page.")
     model = "" if v.limited else model.strip()
     if model:
-        model = settings._CHECKS["ollama_model"](model, now)  # a name as Ollama lists them, or Invalid
+        model = settings.check("ollama_model", model, now)  # a name as Ollama lists them, or Invalid
     if model.removesuffix(":latest") == now.ollama_model.removesuffix(":latest"):
         model = ""
     n = describe.ask_again(w, image_ids, model or None, v.account_id)
@@ -52,24 +52,24 @@ def _ask(s: Site, v, c, w, image_ids: list[int], model: str) -> dict:
         start = settings.next_describe_start(now, datetime.now())
         when = (f"from {start:%H:%M}{'' if start.date() == datetime.now().date() else f' on {start:%A}'}, when the "
                 f"describing hours start" if start else "once describing is no longer paused (Settings → Schedule)")
-    what = "This photo" if n == 1 else _photos(n)
+    what = "This photo" if n == 1 else photos_text(n)
     with_ = f" with {model}" if model else ""
     return {"message": f"{what} will be described again{with_} {when}. The words people wrote and the tags they "
                        f"gave or took off stay as they are." + (" Status shows how many are waiting." if v.admin
                                                                 else "")}
 
 
-@router.post("/api/images/{image_id}/describe-again", dependencies=[Depends(_from_app)])
+@router.post("/api/images/{image_id}/describe-again", dependencies=[Depends(from_app)])
 def describe_again(image_id: int, body: AgainBody | None = None, v=Depends(viewer), c=Depends(con),
                    w=Depends(writer), s: Site = Depends(site)):
-    _image_or_404(c, image_id)
+    image_or_404(c, image_id)
     return _ask(s, v, c, w, [image_id], (body or AgainBody()).ai_model)
 
 
-@router.post("/api/selection/describe-again", dependencies=[Depends(_from_app)])
+@router.post("/api/selection/describe-again", dependencies=[Depends(from_app)])
 def describe_selection_again(body: AgainSelection, v=Depends(viewer), c=Depends(con), w=Depends(writer),
                              s: Site = Depends(site)):
-    _images_or_404(c, v, body.image_ids)
+    images_or_404(c, v, body.image_ids)
     return _ask(s, v, c, w, body.image_ids, body.ai_model)
 
 
@@ -87,6 +87,6 @@ def like_this(request: Request, image_id: int, c=Depends(con), s: Site = Depends
     """More like this, on a photo's page (data-later): the photos the viewer sees whose descriptions are closest to
     this one's, from other days as much as there are. Nothing while search by meaning is off or this photo has no
     description read yet."""
-    _image_or_404(c, image_id)
+    image_or_404(c, image_id)
     found = embeddings.like_this(c, s.live(c), image_id)
     return page(request, "_like_this.html", like=found, image_id=image_id)

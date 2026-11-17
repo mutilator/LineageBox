@@ -246,7 +246,7 @@ def test_a_sharp_tile_waits_its_turn_only_so_long(con, cfg, library, client, mon
         tiles.MAKING.release()
     assert r.status_code == 200 and r.content == client.get(f"/t/{sha}").content
     assert "no-cache" in r.headers["cache-control"] and not cfg.sharp_thumb_path(sha).exists()
-    monkeypatch.setattr(tiles, "_room", lambda cfg: 0)  # the disk nearly full: the thumbnail too, and nothing made
+    monkeypatch.setattr(tiles, "free_space", lambda cfg: 0)  # the disk nearly full: the thumbnail too, and nothing made
     assert client.get(f"/t2/{sha}").headers["cache-control"] == "private, no-cache"
     monkeypatch.undo()
     assert "immutable" in client.get(f"/t2/{sha}").headers["cache-control"] and cfg.sharp_thumb_path(sha).exists()
