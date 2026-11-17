@@ -231,22 +231,25 @@ def relation_name(con: sqlite3.Connection, key: str) -> str:
     return next((name for k, name, _ in relation_choices(con) if k == key), key.capitalize())
 
 
-def target_people(con: sqlite3.Connection, spec: dict) -> set[int] | None:
-    """Whose photos the tour is of, or None for anyone's."""
+def target_people(con: sqlite3.Connection, spec: dict, g: family.Graph | None = None,
+                  words: dict[str, set[int]] | None = None) -> set[int] | None:
+    """Whose photos the tour is of, or None for anyone's. g and words: the family tree and its word_index, when the
+    caller has them already (tour_suggestions asks this of dozens of tours at once)."""
     who = spec["who"]
     if who["mode"] == "line":  # the person and everyone above them
-        g = family.load(con)
+        g = g if g is not None else family.load(con)
         return {a for p in who["person_ids"] for a in g.ancestors.get(p, {p: 0}) if a > 0}
     if who["mode"] in ("person", "people"):
         people = set(who["person_ids"])
-        if who["with_partners"]:  # a couple's anniversaries: either of them
-            g = family.load(con)
-            people |= {q for p in who["person_ids"] for q, (_, married) in g.partners.get(p, {}).items() if married}
+        if who["with_partners"]:  # a couple's anniversaries: either of them, of each marriage
+            g = g if g is not None else family.load(con)
+            people |= {q for p in who["person_ids"] for q, (_, bond) in g.partners.get(p, {}).items()
+                       if bond == "married"}
         return people
     if who["mode"] != "relation":
         return None
-    g = family.load(con)
-    people = set(family.word_index(con, g).get(who["relation"], ()))
+    g = g if g is not None else family.load(con)
+    people = set((words if words is not None else family.word_index(con, g)).get(who["relation"], ()))
     if who["with_partners"]:
         people |= {q for p in people for q, (current, _) in g.partners.get(p, {}).items() if current}
     if who["with_children"]:

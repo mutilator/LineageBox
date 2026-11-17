@@ -260,6 +260,11 @@ def test_tours_around_life_events(fam):
     assert sorted(tours._around_events(con, found, spec)) == [2, 4]  # graduation month, wedding day
     with pytest.raises(tours.Problem):
         tours.clean({"who": {"mode": "anyone"}, "when": {"mode": "anniversary"}})
+    # a couple's anniversaries are of their marriage: the wife's photos count, an ex-girlfriend's don't
+    lily = con.execute("INSERT INTO person(name) VALUES ('Lily Baker')").lastrowid
+    family.link(con, daniel, "ex-girlfriend", lily)
+    spec["who"]["with_partners"] = True
+    assert tours.target_people(con, spec) == {daniel, katherine}
     line = tours.target_people(con, tours.clean({"who": {"mode": "line", "person_ids": [ids["Owen Miller"]]}}))
     assert {ids["Owen Miller"], daniel, katherine, ids["Gary Miller"], ids["Walter Baker"]} <= line
     assert {t["name"] for t in tours.types(con)} >= {"Anniversaries", "Life events", "Family line"}

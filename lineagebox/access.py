@@ -25,6 +25,7 @@ views fails instead of reaching hidden rows (members' changes are checked agains
 connection of their own, web/app.py).
 """
 import json
+import re
 import sqlite3
 import threading
 import time
@@ -105,6 +106,12 @@ SCOPED = {
     "reorganize_move": "0",
 }
 WITH_ROWID = {"image_tag"}  # read by rowid (the order tags were given in): a view has none unless it says so
+# Each "x IN temp.seen_..." of a view is written "+x IN ...", which only checks the rows a query finds, never finds
+# them. SQLite takes any IN (a list) to hold 25 rows, so for "image_id IN (SELECT value FROM json_each(?))" over a view
+# it picked the view's own list (every photo the member sees) to look rows up by, and checked each against the few
+# asked for: 0.14 s a query whatever its size. Home's memories, a hundred such queries, took 168 s for a member
+# instead of 3 (measured on a library of 55,000 photos, 2026-11-17); a count of a whole table is a little slower.
+CHECK_ONLY = re.compile(r"(?<![\w.+])(\w+) IN temp\.seen_")
 
 
 @dataclass(frozen=True)
@@ -515,8 +522,8 @@ def scope(con: sqlite3.Connection, viewer: Viewer) -> sqlite3.Connection:
         con.execute(f"INSERT INTO temp.seen_{name} SELECT value FROM json_each(?)", (viewer.lists.get(name, "[]"),))
     for table, where in SCOPED.items():
         columns = "rowid AS rowid, *" if table in WITH_ROWID else "*"
-        con.execute(f"CREATE TEMP VIEW {table} AS SELECT {columns} FROM main.{table} WHERE {where}".replace(
-            "{account}", str(int(viewer.account_id or 0))))
+        where = CHECK_ONLY.sub(r"+\1 IN temp.seen_", where).replace("{account}", str(int(viewer.account_id or 0)))
+        con.execute(f"CREATE TEMP VIEW {table} AS SELECT {columns} FROM main.{table} WHERE {where}")
     return con
 
 

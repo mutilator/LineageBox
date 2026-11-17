@@ -6,6 +6,12 @@ copies it there when the version is tagged ([releases](docs/development.md#relea
 A **catalog update** adds to the catalog's tables. LineageBox copies the catalog before it updates it, and earlier
 versions can't open the updated one.
 
+## 1.10.2 (2026-11-17)
+
+### Updated
+
+- **Home is quick again for family members.** On a large library, the memories on a member's Home could take minutes  to appear, and a year's events on the Timeline several seconds: each question about a few photos was answered by  going through every photo the member sees. Those now take a few seconds at most, and search, Family and most other  pages are faster for members too.
+
 ## 1.10.1 (2026-11-17)
 
 **Catalog update** (migration 040).
@@ -29,6 +35,8 @@ versions can't open the updated one.
   their father too, either way round, or linked through a brother or sister in some other way that made them their
   own ancestor. The person page now says why it can't, and **Read into the family tree** and a family tree import
   leave such a link out and list it with what they skipped.
+- **A couple's anniversaries are of their marriage.** Since 1.8.0, an anniversaries tour also took in the photos of
+  someone's boyfriends and girlfriends, past ones included; it is again of the people they married.
 - **Two people in one video frame are never both named as the same person.** When a face is named in a video, the
   same person is looked for on its other frames, and two faces side by side could both be given that name; now only
   the closer match is.

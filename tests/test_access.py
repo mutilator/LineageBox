@@ -129,6 +129,25 @@ def test_a_members_connection_holds_only_what_they_see(con, cfg, fam):
     c.close()
 
 
+def test_a_few_photos_asked_for_cost_the_same_however_many_a_member_sees(con, cfg, fam):
+    """A member's views only check their rows against what the member sees (access.CHECK_ONLY): the few ids a query
+    asks for are what it looks up, not the tens of thousands the member sees, one by one (Home's memories took
+    minutes that way). Counted in SQLite's steps, not timed."""
+    v = access.compute(con, fx.account(con, fam["people"]["Cora"], "cora@example.com"))
+    c = access.scope(db.connect(cfg, migrate_schema=False), v)
+    try:
+        picnic = fam["photos"]["cora_bart.jpg"]
+        c.executemany("INSERT INTO temp.seen_image VALUES (?)", ((i,) for i in range(1_000_000, 1_020_000)))
+        steps = []
+        c.set_progress_handler(lambda: steps.append(1), 1000)
+        found = [c.execute(f"SELECT * FROM {table} WHERE image_id IN (SELECT value FROM json_each(?))",
+                           (f"[{picnic}]",)).fetchall() for table in ("face", "image_tag", "file")]
+        assert found[0] and found[2]  # her picnic's faces and file: still hers
+        assert len(steps) < 10
+    finally:
+        c.close()
+
+
 def test_viewers_are_kept_and_refreshed(con, fam):
     viewers = access.Viewers()
     cora = fx.account(con, fam["people"]["Cora"], "cora@example.com")

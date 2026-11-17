@@ -37,6 +37,8 @@ class _Facts:
     day: dict[int, str]              # image id -> the day it was taken (photos dated by their file's time left out)
     photos_of: dict[int, set[int]]   # person id -> their dated image ids
     south: bool = False              # the seasons are the southern hemisphere's
+    graph: family.Graph | None = None  # the family tree and its word_index, built once: dozens of tours ask
+    words: dict[str, set[int]] | None = None
 
     def days(self, people: set[int] | None) -> Counter:
         """Photos a day: of any of these people, or anyone's."""
@@ -58,7 +60,8 @@ def suggest(con, blurry_below: float | None = None, today: date | None = None, m
                                         UNION SELECT person_id, image_id FROM image_person"""):
         if image_id in day:
             photos_of[pid].add(image_id)
-    facts = _Facts(today or date.today(), least, day, dict(photos_of), dates.south(con))
+    g = family.load(con)
+    facts = _Facts(today or date.today(), least, day, dict(photos_of), dates.south(con), g, family.word_index(con, g))
 
     candidates = []
     kinds = tours.types(con)
@@ -135,7 +138,8 @@ def _answers(con, facts: _Facts, spec: dict, asked: list[str]):
             chosen["who"]["relation"] = who["relation"]
         elif who:
             chosen["who"]["person_ids"] = who.get("people") or [who["person"]]
-        for when, when_why, when_rank, year in _when(facts, spec, asked, tours.target_people(con, chosen))[:3]:
+        targets = tours.target_people(con, chosen, facts.graph, facts.words)
+        for when, when_why, when_rank, year in _when(facts, spec, asked, targets)[:3]:
             ranks = [r for r in (who_rank, when_rank) if r is not None]
             yield ({**who, **when}, ", ".join(w for w in (who_why, when_why) if w), sum(ranks) - len(ranks) + 1,
                    people, year)
@@ -188,7 +192,7 @@ def _relations(con, facts: _Facts, spec: dict) -> list[tuple[dict, str, float, s
     for key, _, _ in tours.relation_choices(con):
         chosen = json.loads(json.dumps(spec))
         chosen["who"]["relation"] = key
-        people = tours.target_people(con, chosen) or set()
+        people = tours.target_people(con, chosen, facts.graph, facts.words) or set()
         n = len(set().union(*(facts.photos_of.get(p, set()) for p in people)))
         if n >= facts.least:
             ranked.append((-n, key, people))
@@ -224,7 +228,7 @@ def _with_events(con, facts: _Facts, people: set[int]) -> list[tuple[dict, str, 
 
 def _lines(con, facts: _Facts, people: set[int]) -> list[tuple[dict, str, float, set[int]]]:
     """People whose ancestors and they themselves are in photos over the most generations."""
-    g = family.load(con)
+    g = facts.graph if facts.graph is not None else family.load(con)
     ranked = []
     for p in people:
         line = {a: up for a, up in g.ancestors.get(p, {}).items() if a in facts.photos_of}
