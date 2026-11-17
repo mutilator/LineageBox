@@ -146,6 +146,28 @@ def test_a_button_for_each_of_her_family_opens_their_own_home(site, cfg, con):
     assert "Recent photos of you" in cora.get(f"/home/person/{p['Cora']}").text
 
 
+def test_photos_with_no_certain_date_are_still_on_a_persons_home(site, cfg, con):
+    """The days keep to photos dated to the day, since a date from a file's name or from when it was copied would put
+    an old photo under a recent day. Those photos, and photos with no date at all, are now under the days as More
+    photos: before this they were nowhere on that page, so someone whose photos are all like that had an empty one."""
+    ph, p = site["photos"], site["people"]
+    copied, undated = ph["cora_bart.jpg"], ph["hidden.jpg"]
+    con.execute("UPDATE image SET taken_at_source = 'mtime' WHERE id = ?", (copied,))
+    con.execute("UPDATE image SET taken_at = NULL, taken_at_source = NULL, hidden = 0 WHERE id = ?", (undated,))
+    con.commit()
+    cora = signed_in(cfg, con, site["who"]["Cora"])
+    page = cora.get(f"/home/person/{p['Cora']}").text  # her own: "of you"
+    days, more = page.split('id="person-more"')
+    assert "More photos of you" in more and "aren't certain" in more
+    assert sha(con, copied) in more and sha(con, copied) not in days
+    assert sha(con, ph["rex.jpg"]) not in more   # her father's photo, dated to the day, stays among the days
+    # her brother's page says his name, and a photo with no date at all is there too
+    bart = cora.get(f"/home/person/{p['Bart']}").text
+    assert "More photos of Bart" in bart and sha(con, copied) in bart.split('id="person-more"')[1]
+    assert sha(con, undated) in more     # no date at all: it would have been nowhere before
+    assert cora.get(f"/home/person/{p['Zed']}").status_code == 404  # not hers to see
+
+
 def test_everyone_in_the_tree_has_a_button_for_their_own_photos(site, cfg, con):
     """An admin's Home doesn't put their family's photos first, but has the buttons: their own, then their immediate
     family's. An account that isn't anyone has none (the "me" setting is whoever keeps the catalog), and with

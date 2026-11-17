@@ -6,6 +6,17 @@ copies it there when the version is tagged ([releases](docs/development.md#relea
 A **catalog update** adds to the catalog's tables. LineageBox copies the catalog before it updates it, and earlier
 versions can't open the updated one.
 
+## Unreleased
+
+### Fixed
+
+- **A person's Home keeps the photos whose date isn't certain.** It shows photos by the day they were taken, and a
+  date taken from when the file was copied, or from a folder's or file's name, isn't a day to put a photo under, so
+  those were left out of it altogether, as were photos with no date at all: a page could show 3 photos of someone
+  who is in 32, and someone whose photos are all film scans had an empty one. They are now under the days, as
+  **More photos of …**, newest first by whatever date they have, each with the ≈ mark that says the date is a guess.
+  (Cleanup → Suggested dates can put real dates on them.)
+
 ## 1.8.0 (2026-11-16)
 
 **Catalog update** (migrations 036 to 038).

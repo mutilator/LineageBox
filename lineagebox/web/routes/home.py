@@ -30,6 +30,7 @@ LATEST_MOST = 240  # ...and never more, however many the newest day has
 FAMILY = 48  # those of a member's own family, above them: whole days, about this many...
 FAMILY_MOST = 96  # ...and never more
 FAMILY_MORE = 60  # and this many more each time they ask for older ones
+MORE_MOST = 96  # of one person's photos whose date isn't certain, this many under their days
 RECENT_DAYS = 7  # days named by their weekday (Yesterday, Tuesday); older ones are under their month
 FORMERS = "formers"  # whether Home's family holds the partners someone once had: this browser's choice, in a cookie
 
@@ -160,6 +161,20 @@ def latest(c, today: date, people: list[int] | None = None, about: int = LATEST,
     return out, len(rows) > len(out)
 
 
+def not_by_day(c, person_id: int, today: date, most: int = MORE_MOST) -> tuple[list, int]:
+    """One person's photos that the days above them can't hold, newest first by whatever date they have, and how many
+    there are in all. The days keep to photos dated to the day (memories.PRECISE): a date from when the file was
+    copied, or from a folder's or file's name, would put an old photo under a recent day. Those photos are still
+    theirs, though, and someone whose photos are all like that had nothing on their Home at all before this."""
+    where = (f"{memories.of_people()} AND {catalog.VISIBLE} AND (i.dup_group_id IS NULL OR i.dup_group_id = i.id) "
+             f"AND NOT (i.taken_at IS NOT NULL AND i.taken_at < :tomorrow AND {memories.PRECISE})")
+    args = {"people": json.dumps([person_id]), "tomorrow": (today + timedelta(days=1)).isoformat(), "most": most}
+    rows = c.execute(f"""SELECT i.id, i.sha256, i.taken_at, i.taken_at_source, i.media, i.duration, i.width, i.height
+                         FROM image i WHERE {where}
+                         ORDER BY i.taken_at IS NULL, i.taken_at DESC, i.id DESC LIMIT :most""", args).fetchall()
+    return rows, c.execute(f"SELECT count(*) FROM image i WHERE {where}", args).fetchone()[0]
+
+
 def by_day(rows, today: date, month: tuple[int, int] | None = None) -> list[dict]:
     """Photos in date order, newest first, by the day they were taken: each day's label (Yesterday, Tuesday, then
     'Sat, Oct 31'), a month's name before the first day of each month past the last week, and its photos with their
@@ -208,8 +223,10 @@ def person_home(request: Request, person_id: int, v=Depends(viewer), c=Depends(c
     _people_or_404(c, person_id)
     today = date.today()
     theirs, older = latest(c, today, [person_id], FAMILY, FAMILY_MOST)
+    more, more_all = not_by_day(c, person_id, today)
     who, me = faces_of(c, [person_id])[0], own_person(v, c)
     return page(request, "home_person.html", nav="home", who=who, days=by_day(theirs, today), older=older,
+                more=more, more_all=more_all,
                 kin_word=_kin_words(c, me, [person_id]).get(person_id), you=person_id == me)
 
 

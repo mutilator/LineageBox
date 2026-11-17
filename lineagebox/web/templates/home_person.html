@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_home_days.html" import by_day, older_button %}
+{% import "_macros.html" as m %}
 {% block title %}{{ who.name }}{% endblock %}
 {% block main %}
 {#- Home as it would be of one person: their memories, then their newest photos, however long ago (routes/home.py). #}
@@ -18,8 +19,18 @@
   {%- if days %}
   {{ by_day(days, 3) }}
   {%- if older %}{{ older_button(days, who.id, _("Show older photos")) }}{% endif %}
-  {%- else %}
+  {%- elif not more %}
   <p class="note">{% if you %}{% trans %}No photos of you with a day they were taken yet.{% endtrans %}{% else %}{% trans name=who.name %}No photos of {{ name }} with a day they were taken yet.{% endtrans %}{% endif %}</p>
   {%- endif %}
 </section>
+{#- photos the days can't hold: their date is a guess (the file's or folder's name, or when the file was copied) or
+    there is none. They are theirs all the same, so they are here, newest first by whatever date they have. #}
+{%- if more %}
+<section class="home-feed" id="person-more">
+  <h2>{% if you %}{% trans %}More photos of you{% endtrans %}{% else %}{% trans name=who.name.split()[0] %}More photos of {{ name }}{% endtrans %}{% endif %}</h2>
+  <p class="meta">{% trans count=more_all %}The day this one was taken isn't certain, so it isn't among the days above.{% pluralize %}The days these {{ count }} were taken aren't certain, so they aren't among the days above.{% endtrans %}</p>
+  {{ m.grid(more, "person:" ~ who.id) }}
+  {%- if more_all > more|length %}<p class="meta">{% trans who_id=who.id %}<a href="/person/{{ who_id }}">Their page</a> has every photo of them.{% endtrans %}</p>{% endif %}
+</section>
+{%- endif %}
 {% endblock %}
