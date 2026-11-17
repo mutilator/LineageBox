@@ -68,16 +68,23 @@ body { margin: 0; background: var(--bg); color: var(--text); font: 1rem/1.5 syst
 .skip:focus { top: 8px; }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 main:focus { outline: none; }  /* reached by the skip link: the page itself needs no ring */
-/* a message at the foot of the page (app.js notice()): what went wrong, or what was done, with Undo */
+/* a message at the foot of the page (app.js notice()): what went wrong, or what was done, with Undo. It slides up
+   as it comes, so that a change made at the foot of a long list is noticed. */
 #notice { position: fixed; left: 50%; bottom: 16px; z-index: 60; transform: translateX(-50%); display: flex;
           align-items: center; gap: 10px; width: max-content; max-width: min(680px, calc(100vw - 32px));
-          padding: 10px 12px 10px 16px; border-radius: 10px; background: var(--text); color: var(--bg);
-          box-shadow: 0 8px 24px rgb(0 0 0 / .3); }
+          padding: 12px 14px 12px 16px; border-radius: 10px; background: var(--text); color: var(--bg);
+          font-size: 1.05rem; box-shadow: 0 10px 28px rgb(0 0 0 / .35); animation: notice-in .22s ease-out; }
 #notice[hidden] { display: none; }
 #notice.error { background: var(--danger); color: #fff; }
 #notice span { overflow-wrap: anywhere; }
+/* the round mark: a tick for what was done, ! for what went wrong */
+#notice .mark { flex: none; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
+                background: var(--keep); color: var(--bg); font-weight: 700; }
+#notice.error .mark { background: #fff; color: var(--danger); }
 #notice button { flex: none; background: none; color: inherit; border-color: currentColor; }
 #notice button.close { border: 0; font-size: 1.2rem; padding: 0 6px; }
+@keyframes notice-in { from { opacity: 0; transform: translate(-50%, 14px); } }
+@media (prefers-reduced-motion: reduce) { #notice { animation: none; } }
 @media (max-width: 760px) { .viewer-page #notice { bottom: 80px; } }
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
@@ -407,6 +414,14 @@ button:disabled { opacity: .5; cursor: wait; }
 .pick { position: relative; cursor: pointer; }
 .pick input { position: absolute; top: 6px; left: 6px; z-index: 1; width: 20px; height: 20px; margin: 0; }
 .pick:has(input:checked) img { outline: 3px solid var(--danger); outline-offset: -3px; opacity: .6; }
+/* a photo the tick-photos bar has just changed (app.js bulkDone): it lights up green and settles back to ticked, so
+   it is plain which photos the change was made to */
+.pick.just-done img { animation: just-done 1.1s ease-out; }
+@keyframes just-done {
+  0%, 60% { outline: 3px solid var(--keep); outline-offset: -3px; opacity: 1; }
+  100% { outline: 3px solid var(--danger); outline-offset: -3px; opacity: .6; }
+}
+@media (prefers-reduced-motion: reduce) { .pick.just-done img { animation: none; } }
 .pick.keep:has(input:not(:checked)) img { outline: 3px solid var(--keep); outline-offset: -3px; }
 .pick .open { position: absolute; top: 4px; right: 4px; z-index: 1; padding: 0 6px; border-radius: 4px;
               background: rgba(0, 0, 0, .55); color: #fff; }
@@ -640,6 +655,12 @@ a.fcard:hover { text-decoration: none; border-color: var(--accent); }
               border-radius: 50%; color: var(--accent); font-weight: 700; }
 .fcard-open:hover { text-decoration: none; background: var(--tile); }
 @media (pointer: coarse) { .fcard-open { width: 40px; height: 40px; top: -4px; left: -4px; } }
+/* × on a card under Not placed yet (admins): take out of the catalog someone with no photos, no family and no group */
+.fcard-remove { position: absolute; top: 2px; right: 2px; z-index: 1; display: grid; place-items: center;
+                width: 26px; height: 26px; padding: 0; border: 0; border-radius: 50%; background: none;
+                color: var(--muted); font-size: 1.1rem; line-height: 1; }
+.fcard-remove:hover { background: var(--danger); color: #fff; }
+@media (pointer: coarse) { .fcard-remove { width: 40px; height: 40px; top: -4px; right: -4px; } }
 .legend { margin: 6px 0 0; }
 .meaning-form { display: grid; gap: 8px; max-width: 34em; margin: 8px 0; }
 .meaning-form label { display: grid; grid-template-columns: 8rem 1fr; align-items: center; gap: 8px; }
@@ -1656,7 +1677,7 @@ ul.life-events > li { margin: 2px 0; display: flex; flex-wrap: wrap; align-items
   body:not(.book-page) main { max-width: none; padding: 0; }
   :is(.person-page, .family-page) main :is(button:not(.chip.on), [type="submit"], .hint, .portrait-change,
     .portrait-pick > :not(summary), .read-panel, .years-link,
-    #gedcom, #tree-media, audio, video, .story-record, .add-link, .fcard-open, .events-toggle, .people-filter, datalist,
+    #gedcom, #tree-media, audio, video, .story-record, .add-link, .fcard-open, .fcard-remove, .events-toggle, .people-filter, datalist,
     .kind-form select) { display: none !important; }
   :is(.person-page, .family-page) main :is(input, select, textarea) { border: 0; background: none; padding: 0;
     color: inherit; font: inherit; appearance: none; box-shadow: none; }

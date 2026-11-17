@@ -45,9 +45,10 @@ async function post(url, body) {
 }
 
 // A message at the foot of the page, instead of the browser's alert box: what went wrong (it stays until closed), or
-// what was just done, with Undo beside a change that can be put back (answered with its change id as "undo"). One at
-// a time; a new one takes the place of the last. Kept over a reload (later()), so a change that loads the page again
-// still says what it did.
+// what was just done, with Undo beside a change that can be put back (answered with its change id as "undo"). It
+// slides up as it comes, marked ✓ for what was done and ! for what went wrong, above the tick-photos bar where the
+// page has one. One at a time; a new one takes the place of the last. Kept over a reload (later()), so a change that
+// loads the page again still says what it did.
 function notice(text, { error = false, undo = null } = {}) {
   let bar = document.getElementById("notice");
   if (!bar) {
@@ -57,7 +58,12 @@ function notice(text, { error = false, undo = null } = {}) {
   clearTimeout(bar.closing);
   bar.setAttribute("role", error ? "alert" : "status");
   bar.className = error ? "error" : "";
-  bar.replaceChildren(Object.assign(document.createElement("span"), { textContent: text }));
+  // over the tick-photos bar, not across it: the bar the change was made in stays in sight under the message
+  const bulk = document.querySelector(".select-bar");
+  bar.style.bottom = bulk ? `${Math.round(bulk.getBoundingClientRect().height) + 24}px` : "";
+  const mark = Object.assign(document.createElement("span"), { className: "mark", textContent: error ? "!" : "✓" });
+  mark.setAttribute("aria-hidden", "true");
+  bar.replaceChildren(mark, Object.assign(document.createElement("span"), { textContent: text }));
   if (undo) {
     const button = Object.assign(document.createElement("button"), { type: "button", textContent: t("Undo") });
     button.dataset.api = `/api/changes/${undo}/undo-own`;
@@ -69,7 +75,10 @@ function notice(text, { error = false, undo = null } = {}) {
   close.addEventListener("click", () => (bar.hidden = true));
   bar.append(close);
   bar.hidden = false;
-  if (!error) bar.closing = setTimeout(() => (bar.hidden = true), undo ? 15000 : 6000);
+  bar.style.animation = "none";  // said again: it slides up afresh, so the second change is noticed as well
+  void bar.offsetWidth;
+  bar.style.animation = "";
+  if (!error) bar.closing = setTimeout(() => (bar.hidden = true), undo ? 15000 : 8000);
 }
 function later(text, options) {
   try { sessionStorage.setItem("lineagebox-notice", JSON.stringify([text, options])); } catch {}
@@ -201,6 +210,28 @@ function updateSelection(form) {
   });
 }
 
+// A change made to the ticked photos that leaves them ticked (the tick-photos bar's data-keep buttons: a tag,
+// someone added, a date, an album, describing again). The list itself doesn't change, so it would look as though
+// nothing had happened: the box it was typed in is emptied, and the photos it changed flash. What it did is said at
+// the foot of the page (run(), notice()).
+function bulkDone(form, pressed, ids) {
+  pressed?.closest(".bulk-field")?.querySelectorAll("input").forEach((input) => {
+    if (input.name === "ai_model") return;  // which model to describe with: how, not what was done, so it stays
+    input.value = "";
+    delete input.dataset.pickedId;
+    delete input.dataset.pickedName;
+  });
+  const changed = new Set(ids);
+  const tiles = [...form.querySelectorAll('.pick input[name="image"]')]
+    .filter((box) => changed.has(Number(box.value))).map((box) => box.closest(".pick"));
+  tiles.forEach((tile) => tile.classList.remove("just-done"));
+  void form.offsetWidth;  // pressed twice over: the flash starts afresh rather than not showing at all
+  tiles.forEach((tile) => {
+    tile.classList.add("just-done");
+    tile.addEventListener("animationend", () => tile.classList.remove("just-done"), { once: true });
+  });
+}
+
 // Settings forms: lists from checkboxes named "x[]", other checkboxes as on/off, the checked radio, everything
 // else as typed.
 function settingsBody(form) {
@@ -316,16 +347,18 @@ document.addEventListener("submit", (e) => {
       if (el.name && el.name !== "image" && el.matches("input:not([type=checkbox])")) body[el.name] = el.value.trim();
     }
     addPicked(form, body);
+    const pressed = e.submitter;
     // the moved or kept photos drop off the page; tagging them (data-keep) leaves them, ticked
-    const keep = "keep" in (e.submitter?.dataset ?? {});
+    const keep = "keep" in (pressed?.dataset ?? {});
     // photos ticked out of sight (Select all on a big list, or on other pages): moving them is asked first
     const here = form.querySelectorAll('input[name="image"]:checked').length;
     if (!keep && ids.length > here && !confirm(t("{action}? {n} photos are ticked, and only {here} of them are on this page.",
-        { action: (e.submitter?.textContent || "").trim(), n: num(ids.length), here: num(here) }))) return;
+        { action: (pressed?.textContent || "").trim(), n: num(ids.length), here: num(here) }))) return;
     if (keep) delete form.dataset.reload;
     else form.dataset.reload = "";
-    run(form, e.submitter?.dataset.api || form.dataset.selectApi, body).then((done) => {
+    run(form, pressed?.dataset.api || form.dataset.selectApi, body).then((done) => {
       if (done && !keep) forgetTicks(form);  // moved away: not ticked when the page comes back
+      if (done && keep) bulkDone(form, pressed, ids);  // they stay in the list: it shows on them that it was done
       updateSelection(form);
     });
   } else if ("settings" in form.dataset) {

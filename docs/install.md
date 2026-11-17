@@ -143,7 +143,9 @@ can be restored:
   because a file can't be moved onto another mount.
 
 The scan never reads folders whose names end in `-Removed`. **Empty the Removed folder** is the only thing in LineageBox
-that deletes files.
+that deletes files. If you delete files from a Removed folder yourself instead — over the share, or with the drive in
+another machine — the worker notices on its next check and forgets them, so the storage figures stop counting the room
+they took and they are no longer offered to be put back.
 
 The worker mounts the photos read-only. Only the web container (for Cleanup and uploads) and the copies container (for
 720p copies, written next to each video as `name.720p.mp4`) can write to them. Once **XMP sidecars** are turned on

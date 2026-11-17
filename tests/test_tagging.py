@@ -254,7 +254,8 @@ def test_dates_set_by_hand(lib, cfg):
     assert 'class="select-form"' in picking and 'data-api="/api/selection/date"' in picking
     assert 'href="/folder/{}?select=1"'.format(folder) in client.get(f"/folder/{folder}").text
     r = client.post("/api/selection/date", json={"image_ids": [blue, zoo], "date": "the 1980s"}, headers=APP)
-    assert r.json() == {"message": "Dated 2 photos 1980s."} and when(blue)[2] == when(zoo)[2] == "1980s"
+    assert r.json()["message"] == "Dated 2 photos 1980s." and when(blue)[2] == when(zoo)[2] == "1980s"
+    assert r.json()["undo"]  # the ticked photos' changes can be put back from the message that says what was done
     assert when(zoo)[5:] == ("2012-06-03T10:00:00", "exif")
     assert client.post("/api/selection/date", json={"image_ids": [blue], "date": " "}, headers=APP).status_code == 400
     assert "Set by you" in client.get("/status").text and client.get("/photos/dates/user").status_code == 200

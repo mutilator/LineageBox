@@ -296,7 +296,7 @@
   <p class="meta">{% if select %}<a href="/person/{{ person.id }}#life">{% trans %}Done selecting{% endtrans %}</a>{% else %}<a href="/person/{{ person.id }}?select=1#life" title="{{ _('Tick photos to date them, tag them, add someone to them or put them in an album') }}">{% trans %}Select photos{% endtrans %}</a>{% endif %}</p>
   {%- endif %}
   {%- if timeline.periods %}
-  {%- if select %}<form class="select-form" data-select-api="/api/images/remove" data-reason="person: {{ person.name }}" data-show=".select-bar .done">{% endif %}
+  {%- if select %}<form class="select-form" data-select-api="/api/images/remove" data-reason="person: {{ person.name }}">{% endif %}
   <ol class="life">
     {%- for p in timeline.periods %}
     <li class="period{% if p.key in ('before', 'after', 'undated') %} aside{% endif %}">

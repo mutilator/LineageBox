@@ -138,9 +138,13 @@ def run_once(con: sqlite3.Connection, cfg: Config, stop: Stopper | None = None) 
         if s.missing:  # deleted, or in a folder no longer watched: out of the similar-shot and face groups
             stage("dedup", lambda: dedup.group(con))
             stage("group faces", lambda: people.cluster(con))
-        # previews and the like of photos deleted on the share; only after a scan that could list every folder
-        if not s.errors and (n := stage("tidy previews", lambda: cleanup.drop_derivatives(con, cfg))):
-            log(con, f"previews: deleted those of {n} photos whose files are gone")
+        # only after a scan that could list every folder: files deleted by hand in the Removed folders (which the
+        # scan never walks) are forgotten, and then previews and the like of photos that are gone for good
+        if not s.errors:
+            if n := stage("forget deleted", lambda: cleanup.forget_deleted(con, cfg)):
+                log(con, f"Removed folders: {n} files that were deleted there by hand are forgotten")
+            if n := stage("tidy previews", lambda: cleanup.drop_derivatives(con, cfg)):
+                log(con, f"previews: deleted those of {n} photos whose files are gone")
     # once a day, on the first pass of the day: a copy of the catalog, checked, kept for weeks (backup.py); after the
     # scan, which only notes what is on the share, and before the long stages, so that a backlog doesn't hold it up
     if backup.due(con, cfg):

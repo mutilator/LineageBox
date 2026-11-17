@@ -21,7 +21,7 @@
 <p class="meta">{% trans count=images|length, images=images|length|number %}{{ images }} photo{% pluralize %}{{ images }} photos{% endtrans %}
   · {% if select %}<a href="/timeline/{{ year }}" data-key="s">{% trans %}Done selecting{% endtrans %}</a>{% else %}<a href="/timeline/{{ year }}?select=1" data-key="s" title="{{ _('Tick photos to date them, tag them, add someone to them or put them in an album') }}">{% trans %}Select photos{% endtrans %}</a>{% endif %}</p>
 {% if select %}
-<form class="select-form" data-select-api="/api/images/remove" data-reason="year: {{ year }}" data-show=".select-bar .done">
+<form class="select-form" data-select-api="/api/images/remove" data-reason="year: {{ year }}">
   {{ pc.pieced(photos) }}
   {{ m.bulk_bar(models=viewer.admin, everything=everything) }}
 </form>

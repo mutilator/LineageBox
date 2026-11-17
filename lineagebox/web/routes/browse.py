@@ -418,9 +418,12 @@ def category_page(request: Request, value: str, select: bool = False, pg: int = 
 
 @router.get("/people", response_class=HTMLResponse)
 def people_page(request: Request, v=Depends(viewer), c=Depends(con), s: Site = Depends(site)):
-    """Everyone named; their unnamed faces wait under Cleanup → Confirm faces. The counts are kept a minute."""
-    named = s.keep(v, ("people",), COUNTS_FOR, lambda: catalog.people(c))
+    """Everyone named, those with no photos last (everyone=True): someone no photo here shows - in the family tree,
+    added by a reading or an import, or a name typed by mistake - is on no other list, so leaving them out left no
+    way to open them at all. Their unnamed faces wait under Cleanup → Confirm faces. The counts are kept a minute."""
+    named = s.keep(v, ("people, everyone",), COUNTS_FOR, lambda: catalog.people(c, everyone=True))
     return page(request, "people.html", nav="people", named=named, s=_stats(s, v, c), kin=_kin_labels(c),
+                no_photos=sum(1 for p in named if not p["photos"]),
                 circles=people.groups(c), also=people.also_known(c),
                 total_groups=s.keep(v, ("face groups",), COUNTS_FOR, lambda: catalog.clusters(c, 0, 0)[1]),
                 beside=s.keep(v, ("beside named",), COUNTS_FOR, lambda: people.beside_named(c)))
@@ -597,7 +600,7 @@ def family_page(request: Request, root: int | None = None, center: int | None = 
     circles = people.groups(c)
     linked = set(kin) | {p for r in g.relations for p in r[:2]} | set(g.parents) | set(g.children)
     linked |= set(g.partners) | set(g.siblings) | {p for ids in circles.values() for p in ids}
-    named = catalog.people(c)
+    named = catalog.people(c, everyone=True)  # those with no photos too: Not placed yet is where they are tidied up
     if center not in g.people:  # the family around you; before "This is me", around whoever has the most photos
         in_family = set(g.parents) | set(g.children) | set(g.partners) | set(g.siblings)
         center = ego if ego is not None else next((p["id"] for p in named if p["id"] in in_family), None)
@@ -612,9 +615,19 @@ def family_page(request: Request, root: int | None = None, center: int | None = 
                 view=family.view(g, center, ego) if center is not None else None, line_root=line_root,
                 groups=[(name, groups[name]) for name in family.GROUPS if name in groups],
                 others=_others_by_whose(g),
-                unplaced=[p for p in named if p["id"] not in linked], covers=_covers(named), circles=circles,
+                unplaced=_unplaced(c, named, linked), covers=_covers(named), circles=circles,
                 names_to_check=c.execute("SELECT count(*) FROM person WHERE NOT names_checked").fetchone()[0],
                 **reading)
+
+
+def _unplaced(c, named, linked: set) -> list[dict]:
+    """Named people with no relationship and no group entered, for the Family page: those with no photos first, since
+    nothing else in the library shows them. Each says whether an admin may take them out of the catalog altogether
+    (people.why_kept): offered only for those with no photos, so a × can never lose a photo's name."""
+    out = [p for p in named if p["id"] not in linked]
+    out.sort(key=lambda p: (bool(p["photos"]), p["name"].lower()))
+    return [{"id": p["id"], "photos": p["photos"],
+             "removable": not p["photos"] and people.why_kept(c, p["id"]) is None} for p in out]
 
 
 @router.get("/family/tree", response_class=HTMLResponse)

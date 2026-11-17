@@ -1,4 +1,5 @@
 import re
+from dataclasses import replace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -112,6 +113,40 @@ def test_put_back_by_hand_is_noticed(lib, cfg, library):
     scan(con, cfg)
     f = file_row(con, ZOO_B)
     assert f["missing"] == 0 and f["removed_at"] is None
+
+
+def test_files_deleted_in_the_removed_folder_by_hand_are_forgotten(lib, cfg, library):
+    """The scan never walks the Removed folders, so nothing noticed a file deleted there by hand: its row went on
+    claiming room on the storage meter and offering to put the photo back, and its preview was kept for ever."""
+    con = lib
+    image_id = file_row(con, ZOO_A)["image_id"]
+    sha = con.execute("SELECT sha256 FROM image WHERE id = ?", (image_id,)).fetchone()[0]
+    cleanup.remove_images(con, cfg, [image_id], "test")
+    assert removed(cfg, ZOO_A).is_file() and removed(cfg, ZOO_B).is_file()
+    assert cfg.preview_path(sha).is_file()
+    assert cleanup.forget_deleted(con, cfg) == 0  # both files are there to be put back
+
+    removed(cfg, ZOO_A).unlink()  # deleted over the share
+    assert cleanup.forget_deleted(con, cfg) == 1
+    assert file_row(con, ZOO_A) is None and file_row(con, ZOO_B)["removed_at"] is not None
+    assert cleanup.drop_derivatives(con, cfg) == 0 and cfg.preview_path(sha).is_file()  # the other copy can come back
+
+    removed(cfg, ZOO_B).unlink()
+    assert cleanup.forget_deleted(con, cfg) == 1 and file_row(con, ZOO_B) is None
+    assert con.execute("SELECT count(*) FROM file WHERE removed_at IS NOT NULL").fetchone()[0] == 0
+    assert cleanup.drop_derivatives(con, cfg) == 1 and not cfg.preview_path(sha).is_file()
+    assert cleanup.forget_deleted(con, cfg) == 0
+
+
+def test_nothing_is_forgotten_while_a_watched_folder_is_away(lib, cfg, library):
+    """An unmounted share is an empty folder, where every file would look deleted."""
+    con = lib
+    cleanup.remove_files(con, cfg, [file_row(con, ZOO_B)["id"]], "test")
+    away = replace(cfg, folders=("nowhere",))
+    removed(cfg, ZOO_B).unlink()
+    assert cleanup.forget_deleted(con, away) == 0 and file_row(con, ZOO_B) is not None
+    assert cleanup.forget_deleted(con, replace(cfg, folders=())) == 0
+    assert cleanup.forget_deleted(con, cfg) == 1  # the folder is there: the file really is gone
 
 
 def test_similar_shots_keep_the_group_searchable(lib, cfg):

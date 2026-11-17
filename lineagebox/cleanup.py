@@ -8,6 +8,8 @@ page.
 
 What LineageBox made from a photo (preview, thumbnail, video frames, face crops, a video's 720p copy) is deleted once
 the photo is gone for good: emptied from Removed, or deleted on the share by hand (drop_derivatives, after each scan).
+The scan never walks the Removed folders, so a file deleted there by hand is noticed by forget_deleted() instead,
+which the worker runs after each clean scan.
 
 A video's 720p copy (copies.py) goes wherever its video goes, unless another copy of the video stays in the library:
 then the 720p copy moves next to that one, so the video still plays.
@@ -22,8 +24,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from lineagebox import live, media, mounts, search, sidecars, video
-from lineagebox.catalog import VISIBLE
+from lineagebox import live, media, mounts, scan, search, sidecars, video
+from lineagebox.catalog import VISIBLE, under
 from lineagebox.config import Config
 from lineagebox.faces import usable_faces_sql
 from lineagebox.folders import FolderIndex
@@ -179,6 +181,29 @@ def empty_removed(con: sqlite3.Connection, cfg: Config) -> Moved:
     result.moved = len(deleted)
     drop_derivatives(con, cfg)
     return result
+
+
+def forget_deleted(con: sqlite3.Connection, cfg: Config) -> int:
+    """Forget the files someone deleted from a Removed folder themselves, over the share or with the drive in another
+    machine. The scan never walks those folders, so nothing else notices they are gone: their rows would go on
+    claiming room on the storage meter, Cleanup would go on offering to put them back, and what was made from the
+    photos would be kept for a file that can never come back. The rows are dropped as Empty drops them, and the
+    worker's drop_derivatives then deletes the previews and the rest. Nothing on the share is touched.
+
+    Only the Removed folders of the watched folders, and only while every watched folder can be reached: an unmounted
+    share is an empty folder, where every file would look deleted. A file removed from a folder that is no longer
+    watched is left alone, since the disk it was on may simply be away. Returns how many files were forgotten."""
+    if not cfg.folders or not all(scan.reachable(con, cfg, w) for w in cfg.folders):
+        return 0
+    gone = []
+    for watched in cfg.folders:
+        rows = con.execute("""SELECT id, removed_path FROM file WHERE removed_at IS NOT NULL
+                              AND removed_path LIKE ? ESCAPE '!'""", (under(removed_folder(cfg, watched)),)).fetchall()
+        gone += [r["id"] for r in rows if not (cfg.share_root / r["removed_path"]).exists()]
+    for start in range(0, len(gone), CHUNK):
+        _in(con, "DELETE FROM file WHERE id IN ({})", gone[start:start + CHUNK])
+        con.commit()
+    return len(gone)
 
 
 def drop_derivatives(con: sqlite3.Connection, cfg: Config) -> int:

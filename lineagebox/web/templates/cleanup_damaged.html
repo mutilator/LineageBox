@@ -7,12 +7,11 @@ than when they were cataloged. The worker reads every file whole once ({{ checke
 {{ files }} so far), then each new one. Previews and thumbnails that are gone are made again from
 the originals by the worker, once a day.{% endtrans %}</p>
 {% if files %}
-<form class="select-form" data-select-api="/api/damaged/remove" data-reason="damaged" data-show=".select-bar .done">
+<form class="select-form" data-select-api="/api/damaged/remove" data-reason="damaged">
   <div class="select-bar">
     <button type="button" data-select="all" data-key="a">{% trans %}Select all{% endtrans %}</button>
     <button type="button" data-select="none" data-key="n">{% trans %}Select none{% endtrans %}</button>
     <button type="submit" class="primary" data-label="{{ _('Move {n} to Removed') }}" disabled>{% trans %}Move 0 to Removed{% endtrans %}</button>
-    <span class="done hint inline" role="status"></span>
   </div>
   <ul class="damaged">
     {%- for f in files %}

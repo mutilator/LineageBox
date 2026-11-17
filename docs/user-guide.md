@@ -73,8 +73,10 @@ person's page.
 
 ### Naming faces
 
-The **People** page lists everyone named, and **Name faces** at its top asks about the faces still to name, one at a
-time: the face large, with the whole photo beside it (above it on a phone) and the face outlined. Recognition learns
+The **People** page lists everyone named, most photos first. **No photos**, beside the groups, picks out those no
+photo here shows: people in the family tree whose photos aren't in the library, people a reading or an import added,
+and names typed by mistake. They can be opened and edited like anyone else. **Name faces** at its top asks about the
+faces still to name, one at a time: the face large, with the whole photo beside it (above it on a phone) and the face outlined. Recognition learns
 from every face you name, so each answer helps it find the rest.
 
 - **Is this …?** shows who the face most likely is. **Yes** names it as them; **Not them** says it isn't them, and the
@@ -164,6 +166,12 @@ step-family) relative to the person marked **This is me**. Those words work in s
   Below it, folded away, are everyone by relationship (point at a group to see who is in it, or click it to keep it
   open), friends and pets, groups, and the people not placed yet. Each person's page lists their whole family from
   their own point of view.
+- **Not placed yet**, at the foot of the Family page, is everyone with no relationship and no group entered, those
+  with no photos first. Open one to say how they're related or to put them in a group. An admin tidying up can take
+  someone out of the catalog for good with the **×** on their card; it is offered only for those with no photos at
+  all, who are in no part of the family tree and no group, so nothing else is left referring to them — a name typed
+  by mistake, or someone a reading or an import added who turned out not to belong. **Undo** in the message that
+  follows puts them back.
 - **View in classic family tree style** opens the whole line down from one ancestor on a page of its own: drag to
   move around the tree, scroll or pinch to zoom, and **Save as a picture** downloads the whole tree as one large PNG.
 - **Life events** (births, weddings, moves, graduations, adoption, bar and bat mitzvahs, censuses, probate and more,
@@ -679,7 +687,9 @@ it. They are listed on **Albums** (under Tours).
 
 The **Cleanup** page lists what could go. Nothing is removed until you pick it, and removed files go to a Removed folder
 next to their watched folder, keeping their folder path. **Removed** restores a whole cleanup step at once, or a single
-photo from its page. **Empty the Removed folder** is the only thing in LineageBox that deletes files.
+photo from its page. **Empty the Removed folder** is the only thing in LineageBox that deletes files. You can also
+delete files from a Removed folder yourself, over the share: the worker notices on its next check and forgets them, so
+the storage on Status stops counting the room they took and they are no longer offered to be put back.
 
 **Private papers** comes first, on its own: photos that look like identity cards (a driver's license, a
 passport, a Social Security card), bank and credit cards, checks, tax forms, insurance cards, health records, or the

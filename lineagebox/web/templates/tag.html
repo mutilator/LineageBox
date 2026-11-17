@@ -30,7 +30,7 @@
 </details>
 {% endif %}
 {% if select %}
-<form class="select-form" data-select-api="/api/images/remove" data-reason="tag: {{ tag }}" data-show=".select-bar .done">
+<form class="select-form" data-select-api="/api/images/remove" data-reason="tag: {{ tag }}">
   {{ pc.pieced(photos) }}
   {{ m.bulk_bar(tag, models=viewer.admin, everything=everything) }}
 </form>

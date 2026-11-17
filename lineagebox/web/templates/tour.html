@@ -29,7 +29,7 @@
 <p class="meta">{% if select %}<a href="/tour/{{ tour.id }}" data-key="s">{% trans %}Done selecting{% endtrans %}</a>{% else %}<a href="/tour/{{ tour.id }}?select=1" data-key="s" title="{{ _('Tick photos to date them, tag them, add someone to them or put them in an album') }}">{% trans %}Select photos{% endtrans %}</a>{% endif %}</p>
 {% endif %}
 {% if images and select %}
-<form class="select-form" data-select-api="/api/images/remove" data-reason="tour: {{ tour.name }}" data-show=".select-bar .done">
+<form class="select-form" data-select-api="/api/images/remove" data-reason="tour: {{ tour.name }}">
   {{ pc.pieced(photos) }}
   {{ m.bulk_bar(models=viewer.admin, everything=everything) }}
 </form>

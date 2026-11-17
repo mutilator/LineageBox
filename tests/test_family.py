@@ -268,6 +268,30 @@ def test_family_pages_and_api(con, cfg, fam):
     assert "your father" in client.get(f"/person/{fam['Mike']}").text
 
 
+def test_people_with_no_photos_are_shown_and_can_be_tidied_up(con, cfg, fam):
+    """Someone no photo shows was left off the People page and off Not placed yet, so there was no way to open them:
+    a name typed by mistake could never be edited or taken out again (the user's ask)."""
+    client = TestClient(webapp.create_app(cfg), client=LAN)
+    app = {"X-Requested-With": "lineagebox"}
+    stray = people.person_id(con, "g")  # a name typed by mistake: no photos, no family, no group
+    con.commit()
+
+    page = client.get("/people").text
+    assert f'href="/person/{stray}"' in page and f'href="/person/{fam["Jake"]}"' in page
+    assert 'data-value="no photos"' in page  # the chip that picks them out of the list
+
+    shown = client.get("/family").text
+    unplaced = shown.split("Not placed yet")[1]
+    assert f'/person/{stray}"' in unplaced and "no photos" in unplaced
+    assert f'data-api="/api/people/{stray}/remove"' in unplaced  # × for an admin: nothing else refers to them
+    assert f'data-api="/api/people/{fam["Jake"]}/remove"' not in shown  # Jake is a friend of Owen's: placed
+
+    r = client.post(f"/api/people/{stray}/remove", headers=app)
+    assert r.status_code == 200 and r.json()["undo"]
+    assert con.execute("SELECT count(*) FROM person WHERE name = 'g'").fetchone()[0] == 0
+    assert "Not placed yet" not in client.get("/family").text
+
+
 def test_merging_people_keeps_their_family(con, fam):
     family.merge(con, fam["Kyle"], fam["Jake"])  # say Kyle and Jake were one person named twice
     con.execute("DELETE FROM person WHERE id = ?", (fam["Kyle"],))

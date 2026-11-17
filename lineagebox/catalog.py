@@ -155,11 +155,16 @@ def group_members(con: sqlite3.Connection, image_id: int) -> list[sqlite3.Row]:
         ORDER BY i.taken_at, i.id""", {"id": image_id}).fetchall()
 
 
-def people(con: sqlite3.Connection) -> list[sqlite3.Row]:
+def people(con: sqlite3.Connection, everyone: bool = False) -> list[sqlite3.Row]:
     """Named people with photo counts (photos still in the library: by face, or added by hand) and, as a cover, the
     portrait chosen for them (person.cover_face_id) while that face is still theirs, else their clearest hand-named
     face. Someone only added to photos by hand, with no face named, has the newest of those
-    photos instead (cover_photo, its sha256), and cover_face None."""
+    photos instead (cover_photo, its sha256), and cover_face None.
+
+    Most photos first, then by name. everyone: those no photo in the library shows as well, last, with no photos and
+    no cover - someone in the family tree whose photos aren't here, someone a reading or an import added, a name
+    typed by mistake. Without it they are left out altogether, which is what the pages that pick from photos want,
+    but means the pages that list people must ask for everyone or those people can never be opened."""
     return con.execute(f"""
         WITH shown AS (
             SELECT f.person_id, f.image_id, f.assigned_by FROM face f JOIN image i ON i.id = f.image_id
@@ -175,8 +180,8 @@ def people(con: sqlite3.Connection) -> list[sqlite3.Row]:
                    (SELECT i.sha256 FROM image_person l JOIN image i ON i.id = l.image_id
                     WHERE l.person_id = p.id AND {VISIBLE} ORDER BY i.taken_at DESC, i.id DESC LIMIT 1)
                END AS cover_photo
-        FROM person p JOIN shown s ON s.person_id = p.id
-        GROUP BY p.id ORDER BY photos DESC""").fetchall()
+        FROM person p {"LEFT JOIN" if everyone else "JOIN"} shown s ON s.person_id = p.id
+        GROUP BY p.id ORDER BY photos DESC, p.name COLLATE NOCASE""").fetchall()
 
 
 def person(con: sqlite3.Connection, person_id: int) -> sqlite3.Row | None:

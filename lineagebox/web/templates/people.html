@@ -17,14 +17,18 @@
          placeholder="{{ _('Find someone: a name, a maiden name, a group, a relationship') }}" aria-label="{{ _('Find someone') }}" autocomplete="off">
   <span class="hint inline" id="people-shown"></span>
 </p>
-{%- if circles %}
-<p class="chips">{% trans %}Groups:{% endtrans %}
+{%- if circles or no_photos %}
+<p class="chips">{% if circles %}{% trans %}Groups:{% endtrans %}{% endif %}
   {%- for name, ids in circles.items() %} <button type="button" class="chip" data-fill="#people-filter" data-value="{{ name }}">{{ name }} <small>{{ ids|length }}</small></button>{% endfor %}
+  {#- Named, but no photo in the library shows them: people in the family tree whose photos aren't here, people a
+      reading or an import added, names typed by mistake. They are last in the list; this picks them out. #}
+  {%- if no_photos %} <button type="button" class="chip" data-fill="#people-filter" data-value="no photos"
+    title="{{ _('Named people no photo here shows: in the family tree, from a reading or an import, or typed by mistake') }}">{% trans %}No photos{% endtrans %} <small>{{ no_photos }}</small></button>{% endif %}
 </p>
 {%- endif %}
 <div class="people">
 {%- for p in named %}
-  <a class="person-card" href="/person/{{ p.id }}"{% if loop.index > 30 %} hidden{% endif %} data-text="{{ p.name }} {{ also.get(p.id, '') }} {{ kin.get(p.id, '') }}">
+  <a class="person-card" href="/person/{{ p.id }}"{% if loop.index > 30 %} hidden{% endif %} data-text="{{ p.name }} {{ also.get(p.id, '') }} {{ kin.get(p.id, '') }}{% if not p.photos %} no photos{% endif %}">
     {%- if p.cover_face %}<img src="/face/{{ p.cover_face }}" alt="" loading="lazy">
     {%- elif p.cover_photo %}<img src="/t/{{ p.cover_photo }}" alt="" loading="lazy">
     {%- else %}<span class="ph" aria-hidden="true">{{ p.name[:1] }}</span>{% endif %}

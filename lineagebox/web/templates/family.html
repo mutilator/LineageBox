@@ -125,9 +125,22 @@ from who is whose parent, sibling or partner.{% endtrans %}</p>
 {% if unplaced %}
 <details class="info-panel">
 <summary><h2>{% trans %}Not placed yet{% endtrans %}</h2> <span class="hint inline">{{ unplaced|length }}</span></summary>
-<p class="meta">{% trans %}Named people with no relationship or group entered. Open one to say how they're related, or put
-them in a group (Teachers, Family friends, a band).{% endtrans %}</p>
-<div class="family-cards">{% for p in unplaced %}{{ card(p.id) }}{% endfor %}</div>
+<p class="meta">{% trans %}Named people with no relationship and no group entered, those with no photos first. Open one to
+say how they're related, or put them in a group (Teachers, Family friends, a band).{% endtrans %}</p>
+{%- if viewer.admin and unplaced|selectattr("removable")|first %}
+<p class="hint">{% trans %}× takes someone out of the catalog for good: it is offered only for those with no photos at
+all, who are in no part of the family tree and no group, so nothing else here is left referring to them. For a name
+typed by mistake, or someone a reading or an import added who turned out not to belong.{% endtrans %}</p>
+{%- endif %}
+<div class="family-cards">
+{%- for p in unplaced %}
+  <span class="fcard-holder">{{ card(p.id, note=_("no photos") if not p.photos else "") }}
+    {%- if viewer.admin and p.removable %}<button type="button" class="fcard-remove" data-api="/api/people/{{ p.id }}/remove" data-reload
+      title="{{ _("Take %(name)s out of the catalog", name=g.name(p.id)) }}" aria-label="{{ _("Take %(name)s out of the catalog", name=g.name(p.id)) }}"
+      data-confirm="{{ _("Take %(name)s out of the catalog? They have no photos, no family and no group, so nothing else here refers to them. Undo puts them back.", name=g.name(p.id)) }}">×</button>{% endif %}
+  </span>
+{%- endfor %}
+</div>
 </details>
 {% endif %}
 

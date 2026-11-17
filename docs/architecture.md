@@ -107,7 +107,8 @@ Once a day, before ingest, previews, thumbnails and video frames that have gone 
 cleared, and ingest makes them again from the original (`check.rebuild_derivatives`). A photo whose files were all
 gone for a while (its folder moved) loses its preview and thumbnail after the scan (`cleanup.drop_derivatives`); when
 the photo is found again, under any name, ingest makes them again in the same pass, once it has linked the new files
-(`ingest._rebuild`). Meanwhile the web app makes a photo's again when a page asks for one that is gone
+(`ingest._rebuild`). The scan never walks the Removed folders, so a file deleted in one by hand is noticed by
+`cleanup.forget_deleted` instead, which runs after each clean scan and forgets it as emptying the folder would. Meanwhile the web app makes a photo's again when a page asks for one that is gone
 (`web/remake.py`). On the first pass of each day,
 right after the scan, `backup.py` makes a copy of the catalog with SQLite's backup API, checks it whole, and only then
 deletes the copies no longer kept ([backups](install.md#updating-and-backups)); the recorded stories' sound files go

@@ -100,9 +100,9 @@ def remove_photo_person(image_id: int, person_id: int, v=Depends(viewer), c=Depe
 def tag_selection(body: Selection, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     _images_or_404(c, v, body.image_ids)
     with changes.tracking(w, v, "tags", f"Tagged {_photos(len(body.image_ids))} “{body.add_tag}”",
-                          _tags_spec(body.image_ids, body.add_tag)):
+                          _tags_spec(body.image_ids, body.add_tag)) as kept:
         n = tagging.add(w, body.image_ids, body.add_tag)
-    return {"message": f"Tagged {_photos(n)} “{catalog.tag_name(body.add_tag)}”."}
+    return {"message": f"Tagged {_photos(n)} “{catalog.tag_name(body.add_tag)}”.", "undo": kept.id}
 
 
 @router.post("/api/selection/date", dependencies=[Depends(_from_app)])
@@ -111,9 +111,9 @@ def date_selection(body: Selection, v=Depends(viewer), c=Depends(con), w=Depends
         raise HTTPException(400, "Type a date first, like summer 1987.")
     _images_or_404(c, v, body.image_ids)
     with changes.tracking(w, v, "dates", f"Dated {_photos(len(body.image_ids))} {body.date}",
-                          _dates_spec(body.image_ids)):
+                          _dates_spec(body.image_ids)) as kept:
         n, span = tagging.set_date(w, body.image_ids, body.date)
-    return {"message": f"Dated {_photos(n)} {span.text}."}
+    return {"message": f"Dated {_photos(n)} {span.text}.", "undo": kept.id}
 
 
 @router.post("/api/images/{image_id}/date", dependencies=[Depends(_from_app)])
@@ -139,12 +139,12 @@ def untag_selection(body: Selection, tag: str = Query(min_length=1, max_length=8
 def person_selection(body: Selection, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     _images_or_404(c, v, body.image_ids)
     with changes.tracking(w, v, "photo people", f"Added {body.person} to {_photos(len(body.image_ids))}",
-                          _photo_people_spec(v, body.image_ids)):
+                          _photo_people_spec(v, body.image_ids)) as kept:
         pid, n = tagging.add_person(w, body.image_ids, body.person, body.person_id,
                                     _among(v), _by(v))
     had = len(body.image_ids) - n
     return {"message": f"Added {catalog.person(w, pid)['name']} to {_photos(n)}"
-                       + (f" ({_photos(had)} already had them)." if had else ".")}
+                       + (f" ({_photos(had)} already had them)." if had else "."), "undo": kept.id}
 
 
 @router.post("/api/images/remove", dependencies=[Depends(_from_app)])

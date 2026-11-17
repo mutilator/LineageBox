@@ -80,7 +80,7 @@
 </p>
 {% include "_pager.html" %}
 {% if select %}
-<form class="select-form" data-select-api="/api/images/remove" data-reason="search: {{ q or heading }}" data-show=".select-bar .done">
+<form class="select-form" data-select-api="/api/images/remove" data-reason="search: {{ q or heading }}">
   {{ m.select_grid(results, ctx) }}
   {{ m.bulk_bar(models=viewer.admin) }}
 </form>

@@ -6,9 +6,31 @@ copies it there when the version is tagged ([releases](docs/development.md#relea
 A **catalog update** adds to the catalog's tables. LineageBox copies the catalog before it updates it, and earlier
 versions can't open the updated one.
 
-## Unreleased
+## 1.9.0 (2026-11-17)
+
+### New
+
+- **Everyone named is on the People page, photos or not.** Someone no photo in the library shows — a person in the
+  family tree whose photos aren't here, someone a reading or an import added, a name typed by mistake — was left off
+  the People page altogether, so there was no way to open them, change their name, place them in the family or take
+  them out again. They are now at the end of the list, and **No photos** beside the groups picks them out.
+- **Not placed yet tidies up as well.** The section at the foot of the Family page now lists people with no photos
+  too, first, since nothing else in the library shows them. For an admin, a person with no photos who is in no part
+  of the family tree and no group has a **×** on their card that takes them out of the catalog, with **Undo** in the
+  message that follows.
 
 ### Fixed
+
+- **A change to the ticked photos now says plainly that it was made.** Tagging the ticked photos, adding someone to
+  them, dating them or putting them in an album left the page exactly as it was, with what you typed still in the
+  box, and said what it had done in small grey words in the bar at the foot: it looked as though nothing had
+  happened. The message now comes up over the bar with a ✓, and **Undo** beside it, the box you typed in is emptied,
+  and the photos the change was made to light up for a moment in the list.
+- **Files deleted from a Removed folder by hand are noticed.** The scan never looks inside the Removed folders, so
+  photos deleted there over the share (rather than with **Empty the Removed folder**) went on counting towards
+  **Removed files** in the storage on Home and Status — on one library, 341 GB of room that had been given back
+  weeks before — and were still offered to be put back, although the files were gone. The worker now checks after
+  each scan, forgets those files, and deletes the previews and thumbnails it had kept for them.
 
 - **A person's Home keeps the photos whose date isn't certain.** It shows photos by the day they were taken, and a
   date taken from when the file was copied, or from a folder's or file's name, isn't a day to put a photo under, so

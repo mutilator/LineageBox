@@ -75,7 +75,7 @@
 {% if images %}
 {% if subfolders %}<h2>{% trans %}In this folder{% endtrans %}</h2>{% endif %}
 {% if select %}
-<form class="select-form"{% if own %} data-select-api="/api/folders/{{ folder.id }}/remove-files"{% endif %} data-reason="folder: {{ folder.name }}" data-show=".select-bar .done">
+<form class="select-form"{% if own %} data-select-api="/api/folders/{{ folder.id }}/remove-files"{% endif %} data-reason="folder: {{ folder.name }}">
   {{ pc.pieced(photos) }}
   {{ m.bulk_bar(remove=(_("Move the ticked photos' files in this folder to the Removed folder (their copies elsewhere stay); they can be put back from Removed") if viewer.admin
                         else _("Move the ticked photos' files in this folder to the Removed folder (their copies elsewhere stay); an admin can put them back")) if own else none,
