@@ -6,6 +6,20 @@ copies it there when the version is tagged ([releases](docs/development.md#relea
 A **catalog update** adds to the catalog's tables. LineageBox copies the catalog before it updates it, and earlier
 versions can't open the updated one.
 
+## 1.10.3 (2026-11-17)
+
+**Catalog update** (migration 041).
+
+### Updated
+
+- **Memories on Home show at once.** Each person's memories are now kept for them, so Home shows them straight
+  away instead of picking them again every few minutes, which took several seconds on a large library and was
+  thrown away whenever anyone changed anything. New ones come once a day, and when that person has new photos to
+  see (at most once an hour); they are made in the background and are there the next time Home is opened. An admin
+  can keep them for minutes, hours, days or weeks on **Settings → Browsing**.
+- **Admins' memories are their own.** An admin who is someone in the family tree gets memories that start with
+  their own family's biggest days, as family members do, and their own tours rather than everyone's.
+
 ## 1.10.2 (2026-11-17)
 
 ### Updated

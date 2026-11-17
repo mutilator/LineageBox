@@ -1,7 +1,8 @@
 """What one web app keeps while it runs: create_app (app.py) makes one Site and puts it on app.state, and a route that
 needs it takes `s: Site = Depends(site)` (deps.py). Its settings as last looked up, who sees what, the limits on
 signing in and downloading, the pages' templates, and a few answers kept a while (a newer release, Whisper's health,
-the tours suggested to each viewer, the counts that take seconds on a big library, the pages that were slow)."""
+the tours suggested to each viewer, the counts that take seconds on a big library, the pages that were slow), and
+the one thread that does what can wait (later)."""
 import base64
 import collections
 import contextlib
@@ -12,6 +13,8 @@ import json
 import secrets
 import threading
 import time
+import traceback
+from concurrent.futures import ThreadPoolExecutor, wait
 from datetime import datetime
 
 import httpx
@@ -115,6 +118,9 @@ class Site:
         self.whisper_seen = {"at": -1e9, "url": None, "health": None}
         self.asked_worker = {"at": -1e9}
         self.pulling = threading.Lock()  # one Ollama model download at a time
+        self.background = ThreadPoolExecutor(max_workers=1, thread_name_prefix="lineagebox-later")  # later()
+        self.waiting: dict = {}  # what later() was asked to do and hasn't finished: key -> its Future
+        self.waiting_lock = threading.Lock()
         self.templates = self._templates()
 
     @contextlib.contextmanager
@@ -214,6 +220,30 @@ class Site:
         if time.monotonic() - self.whisper_seen["at"] > 20 or self.whisper_seen["url"] != now.whisper_url:
             self.whisper_seen.update(at=time.monotonic(), url=now.whisper_url, health=speech.Whisper(now).health())
         return self.whisper_seen["health"]
+
+    def later(self, key, work) -> None:
+        """work() on the one thread kept for what can wait, after whatever was asked of it before; once, however often
+        it is asked meanwhile. One thing at a time, so that a hundred family members opening Home the same morning
+        have their new memories made one after another (home.py), never all at once. What goes wrong is logged."""
+        with self.waiting_lock:  # held while submitting: a quick work() can't take its key out before it is put in
+            if key not in self.waiting:
+                self.waiting[key] = self.background.submit(self._do_later, key, work)
+
+    def _do_later(self, key, work) -> None:
+        try:
+            work()
+        except Exception:
+            print(f"{datetime.now():%Y-%m-%d %H:%M:%S}  later: {key!r} failed", flush=True)
+            traceback.print_exc()
+        finally:
+            with self.waiting_lock:
+                self.waiting.pop(key, None)
+
+    def settle(self, timeout: float = 60) -> None:
+        """Wait until what later() was asked to do is done (tests)."""
+        with self.waiting_lock:
+            pending = list(self.waiting.values())
+        wait(pending, timeout)
 
     def ask_worker(self) -> None:
         """New uploads: the worker starts a pass within 15 seconds (asked at most once a minute)."""

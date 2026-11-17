@@ -28,6 +28,7 @@ EDITABLE += ("ollama_embed_model",)  # search by meaning (embeddings.py)
 EDITABLE += ("sidecars_enabled", "import_enabled")  # Settings → Other programs (sidecars.py, imports.py)
 EDITABLE += ("whisper_language",)  # Settings → Speech (speech.py)
 EDITABLE += ("partners_share",)  # Settings → Family accounts: couples share what they add (access.py)
+EDITABLE += ("memories_keep", "memories_unit")  # Settings → Browsing: how long Home's memories are kept (home.py)
 SCHEDULES =("always", "hours", "paused")
 TURN_LEVELS = ("sure", "more", "off")  # Cleanup → Turned photos, see orientation.py
 AGAIN_EVERY = (6, 12, 0)  # Settings → Faces: months between looking again at every photo (faces.py); 0: when asked
@@ -334,6 +335,12 @@ def _turn_level(value, cfg: Config) -> str:
     return value
 
 
+def _memories_unit(value, cfg: Config) -> str:
+    if value not in config.MEMORY_UNITS:
+        raise Invalid("Memories are kept for minutes, hours, days or weeks.")
+    return value
+
+
 def _again_every(value, cfg: Config) -> int:
     try:
         months = int(value)
@@ -621,6 +628,7 @@ _CHECKS = {
 _CHECKS["ollama_embed_model"] = _embed_model
 _CHECKS.update(sidecars_enabled=_switch, import_enabled=_switch)
 _CHECKS["whisper_language"] = _whisper_language
+_CHECKS.update(memories_keep=_ranged("memories_keep", "How long memories are kept"), memories_unit=_memories_unit)
 
 
 def check(key: str, value, cfg: Config):

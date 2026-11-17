@@ -8,13 +8,16 @@ are only of what they see. Nothing here knows whose photos these are: the years,
 what the catalog holds, and the row changes from day to day (this week in other years, a different tour of the
 viewer's own, another cover). Favorites (favorites.py) are preferred: a memory's cover is one with a heart when there
 is one, and a run of days with hearts on its photos counts as bigger when the biggest are picked.
+
+Each person's row is kept in the catalog (kept, keep: migration 041) for as long as Settings → Browsing says (due),
+and web/routes/home.py says when new ones are made.
 """
 import json
 import random
 import re
 import statistics
 from collections import Counter, defaultdict
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from urllib.parse import urlencode
 
 from lineagebox import favorites, tours
@@ -391,3 +394,31 @@ def row(years: list[dict], suggestions: list[dict], own: list[dict], family: lis
     week in other years, the two timeliest suggestions (a birthday or an occasion coming up comes first), the
     viewer's own tours, then the other suggestions."""
     return ([*family] + years + suggestions[:2] + own + suggestions[2:])[:MOST]
+
+
+def kept(con, account_id: int | None, formers: bool) -> dict | None:
+    """The memories kept for an account (None: the house's, without family accounts), or None if there are none:
+    {"made_at": datetime, "photos": what they saw then, "cards": the row}."""
+    row = con.execute("SELECT made_at, photos, cards FROM memories_kept WHERE account_id IS ? AND formers = ?",
+                      (account_id, int(formers))).fetchone()
+    if row is None:
+        return None
+    return {"made_at": datetime.fromisoformat(row[0]), "photos": json.loads(row[1]), "cards": json.loads(row[2])}
+
+
+def keep(con, account_id: int | None, formers: bool, made_at: str, photos: list, cards: list[dict]) -> None:
+    """Keep an account's memories in place of those before. Commits."""
+    con.execute("DELETE FROM main.memories_kept WHERE account_id IS ? AND formers = ?", (account_id, int(formers)))
+    con.execute("INSERT INTO main.memories_kept(account_id, formers, made_at, photos, cards) VALUES (?, ?, ?, ?, ?)",
+                (account_id, int(formers), made_at, json.dumps(photos), json.dumps(cards)))
+    con.commit()
+
+
+def due(made_at: datetime, now: datetime, keep_for: int, unit: str) -> bool:
+    """Whether memories made at made_at are due to be made again, kept keep_for of unit (config.MEMORY_UNITS).
+    Minutes and hours count from when they were made; days and weeks go by the calendar, so that a day's memories are
+    new with the first visit of the next day however late they were made, and this week in earlier years is this
+    week."""
+    if unit in ("days", "weeks"):
+        return now.date() >= made_at.date() + timedelta(days=keep_for * (7 if unit == "weeks" else 1))
+    return (now - made_at).total_seconds() >= keep_for * (60 if unit == "minutes" else 3600)

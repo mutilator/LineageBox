@@ -95,6 +95,7 @@ SCOPED = {
     "outbox": "{account} != 0 AND NOT admins AND (to_account IS NULL OR to_account = {account})"
               " AND coalesce(by_account, 0) != {account} AND (image_id IS NULL OR image_id IN temp.seen_image)",
     "outbox_seen": "account_id = {account}",
+    "memories_kept": "account_id = {account}",  # Home's memories, as each person saw them (memories.kept)
     "device_link": "0",
     # Search by meaning, describing again and tags across the library (embeddings.py, describe.py, tagging.py): the
     # meaning of the photos they see, their own asks, and none of the tags' renames (an admin's, about every photo)

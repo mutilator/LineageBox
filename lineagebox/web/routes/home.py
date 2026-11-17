@@ -6,7 +6,7 @@ from datetime import date, datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
-from lineagebox import access, catalog, family, first_run, memories, outbox, storage, tours
+from lineagebox import access, catalog, clock, family, first_run, memories, outbox, storage, tours
 from lineagebox.web.common import MEMBER, from_app, people_or_404, shared_with_me, years_of
 from lineagebox.web.deps import con, page, site, viewer, writer
 from lineagebox.web.routes.tours import suggestions
@@ -253,28 +253,83 @@ def person_years_panel(request: Request, person_id: int, v=Depends(viewer), c=De
     return page(request, "_years_panel.html", who=catalog.person(c, person_id), years=found if len(found) > 1 else [])
 
 
+REMAKE_AFTER = 3600  # seconds: for new photos alone (a library being read in), new memories at most this often
+
+
 @router.get("/home/memories", response_class=HTMLResponse)
 def home_memories(request: Request, v=Depends(viewer), c=Depends(con), s: Site = Depends(site)):
-    """Home's row of memories, loaded after the page: picking their photos takes a moment on a big catalog, so the
-    row is kept 10 minutes for each viewer (and worked out again after a change). A member's starts with their own
-    family's days of photos, and this week in earlier years is of them; suggestions of only them come first."""
-    today = date.today()
-    formers = formers_shown(request)
+    """Home's row of memories, loaded after the page (kept_memories)."""
+    return page(request, "_memories.html", memories=kept_memories(s, v, c, formers_shown(request)))
 
-    def work():
-        blurry = s.live(c).blurry_below
-        saved = [t for t in tours.tours(c) if v.admin or t["account_id"] == v.account_id]
-        kin = kin_of(v, c, formers)
-        found = suggestions(s, v, c)
-        if kin:
-            ours = set(kin)
-            found = sorted(found, key=lambda x: 0 if {*x["spec"]["who"]["person_ids"]} <= ours and
-                           x["spec"]["who"]["person_ids"] else 2 if x["spec"]["who"]["person_ids"] else 1)
-        return memories.row(memories.years_ago(c, today, blurry, kin or None), memories.suggested(found, today),
-                            memories.own_tours(c, saved, today, blurry),
-                            memories.family_occasions(c, kin, today, blurry) if kin else [])
-    return page(request, "_memories.html",
-                memories=s.keep(v, ("memories", today.isoformat(), formers), 600, work))
+
+def kept_memories(s: Site, v: access.Viewer, c, formers: bool) -> list[dict]:
+    """The viewer's memories: those kept for them (memories.kept), until Settings → Browsing says new ones are due
+    or they see new photos (at most every REMAKE_AFTER). Then new ones are made on the thread for what can wait
+    (Site.later) and the kept ones are shown meanwhile: the next Home has the new ones, and nobody waits. They are
+    made while the viewer waits only the first time, when they see fewer photos than before (a photo hidden, a share
+    ended), or when they are someone else in the tree, so that nothing they no longer see stays on their Home."""
+    seen = seen_photos(v, c)
+    found = memories.kept(c, v.account_id, formers)
+    if found is None or seen[0] < found["photos"][0] or seen[2] != found["photos"][2]:
+        cards = memory_cards(s, v, c, date.today(), formers)
+        with s.own_con() as w:
+            memories.keep(w, v.account_id, formers, clock.now(), seen, cards)
+        return cards
+    now, cfg = clock.now_datetime(), s.live(c)
+    if (memories.due(found["made_at"], now, cfg.memories_keep, cfg.memories_unit)
+            or seen != found["photos"] and (now - found["made_at"]).total_seconds() >= REMAKE_AFTER):
+        s.later(("memories", v.account_id, formers), lambda: _remake(s, v, formers))
+    covers = {r[0] for r in c.execute(f"""SELECT i.sha256 FROM image i WHERE {catalog.VISIBLE}
+                                          AND i.sha256 IN (SELECT value FROM json_each(?))""",
+                                      (json.dumps([x["cover"] for x in found["cards"]]),))}
+    return [x for x in found["cards"] if x["cover"] in covers]  # a photo gone since: its memory waits for the new ones
+
+
+def _remake(s: Site, v: access.Viewer, formers: bool) -> None:
+    """New memories for the viewer, made after the page that asked for them (Site.later), on a connection of their
+    own: a member's sees only what they see (memories of what is theirs, not derived data for everyone)."""
+    with s.own_con() as c:
+        access.scope(c, v)
+        seen, cards = seen_photos(v, c), memory_cards(s, v, c, date.today(), formers)
+    with s.own_con() as w:
+        memories.keep(w, v.account_id, formers, clock.now(), seen, cards)
+
+
+def seen_photos(v: access.Viewer, c) -> list[int]:
+    """[how many photos, the newest one's id, who they are in the tree]: what the viewer's memories are made from,
+    which tells kept_memories when photos were added or taken away. A member's from what they see; an admin's from
+    every photo, as cheaply as can be (a photo that went is left out when its memory is shown)."""
+    if v.limited:
+        return [len(v.images), max(v.images, default=0), v.me or 0]
+    return [*c.execute("SELECT count(*), coalesce(max(id), 0) FROM main.image").fetchone(), v.me or 0]
+
+
+def memory_cards(s: Site, v: access.Viewer, c, today: date, formers: bool) -> list[dict]:
+    """Home's row of memories, worked out: seconds on a big library. Whoever is someone in the tree, admin or member,
+    gets their own family's days of photos first, and this week in earlier years of them; suggestions of only them
+    come first. Their own tours join it (an admin's: theirs, and those from before accounts)."""
+    blurry = s.live(c).blurry_below
+    saved = [t for t in tours.tours(c) if v.account is None or t["account_id"] == v.account_id
+             or (v.admin and t["account_id"] is None)]
+    kin = memory_kin(v, c, formers)
+    found = suggestions(s, v, c)
+    if kin:
+        ours = set(kin)
+        found = sorted(found, key=lambda x: 0 if {*x["spec"]["who"]["person_ids"]} <= ours and
+                       x["spec"]["who"]["person_ids"] else 2 if x["spec"]["who"]["person_ids"] else 1)
+    return memories.row(memories.years_ago(c, today, blurry, kin or None), memories.suggested(found, today),
+                        memories.own_tours(c, saved, today, blurry),
+                        memories.family_occasions(c, kin, today, blurry) if kin else [])
+
+
+def memory_kin(v: access.Viewer, c, formers: bool = True) -> list[int]:
+    """Whose memories come first: the viewer's immediate family, them first, admin or member (an admin's Home
+    doesn't put their family's photos first, kin_of, but their memories are theirs: the user's choice, 2026-11-17).
+    None for an account that isn't anyone in the tree, nor without family accounts (the house's memories)."""
+    if v.me is None:
+        return []
+    g = family.load(c)
+    return family.immediate(g, v.me, formers) if v.me in g.people else []
 
 
 def who_is_this(c, v: access.Viewer, limit: int = 12) -> list[dict]:

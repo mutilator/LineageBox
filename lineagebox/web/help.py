@@ -70,7 +70,8 @@ PAGES = {
     "home": Page(N_("Home"), (
         N_("Memories, along the top: photos from this week in earlier years, tours worth making (a birthday coming up, "
            "someone through the years, a holiday) and a few of your own tours. Open one to see its photos or play it; "
-           "Keep as a tour puts it on the Tours page. They change from day to day."),
+           "Keep as a tour puts it on the Tours page. New ones come each day (an admin can change how often, on "
+           "Settings → Browsing), and when you have new photos to see: they are there the next time you open Home."),
         N_("Who is this?: faces someone in the family asked about. Type who it is, or Don't know to stop seeing it."),
         N_("Below them, the folders, tours and photos others shared with you, then the newest photos by the day they "
            "were taken, older photos added lately, and your own latest uploads."),
@@ -82,7 +83,8 @@ PAGES = {
            "(a wedding, a birthday)."),
         N_("Anyone who is someone in the family tree has these buttons, admins too (through their account, or "
            "without family accounts the person marked with This is me): theirs, then one for each of their closest "
-           "family. An admin's Home doesn't put their family's photos first."),
+           "family. An admin's Home doesn't put their family's photos first, but their memories start with their "
+           "family's too."),
         N_("For admins of a new LineageBox, Getting started at the top: watch your photos folder, check the AI, name "
            "yourself and press This is me, name the largest groups of faces, start the family tree, and invite someone "
            "(or turn on family accounts when you're ready). Each step ticks itself off once it is done, and the list "
@@ -660,8 +662,8 @@ PAGES = {
         N_("The menu at the side shows one part of Settings at a time (on a phone, it is above): the watched folders, "
            "how they are read and their paths on your network; when the worker runs; the AI (Ollama), speech (Whisper) "
            "and faces; the map's place lookups; kinds of tour; the cleanup lists; how long pointing at a photo takes "
-           "to show it larger; the address and HTTPS; updates; backups; and family accounts with the codes for signing "
-           "in at home."),
+           "to show it larger, and how long each person's memories on Home are kept; the address and HTTPS; updates; "
+           "backups; and family accounts with the codes for signing in at home."),
         N_("Address and HTTPS: the host names LineageBox answers to, a reverse proxy in front of it, and its HTTPS "
            "certificate (files it can read, or uploaded). Switching HTTPS restarts the web server and moves the page "
            "to its new address. Passkeys there says whether passkeys can be set up, and what is missing if not."),

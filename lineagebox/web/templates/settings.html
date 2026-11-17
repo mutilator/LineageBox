@@ -388,6 +388,25 @@ machines and networks are hidden.{% endtrans %}</p>
     <p><button type="submit" class="primary">{% trans %}Save{% endtrans %}</button> <span class="hint inline" id="browsing-saved"></span></p>
   </form>
 </section>
+
+<section class="panel" id="memories">
+  <h2>{% trans %}Memories on Home{% endtrans %}</h2>
+  <form data-api="/api/settings" data-settings data-show="#memories-saved">
+    <p><label>{% trans %}Keep each person's memories for{% endtrans %}
+      <input type="number" name="memories_keep" min="1" max="999" value="{{ cfg.memories_keep }}" class="num"></label>
+      <select name="memories_unit" aria-label="{{ _('Minutes, hours, days or weeks') }}">
+        {%- for unit, word in (("minutes", _("minutes")), ("hours", _("hours")), ("days", _("days")),
+                               ("weeks", _("weeks"))) %}
+        <option value="{{ unit }}"{% if cfg.memories_unit == unit %} selected{% endif %}>{{ word }}</option>
+        {%- endfor %}
+      </select></p>
+    <p class="hint">{% trans %}Each person's memories are picked from the photos they see, which takes a few seconds on a
+    large library, so they are kept and shown at once. New ones are made once this time is up, or when that person
+    has new photos to see (at most once an hour), and are there the next time they open Home. Days and weeks go by
+    the calendar: 1 day means new memories each day, from the first visit.{% endtrans %}</p>
+    <p><button type="submit" class="primary">{% trans %}Save{% endtrans %}</button> <span class="hint inline" id="memories-saved"></span></p>
+  </form>
+</section>
 </div>
 
 <div class="settings" data-part>

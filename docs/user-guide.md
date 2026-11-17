@@ -377,10 +377,12 @@ else, finds only the photos they can see, and suggests only the people, places a
 ### Browsing
 
 - **Home** starts with a row of memories: photos from this week in earlier years ("5 years ago"), tours worth
-  making (a birthday coming up, someone through the years, a holiday) and a few of your own tours. They change from
-  day to day; one opens like a tour, and **Keep as a tour** saves it. Below come faces someone asked about, what
-  others shared with you, then the newest photos by the day they were taken (Yesterday, Tuesday, then by month),
-  older photos added lately, and your own uploads. A relative with a family account sees the newest photos of
+  making (a birthday coming up, someone through the years, a holiday) and a few of your own tours. One opens like a
+  tour, and **Keep as a tour** saves it. Each person's memories are kept for them and shown at once; new ones come
+  each day (an admin can choose minutes, hours, days or weeks on **Settings → Browsing**) and when you have new
+  photos to see (at most once an hour), and they are there the next time you open Home. Below come faces someone
+  asked about, what others shared with you, then the newest photos by the day they were taken (Yesterday, Tuesday,
+  then by month), older photos added lately, and your own uploads. A relative with a family account sees the newest photos of
   themselves and their closest family (parents, partner, brothers and sisters, children, and the partners they once
   had) first, however long ago they were taken, with **Show older photos of your family** to go further back, and
   then the rest. A row of buttons above them opens the memories and newest photos of one person: the first is their
@@ -390,7 +392,7 @@ else, finds only the photos they can see, and suggests only the people, places a
   partners** brings them back). There, under the memories, **Through the years** plays their face a year
   at a time; click it to watch the whole of it (see A person's page). Anyone who is someone in the tree has these buttons, admins too
   (without family accounts, the person marked with **This is me**), though an admin's Home doesn't put their
-  family's photos first. Their memories start
+  family's photos first. With a family account, admin or not, their memories start
   with their family's biggest days of photos and the latest, each named by a life event on those days, the event
   its folder is named for, or what its photos show (a wedding, Christmas). Admins also see how full the disk is, and
   on a new LineageBox, [the first steps](#the-first-steps) until they are done.

@@ -29,7 +29,8 @@ NOT_SETTINGS = {"LINEAGEBOX_CONFIG", "LINEAGEBOX_FFMPEG", "LINEAGEBOX_HOST", "LI
 RANGES = {"ingest_threads": (1, 16), "worker_interval_minutes": (5, 1440), "llm_workers": (1, 8),
           "session_days": (1, 365), "upload_max_gb": (1, 100), "video_threads": (1, 8), "copy_threads": (1, 32),
           "hover_preview_ms": (0, 5000), "backup_keep_daily": (1, 90), "backup_keep_weekly": (0, 104),
-          "demo_uploads": (0, 1000), "demo_upload_max_mb": (1, 4096)}
+          "demo_uploads": (0, 1000), "demo_upload_max_mb": (1, 4096), "memories_keep": (1, 999)}
+MEMORY_UNITS = ("minutes", "hours", "days", "weeks")  # what memories_keep counts
 
 
 class ConfigError(ValueError):
@@ -83,6 +84,10 @@ class Config:
     tls_cert: str = ""                                # HTTPS: the certificate and key files (PEM); "" serves HTTP
     tls_key: str = ""
     hover_preview_ms: int = 500                       # pointing at a photo this long shows it larger (app.js); 0: never
+    # Home's memories are kept for each person this long (memories_unit: minutes, hours, days or weeks; days and weeks
+    # by the calendar), or until they see new photos; then new ones are made (web/routes/home.py)
+    memories_keep: int = 1
+    memories_unit: str = "days"
     language: str = ""                                # pages' language for browsers asking none installed (i18n.py)
     # Family accounts (accounts.py, access.py): off, the web UI answers the home network only, with no sign-in
     accounts_enabled: bool = False
@@ -208,6 +213,7 @@ KEYS = {
     ("web", "allowed_networks"): "allowed_networks", ("web", "allowed_hosts"): "allowed_hosts",
     ("web", "trusted_proxies"): "trusted_proxies", ("web", "tls_cert"): "tls_cert", ("web", "tls_key"): "tls_key",
     ("web", "hover_preview_ms"): "hover_preview_ms", ("web", "language"): "language",
+    ("web", "memories_keep"): "memories_keep", ("web", "memories_unit"): "memories_unit",
     ("worker", "interval_minutes"): "worker_interval_minutes",
     ("cleanup", "blurry_below"): "blurry_below", ("cleanup", "turn_suggest"): "turn_suggest",
     ("whisper", "url"): "whisper_url", ("whisper", "language"): "whisper_language",
@@ -263,6 +269,8 @@ def load(path: str | os.PathLike | None = None) -> Config:
     if "whisper_language" in values and not language_ok(values["whisper_language"]):
         raise ConfigError(f"whisper_language is {values['whisper_language']!r}: it can be auto, or a language's "
                           "two- or three-letter code like en or de")
+    if values.get("memories_unit", "days") not in MEMORY_UNITS:
+        raise ConfigError(f"memories_unit is {values['memories_unit']!r}: it can be {', '.join(MEMORY_UNITS)}")
     if bool(values.get("tls_cert")) != bool(values.get("tls_key")):
         raise ConfigError("HTTPS needs both tls_cert and tls_key")
     return Config(**values)

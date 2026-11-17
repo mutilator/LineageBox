@@ -1,15 +1,17 @@
 """Home: its memories, the newest photos by the day they were taken, the storage meter; the Status page's storage;
 and what pointing at a face shows (the whole photo, with the face's place on it)."""
+import json
 import re
 import shutil
 from collections import namedtuple
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from fastapi.testclient import TestClient
 
-from lineagebox import catalog, cleanup, events, family, memories, people, storage, tours
+from lineagebox import (access, accounts, catalog, cleanup, db, events, family, memories, people, settings, storage,
+                        tours)
 from lineagebox.ingest import ingest
 from lineagebox.scan import scan
 from lineagebox.web import app as webapp
@@ -345,6 +347,112 @@ def test_own_tours_and_suggestions_join_the_memories(dated, cfg, con):
     years = memories.years_ago(con, TODAY)
     assert memories.row(years, suggested * 3, own) == years + suggested * 2 + own + suggested
     assert f'href="/tour/{tid}"' in TestClient(webapp.create_app(cfg), client=LAN).get("/home/memories").text
+
+
+def kept_a_while(con, account_id=None, title=None, **ago):
+    """Make the memories kept for an account look made some time ago (ago: timedelta's words), each retitled so that
+    a page showing them can be told from one showing new ones."""
+    row = con.execute("SELECT cards FROM memories_kept WHERE account_id IS ?", (account_id,)).fetchone()
+    cards = [{**x, "title": title or x["title"]} for x in json.loads(row[0])]
+    made = (datetime.now() - timedelta(**ago)).isoformat(timespec="seconds")
+    con.execute("UPDATE memories_kept SET made_at = ?, cards = ? WHERE account_id IS ?",
+                (made, json.dumps(cards), account_id))
+    con.commit()
+
+
+def test_memories_are_kept_until_new_ones_are_due(dated, cfg, con):
+    """Made the first time Home asks, and kept in the catalog: a change made anywhere on the site, or a restart, no
+    longer throws them away. Once they are due (Settings → Browsing: 1 day), the kept ones are shown while new ones
+    are made on the side, and the next Home has those."""
+    app = webapp.create_app(cfg)
+    client = TestClient(app, client=LAN)
+    assert "<b>5 years ago</b>" in client.get("/home/memories").text
+    assert [x["title"] for x in memories.kept(con, None, True)["cards"]] == ["5 years ago"]
+    kept_a_while(con, title="As they were kept", hours=0)
+    assert client.post("/api/settings", json={"hover_preview_ms": 400}, headers=APP).status_code == 200
+    assert "<b>As they were kept</b>" in TestClient(webapp.create_app(cfg), client=LAN).get("/home/memories").text
+    kept_a_while(con, days=1)  # made yesterday: due
+    assert "<b>As they were kept</b>" in client.get("/home/memories").text  # shown while the new ones are made
+    app.state.site.settle()
+    assert "<b>5 years ago</b>" in client.get("/home/memories").text
+    # a photo that went since they were made: its memory is left out until the next ones
+    cover = memories.kept(con, None, True)["cards"][0]["cover"]
+    con.execute("UPDATE file SET missing = 1 WHERE image_id = (SELECT id FROM image WHERE sha256 = ?)", (cover,))
+    con.commit()
+    assert "5 years ago" not in client.get("/home/memories").text
+
+
+def test_new_photos_bring_new_memories_at_most_hourly(dated, cfg, con, library):
+    """New photos to see make new memories, but no more than once an hour: a library being read in would otherwise
+    have them made again on every visit."""
+    app = webapp.create_app(cfg)
+    client = TestClient(app, client=LAN)
+    client.get("/home/memories")
+    kept_a_while(con, title="Before the new photo", minutes=10)
+    write_jpeg(library / "Dated" / "ago5_new.jpg", size=(150, 100), color=(5, 200, 9),
+               taken=f"{FIVE_AGO:%Y:%m:%d} 12:00:00")
+    scan(con, cfg)
+    ingest(con, cfg)
+    con.execute("UPDATE image SET sharpness = 100")
+    con.commit()
+    assert "<b>Before the new photo</b>" in client.get("/home/memories").text
+    app.state.site.settle()  # nothing was asked of it
+    assert "<b>Before the new photo</b>" in client.get("/home/memories").text
+    kept_a_while(con, hours=2)
+    assert "<b>Before the new photo</b>" in client.get("/home/memories").text
+    app.state.site.settle()
+    assert "<b>5 years ago</b>" in client.get("/home/memories").text
+    assert memories.kept(con, None, True)["cards"][0]["count"] == 6
+
+
+def test_how_long_memories_are_kept(cfg, con):
+    """Minutes and hours from when they were made; days and weeks by the calendar."""
+    made = datetime(2026, 11, 17, 23, 30)
+    assert not memories.due(made, made + timedelta(minutes=29), 30, "minutes")
+    assert memories.due(made, made + timedelta(minutes=30), 30, "minutes")
+    assert not memories.due(made, made + timedelta(hours=1, minutes=59), 2, "hours")
+    assert memories.due(made, datetime(2026, 11, 18, 0, 5), 1, "days")  # the next day, however late they were made
+    assert not memories.due(made, datetime(2026, 11, 18, 23, 59), 2, "days")
+    assert not memories.due(made, datetime(2026, 11, 23, 12), 1, "weeks")
+    assert memories.due(made, datetime(2026, 11, 24), 1, "weeks")
+    client = TestClient(webapp.create_app(cfg), client=LAN)
+    for body in ({"memories_keep": 0}, {"memories_keep": "x"}, {"memories_keep": 1000}, {"memories_unit": "years"}):
+        assert client.post("/api/settings", json=body, headers=APP).status_code == 400, body
+    r = client.post("/api/settings", json={"memories_keep": "3", "memories_unit": "hours"}, headers=APP)
+    assert r.status_code == 200
+    assert (settings.current(con, cfg).memories_keep, settings.current(con, cfg).memories_unit) == (3, "hours")
+    page = client.get("/settings").text
+    assert 'id="memories"' in page and '<option value="hours" selected>' in page
+
+
+def test_each_person_has_their_own_memories(site, cfg, con):
+    """Kept for each account, whatever its role. An admin who is someone in the tree gets their own family's first, as
+    a member does, and their own tours (and those from before accounts), not everyone's. A member who sees fewer
+    photos than when theirs were made (a share ended, a photo hidden) gets new ones at once. Each sees only their own,
+    and theirs go with their account."""
+    p, who, saved = site["people"], site["who"], site["tours"]
+    sam_id, cora_id = who["Sam"]["id"], who["Cora"]["id"]
+    sam, cora = signed_in(cfg, con, who["Sam"]), signed_in(cfg, con, who["Cora"])
+    theirs = sam.get("/home/memories").text
+    assert f'href="/tour/{saved["admins"]}"' in theirs and f'href="/tour/{saved["Cora"]}"' not in theirs
+    assert home.memory_kin(access.admin(dict(who["Sam"])), con) == family.immediate(family.load(con), p["Sam"])
+    assert home.kin_of(access.admin(dict(who["Sam"])), con) == []  # his Home's photos are as before
+    assert f'href="/tour/{saved["Cora"]}"' in cora.get("/home/memories").text
+    assert {r[0] for r in con.execute("SELECT account_id FROM memories_kept")} == {sam_id, cora_id}
+    # fewer photos for her than when they were made: new ones straight away, nothing kept shown
+    con.execute("UPDATE memories_kept SET photos = json_set(photos, '$[0]', 999999), cards = '[]'"
+                " WHERE account_id = ?", (cora_id,))
+    con.commit()
+    assert f'href="/tour/{saved["Cora"]}"' in cora.get("/home/memories").text
+    assert memories.kept(con, cora_id, True)["photos"][0] < 999999
+    c = access.scope(db.connect(cfg, migrate_schema=False), access.compute(con, dict(who["Cora"])))
+    try:
+        assert [r[0] for r in c.execute("SELECT account_id FROM memories_kept")] == [cora_id]
+    finally:
+        c.close()
+    accounts.remove(con, cora_id)
+    con.commit()
+    assert {r[0] for r in con.execute("SELECT account_id FROM memories_kept")} == {sam_id}
 
 
 Usage = namedtuple("Usage", "total used free")

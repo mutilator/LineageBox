@@ -145,6 +145,7 @@ The main tables:
 | `account`, `session`, `upload` | Family accounts. |
 | `change_log` | Every change made through the site, by anyone, with what it altered before and after, for undo (`changes.py`). |
 | `outbox`, `outbox_seen` | New for you (`outbox.py`): each event written once (a share, a "Who is this?", new photos, a comment, an admin's alert), checked against each viewer as it is shown; each account's mark of what it has seen (0: the house, without accounts). Kept 90 days. |
+| `memories_kept` | Each account's memories on Home as they were last made (`web/routes/home.py`; NULL: the house's, without accounts), with what that person saw then, so that new photos (at most hourly) and the Settings → Browsing time bring new ones, made on the web app's one thread for what can wait (`Site.later`). A member's connection sees only their own. |
 | `device_link` | Photo frames' links (`devices.py`): the one view each shows, the SHA-256 of its token, whether it works at home only, when it was turned off and last used. |
 | `image_place`, `folder_place` | Photos and folders put on the map by hand (`places.py`): a photo's wins over its GPS, which wins over its folder's (by hand, then a place its name gives). Changes to them are tracked for undo. |
 | `sidecar`, `sidecar_stale` | XMP sidecars LineageBox wrote beside photo files (`sidecars.py`), with the SHA-256 of what each says (`other`: one another program made, or wrote into since, left alone); and the photos whose sidecars may be out of date, filled by triggers on what a sidecar holds. |

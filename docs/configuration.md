@@ -108,6 +108,7 @@ is then 5 June, and a folder named "Party 5.6.98" is from 5 June 1998 (unticked,
 | `[web] trusted_proxies` | none | Page | Reverse proxies whose `X-Forwarded-For` and `X-Forwarded-Proto` are believed. |
 | `[web] tls_cert`, `[web] tls_key` | none | Page | HTTPS without a proxy: certificate (full chain) and key, PEM. Both or neither. |
 | `[web] hover_preview_ms` | 500 | Page | Milliseconds of pointing at a photo before it shows larger; 0 never. |
+| `[web] memories_keep`, `[web] memories_unit` | 1, `days` | Page | How long each person's memories on Home are kept before new ones are made: 1 to 999 `minutes`, `hours`, `days` or `weeks`. Days and weeks go by the calendar (1 day: new memories each day, from the first visit). New photos for someone to see also make theirs new, at most once an hour. |
 | `[web] language` | none (English) | | Once a translation is installed ([translating](translating.md)): the pages' language for a browser that asks for none LineageBox has (`de`, `pt_BR`). A browser's own choice (the round button → Language) and its languages come first. |
 
 ### Family accounts
