@@ -1979,7 +1979,9 @@ def _apply_one(con, c: Change, who: dict, report: dict) -> None:
                 raise Problem("they aren't partners in the tree: tick that change too")
             events.save(con, None, tag="MARR", couple=(a, b), date_text=d["date"] or "", place=d["place"] or "",
                         note=d["note"] or "")
-            con.execute("UPDATE partner SET married = 1 WHERE a = ? AND b = ?", (min(a, b), max(a, b)))
+            # a couple the tree had as partners or going out together are married from now on
+            con.execute("UPDATE partner SET married = 1, dating = 0 WHERE a = ? AND b = ?",
+                        (min(a, b), max(a, b)))
 
 
 def _parent(con, child: int, parent: int, pedi: str | None = None) -> None:

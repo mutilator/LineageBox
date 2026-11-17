@@ -153,8 +153,11 @@ Names you give by hand always win: recognition never overwrites them.
 
 ### The family tree
 
-Enter only facts on each person's page: parents, children, siblings, partners (current or former), sex, and other
-relationships such as friends, teachers or pets. LineageBox works out the rest (grandparents, nieces, in-laws,
+Enter only facts on each person's page: parents, children, siblings, partners, sex, and other
+relationships such as friends, teachers or pets. A couple can be a husband and wife, partners who share a life
+without marrying, or a boyfriend and girlfriend, and each of those can be current or former ("ex-wife",
+"ex-girlfriend"): say which when you add them, and the page shows it. Only one of them is current at a time; **mark
+former** beside a partner says they no longer are. Children belong to both of a couple whether they married or not. LineageBox works out the rest (grandparents, nieces, in-laws,
 step-family) relative to the person marked **This is me**. Those words work in search, too.
 
 - The **Family** page shows the family around one person, starting with you; click anyone to put them in the middle.
@@ -793,6 +796,24 @@ The menu at the side shows one part at a time (on a phone, it is above the setti
   - **On the network:** the network paths for **Copy network path**.
   - **Set in the config file:** the photo folders, the catalog folder and the network allow list. They are set only in
     the config, so a mistake on the page can't lock anyone out.
+- **Reorganize folders:** moves every photo, video and recording in the watched folders into a folder for its year and
+  month (`2016/2016-07`), by the date LineageBox has for it, keeping its name (a second of that name in the same
+  month gets ` (2)`). Ticked, **Folders by kind** puts `Photos`, `Scans` (scanned prints), `Videos` and `Recordings`
+  at the top, each with its years and months; a photo whose date gives only the year goes in the year's folder, one
+  with none in `Undated`. **See where everything goes** shows the new layout, how many files move and a few examples,
+  and moves nothing. A photo's own files go with it (its sidecars, Google Takeout's `.json`, a video's 720p copy, a
+  Live Photo's clip); every other file goes to `Other files`, under the path it had, and the emptied folders go. The
+  family's uploads, the Removed folders, ignored folders, a disk mounted inside, and folders with photos the worker
+  hasn't read yet stay as they are. Two more, ticked to begin with: **Take away empty folders** removes every folder
+  with nothing in it, also those that were empty before; **Delete junk** deletes what other programs leave in photo
+  folders that holds nothing of yours (`Thumbs.db`, `desktop.ini`, macOS's `.DS_Store` and `._` files, Dropbox's
+  marks, thumbnail caches such as `.thumbnails` and `@eaDir`) rather than keep it in `Other files`, for good. With
+  nothing to move, **Tidy now** does only those. LineageBox moves the files itself, so nothing is read again and nothing is lost:
+  names, tags, dates and captions stay, what the old folder names said (a date, an event, a place, who is in it) and
+  hiding or sharing a folder still go for its photos, and search finds them by those names. It takes minutes; the
+  page shows how far it is, and the worker doesn't look through the folders meanwhile. **Put back** undoes the latest
+  one that moved files, but for files moved or removed since (junk deleted stays deleted). Other programs and backups that know the photos by where they
+  are will find them moved.
 - **Schedule:** how often to look for new photos, and when the AI may describe: any time, certain hours and days, or
   paused.
 - **AI, speech and faces:** **AI (Ollama)** and **Speech in videos, recordings and stories (Whisper)**: on or off, the

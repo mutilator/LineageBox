@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from lineagebox import db, events, gedcom, people
+from lineagebox import db, events, gedcom, gedcom_import, people
 from lineagebox.web import app as webapp
 from tests.conftest import LAN
 
@@ -154,6 +154,24 @@ def test_export_gedcom_7(fam, cfg):
     assert asso.payload == f"@I{ids['Rex']}@" and asso.value("ROLE") == "OTHER" and asso.first("ROLE").value("PHRASE") == "Pet"
     assert indi["Owen /Miller/"].first("ASSO").value("ROLE") == "FRIEND"  # Jake
     assert all(r.value("UID") for r in recs if r.tag in ("INDI", "FAM"))
+
+
+def test_a_couple_going_out_together_is_marked_in_the_export(fam, cfg):
+    """GEDCOM has no tag for a couple who never married and aren't partners sharing a life, so LineageBox writes
+    its own, _BOND, and reads it back."""
+    con, ids = fam
+    gary, diane = ids["Gary Miller"], ids["Diane Miller"]
+    con.execute("UPDATE partner SET married = 0, dating = 1 WHERE a = ? AND b = ?",
+                (min(gary, diane), max(gary, diane)))
+    con.commit()
+    data, _ = gedcom.export(con, cfg)
+    recs, _by_xref, _indi = _records(data)
+    theirs = [r for r in recs if r.tag == "FAM" and {r.value("HUSB"), r.value("WIFE")} == {f"@I{gary}@", f"@I{diane}@"}]
+    assert len(theirs) == 1 and theirs[0].value("_BOND") == "dating" and theirs[0].first("MARR") is None
+    assert recs[0].first("SCHMA") and "_BOND urn:uuid:" in str(data)
+    import_id = gedcom_import.start(con, "back.ged", data)
+    _, parsed, _matches = gedcom_import.load(con, import_id)
+    assert [f["bond"] for f in parsed["families"].values() if f["bond"]] == ["dating"]
 
 
 @pytest.mark.parametrize("version", ["7.0", "5.5.1"])

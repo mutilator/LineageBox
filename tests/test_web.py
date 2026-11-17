@@ -84,6 +84,52 @@ def test_derivatives(client, con):
     assert client.get("/p/..%5C..%5Clineagebox.db").status_code == 404
 
 
+def test_a_picture_found_gone_is_made_again_when_asked_for(client, con, cfg, library, monkeypatch):
+    """A photo whose preview and thumbnail went (its folder moved, a data disk restored) while a file of it is on the
+    share: made again from the original when a page asks for them, not left broken until the worker's next ingest."""
+    from lineagebox.ingest import STAGE_INGEST
+    from lineagebox.web import remake
+    monkeypatch.setattr(remake, "_failed", {})
+    photo = lambda name: con.execute("""SELECT i.id, i.sha256 FROM image i JOIN file f ON f.image_id = i.id
+                                        WHERE f.path = ?""", (rel(ZOO, name),)).fetchone()
+    stage = lambda i: con.execute("SELECT stage FROM image WHERE id = ?", (i,)).fetchone()[0]
+    image_id, sha = photo("DSC_0002.jpg")
+    cfg.preview_path(sha).unlink()
+    cfg.thumb_path(sha).unlink()
+    con.execute(f"UPDATE image SET stage = stage & ~{STAGE_INGEST} WHERE id = ?", (image_id,))
+    con.commit()
+    t = client.get(f"/t/{sha}")
+    assert t.status_code == 200 and t.headers["content-type"] == "image/webp"
+    assert cfg.preview_path(sha).is_file() and stage(image_id) & STAGE_INGEST  # as the worker's ingest would
+    cfg.preview_path(sha).unlink()
+    assert client.get(f"/t2/{sha}").status_code == 200 and cfg.preview_path(sha).is_file()
+    cfg.preview_path(sha).unlink()
+    assert client.get(f"/p/{sha}").headers["content-type"] == "image/jpeg"
+
+    # one that can't be read isn't read again on every view; one with no file on the share has nothing to make it from
+    image_id, sha = photo("DSC_0003.jpg")
+    cfg.thumb_path(sha).unlink()
+    tried = []
+    monkeypatch.setattr(remake.ingest, "remake_photo", lambda *a: tried.append(a) or (_ for _ in ()).throw(OSError()))
+    assert client.get(f"/t/{sha}").status_code == 404 and client.get(f"/t/{sha}").status_code == 404
+    assert len(tried) == 1
+    monkeypatch.setattr(remake, "_failed", {})
+    (library.parent / ZOO / "DSC_0003.jpg").unlink()
+    scan(con, cfg)
+    assert client.get(f"/t/{sha}").status_code == 404 and len(tried) == 1
+
+    # a video's frames take ffmpeg: its worker's next ingest makes them, only for a frame it has that is gone
+    image_id, sha = photo("DSC_0002.jpg")
+    con.execute("UPDATE image SET media = 'video' WHERE id = ?", (image_id,))
+    con.execute("INSERT INTO video_frame(image_id, idx, at) VALUES (?, 0, 0.0)", (image_id,))
+    con.commit()
+    cfg.frame_path(sha, 0).parent.mkdir(parents=True, exist_ok=True)
+    cfg.frame_path(sha, 0).write_bytes(cfg.preview_path(sha).read_bytes())
+    assert client.get(f"/frame/{sha}/7").status_code == 404 and stage(image_id) & STAGE_INGEST
+    cfg.frame_path(sha, 0).unlink()
+    assert client.get(f"/frame/{sha}/0").status_code == 404 and not stage(image_id) & STAGE_INGEST
+
+
 def test_original_download(client, con, library):
     fid = con.execute("SELECT id FROM file WHERE path = ?", (rel(ZOO, "DSC_0002.jpg"),)).fetchone()[0]
     r = client.get(f"/original/{fid}")

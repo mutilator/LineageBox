@@ -285,12 +285,21 @@ class FolderIndex:
     def context(self, image_id: int) -> Context:
         ctx = Context()
         best_precision = 0
-        for (folder_id,) in self.con.execute(
-                "SELECT DISTINCT folder_id FROM file WHERE image_id = ? AND NOT missing", (image_id,)):
+        for folder_id, from_folder_id in self.con.execute(
+                "SELECT DISTINCT folder_id, from_folder_id FROM file WHERE image_id = ? AND NOT missing", (image_id,)):
             chain = self.chain(folder_id)
+            if from_folder_id is not None:
+                # moved into a year and month folder by a reorganization (reorganize.py): it means what its old folder
+                # meant. The folders it is in now were named from the date it already had, so of those only what
+                # someone gave them by hand counts (their newest word, so as if deeper)
+                old = self.chain(from_folder_id)
+                chain = [f for f in chain if f["source"] == "user"] + old
+                if old:
+                    ctx.folders.append(old[0]["path"])
+            elif chain:
+                ctx.folders.append(chain[0]["path"])
             if not chain:
                 continue
-            ctx.folders.append(chain[0]["path"])
             year = month = day = None
             for f in chain:
                 if f["kind"] not in NO_CONTEXT_KINDS:

@@ -1,6 +1,7 @@
 import json
 import subprocess
 import sys
+from dataclasses import replace
 from datetime import datetime, timezone
 
 import numpy as np
@@ -20,16 +21,18 @@ APP = {"X-Requested-With": "lineagebox"}
 needs_ffmpeg = pytest.mark.skipif(not video.available(), reason="needs ffmpeg and ffprobe")
 
 
-def make_video(path, seconds=12, size="320x240", source="life", audio=True, fmt=None, extra=()):
+def make_video(path, seconds=12, size="320x240", source="life", audio=True, fmt=None, extra=(), picture="libx264",
+               sound=None):
     """A short test video made by ffmpeg, with a tone: by default Conway's life, so frames seconds apart differ (a
-    still test pattern would give one frame, the rest being near-identical)."""
+    still test pattern would give one frame, the rest being near-identical). picture and sound are the encoders, for
+    a container that holds other kinds (WebM: VP8 or VP9 with Opus)."""
     path.parent.mkdir(parents=True, exist_ok=True)
     pattern = f"{source}:size={size}:rate=10" if "=" in source else f"{source}=size={size}:rate=10"
     args = [video.tool("ffmpeg"), "-v", "error", "-y", "-f", "lavfi", "-i", pattern]
     if audio:
         args += ["-f", "lavfi", "-i", "sine=frequency=440"]
-    args += ["-t", str(seconds), "-c:v", "libx264", "-pix_fmt", "yuv420p",
-             *(["-c:a", "aac" if fmt != "mpegts" else "ac3"] if audio else []),
+    args += ["-t", str(seconds), "-c:v", picture, "-pix_fmt", "yuv420p",
+             *(["-c:a", sound or ("aac" if fmt != "mpegts" else "ac3")] if audio else []),
              *extra, *(["-f", fmt] if fmt else []), str(path)]
     subprocess.run(args, check=True)
     return path
@@ -167,6 +170,36 @@ def test_videos_are_catalogued_with_frames(con, cfg, videos):
 
 
 @needs_ffmpeg
+def test_a_webm_video_plays_as_it_is(con, cfg, library):
+    # WebM is a container of its own: browsers play the VP8 and VP9 pictures and the Opus sound in it, so a file a
+    # phone or a computer saved as one needs no 720p copy, and goes to the browser as WebM, not as MP4.
+    make_video(library / "2016" / "school play.webm", seconds=3, picture="libvpx-vp9", sound="libopus")
+    scan(con, cfg)
+    ingest(con, cfg, show_progress=False)
+    clip = video_row(con, rel("2016", "school play.webm"))
+    assert (clip["media"], clip["format"], clip["codecs"]) == ("video", "webm", "vp9/opus")
+    assert (clip["playable"], clip["width"], clip["height"]) == ("original", 320, 240)
+    assert con.execute("SELECT count(*) FROM video_frame WHERE image_id = ?", (clip["id"],)).fetchone()[0] >= 1
+    r = TestClient(webapp.create_app(cfg), client=LAN).get(f"/play/{clip['id']}")
+    assert r.status_code == 200 and r.headers["content-type"] == "video/webm"
+
+
+def test_what_browsers_play_goes_by_the_container():
+    # The codecs of an MP4 play nowhere in a WebM file, and VP9 plays in no Matroska one, however it is named: those
+    # get a 720p copy like any other video browsers cannot play.
+    vp9 = replace(probe(), video_codec="vp9", audio_codec="opus")
+    assert video.plays_in_browsers(".webm", vp9) and video.plays_in_browsers(".WEBM", vp9)
+    assert video.plays_in_browsers(".webm", replace(vp9, video_codec="vp8", audio_codec="vorbis"))
+    assert video.plays_in_browsers(".webm", replace(vp9, audio_codec=None))  # no sound in it
+    assert not video.plays_in_browsers(".mkv", vp9)
+    assert not video.plays_in_browsers(".webm", replace(vp9, video_codec="h264", audio_codec="aac"))
+    assert not video.plays_in_browsers(".webm", replace(vp9, video_codec="av1"))  # Safari: newest devices only
+    assert video.plays_in_browsers(".mp4", probe()) and not video.plays_in_browsers(".mts", probe())
+    # a voice note someone's browser recorded is a recording, played as it is
+    assert video.plays_in_browsers(".webm", replace(probe(), video_codec=None, audio_codec="opus"))
+
+
+@needs_ffmpeg
 def test_motion_photo_frames_come_from_the_clip(tmp_path):
     # Google's motion photos: a short clip and a larger single-frame still in one MP4. ffmpeg picks the still by
     # itself, which has nothing at 0.5 s.
@@ -186,6 +219,7 @@ def test_stored_files_are_read_only_as_videos_and_recordings(tmp_path):
     tone = ["-f", "lavfi", "-i", "sine=frequency=440", "-t", "1"]
     kinds = {"clip.mov": [*picture, "-c:v", "libx264", "-pix_fmt", "yuv420p"],
              "clip.mkv": [*picture, "-c:v", "libx264", "-pix_fmt", "yuv420p"],
+             "clip.webm": [*picture, "-c:v", "libvpx-vp9"],
              "clip.avi": [*picture, "-c:v", "mpeg4"], "clip.mpg": [*picture, "-c:v", "mpeg2video", "-f", "mpeg"],
              "clip.wmv": [*picture, "-c:v", "wmv2"], "tape.wav": tone, "tape.flac": tone, "tape.aiff": tone,
              "tape.ogg": [*tone, "-c:a", "flac"], "memo.m4a": [*tone, "-c:a", "aac"]}

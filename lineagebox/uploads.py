@@ -48,7 +48,9 @@ _SIGNATURES = {
     ".3gp": [(4, b"ftyp")], ".3g2": [(4, b"ftyp")],
     # AVCHD: 192-byte packets, each a 4-byte time and then the 0x47 every transport stream packet starts with
     **{ext: [((4, b"\x47"), (196, b"\x47"))] for ext in (".mts", ".m2ts")},
-    ".avi": [((0, b"RIFF"), (8, b"AVI "))], ".wmv": [(0, ASF)], ".mkv": [(0, b"\x1a\x45\xdf\xa3")],
+    ".avi": [((0, b"RIFF"), (8, b"AVI "))], ".wmv": [(0, ASF)],
+    # Matroska, and WebM, which is one kind of it: both start with the EBML header
+    ".mkv": [(0, b"\x1a\x45\xdf\xa3")], ".webm": [(0, b"\x1a\x45\xdf\xa3")],
     ".mpg": [(0, b"\x00\x00\x01\xba"), (0, b"\x00\x00\x01\xb3")], ".mpeg": [(0, b"\x00\x00\x01\xba"),
                                                                             (0, b"\x00\x00\x01\xb3")],
     # sound recordings

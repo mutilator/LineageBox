@@ -1,6 +1,7 @@
 """Pictures and files: thumbnails, previews, frames, videos to play, originals and their XMP sidecars; and the health
 check."""
 import mimetypes
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse, PlainTextResponse, Response
@@ -8,7 +9,7 @@ from fastapi.responses import FileResponse, PlainTextResponse, Response
 from lineagebox import access, catalog, copies, sidecars, video
 from lineagebox.web.common import MEMBER, PRIVATE, PUBLIC, SHA256, _attachment, _derivative
 from lineagebox.web.deps import con, site, viewer
-from lineagebox.web import tiles
+from lineagebox.web import remake, tiles
 from lineagebox.web.site import Site
 
 router = APIRouter()
@@ -38,9 +39,19 @@ def shown(v: access.Viewer, sha: str) -> bool:
     return bool(SHA256.match(sha)) and (v.admin or sha in v.shas)
 
 
+def _picture(s: Site, v: access.Viewer, sha: str, path) -> Path | None:
+    """A picture made from a photo (its thumbnail, preview or a video's frame), if the viewer may see the photo; one
+    found gone is made again from the original first, when it can be (remake.py), never a broken picture for long."""
+    if not shown(v, sha):
+        return None
+    if not path.is_file():
+        remake.again(s, sha)
+    return path
+
+
 @router.get("/t/{sha}")
 def thumbnail(sha: str, v=Depends(viewer), s: Site = Depends(site)):
-    return _derivative(s.cfg.thumb_path(sha) if shown(v, sha) else None, "image/webp")
+    return _derivative(_picture(s, v, sha, s.cfg.thumb_path(sha)), "image/webp")
 
 
 @router.get("/t2/{sha}")
@@ -49,6 +60,8 @@ def sharp_thumbnail(sha: str, v=Depends(viewer), s: Site = Depends(site)):
     it is asked for, and kept (tiles.sharp). With no preview to make it from, the thumbnail: never an empty tile."""
     if not shown(v, sha):
         raise HTTPException(404)
+    if not s.cfg.preview_path(sha).is_file():  # gone: made again first, when it can be (remake.py)
+        remake.again(s, sha)
     made = tiles.sharp(s.cfg, sha)
     if made:
         return _derivative(made, "image/webp")
@@ -62,12 +75,12 @@ def sharp_thumbnail(sha: str, v=Depends(viewer), s: Site = Depends(site)):
 
 @router.get("/p/{sha}")
 def preview(sha: str, v=Depends(viewer), s: Site = Depends(site)):
-    return _derivative(s.cfg.preview_path(sha) if shown(v, sha) else None, "image/jpeg")
+    return _derivative(_picture(s, v, sha, s.cfg.preview_path(sha)), "image/jpeg")
 
 
 @router.get("/frame/{sha}/{idx}")
 def video_frame(sha: str, idx: int, v=Depends(viewer), s: Site = Depends(site)):
-    return _derivative(s.cfg.frame_path(sha, idx) if shown(v, sha) and 0 <= idx < 1000 else None, "image/jpeg")
+    return _derivative(_picture(s, v, sha, s.cfg.frame_path(sha, idx)) if 0 <= idx < 1000 else None, "image/jpeg")
 
 
 @router.get("/play/{image_id}")
@@ -86,8 +99,10 @@ def play(image_id: int, c=Depends(con), s: Site = Depends(site)):
         raise HTTPException(404, "There is no playable copy of this video yet")
     if img["media"] == "audio":  # a recording, as its kind of sound (a copy is AAC in MP4)
         return FileResponse(path, media_type=video.SOUND_TYPES.get(path.suffix.lower(), "audio/mpeg"), headers=PRIVATE)
-    # MOV with H.264 is the same as MP4 to a browser, which may refuse it as video/quicktime
-    return FileResponse(path, media_type="video/mp4", headers=PRIVATE)
+    # MOV with H.264 is the same as MP4 to a browser, which may refuse it as video/quicktime; WebM is its own
+    # kind, and a 720p copy of one is an MP4 like any other
+    kind = "video/webm" if path.suffix.lower() == ".webm" else "video/mp4"
+    return FileResponse(path, media_type=kind, headers=PRIVATE)
 
 
 @router.get("/original/{file_id}")

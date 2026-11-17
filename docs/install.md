@@ -352,7 +352,7 @@ What was done after the copy was made is gone; photos added since are found agai
 since then are not deleted: the catalog no longer knows them, so the next day LineageBox moves their sound into the
 `stories/set-aside` folder, where they stay. If the whole
 catalog folder was lost, the worker makes the previews and thumbnails again from the photos (it looks for missing ones
-once a day) and downloads the face models again. From source, stop `serve` and `worker` and do the same in the data
+once a day, and a photo's are made at once when a page shows it) and downloads the face models again. From source, stop `serve` and `worker` and do the same in the data
 folder; `python -m lineagebox backup --check <file>` checks a copy.
 
 **Leaving LineageBox.** **Settings → Backup → Download everything** (or `python -m lineagebox export <file>`) makes one

@@ -8,7 +8,8 @@ How LineageBox's family maps onto GEDCOM:
   too, the first, marked in 7.0 with the extension tag _BIO (declared in HEAD.SCHMA) so that it comes back as their
   story, while other programs show it as a note;
 - each couple, and each set of parents with children, is a FAM: partners as HUSB and WIFE (no more than a word in 7.0:
-  a couple of one sex is fine), MARR when they married, DIV when that marriage is over, children as CHIL with how
+  a couple of one sex is fine), MARR when they married, DIV when that marriage is over, the extension tag _BOND for
+  a couple who are going out together (no standard tag says so), children as CHIL with how
   they belong (FAMC.PEDI: BIRTH, ADOPTED, FOSTER). A child's birth parents and adoptive parents are two FAMs, each
   with its PEDI; siblings whose parents aren't known share a FAM with no partners;
 - attributes (OCCU, EDUC, RESI, RELI...) carry their value as the payload ("1 OCCU Teacher"), as 7.0 requires, and an
@@ -43,6 +44,7 @@ from lineagebox.config import Config
 VERSIONS = ("7.0", "5.5.1")
 PET_URI = "urn:uuid:6a1d3c55-9f43-4f0e-8c2b-6f4d2b0a7e11"  # documents LineageBox's _PET extension tag
 GROUP_URI = "urn:uuid:2f6e9b0a-41c7-4d38-9a5e-8c1f0d7b3e24"  # and _GROUP: a group someone is in (Teachers)
+BOND_URI = "urn:uuid:9c4a7e62-5b18-4e7a-bf03-2d9a61c8e5f7"   # and _BOND: what a couple are to each other
 BIO_URI = "urn:uuid:9c4e2b17-6d3a-4f85-b0e1-7a5d3c8f2e46"  # and _BIO: the NOTE that is someone's life story
 UID_SPACE = uuid.UUID("0b8f3c1e-5a52-4b8e-9d0f-2a7c6e4d1b93")  # stable UIDs of families with no partner record
 ROLES = {"friend": "FRIEND", "best friend": "FRIEND", "family friend": "FRIEND", "neighbor": "NGHBR",
@@ -52,7 +54,7 @@ PEDI = {"birth": "BIRTH", "adopted": "ADOPTED", "foster": "FOSTER"}
 SEX = {"male": "M", "female": "F"}
 MEDIA_TYPES = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "jpe": "image/jpeg", "jfif": "image/jpeg", "png": "image/png",
                "gif": "image/gif", "tif": "image/tiff", "tiff": "image/tiff", "bmp": "image/bmp", "pdf": "application/pdf", "heic": "image/heic",
-               "mp4": "video/mp4", "mov": "video/quicktime", "mp3": "audio/mpeg", "wav": "audio/wav",
+               "mp4": "video/mp4", "mov": "video/quicktime", "webm": "video/webm", "mp3": "audio/mpeg", "wav": "audio/wav",
                "txt": "text/plain", "htm": "text/html", "html": "text/html"}
 LIVING_YEARS = 110  # someone born less long ago, with no death, may be alive
 
@@ -252,6 +254,7 @@ class _Writer:
             self.put(2, "TAG", f"_PET {PET_URI}")
             self.put(2, "TAG", f"_GROUP {GROUP_URI}")
             self.put(2, "TAG", f"_BIO {BIO_URI}")
+            self.put(2, "TAG", f"_BOND {BOND_URI}")
         self.put(1, "SOUR", "LINEAGEBOX")
         self.put(2, "VERS", __version__)
         self.put(2, "NAME", "LineageBox")
@@ -351,6 +354,8 @@ class _Writer:
                 self._event(1, e)
             if couple["married"] and not couple["current"] and "DIV" not in tags:
                 self.put(1, "DIV", "Y")
+        if couple is not None and couple["dating"]:
+            self.put(1, "_BOND", "dating")  # going out together: a couple, but neither married nor sharing a life
         uid = couple["uid"] if couple is not None and couple["uid"] else str(uuid.uuid5(
             UID_SPACE, "|".join(sorted(people[p]["uid"] or str(p) for p in [*fam["partners"], *fam["children"]]))))
         self.put(1, "UID" if self.v7 else "_UID", uid)

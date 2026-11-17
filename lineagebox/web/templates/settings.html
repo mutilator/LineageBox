@@ -70,6 +70,10 @@ machines and networks are hidden.{% endtrans %}</p>
     <button type="submit">{% trans %}Watch{% endtrans %}</button>
   </form>
   <p class="hint">{% trans %}Only folders on this share can be watched. Folders elsewhere need another Docker mount.{% endtrans %}</p>
+  {%- if cfg.folders %}
+  <p><a href="/settings/reorganize">{% trans %}Reorganize folders…{% endtrans %}</a>
+    <span class="hint inline">{% trans %}Every photo, video and recording moved into folders by year and month, after a look at where everything goes.{% endtrans %}</span></p>
+  {%- endif %}
 </section>
 
 <section class="panel" id="scanning">

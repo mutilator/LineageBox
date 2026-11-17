@@ -10,6 +10,10 @@ from dataclasses import dataclass, field
 _PRESENT = "EXISTS (SELECT 1 FROM file v WHERE v.image_id = i.id AND NOT v.missing)"
 ON_SHARE = f"i.error IS NULL AND {_PRESENT}"
 VISIBLE = f"i.error IS NULL AND i.live_of IS NULL AND {_PRESENT}"
+# The folder a file (as f) came from: where it is, or, once a reorganization moved it into a year and month folder
+# (reorganize.py), the folder it was in before. What that folder's name says and what was given it by hand go for the
+# file still: its dates, events, places, people, the photos beside it, hiding and sharing.
+ORIGIN = "coalesce(f.from_folder_id, f.folder_id)"
 
 
 def tag_name(value) -> str:

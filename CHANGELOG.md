@@ -6,6 +6,33 @@ copies it there when the version is tagged ([releases](docs/development.md#relea
 A **catalog update** adds to the catalog's tables. LineageBox copies the catalog before it updates it, and earlier
 versions can't open the updated one.
 
+## 1.8.0 (2026-11-16)
+
+**Catalog update** (migrations 036 to 038).
+
+### New
+
+- **Settings → Reorganize folders:** moves every photo, video and recording in the watched folders into a folder for
+  its year and month (`2016/2016-07`), by the date LineageBox has for it, keeping its name; ticked, **Folders by
+  kind** puts `Photos`, `Scans`, `Videos` and `Recordings` at the top, each with its years and months. **See where
+  everything goes** shows the new layout and moves nothing. A photo's own files go with it, everything else goes to
+  `Other files`, and empty folders and other programs' leftovers (`Thumbs.db`, `.DS_Store`) can go with them. Names,
+  tags, dates, captions, what the old folder names said, and hiding or sharing a folder all stay as they were, and
+  **Put back** undoes the latest run.
+- **Boyfriends and girlfriends** in the family tree: a couple can now be a husband and wife, partners who share a
+  life without marrying, or a boyfriend and girlfriend, each of them current or former ("ex-wife",
+  "ex-girlfriend"). Say which when you add them on a person's page, and the page says it beside them. Many families
+  have people who never married, some with children together: their children belong to both parents and are family
+  on both sides, as any other couple's are. Nobody marries in, so there are no in-laws and no step-family from going
+  out together: a girlfriend's mother reads "girlfriend's mother", a sister's boyfriend "sister's boyfriend". Anyone
+  entered as a boyfriend or girlfriend before, when it could only be typed as another relationship, becomes such a
+  couple when the catalog updates.
+
+### Updated
+
+- **WebM videos** are read like any other, and play without a 720p copy when the browser can show them (VP8 or VP9
+  with Opus or Vorbis sound).
+
 ## 1.7.2 (2026-11-14)
 
 ### Updated

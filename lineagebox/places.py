@@ -31,7 +31,7 @@ from datetime import datetime
 import httpx
 
 from lineagebox import __version__, activity, errors, events, settings, towns
-from lineagebox.catalog import VISIBLE
+from lineagebox.catalog import ORIGIN, VISIBLE
 from lineagebox.config import Config
 
 AGENT = f"LineageBox/{__version__} (self-hosted family archive)"
@@ -182,7 +182,8 @@ def map_data(con: sqlite3.Connection, year: int | None = None) -> dict:
     coords = {r["name"]: (r["lat"], r["lon"]) for r in con.execute("SELECT * FROM place WHERE lat IS NOT NULL")}
     confirmed = {r[0] for r in con.execute("SELECT name FROM place WHERE lat IS NOT NULL AND confirmed_at IS NOT NULL")}
     unplaced = 0
-    for r in con.execute(f"""SELECT i.id, i.sha256, i.gps_lat, i.gps_lon, min(f.folder_id) AS folder_id FROM image i
+    for r in con.execute(f"""SELECT i.id, i.sha256, i.gps_lat, i.gps_lon, min(f.folder_id) AS folder_id,
+                                    min({ORIGIN}) AS origin FROM image i
                              JOIN file f ON f.image_id = i.id AND NOT f.missing
                              WHERE {VISIBLE} AND {one_each} {in_year} GROUP BY i.id ORDER BY i.taken_at DESC""", args):
         if (own := hand.photos.get(r["id"])) is not None:
@@ -193,7 +194,7 @@ def map_data(con: sqlite3.Connection, year: int | None = None) -> dict:
             lat, lon = round(r["gps_lat"], 2), round(r["gps_lon"], 2)  # about a kilometre
             add(("gps", lat, lon), town(lat, lon, "Taken here (GPS)"), lat, lon, r)
             continue
-        hit = hand.folder(r["folder_id"], coords)
+        hit = hand.nearest(r["origin"], r["folder_id"], coords)
         if hit is None:
             unplaced += 1
             continue
@@ -277,6 +278,15 @@ class HandPlaces:
             self._near[(f, coords is not None)] = found
         return found
 
+    def nearest(self, origin: int | None, folder_id: int | None, coords: dict | None = None):
+        """folder(), for a photo's file: from the folder it came from (catalog.ORIGIN), and then, for one a
+        reorganization moved into a year and month folder (reorganize.py), from where it is now, should someone have
+        placed that folder by hand since."""
+        hit = self.folder(origin, coords)
+        if hit is None and folder_id != origin:
+            hit = self.folder(folder_id, coords)
+        return hit
+
     def of(self, image_id: int, folder_id: int | None = None) -> tuple[float, float, str] | None:
         """Where a photo was taken by someone's word: (lat, lon, "photo" or "folder"), or None. folder_id: its first
         file's folder, if known."""
@@ -284,13 +294,14 @@ class HandPlaces:
             return (*self.photos[image_id], "photo")
         if not self.folders:
             return None
+        origin = folder_id
         if folder_id is None:
-            row = self.con.execute("SELECT min(folder_id) FROM file WHERE image_id = ? AND NOT missing",
-                                   (image_id,)).fetchone()
-            folder_id = row[0] if row else None
+            row = self.con.execute(f"""SELECT min(folder_id), min({ORIGIN}) FROM file f
+                                       WHERE image_id = ? AND NOT missing""", (image_id,)).fetchone()
+            folder_id, origin = row if row else (None, None)
         # the nearest folder with a place, as on the map: one named for a place, below one placed by hand, wins, and
         # its place (a town's centre) stays in the catalog
-        hit = self.folder(folder_id, self.named)
+        hit = self.nearest(origin, folder_id, self.named)
         return (*hit[2], "folder") if hit and hit[2] else None
 
 
@@ -334,8 +345,8 @@ def photo_place(con: sqlite3.Connection, image_id: int, image) -> dict | None:
     """Where the photo page says a photo was taken: {lat, lon, how, label, folder}. how: "photo" (placed by hand),
     "gps", "folder" (its folder placed by hand) or "name" (a place its folder's name gives, found on the map)."""
     hand = HandPlaces(con)
-    folder_id = con.execute("SELECT min(folder_id) FROM file WHERE image_id = ? AND NOT missing",
-                            (image_id,)).fetchone()[0]
+    folder_id, origin = con.execute(f"""SELECT min(folder_id), min({ORIGIN}) FROM file f
+                                        WHERE image_id = ? AND NOT missing""", (image_id,)).fetchone()
     spot, how, folder, name = None, None, None, None
     if image_id in hand.photos:
         spot, how = hand.photos[image_id], "photo"
@@ -343,7 +354,7 @@ def photo_place(con: sqlite3.Connection, image_id: int, image) -> dict | None:
         spot, how = (image["gps_lat"], image["gps_lon"]), "gps"
     else:
         coords = {r[0]: (r[1], r[2]) for r in con.execute("SELECT name, lat, lon FROM place WHERE lat IS NOT NULL")}
-        hit = hand.folder(folder_id, coords)
+        hit = hand.nearest(origin, folder_id, coords)
         if hit is None:
             return None
         folder, name, by_hand = hit

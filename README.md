@@ -180,7 +180,7 @@ The guides go step by step:
 - **Photos:** JPEG, PNG, TIFF (scans, shown through a JPEG copy browsers can display), HEIC (iPhones' photos, with
   Live Photos kept as one photo) and most cameras' raw files
   (Nikon, Canon, Sony, Fujifilm, Olympus, Panasonic, Pentax, DNG and more), plus most video formats (MP4, MOV, MTS,
-  3GP, AVI, WMV, MKV and more) and sound recordings (MP3, M4A, WAV, WMA, Ogg, FLAC, AMR). They can be in a local
+  3GP, AVI, WMV, MKV, WebM and more) and sound recordings (MP3, M4A, WAV, WMA, Ogg, FLAC, AMR). They can be in a local
   folder or on a network share (SMB).
 - **For family accounts:** a domain name that reaches your home, HTTPS (a reverse proxy such as Caddy is easiest),
   and a free Google sign-in client from Google Cloud, or passkeys alone. [Family accounts](docs/family-accounts.md)

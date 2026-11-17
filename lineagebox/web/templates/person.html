@@ -115,6 +115,8 @@
   </div>
 
   {% macro who(pid, extra="") %}<a href="/person/{{ pid }}">{{ g.name(pid) }}</a>{{ extra }}{% endmacro %}
+  {#- what one of a couple is to the other: married, partners sharing a life, or going out together #}
+  {% macro couple_word(bond, sex) %}{% if bond == "married" %}{{ _("husband") if sex == "male" else _("wife") if sex == "female" else _("spouse") }}{% elif bond == "dating" %}{{ _("boyfriend") if sex == "male" else _("girlfriend") if sex == "female" else _("partner") }}{% else %}{{ _("partner") }}{% endif %}{% endmacro %}
   {% macro remove(kind, a, b, what="") %}<button type="button" class="x" title="{{ _('Remove this link') }}" aria-label="{{ _('Remove this link') }}"
     data-api="/api/family/unlink" data-body='{{ {"kind": kind, "a": a, "b": b, "what": what}|tojson }}' data-reload>×</button>{% endmacro %}
   {#- how a child belongs to a parent, changed in place: by birth, adopted, foster #}
@@ -128,7 +130,7 @@
       {%- for p in fam.parents %}<span class="link{% if p.how != 'birth' %} {{ p.how }}{% endif %}">{{ who(p.id) }}{% if p.entered %}{{ kind(person.id, p.id, p.how, _("%(name)s belongs to %(name2)s", name=person.name, name2=g.name(p.id))) }}{{ remove("parent", person.id, p.id) }}{% else %}<span class="hint inline">{% trans %}through a sibling{% endtrans %}</span>{% endif %}</span>{% endfor %}</dd>{% endif %}
     {%- if fam.partners %}<dt>{% trans %}Partners{% endtrans %}</dt><dd>
       {%- for q in fam.partners %}<span class="link{% if not q.current %} former{% endif %}">{{ who(q.id) }}
-        <span class="hint inline">{{ (_("husband") if g.sex(q.id) == "male" else _("wife") if g.sex(q.id) == "female" else _("spouse")) if q.married else _("partner") }}{% if not q.current %}{% trans %}, former{% endtrans %}{% endif %}</span>
+        <span class="hint inline">{{ couple_word(q.bond, g.sex(q.id)) }}{% if not q.current %}{% trans %}, former{% endtrans %}{% endif %}</span>
         <button type="button" class="quiet small" data-api="/api/family/current" data-body='{{ {"a": person.id, "b": q.id, "what": "former" if q.current else "current"}|tojson }}' data-reload>{{ _("mark former") if q.current else _("mark current") }}</button>
         {{- remove("partner", person.id, q.id) }}</span>{% endfor %}</dd>{% endif %}
     {%- if fam.siblings %}<dt>{% trans %}Siblings{% endtrans %}</dt><dd>
@@ -170,8 +172,9 @@
       </select></label>
     <button type="submit">{% trans %}Add{% endtrans %}</button>
   </form>
-  <p class="hint">{% trans %}Enter only what you know directly: parents, children, brothers and sisters, partners (only one current
-  partner at a time), and friends, coworkers and the like. Nieces, cousins, in-laws and step-family are worked out from
+  <p class="hint">{% trans %}Enter only what you know directly: parents, children, brothers and sisters, partners (a husband or wife,
+  a partner, a boyfriend or girlfriend, each current or former: only one current partner at a time), and friends, coworkers and
+  the like. Nieces, cousins, in-laws and step-family are worked out from
   these. A name that isn't in the catalog yet adds that person, even with no photos. Someone adopted or fostered: add
   them as an adopted son, a foster daughter, an adoptive mother…, or change “by birth” beside a parent or child.{% endtrans %}</p>
   <p class="actions">

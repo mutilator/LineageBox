@@ -96,6 +96,8 @@ SCOPED = {
     "headcount": "image_id IN temp.seen_image",  # the AI's careful count of the people in a photo (headcount.py)
     "describe_request": "account_id = {account}",
     "tag_alias": "0",
+    "reorganize_run": "0",  # how the photo folders were reorganized, and every file moved (reorganize.py): admins'
+    "reorganize_move": "0",
 }
 WITH_ROWID = {"image_tag"}  # read by rowid (the order tags were given in): a view has none unless it says so
 
@@ -169,7 +171,7 @@ def family_side(g: family.Graph, pid: int) -> set[int]:
             todo.extend(g.effective_children.get(p, ()))
     out = set(blood)
     for b in blood:
-        for partner, (current, _married) in g.partners.get(b, {}).items():
+        for partner, (current, _bond) in g.partners.get(b, {}).items():
             children = g.effective_children.get(partner, set())
             if current or children & blood:
                 out.add(partner)
@@ -183,7 +185,7 @@ def people_for(g: family.Graph, pid: int | None, rules=(), added=()) -> set[int]
     seen = set()
     if pid is not None and pid in g.people:
         seen = family_side(g, pid)
-        for partner, (current, _married) in g.partners.get(pid, {}).items():
+        for partner, (current, _bond) in g.partners.get(pid, {}).items():
             if current:
                 seen |= family_side(g, partner)
     seen |= set(added)
@@ -195,14 +197,18 @@ def people_for(g: family.Graph, pid: int | None, rules=(), added=()) -> set[int]
 
 
 def hidden(con: sqlite3.Connection) -> tuple[str, list]:
-    """SQL for the photos an admin hid from members, one by one or by hiding a folder they have a copy in, and its
-    arguments. One SELECT, so that it can follow EXCEPT."""
+    """SQL for the photos an admin hid from members, one by one or by hiding a folder they have a copy in (or had,
+    before a reorganization moved it into a year and month folder: reorganize.py), and its arguments. One SELECT, so
+    that it can follow EXCEPT."""
     folders = [r[0] for r in con.execute("SELECT path FROM main.folder WHERE hidden")]
     sql = "SELECT id FROM main.image WHERE hidden"
     if folders:
         sql += (" OR id IN (SELECT v.image_id FROM main.file v WHERE "
-                + " OR ".join("v.path = ? OR v.path LIKE ? ESCAPE '!'" for _ in folders) + ")")
-    return sql, [a for p in folders for a in (p, under(p))]
+                + " OR ".join("v.path = ? OR v.path LIKE ? ESCAPE '!'" for _ in folders) + ")"
+                + " OR id IN (SELECT v.image_id FROM main.file v JOIN main.folder d ON d.id = v.from_folder_id WHERE "
+                + " OR ".join("d.path = ? OR d.path LIKE ? ESCAPE '!'" for _ in folders) + ")")
+    args = [a for p in folders for a in (p, under(p))]
+    return sql, args + args
 
 
 def images_for(con: sqlite3.Connection, people: set[int], account_id: int | None, upload_folder: str | None,
@@ -250,9 +256,12 @@ def folders_for(con: sqlite3.Connection, images: set[int], upload_folder: str | 
     own uploads folder and everything in it, and the folders shared with them (`shared`, paths; the folders in those
     come with their photos). Members browse only their uploads folder and those shared with them (routes/browse.py)."""
     parents = dict(con.execute("SELECT id, parent_id FROM folder"))
-    found = [r[0] for r in con.execute("""SELECT DISTINCT folder_id FROM file
-                                          WHERE image_id IN (SELECT value FROM json_each(?))""",
-                                       (json.dumps(sorted(images)),))]
+    # and the folders those files came from, before a reorganization moved them (catalog.ORIGIN): what their names
+    # say still goes for the photos (folders.FolderIndex)
+    found = [r[0] for r in con.execute("""SELECT folder_id FROM file WHERE image_id IN (SELECT value FROM json_each(?))
+                                          UNION SELECT from_folder_id FROM file WHERE from_folder_id IS NOT NULL
+                                          AND image_id IN (SELECT value FROM json_each(?))""",
+                                       (json.dumps(sorted(images)),) * 2)]
     if upload_folder:
         found += [r[0] for r in con.execute("SELECT id FROM folder WHERE path = ? OR path LIKE ? ESCAPE '!'",
                                             (upload_folder, under(upload_folder)))]
@@ -320,9 +329,14 @@ def shared_with(con: sqlite3.Connection, account_id: int) -> Shared:
     images = {r["image_id"] for r in shares if r["image_id"] is not None}
     folders = {r["folder_path"] for r in shares if r["folder_id"] is not None}
     tours = {r["tour_id"] for r in shares if r["tour_id"] is not None}
-    for path in folders:
+    for path in folders:  # what is in it, and what was, before a reorganization moved it (reorganize.py)
         images |= {r[0] for r in con.execute("""SELECT image_id FROM main.file WHERE NOT missing AND image_id IS NOT NULL
                                                 AND path LIKE ? ESCAPE '!'""", (under(path) if path else "%",))}
+        images |= {r[0] for r in con.execute("""SELECT v.image_id FROM main.file v
+                                                JOIN main.folder d ON d.id = v.from_folder_id
+                                                WHERE NOT v.missing AND v.image_id IS NOT NULL
+                                                AND (d.path = ? OR d.path LIKE ? ESCAPE '!')""",
+                                             (path, under(path) if path else "%"))}
     if tours:
         images |= {r[0] for r in con.execute("""SELECT image_id FROM main.tour_photo
                                                 WHERE tour_id IN (SELECT value FROM json_each(?))""",

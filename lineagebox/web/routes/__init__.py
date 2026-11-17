@@ -12,6 +12,7 @@ from lineagebox.web.routes import face_checks, camera_clock  # ages to check, fa
 from lineagebox.web.routes import suggested_dates  # scans dated by when they were scanned
 from lineagebox.web.routes import first_run  # the first steps on a new LineageBox, on an admin's Home
 from lineagebox.web.routes import language  # the language picked in this browser (i18n.py)
+from lineagebox.web.routes import reorganize  # the photo folders moved into year and month folders
 from lineagebox.web.routes import private  # Cleanup → Private papers: identity cards, tax forms and the like to hide
 
 MODULES = (browse, details, places, gedcom, reading, family, tours, faces, naming, cleanup,
@@ -20,3 +21,4 @@ MODULES = (browse, details, places, gedcom, reading, family, tours, faces, namin
            suggested_dates, private)
 MODULES += (first_run,)
 MODULES += (language,)
+MODULES += (reorganize,)

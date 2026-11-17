@@ -125,6 +125,7 @@ def read(data: bytes) -> dict:
                 "partners": [n.payload for n in r.children if n.tag in ("HUSB", "WIFE") and n.payload.startswith("@")],
                 "children": [n.payload for n in r.all("CHIL") if n.payload.startswith("@")],
                 "events": [_event(n) for n in r.children if n.tag in COUPLE_TAGS | {"SEP"}],
+                "bond": (r.value("_BOND") or "").strip().lower(),  # 'dating': LineageBox's own tag (gedcom.py)
                 "uid": r.value("UID") or r.value("_UID") or None}
         elif r.tag == "SOUR" and r.xref:
             out["sources"][r.xref] = _source(r, found)
@@ -703,8 +704,9 @@ def _merge_family(con, fam: dict, pid_of: dict, data: dict, report: dict, found:
                     current = False
                     report["conflicts"].append(f"{names((a, b))}: added as former partners, since one of them has "
                                                f"another current partner here")
-            con.execute("INSERT INTO partner(a, b, current, married, uid) VALUES (?, ?, ?, ?, ?)",
-                        (a, b, int(current), int(bool(tags & {"MARR", "DIV", "ANUL", "DIVF"})),
+            married = bool(tags & {"MARR", "DIV", "ANUL", "DIVF"})
+            con.execute("INSERT INTO partner(a, b, current, married, dating, uid) VALUES (?, ?, ?, ?, ?, ?)",
+                        (a, b, int(current), int(married), int(not married and fam.get("bond") == "dating"),
                          fam["uid"] if fam["uid"] and not con.execute("SELECT 1 FROM partner WHERE uid = ?",
                                                                       (fam["uid"],)).fetchone()
                          else str(uuid.uuid4())))

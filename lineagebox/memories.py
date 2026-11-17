@@ -18,7 +18,7 @@ from datetime import date, timedelta
 from urllib.parse import urlencode
 
 from lineagebox import favourites, tours
-from lineagebox.catalog import VISIBLE
+from lineagebox.catalog import ORIGIN, VISIBLE
 
 LEAST = 4       # photos a memory needs
 AROUND = 3      # days either side of today's date that count as "this week", in earlier years
@@ -328,7 +328,7 @@ def _occasion(con, run: dict, people: list[int] | None, names: dict) -> tuple[st
             return title, who, f"{said}, and {names.get(there[0]) or a} is in {seen[there[0]]} of the {n} photos"
         if found := tagged(EVIDENCE.get(e["tag"], ())):
             return title, who, f"{said}, and {found[0]} of the {n} photos are {found[1]}"
-    folders = Counter(r[0] for r in con.execute("""SELECT fo.event FROM file f JOIN folder fo ON fo.id = f.folder_id
+    folders = Counter(r[0] for r in con.execute(f"""SELECT fo.event FROM file f JOIN folder fo ON fo.id = {ORIGIN}
                                                    WHERE f.image_id IN (SELECT value FROM json_each(?))
                                                      AND coalesce(fo.event, '') != ''
                                                    GROUP BY f.image_id""", (ids,)))

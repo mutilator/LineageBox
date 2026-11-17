@@ -97,8 +97,9 @@ def ingest(con: sqlite3.Connection, cfg: Config, limit: int | None = None, retry
         rows, left = kept, len(rows) - len(kept)
     if limit is not None:
         rows = rows[:limit]
-    stats = IngestStats(pending=len(rows), rebuilt=_rebuild(con, cfg, stop), no_ffmpeg=left)
+    stats = IngestStats(pending=len(rows), no_ffmpeg=left)
     if not rows:
+        stats.rebuilt = _rebuild(con, cfg, stop)
         stats.live = live.pair(con)
         return stats
     # Content hashes already in the catalog or being decoded by a worker. Claiming under the lock means each
@@ -140,8 +141,13 @@ def ingest(con: sqlite3.Connection, cfg: Config, limit: int | None = None, retry
         finally:
             if results:
                 _save(con, results, waiting, stats)  # if even this fails, those files are read again next time
-    stats.live = live.pair(con)  # before the next stages, which leave a paired clip out
     stats.seconds = time.monotonic() - t0
+    # after the files read above are linked to their photos, not before: a photo whose files all went away at once (a
+    # folder moved, so cleanup.drop_derivatives deleted its preview) and came back under another name has only now
+    # got a file on the share again; before, it waited a whole pass with no picture
+    if not stats.interrupted:
+        stats.rebuilt = _rebuild(con, cfg, stop)
+    stats.live = live.pair(con)  # before the next stages, which leave a paired clip out
     return stats
 
 
@@ -338,15 +344,22 @@ def _rebuild(con: sqlite3.Connection, cfg: Config, stop: Callable[[], bool] | No
                 media.save_derivatives(poster[1], cfg.preview_path(r["sha256"]), cfg.thumb_path(r["sha256"]),
                                        cfg.thumb_size)
             else:
-                d = media.decode(path.read_bytes(), os.path.splitext(r["path"])[1].lower(), cfg.preview_size)
-                media.save_derivatives(d.image, cfg.preview_path(r["sha256"]), cfg.thumb_path(r["sha256"]),
-                                       cfg.thumb_size)
+                remake_photo(cfg, r["sha256"], path)
         except Exception:  # unreadable just now (a share hiccup, a file being copied): left for the next pass
             continue
         con.execute(f"UPDATE image SET stage = stage | {STAGE_INGEST} WHERE id = ?", (r["id"],))
         con.commit()
         done += 1
     return done
+
+
+def remake_photo(cfg: Config, sha: str, path) -> None:
+    """A photo's preview and thumbnail made again from its original (path, on the share), as ingest made them. Raises
+    what reading or decoding it raises. Also the web app's, for a picture asked for and found gone (web/remake.py)."""
+    if path.stat().st_size > MAX_PHOTO_BYTES:
+        raise ValueError(f"over {MAX_PHOTO_BYTES >> 20} MB: too large to be read as a photo")
+    d = media.decode(path.read_bytes(), os.path.splitext(str(path))[1].lower(), cfg.preview_size)
+    media.save_derivatives(d.image, cfg.preview_path(sha), cfg.thumb_path(sha), cfg.thumb_size)
 
 
 def _bits(x: int) -> int:

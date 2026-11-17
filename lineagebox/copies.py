@@ -5,8 +5,9 @@ compose.override.yaml), because on a small ARM board a copy takes about as long 
 hours of video in the library LineageBox was developed on need one), and the worker must not wait on that.
 
 A copy is never a catalog entry of its own: the scan skips its name (video.is_copy), so it is in no folder, count,
-duplicate list or similar-shot group. image.playable says what the web page plays:
-- original: the file itself (H.264 and AAC in MP4/MOV);
+duplicate list or similar-shot group. While a reorganization moves the files (reorganize.py), no copy is started; one
+finished as its video was moved goes after it. image.playable says what the web page plays:
+- original: the file itself (H.264 with AAC or MP3 in MP4/MOV, VP8 or VP9 with Opus or Vorbis in WebM);
 - needed: a copy is still to be made; copy: one is next to one of the video's files; failed: <why> ffmpeg could not.
 Cleanup moves a copy along with its video (see cleanup._move_copy).
 """
@@ -21,6 +22,7 @@ from lineagebox.catalog import ON_SHARE
 from lineagebox.config import Config
 
 IDLE = 300  # seconds between looks for videos that need a copy
+BUSY_WAIT = 30  # seconds between looks while a reorganization moves the files
 BATCH = 25
 SIDECAR_MINUTES = 3  # each round writes XMP sidecars for this long at most, between the copies
 
@@ -62,9 +64,10 @@ def make(con: sqlite3.Connection, cfg: Config, limit: int | None = None, stop: C
     rows = con.execute(f"""SELECT i.id, i.taken_at, i.duration FROM image i WHERE i.playable = 'needed' AND {ON_SHARE}
                            AND {retry.waiting("copies")}
                            ORDER BY i.live_of IS NOT NULL, i.id DESC""").fetchall()[:limit]
+    from lineagebox import reorganize  # it needs more of LineageBox than this service does
     made = 0
     for r in rows:
-        if stop is not None and stop():
+        if (stop is not None and stop()) or reorganize.busy(con):
             break
         files = present_files(con, r["id"])
         if not files:
@@ -84,6 +87,7 @@ def make(con: sqlite3.Connection, cfg: Config, limit: int | None = None, stop: C
             con.commit()
             failed(f"720p copy of {files[0]} failed: {e}")
             continue
+        _follow(con, cfg, r["id"], files[0], target)
         con.execute("UPDATE image SET playable = 'copy' WHERE id = ?", (r["id"],))
         retry.done(con, "copies", [r["id"]])
         con.commit()
@@ -94,8 +98,24 @@ def make(con: sqlite3.Connection, cfg: Config, limit: int | None = None, stop: C
     return made
 
 
+def _follow(con: sqlite3.Connection, cfg: Config, image_id: int, made_for: str, copy: Path) -> None:
+    """A copy made for a video that a reorganization moved meanwhile (reorganize.py) goes next to it, where
+    find_copy() looks; else it would be made again."""
+    files = present_files(con, image_id)
+    if not files or made_for in files or not copy.is_file():
+        return
+    to = video.copy_path(cfg.share_root / files[0])
+    if to.exists():
+        return
+    from lineagebox import cleanup
+    try:
+        cleanup._move(copy, to, like=cfg.share_root / files[0])
+    except OSError as e:
+        print(f"720p copy of {activity.one_line(made_for)} stays where it was made: {e}", flush=True)
+
+
 def run_forever(con: sqlite3.Connection, base: Config) -> None:
-    from lineagebox import settings, sidecars
+    from lineagebox import reorganize, settings, sidecars
     from lineagebox.activity import log, note_problem
 
     def write_sidecars(cfg: Config) -> None:
@@ -112,6 +132,9 @@ def run_forever(con: sqlite3.Connection, base: Config) -> None:
     while True:
         try:
             cfg = settings.current(con, base)
+            if reorganize.busy(con):  # files are being moved: nothing is written beside them meanwhile
+                time.sleep(BUSY_WAIT)
+                continue
             if not video.available():  # the worker says so on the Status page too
                 note_problem(con, "ffmpeg", video.MISSING)
                 write_sidecars(cfg)

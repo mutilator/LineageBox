@@ -44,11 +44,15 @@ from datetime import date, datetime
 import numpy as np
 
 from lineagebox import date_hints, dates, events, face_ages, retry, settings
-from lineagebox.catalog import VISIBLE
+from lineagebox.catalog import ORIGIN, VISIBLE
 from lineagebox.faces import usable_faces_sql
 
 SCANNER = re.compile(r"scan|perfection|doxie|flatbed", re.I)  # in a camera's name: a scanner
 SCAN_PATH = "%scan%"  # in a folder's or file's name (LIKE, any case)
+# a file (as f) named so, or in a folder named so, or that was before a reorganization (reorganize.py) moved it into a
+# year and month folder (catalog.ORIGIN); :scan is SCAN_PATH
+NAMED = ("(f.path LIKE :scan OR (f.from_folder_id IS NOT NULL AND (SELECT d.path FROM folder d "
+         "WHERE d.id = f.from_folder_id) LIKE :scan))")
 NO_DATE = ("mtime",)  # dated only by its file's time: no date of its own (a folder's is someone's word)
 DOCUMENT = "document/screenshot"  # the AI's photo_type for a picture of a document
 TRUSTED = ("user", "copy")  # a date set by hand, or a copy's camera date: not suggested over
@@ -105,14 +109,14 @@ def scans(con: sqlite3.Connection) -> dict[str, list[dict]]:
     rows = con.execute(f"""
         SELECT i.id, i.sha256, i.taken_at, i.taken_at_source, i.camera, d.kind,
                (SELECT f.path FROM file f WHERE f.image_id = i.id AND NOT f.missing ORDER BY f.id LIMIT 1) AS path,
-               EXISTS (SELECT 1 FROM file f WHERE f.image_id = i.id AND NOT f.missing AND f.path LIKE :scan) AS named,
+               EXISTS (SELECT 1 FROM file f WHERE f.image_id = i.id AND NOT f.missing AND {NAMED}) AS named,
                (SELECT a.photo_type FROM analysis a WHERE a.image_id = i.id ORDER BY a.created_at DESC LIMIT 1) AS type
         FROM image i LEFT JOIN document d ON d.image_id = i.id
         WHERE {VISIBLE} AND i.media = 'photo' AND i.taken_at_source NOT IN ('user', 'copy')
           AND (i.dup_group_id IS NULL OR i.dup_group_id = i.id)
           AND (d.image_id IS NOT NULL OR i.taken_at_source IN (SELECT value FROM json_each(:no_date))
                OR i.camera IN (SELECT value FROM json_each(:cameras))
-               OR EXISTS (SELECT 1 FROM file f WHERE f.image_id = i.id AND NOT f.missing AND f.path LIKE :scan))
+               OR EXISTS (SELECT 1 FROM file f WHERE f.image_id = i.id AND NOT f.missing AND {NAMED}))
         ORDER BY path, i.id""", {"scan": SCAN_PATH, "cameras": json.dumps(cameras),
                                  "no_date": json.dumps(NO_DATE)}).fetchall()
     young_faces = young(con, ok)
@@ -327,10 +331,14 @@ def _beside(con: sqlite3.Connection, image_id: int) -> tuple[str, int, int, str]
     by file name that someone dated by hand: both within BESIDE files and a few years of each other, or one alone
     within BESIDE_ONE. None when they say nothing."""
     rows = con.execute(f"""
-        SELECT f.image_id, i.taken_at_source, i.date_text, i.date_from, i.date_to
+        WITH came(id) AS (SELECT {ORIGIN} FROM file f WHERE f.image_id = ? AND NOT f.missing ORDER BY f.id LIMIT 1)
+        SELECT f.image_id, f.path, f.id, i.taken_at_source, i.date_text, i.date_from, i.date_to
         FROM file f JOIN image i ON i.id = f.image_id
-        WHERE f.folder_id = (SELECT folder_id FROM file WHERE image_id = ? AND NOT missing ORDER BY id LIMIT 1)
-          AND NOT f.missing AND {VISIBLE} ORDER BY f.path, f.id""", (image_id,)).fetchall()
+        WHERE (f.from_folder_id IN came OR (f.from_folder_id IS NULL AND f.folder_id IN came))
+          AND NOT f.missing AND {VISIBLE}""", (image_id,)).fetchall()
+    # in the folder it came from (catalog.ORIGIN), by file name: a reorganization may have moved those dated by hand
+    # into other year and month folders than the scans they were scanned with
+    rows.sort(key=lambda r: (r["path"].rpartition("/")[2], r["id"]))
     at = next((n for n, r in enumerate(rows) if r["image_id"] == image_id), None)
     if at is None:
         return None

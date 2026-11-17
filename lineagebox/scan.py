@@ -8,6 +8,9 @@ Folders ending in -Removed hold what cleanup removed (cleanup.removed_folder) an
 that had files and now lists none, or hardly any, is taken to be offline (an unmounted drive or share looks like an
 empty folder, and a file put there while it was gone must not make all the others look deleted), so its files are not
 marked missing.
+
+While a reorganization moves the files (reorganize.py), the folders are left alone; a scan that was looking through
+them when it began throws away what it found, which no longer is where it found it.
 """
 import fnmatch
 import os
@@ -79,8 +82,13 @@ def scan(con: sqlite3.Connection, cfg: Config) -> ScanStats:
         raise FileNotFoundError(f"the photo folders can't be reached: {cfg.share_root}")
     if not cfg.folders:
         raise ValueError("no folders are watched")
+    from lineagebox import reorganize  # it needs more of LineageBox than the scan does
     now = datetime.now().isoformat(timespec="seconds")
     stats = ScanStats()
+    if reorganize.busy(con):
+        stats.errors.append(reorganize.BUSY)
+        return stats
+    moves = reorganize.mark(con)
     # Walk first, then write: a walk of a slow disk takes minutes, and writing as it went held the database (and
     # every change made on the web pages) for all of that time.
     found_folders = [("", None, "", False)]  # (path with '/' on every system, parent path, name, ignored)
@@ -135,6 +143,12 @@ def scan(con: sqlite3.Connection, cfg: Config) -> ScanStats:
 
     folders = {r["path"]: r for r in con.execute("SELECT id, path, ignored, source FROM folder")}
     files = {r["path"]: r for r in con.execute("SELECT id, path, size, mtime FROM file")}
+    con.commit()
+    con.execute("BEGIN IMMEDIATE")  # files moved by a reorganization after this wait for what follows to be written
+    if reorganize.mark(con) != moves:
+        con.rollback()
+        stats.errors.append(reorganize.MOVED)
+        return stats
     folder_ids, seen = {}, []
     for path, parent, name, ignored in found_folders:  # parents come before their folders
         folder_ids[path] = _upsert_folder(con, folders, path, folder_ids.get(parent), name, ignored)

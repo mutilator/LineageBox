@@ -363,7 +363,9 @@ in 36–350 ms on the ARM board.
 - **Dates:** a camcorder .MTS file's date comes from the H.264 stream, else the container's (UTC), else the file name.
 - **Playable copies:** 95% of videos were H.264, but browsers can't play about a quarter of them as they are (AVCHD
   .MTS, MOV with PCM sound, 3GP, AVI, WMV, HEVC). These get a 720p copy next to the original, marked in its
-  comment. A copy is never a catalog entry, and Cleanup moves it with its video.
+  comment. What plays as it is goes by the container, not the codec alone: H.264 in MP4, M4V and MOV, and VP8 or
+  VP9 with Opus or Vorbis in WebM (AV1 is not counted on, Safari playing it only on the newest Apple
+  devices). A copy is never a catalog entry, and Cleanup moves it with its video.
 - **Transcripts:** whisper.cpp large-v3-turbo with Silero VAD first, 26–29× real time on the GPU. Only stretches
   with speech are transcribed. Wind, music and the usual Whisper inventions ("Thank you.") are filtered out. The
   language is Whisper's own guess by default (`auto`), stretch by stretch, so a family that speaks two languages gets

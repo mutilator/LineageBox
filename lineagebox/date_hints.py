@@ -18,7 +18,7 @@ Of that library's 1,615 photos dated by file time or folder, 651 had 3 or more d
 import sqlite3
 from datetime import datetime
 
-from lineagebox.catalog import VISIBLE
+from lineagebox.catalog import ORIGIN, VISIBLE
 from lineagebox.face_ages import CHILD_AT_MOST, CHILD_LOOKS, SURE, births
 from lineagebox.faces import usable_faces_sql
 
@@ -82,9 +82,14 @@ def suggest(con: sqlite3.Connection, image_id: int) -> dict | None:
 def _from_neighbours(con: sqlite3.Connection, image_id: int) -> tuple[str, int, str] | None:
     """(the date to suggest, the last year it allows, why) from the dated photos in its folders, or None."""
     rows = con.execute(f"""
-        SELECT f.folder_id, f.path, f.image_id, i.taken_at, i.taken_at_source FROM file f JOIN image i ON i.id = f.image_id
-        WHERE f.folder_id IN (SELECT folder_id FROM file WHERE image_id = ? AND NOT missing) AND NOT f.missing
-          AND {VISIBLE} ORDER BY f.folder_id, f.path""", (image_id,)).fetchall()
+        WITH came(id) AS (SELECT {ORIGIN} FROM file f WHERE f.image_id = ? AND NOT f.missing)
+        SELECT {ORIGIN} AS folder_id, f.path, f.image_id, i.taken_at, i.taken_at_source
+        FROM file f JOIN image i ON i.id = f.image_id
+        WHERE (f.from_folder_id IN came OR (f.from_folder_id IS NULL AND f.folder_id IN came)) AND NOT f.missing
+          AND {VISIBLE}""", (image_id,)).fetchall()
+    # the folders its files came from (catalog.ORIGIN), by file name: as they were before a reorganization, if one
+    # moved them into year and month folders, which their own dates chose
+    rows.sort(key=lambda r: (r["folder_id"], r["path"].rpartition("/")[2], r["path"]))
     dated = {r["image_id"]: _when(r["taken_at"]) for r in rows
              if r["image_id"] != image_id and r["taken_at_source"] in SURE and r["taken_at"]}
     # the dated photos just before and after it by file name, in the first folder it is in

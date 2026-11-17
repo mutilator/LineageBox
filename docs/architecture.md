@@ -104,7 +104,11 @@ backlog. Describing and transcribing keep to the describing schedule. Both wait 
 and the worker checks every 5 minutes whether it is back.
 
 Once a day, before ingest, previews, thumbnails and video frames that have gone missing get their photo's ingest bit
-cleared, and ingest makes them again from the original (`check.rebuild_derivatives`). On the first pass of each day,
+cleared, and ingest makes them again from the original (`check.rebuild_derivatives`). A photo whose files were all
+gone for a while (its folder moved) loses its preview and thumbnail after the scan (`cleanup.drop_derivatives`); when
+the photo is found again, under any name, ingest makes them again in the same pass, once it has linked the new files
+(`ingest._rebuild`). Meanwhile the web app makes a photo's again when a page asks for one that is gone
+(`web/remake.py`). On the first pass of each day,
 right after the scan, `backup.py` makes a copy of the catalog with SQLite's backup API, checks it whole, and only then
 deletes the copies no longer kept ([backups](install.md#updating-and-backups)); the recorded stories' sound files go
 beside it. Once a day too, recorded stories taken away a month ago are deleted for good, with their files
@@ -146,11 +150,15 @@ The main tables:
 | `metadata_read`, `imported` | Other apps' metadata (`imports.py`): the photos read, and everything brought in from them (names on faces, people added, tags, captions, dates, places) for Settings → Other photo programs. |
 | `headcount` | The AI's careful count of the people in a photo (`headcount.py`, Cleanup → No faces found and Confirm faces → Faces missed): `people` and `faces`, each with how sure it was (`_sure`, 0 to 1, from the chances Ollama gave each digit; NULL from an Ollama that gives none). Asked of photos whose faces don't add up to their description's count; again for a new model or question `version`. |
 | `scan_reading` | The dates the AI found written on a scan (`scan_dates.py`, Cleanup → Suggested dates): `dates`, JSON `[{"written", "what"}]` as it copied them, the document's own first; one row a scan, read again for a new model or prompt `version`. |
+| `reorganize_run`, `reorganize_move` | Settings → Reorganize folders (`reorganize.py`): each reorganization (folders by kind or not, who, its state, how far, the first problems) and every file it moved, from where to where, to put the latest back. |
 | `camera_clock` | A camera's clock put right (`camera_clock.py`): a stretch of its photos, from the first it dated wrong to the last (by the dates it wrote; or on to every later one), and `pins`, the photos in it someone said were really taken when. One pin moves them all as much; two or more spread a drift over the photos between. `image.camera_taken_at` keeps what the camera wrote. |
 
 `VISIBLE` (`catalog.py`) is the SQL filter for images that still have a file present and are their own item (not a
 Live Photo's clip). `ON_SHARE` is the same without the clip rule, for what clips need too (720p copies, rebuilt
-previews).
+previews). `ORIGIN` is the folder a file came from: `file.from_folder_id`, the folder it was in before a
+reorganization moved it into a year and month folder, else the one it is in. What a folder's name says and what was
+given it by hand go by it (`folders.FolderIndex`, places, memories), and so do the photos beside it (`date_hints.py`,
+`scan_dates.py`), hidden folders and shared folders (`access.py`).
 
 The search index (`search_fts`) has a column for each kind of words, weighted: the family's captions and comments
 above the AI's description, then tags, names, places and events, folder words, dates, what is said in videos, text the
@@ -224,6 +232,11 @@ Templates are in `web/templates`, and `web/static/app.js` drives the pages.
   newer; two at once (`MAKING`), each request waiting at most `WAIT` seconds for its turn. With no preview, the disk
   nearly full or that wait over, the thumbnail stands in, sent `no-cache` so the browser asks again next time (the
   tile itself is kept a year, as thumbnails are).
+- `web/remake.py`: a thumbnail, 2× tile or preview asked for and found gone (`routes/files.py`) is made again then
+  from the photo's original, when a file of it is on the share (`ingest.remake_photo`, the code ingest uses), and the
+  photo's ingest bit is set. Two at once, each request waiting at most 2 seconds; one that couldn't be read is left
+  10 minutes before it is tried again. A video's frames and a recording's picture take ffmpeg: their ingest bit is
+  cleared instead, for the worker's next ingest.
 - `web/frames.py`: photo frames' device links (`/d/<token>/...`): `DevicePath` takes the token off the address before
   the gate, which looks it up; `ROUTES` are the only routes a link may open; `PICKERS` gives each view's photos
   (`memories`, `tour`, `album`).
@@ -313,7 +326,7 @@ translation is a catalog added under `lineagebox/locale/<language>/LC_MESSAGES/`
 | Understanding photos | `dates.py`, `dedup.py`, `folders.py`, `faces.py`, `people.py`, `describe.py`, `llm.py`, `speech.py`, `quality.py`, `orientation.py`, `places.py` (the map, places by hand), `towns.py` (the nearest town, from `data/towns.tsv.gz`), `face_ages.py` (what faces' ages can say: names that don't fit, a birth-year hint), `date_hints.py` (a probable date for a scan), `camera_clock.py`, `scan_dates.py` (scans dated by the day they were scanned: what can tell their real date), `headcount.py` (the AI's careful count of the people in a photo, and how sure it is) |
 | Finding photos | `search.py` (words, filters, suggestions), `embeddings.py` (search by meaning, More like this), `catalog.py` (shared read queries), `tagging.py` (also tags across the library), `tours.py`, `tour_suggestions.py`, `albums.py` (albums picked by hand), `favourites.py` (hearts), `slideshow.py` (a tour or album saved as a video), `comments.py` (captions and comments), `stories.py` (recorded stories), `live.py` (Live Photos) |
 | Family | `family.py` (relationship words from a `Graph`), `events.py`, `documents.py` (documents and written sources), `family_check.py`, `gedcom.py`, `gedcom_import.py`, `life.py` (a person's life by age, for their page), `book.py` (a family book to print or save as a PDF, `static/book.css`) |
-| Cleanup | `cleanup.py` (moves to Removed, restore, empty; a photo's sidecar goes with it), `writeback.py` (ExifTool: a rotation, and what the family gave a photo, into its file) |
+| Cleanup | `cleanup.py` (moves to Removed, restore, empty; a photo's sidecar goes with it), `writeback.py` (ExifTool: a rotation, and what the family gave a photo, into its file), `reorganize.py` (the photo folders moved into year and month folders by LineageBox, the catalog following each file; put back) |
 | Other photo programs | `xmp.py` (XMP written and read, IPTC read), `sidecars.py` (XMP sidecars beside the photos, in zips and the export), `imports.py` (names, tags and dates from other apps, Picasa and Google Takeout) |
 | Keeping the family's work | `backup.py` (the nightly copy of the catalog), `export.py` (the portable export: GEDCOM plus `photos.json`, [export](export.md)) |
 | Accounts | `accounts.py`, `passkeys.py`, `access.py`, `changes.py`, `uploads.py`, `downloads.py`, `https.py` (certificates), `serving.py` (the web server following them) |
@@ -324,9 +337,11 @@ translation is a catalog added under `lineagebox/locale/<language>/LC_MESSAGES/`
 
 ## Family
 
-`family.py` stores only facts: parents, siblings, partners and other relationships. Kin words (niece, in-law,
+`family.py` stores only facts: parents, siblings, couples and other relationships. Kin words (niece, in-law,
 step-brother, "wife's ex-husband") are worked out from a `Graph`, relative to the person marked "me" (or whoever is
-signed in). Siblings entered without parents share a stand-in parent with a negative id. Life events and names follow
+signed in). A couple are married, partners sharing a life, or going out together (`family.BONDS`, from
+`partner.married` and `partner.dating`), each current or former; in-laws and step-family come of the first two, while
+a boyfriend's or girlfriend's family are described by the way to them ("girlfriend's mother"). Siblings entered without parents share a stand-in parent with a negative id. Life events and names follow
 GEDCOM (`events.py`), with import and export in `gedcom*.py`.
 
 A child belongs to each parent by birth, by adoption or as a foster child (`parent.pedi`, GEDCOM's FAMC.PEDI): two

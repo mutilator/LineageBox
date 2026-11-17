@@ -1,10 +1,12 @@
-{#- The menu at the side of Settings, Family accounts and Codes for signing in at home, so the three read as one place.
+{#- The menu at the side of Settings, Family accounts, Codes for signing in at home and Reorganize folders, so they read
+    as one place.
     Each Settings link names the first panel of its part: on the Settings page app.js shows only the part that the
     address's # is in (#https, #add, as other pages link to them), and marks its link. Without the script every part
-    shows, one under another, and the links jump to them. The other two pages are marked here. #}
+    shows, one under another, and the links jump to them. The other pages are marked here. #}
 <nav class="settings-nav" aria-label="{{ _('Settings') }}">
   <ul>
     <li><a href="/settings#folders">{% trans %}Folders{% endtrans %}</a></li>
+    <li><a href="/settings/reorganize"{% if request.url.path == "/settings/reorganize" %} aria-current="page"{% endif %}>{% trans %}Reorganize folders{% endtrans %}</a></li>
     <li><a href="/settings#schedule">{% trans %}Schedule{% endtrans %}</a></li>
     <li><a href="/settings#ollama">{% trans %}AI, speech and faces{% endtrans %}</a></li>
     <li><a href="/settings#map">{% trans %}Map{% endtrans %}</a></li>

@@ -640,6 +640,25 @@ PAGES = {
            "names, tags and dates other apps (Picasa, digiKam, Lightroom, Google Takeout) left with the photos, with "
            "what was brought in so far."),
         N_("Changes apply on the worker's next pass, which saving starts right away."))),
+    "settings_reorganize": Page(N_("Reorganize folders"), (
+        N_("Moves every photo, video and recording in the watched folders into a folder for its year and month "
+           "(2016/2016-07), by the date LineageBox has for it, keeping its name. Ticked, Folders by kind puts Photos, "
+           "Scans (scanned prints), Videos and Recordings at the top, each with its years and months."),
+        N_("See where everything goes first: nothing moves until you press Reorganize now. A photo's own files go "
+           "with it (sidecars, Google Takeout's files, a video's 720p copy, a Live Photo's clip); other files go to "
+           "Other files, under the path they had; the family's uploads, ignored folders and folders with photos not "
+           "read yet stay as they are."),
+        N_("Take away empty folders removes every folder left with nothing in it, also those that were empty before. "
+           "Delete junk deletes what other programs leave in photo folders that holds nothing of yours (Thumbs.db, "
+           "desktop.ini, .DS_Store and ._ files, Dropbox's marks, thumbnail caches) rather than keep it in Other "
+           "files; the preview lists what it is. Junk deleted can't be put back. Both are ticked to begin with; with "
+           "nothing to move, Tidy now does only these."),
+        N_("LineageBox moves the files itself, so nothing is read again and every name, tag, date and caption "
+           "stays. What the old folder names said (a date, an event, a place, who is in it), and hiding or sharing "
+           "a folder, still go for its photos, and searching finds them by those names."),
+        N_("It takes a few minutes, and the page shows how far it is; you can leave it. Put back moves the files of "
+           "the latest reorganization that moved any back where they were, but for those moved or removed since. Other "
+           "programs and backups that know the photos by where they are will find them moved."))),
     "empty": Page(N_("No photos yet"), (
         N_("Getting started lists what makes a new LineageBox worth opening, first of all a folder to watch (Settings "
            "→ Folders): LineageBox then finds and reads the photos in it, and Status shows how far it is."),)),

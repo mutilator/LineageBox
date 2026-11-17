@@ -1,7 +1,8 @@
 """Family and other relationships between people.
 
 Only facts are stored: who is whose parent, who are siblings (when their parents are not in the catalog), who are or
-were partners, each person's sex, and other relationships such as friend or coworker. Everything else is worked out
+were a couple (married, partners, or going out together: see BONDS), each person's sex, and other relationships such
+as friend or coworker. Everything else is worked out
 here, relative to one person (normally the one marked as "me"): niece, brother-in-law, stepson, former sister-in-law...
 Those words also work in search ("nephews 2024") and choose the people of photo tours ("Brothers 2024").
 
@@ -26,12 +27,22 @@ FAMILY_WORDS = {
     "son": ("child", "male"), "daughter": ("child", "female"), "child": ("child", None),
     "brother": ("sibling", "male"), "sister": ("sibling", "female"), "sibling": ("sibling", None),
     "husband": ("partner", "male"), "wife": ("partner", "female"), "partner": ("partner", None),
+    "boyfriend": ("partner", "male"), "girlfriend": ("partner", "female"),
     "ex-husband": ("ex", "male"), "ex-wife": ("ex", "female"), "ex-partner": ("ex", None),
+    "ex-boyfriend": ("ex", "male"), "ex-girlfriend": ("ex", "female"),
     "adoptive father": ("parent", "male"), "adoptive mother": ("parent", "female"), "adoptive parent": ("parent", None),
     "adopted son": ("child", "male"), "adopted daughter": ("child", "female"), "adopted child": ("child", None),
     "foster father": ("parent", "male"), "foster mother": ("parent", "female"), "foster parent": ("parent", None),
     "foster son": ("child", "male"), "foster daughter": ("child", "female"), "foster child": ("child", None),
 }
+# What a couple are to each other, by the word entered (partner.married and partner.dating): married, partners
+# sharing a life without marrying, or going out together. Each of the three can be current or former. Many in a family
+# never married: some have children together, and the tree holds them as it holds any other couple.
+BONDS = {"husband": "married", "wife": "married", "spouse": "married", "partner": "partner",
+         "boyfriend": "dating", "girlfriend": "dating"}
+BOND_WORDS = {"married": ("husband", "wife", "spouse"), "partner": ("partner", "partner", "partner"),
+              "dating": ("boyfriend", "girlfriend", "partner")}
+
 # How a child belongs to a parent (parent.pedi, GEDCOM's FAMC.PEDI): by birth, adopted, or fostered. Adoption makes
 # them family as birth does, so an adoptive mother's mother is a grandmother; a foster family is family through the
 # foster link only ("foster mother", "foster brother", "foster grandmother"). At most two birth parents and two
@@ -62,7 +73,7 @@ class Graph:
     parents: dict[int, set[int]]                     # as entered
     children: dict[int, set[int]]
     siblings: dict[int, set[int]]                    # siblings by word
-    partners: dict[int, dict[int, tuple[bool, bool]]]  # person -> {partner: (current, married)}
+    partners: dict[int, dict[int, tuple[bool, str]]]  # person -> {partner: (current, one of BONDS' kinds)}
     relations: list[tuple[int, int, str]]            # (person, of whom, kind)
     ancestors: dict[int, dict[int, int]] = field(default_factory=dict)  # person -> {ancestor: generations up}
     pedi: dict[tuple[int, int], str] = field(default_factory=dict)      # (child, parent) -> adopted|foster; else birth
@@ -170,8 +181,13 @@ def load(con: sqlite3.Connection) -> Graph:
     for a, b in con.execute("SELECT a, b FROM sibling"):
         siblings[a].add(b)
         siblings[b].add(a)
-    for a, b, current, married in con.execute("SELECT a, b, current, married FROM partner"):
-        partners[a][b] = partners[b][a] = (bool(current), bool(married))
+    try:
+        couples = con.execute("SELECT a, b, current, married, dating FROM partner").fetchall()
+    except sqlite3.OperationalError:  # migration 009 works out kin words here, before 038 adds dating
+        couples = [(*r, 0) for r in con.execute("SELECT a, b, current, married FROM partner")]
+    for a, b, current, married, dating in couples:
+        bond = "married" if married else "dating" if dating else "partner"
+        partners[a][b] = partners[b][a] = (bool(current), bond)
     relations = [tuple(r) for r in con.execute("SELECT person_id, of_id, kind FROM relation")]
     return Graph(people, dict(parents), dict(children), dict(siblings), dict(partners), relations, pedi=pedi)
 
@@ -254,8 +270,10 @@ def _relatives_partner(a: int, b: int, sex) -> tuple[str, str]:
     return "cousin-in-law", "in-laws"
 
 
-def _partner_word(sex, married: bool, current: bool) -> str:
-    word = _w(sex, "husband", "wife", "spouse") if married else "partner"
+def _partner_word(sex, bond: str, current: bool) -> str:
+    """'wife', 'ex-girlfriend', 'partner': what one of a couple is to the other, by what they are to each other
+    (BONDS) and whether they still are."""
+    word = _w(sex, *BOND_WORDS.get(bond, BOND_WORDS["partner"]))
     return word if current else "ex-" + word
 
 
@@ -301,11 +319,13 @@ def relations_to(g: Graph, ego: int) -> dict[int, Kin]:
             prefix, also = "foster ", {"foster"}
         out[x] = _kin(prefix + label, group, prefix + neutral, sum(ab), also - {""})
     mine = sorted(g.partners.get(ego, {}).items(), key=lambda kv: not kv[1][0])  # current first
-    for q, (current, married) in mine:
+    for q, (current, bond) in mine:
         if q not in out:
-            out[q] = _kin(_partner_word(g.sex(q), married, current), "partner" if current else "former family",
-                          _partner_word(None, married, current), 1)
-    for q, (current, _) in mine:
+            out[q] = _kin(_partner_word(g.sex(q), bond, current), "partner" if current else "former family",
+                          _partner_word(None, bond, current), 1)
+    for q, (current, bond) in mine:
+        if bond == "dating":
+            continue  # a girlfriend's family are not in-laws: they are described by the way to them below
         for x in g.people:
             if x not in out and (ab := g.blood(q, x, kin=True)):
                 label, group = _partners_relative(*ab, g.sex(x))
@@ -314,18 +334,19 @@ def relations_to(g: Graph, ego: int) -> dict[int, Kin]:
                     label, group, neutral = "former " + label, "former family", "former " + neutral
                 out[x] = _kin(label, group, neutral, sum(ab) + 1)
     for y, ab in sorted(blood.items(), key=lambda kv: sum(kv[1])):
-        for r, (current, _) in sorted(g.partners.get(y, {}).items(), key=lambda kv: not kv[1][0]):
-            if r not in out:
+        for r, (current, bond) in sorted(g.partners.get(y, {}).items(), key=lambda kv: not kv[1][0]):
+            if r not in out and bond != "dating":  # a sister's boyfriend is no brother-in-law: described below
                 label, group = _relatives_partner(*ab, g.sex(r))
                 neutral = _relatives_partner(*ab, None)[0]
                 if not current:
                     label, group, neutral = "former " + label, "former family", "former " + neutral
                 out[r] = _kin(label, group, neutral, sum(ab) + 1)
     # A relative's current partner's children from other relationships are step-family: a parent's are stepsiblings,
-    # a brother's are step-nieces and step-nephews. (An ex's children are described by the way to them instead.)
+    # a brother's are step-nieces and step-nephews. (The children of an ex, or of someone a relative is going out
+    # with, are described by the way to them instead: "father's girlfriend's son".)
     for y, (a, b) in sorted(blood.items(), key=lambda kv: sum(kv[1])):
-        for r, (current, _) in g.partners.get(y, {}).items():
-            for x in sorted(g.effective_children.get(r, ())) if current else ():
+        for r, (current, bond) in g.partners.get(y, {}).items():
+            for x in sorted(g.effective_children.get(r, ())) if current and bond != "dating" else ():
                 if x > 0 and x not in out and g.how(x, r) != "foster":
                     out[x] = _kin(_step(_blood_label(a, b + 1, g.sex(x))[0]), "step-family",
                                   _step(_blood_label(a, b + 1, None)[0]), a + b + 2)
@@ -361,7 +382,7 @@ def _describe_the_rest(g: Graph, ego: int, out: dict[int, Kin]) -> None:
         steps = [(p, _w(g.sex(p), "father", "mother", "parent")) for p in g.parents.get(u, ())]
         steps += [(c, _w(g.sex(c), "son", "daughter", "child")) for c in g.children.get(u, ())]
         steps += [(s, _w(g.sex(s), "brother", "sister", "sibling")) for s in g.siblings.get(u, ())]
-        steps += [(r, _partner_word(g.sex(r), m, cur)) for r, (cur, m) in g.partners.get(u, {}).items()]
+        steps += [(r, _partner_word(g.sex(r), bond, cur)) for r, (cur, bond) in g.partners.get(u, {}).items()]
         for v, word in steps:
             if v in seen:
                 continue
@@ -382,8 +403,9 @@ def links(g: Graph, pid: int) -> dict:
         "parents": [{"id": p, "entered": p in g.parents.get(pid, ()), "how": g.how(pid, p)}
                     for p in sorted(g.effective_parents.get(pid, ()), key=lambda p: (PEDI.index(g.how(pid, p)), p))
                     if p > 0],
-        "partners": [{"id": q, "current": cur, "married": m}
-                     for q, (cur, m) in sorted(g.partners.get(pid, {}).items(), key=lambda kv: (not kv[1][0], kv[0]))],
+        "partners": [{"id": q, "current": cur, "bond": bond, "word": _partner_word(g.sex(q), bond, True)}
+                     for q, (cur, bond) in sorted(g.partners.get(pid, {}).items(),
+                                                  key=lambda kv: (not kv[1][0], kv[0]))],
         "siblings": [{"id": s, "entered": s in g.siblings.get(pid, ()), "half": g.half(pid, s),
                       "foster": g.blood(pid, s, kin=True) is None}
                      for s in sorted(g.all_siblings(pid), key=g.name)],
@@ -471,7 +493,8 @@ def word_index(con: sqlite3.Connection, g: Graph | None = None) -> dict[str, set
 # ---- search words --------------------------------------------------------------------------------------------------
 
 _BASE = {"father", "mother", "parent", "son", "daughter", "child", "brother", "sister", "sibling", "husband", "wife",
-         "spouse", "partner", "grandfather", "grandmother", "grandparent", "grandson", "granddaughter", "grandchild",
+         "spouse", "partner", "boyfriend", "girlfriend",
+         "grandfather", "grandmother", "grandparent", "grandson", "granddaughter", "grandchild",
          "nephew", "niece", "aunt", "uncle", "cousin", "family", "relative"}
 _PREFIXES = ("ex", "step", "half", "great", "grand", "former", "adopted", "adoptive", "foster", "birth")
 _SYNONYMS = {"mom": "mother", "mum": "mother", "mommy": "mother", "mama": "mother", "dad": "father", "daddy": "father",
@@ -535,7 +558,7 @@ def link(con: sqlite3.Connection, pid: int, word: str, other: int, with_parent: 
     """Record that `other` is pid's <word>: 'mother', 'son', 'ex-wife', or another relationship such as 'coworker'.
     The checks look at the whole family, but a refusal names only the people in `shown` (None: anyone), those the
     person making the change can see."""
-    word = " ".join(word.lower().split())
+    word = _as_offered(" ".join(word.lower().split()))
     if other == pid:
         raise Problem("Someone cannot be their own relative.")
     if word in FAMILY_WORDS:
@@ -553,13 +576,15 @@ def link(con: sqlite3.Connection, pid: int, word: str, other: int, with_parent: 
             con.execute("INSERT OR IGNORE INTO sibling(a, b) VALUES (?, ?)", (min(pid, other), max(pid, other)))
         else:
             current = kind == "partner"
-            married = not word.endswith("partner")
+            bond = BONDS[word.removeprefix("ex-")]
             if current:
                 _no_other_current_partner(con, pid, other, shown)
                 _no_other_current_partner(con, other, pid, shown)
-            con.execute("""INSERT INTO partner(a, b, current, married, uid) VALUES (?, ?, ?, ?, ?)
-                           ON CONFLICT(a, b) DO UPDATE SET current = excluded.current, married = excluded.married""",
-                        (min(pid, other), max(pid, other), int(current), int(married), str(uuid.uuid4())))
+            con.execute("""INSERT INTO partner(a, b, current, married, dating, uid) VALUES (?, ?, ?, ?, ?, ?)
+                           ON CONFLICT(a, b) DO UPDATE SET current = excluded.current, married = excluded.married,
+                                                           dating = excluded.dating""",
+                        (min(pid, other), max(pid, other), int(current), int(bond == "married"),
+                         int(bond == "dating"), str(uuid.uuid4())))
     elif word:
         if len(word) > 40:
             raise Problem("That relationship is too long; a word or two, like coworker.")
@@ -568,6 +593,15 @@ def link(con: sqlite3.Connection, pid: int, word: str, other: int, with_parent: 
     else:
         raise Problem("Say what they are to each other.")
     con.commit()
+
+
+def _as_offered(word: str) -> str:
+    """A word typed by hand as the page offers it: "ex wife" and "former girlfriend" are "ex-wife" and
+    "ex-girlfriend", so they make a couple who were, rather than a label of their own."""
+    for prefix in ("ex ", "ex-", "former "):
+        if word.startswith(prefix) and "ex-" + word[len(prefix):] in FAMILY_WORDS:
+            return "ex-" + word[len(prefix):]
+    return word
 
 
 def _not_worked_out(word: str) -> None:

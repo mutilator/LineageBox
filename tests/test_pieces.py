@@ -14,7 +14,7 @@ from lineagebox import catalog, people, tours
 from lineagebox.ingest import ingest
 from lineagebox.scan import scan
 from lineagebox.web import app as webapp
-from lineagebox.web import pieces, tiles
+from lineagebox.web import pieces, remake, tiles
 from tests.conftest import LAN, rel
 from tests.test_access_web import signed_in, site  # noqa: F401 - site is a fixture
 
@@ -201,7 +201,7 @@ def test_tiles_say_who_is_in_them(big, client):
     assert tiles.alt({"id": 1}, ["A"]) == "Photo of A"  # a list that has fewer fields
 
 
-def test_sharp_tiles(con, cfg, library, client):
+def test_sharp_tiles(con, cfg, library, client, monkeypatch):
     scan(con, cfg)
     ingest(con, cfg)
     sha = con.execute("SELECT sha256 FROM image WHERE error IS NULL ORDER BY id LIMIT 1").fetchone()[0]
@@ -217,8 +217,13 @@ def test_sharp_tiles(con, cfg, library, client):
     os.utime(made, (past, past))  # a preview newer than the tile (the photo turned, made again): made again
     client.get(f"/t2/{sha}")
     assert made.stat().st_mtime > past + 50
-    cfg.preview_path(sha).unlink()  # no preview to make it from: the thumbnail, never an empty tile
+    cfg.preview_path(sha).unlink()  # the preview gone: made again from the original first (remake.py)
     made.unlink()
+    assert "immutable" in client.get(f"/t2/{sha}").headers["cache-control"] and cfg.preview_path(sha).is_file()
+    cfg.preview_path(sha).unlink()  # and one that can't be made just now: the thumbnail, never an empty tile
+    made.unlink()
+    monkeypatch.setattr(remake, "_failed", {})
+    monkeypatch.setattr(remake.ingest, "remake_photo", lambda *a: (_ for _ in ()).throw(OSError("unreadable")))
     stand_in = client.get(f"/t2/{sha}")
     assert stand_in.content == client.get(f"/t/{sha}").content
     assert "immutable" not in stand_in.headers["cache-control"]  # asked for again once there is a preview

@@ -269,7 +269,11 @@ sends them through the usual upload (which needs a session); signing out forgets
 - Members' renames never merge two people, and a typed name is looked up only among the people they can see. Merging
   is for admins (Cleanup → Same person?), and so is correcting what a folder means (its page), and moving a camera's
   dates (Cleanup → Camera clocks, `routes/camera_clock.py`, kept through `changes.tracking`), and renaming, merging or
-  removing a tag across the library (`routes/tags.py`, `tagging.rename`; `tag_alias` is scoped to nothing).
+  removing a tag across the library (`routes/tags.py`, `tagging.rename`; `tag_alias` is scoped to nothing), and
+  reorganizing the photo folders (Settings → Reorganize folders, `routes/reorganize.py`; `reorganize_run` and
+  `reorganize_move`, every file's old and new path, are scoped to nothing). A file a reorganization moved keeps the
+  folder it came from (`catalog.ORIGIN`): hiding that folder still hides it, sharing it still shares it, and a
+  member's views hold that folder too, for what its name says.
 - Search by meaning (`embeddings.py`): every photo's vector is kept in memory for all viewers, but what it finds is
   then read on the member's own connection, with the filters, so only their photos come back; the words that name
   people still have to match through their views. **More like this** (`/image/{id}/like`) is the same, and answers

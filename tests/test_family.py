@@ -3,7 +3,7 @@ import re
 import pytest
 from fastapi.testclient import TestClient
 
-from lineagebox import catalog, family, family_check, people, settings
+from lineagebox import catalog, db, family, family_check, people, settings
 from lineagebox.web import app as webapp
 from tests.conftest import LAN
 
@@ -91,6 +91,70 @@ def test_one_current_partner_and_no_loops(con, fam):
     family.link(con, a, "brother", b)  # Bob, with no parents entered, has his sister's
     with pytest.raises(family.Problem, match="Pa is already Bob's ancestor"):
         family.link(con, pa, "father", b)
+
+
+def test_a_couple_who_never_married(con, cfg, fam):
+    """A boyfriend or a girlfriend is a couple in the tree like any other, so their children and photos are the
+    family's; but nobody married in, so there are no in-laws and no step-family."""
+    linda = fam["Linda"]
+    pete, pam, sean = (people.person_id(con, n) for n in ("Pete", "Pam", "Sean"))
+    family.link(con, linda, "boyfriend", pete)
+    family.link(con, pete, "mother", pam)
+    family.link(con, pete, "son", sean)
+    g = family.load(con)
+    assert g.sex(pete) == "male" and g.partners[linda][pete] == (True, "dating")  # the word says which
+    (couple,) = family.links(g, linda)["partners"]
+    assert (couple["id"], couple["bond"], couple["word"], couple["current"]) == (pete, "dating", "boyfriend", True)
+    hers = {g.name(p): k.label for p, k in family.relations_to(g, linda).items()}
+    assert hers["Pete"] == "boyfriend"
+    assert (hers["Pam"], hers["Sean"]) == ("boyfriend's mother", "boyfriend's son")  # no mother-in-law, no stepson
+    assert family.relations_to(g, fam["Daniel"])[pete].label == "sister's boyfriend"  # and no brother-in-law
+    assert family.relations_to(g, pete)[fam["Emma"]].label == "girlfriend's daughter"
+    # a child of theirs belongs to them both, and is family on both sides
+    tim = people.person_id(con, "Tim")
+    family.link(con, linda, "son", tim, with_parent=pete)
+    g = family.load(con)
+    assert {g.name(p) for p in g.effective_parents[tim]} == {"Linda", "Pete"}
+    assert family.relations_to(g, fam["Daniel"])[tim].label == "nephew"
+    assert family.relations_to(g, pam)[tim].label == "grandson"
+    # the word finds them in search, and the person's page says it
+    settings.put(con, "me", linda)
+    assert {g.name(i) for i in family.word_index(con)["boyfriend"]} == {"Pete"}
+    known = set(family.word_index(con))
+    assert family.search_terms("my girlfriends 2024", known) == [("girlfriend", "girlfriends"), ("2024", "2024")]
+    page = TestClient(webapp.create_app(cfg), client=LAN).get(f"/person/{linda}").text
+    assert re.search(r'>Pete</a>\s*<span class="hint inline">boyfriend</span>', page)
+    assert '<option value="girlfriend">' in page and '<option value="ex-girlfriend">' in page
+
+
+def test_a_couple_who_never_married_can_be_former(con, fam):
+    linda = fam["Linda"]
+    pete, rob = (people.person_id(con, n) for n in ("Pete", "Rob"))
+    family.link(con, linda, "boyfriend", pete)
+    with pytest.raises(family.Problem, match="current partner is Pete"):
+        family.link(con, linda, "boyfriend", rob)  # one current partner at a time, married or not
+    family.set_current(con, linda, pete, False)
+    family.link(con, linda, "ex boyfriend", rob)  # typed by hand, without the hyphen the page offers
+    g = family.load(con)
+    assert {g.name(q): (cur, bond) for q, (cur, bond) in g.partners[linda].items()} == {
+        "Pete": (False, "dating"), "Rob": (False, "dating")}
+    kin = family.relations_to(g, linda)
+    assert kin[pete].label == "ex-boyfriend" and kin[pete].group == "former family"
+    assert kin[rob].label == "ex-boyfriend"
+    assert [q["word"] for q in family.links(g, linda)["partners"]] == ["boyfriend", "boyfriend"]  # ", former" is shown
+    # someone the family entered as a girlfriend before there was an option for it (migration 038)
+    dating = db._module(db.MIGRATIONS_DIR / "038_dating.py")
+    sue, ann = (people.person_id(con, n) for n in ("Sue", "Ann"))
+    con.execute("INSERT INTO relation(person_id, of_id, kind) VALUES (?, ?, 'girlfriend')", (sue, fam["Jake"]))
+    con.execute("INSERT INTO relation(person_id, of_id, kind) VALUES (?, ?, 'Ex-Girlfriend')", (ann, fam["Jake"]))
+    con.execute("INSERT INTO relation(person_id, of_id, kind) VALUES (?, ?, 'girlfriend')",
+                (people.person_id(con, "Zoe"), fam["Daniel"]))  # Daniel has a wife: left to be sorted out by hand
+    dating.couples_from_labels(con)
+    g = family.load(con)
+    assert g.partners[fam["Jake"]] == {sue: (True, "dating"), ann: (False, "dating")}
+    assert g.sex(sue) == "female" and not g.partners.get(fam["Daniel"], {}).get(people.person_id(con, "Zoe"))
+    assert [r[0] for r in con.execute("SELECT kind FROM relation WHERE of_id = ?", (fam["Jake"],))] == []
+    assert con.execute("SELECT count(*) FROM relation WHERE kind = 'girlfriend'").fetchone()[0] == 1
 
 
 def test_merging_never_makes_someone_their_own_ancestor(con):

@@ -54,10 +54,13 @@ MISSING = ("ffmpeg wasn't found, so videos are not read, copied or transcribed u
            "(docs/install.md).")
 COPY_SUFFIX = ".720p.mp4"  # 00005.MTS -> 00005.MTS.720p.mp4, next to it
 COPY_COMMENT = "LineageBox 720p copy of {name}"
-# what plays in every current browser without a copy: these containers, with these codecs
-BROWSER_EXTENSIONS = {".mp4", ".m4v", ".mov"}
-BROWSER_VIDEO = {"h264"}
-BROWSER_AUDIO = {None, "aac", "mp3"}
+# What plays in every current browser without a copy: for each container, the pictures and the sound browsers
+# play in it. WebM is a container of its own here: browsers play VP8 and VP9 with Opus or Vorbis in it, and none
+# of what an MP4 holds. (AV1 is left out: Safari plays it only on the newest Apple devices, so an AV1 video gets
+# a copy like any other browsers may not play.)
+_MP4_PICTURE, _MP4_SOUND = {"h264"}, {None, "aac", "mp3"}
+BROWSER_VIDEO = {".mp4": _MP4_PICTURE, ".m4v": _MP4_PICTURE, ".mov": _MP4_PICTURE, ".webm": {"vp8", "vp9"}}
+BROWSER_AUDIO = {".mp4": _MP4_SOUND, ".m4v": _MP4_SOUND, ".mov": _MP4_SOUND, ".webm": {None, "opus", "vorbis"}}
 # a recording that plays as it is: its file's ending, and the codecs browsers play in that container
 BROWSER_SOUND = {".mp3": {"mp3"}, ".m4a": {"aac"}, ".mp4": {"aac", "mp3"}, ".aac": {"aac"}, ".3gp": {"aac"},
                  ".wav": {"pcm_s16le", "pcm_u8", "pcm_f32le"}, ".ogg": {"vorbis", "opus", "flac"},
@@ -387,9 +390,10 @@ def audio_wav(path: Path) -> bytes:
 
 
 def plays_in_browsers(ext: str, p: Probe) -> bool:
+    ext = ext.lower()
     if p.sound_only:
-        return p.audio_codec in BROWSER_SOUND.get(ext.lower(), ())
-    return ext.lower() in BROWSER_EXTENSIONS and p.video_codec in BROWSER_VIDEO and p.audio_codec in BROWSER_AUDIO
+        return p.audio_codec in BROWSER_SOUND.get(ext, ())
+    return p.video_codec in BROWSER_VIDEO.get(ext, ()) and p.audio_codec in BROWSER_AUDIO.get(ext, ())
 
 
 def is_copy(name: str) -> bool:

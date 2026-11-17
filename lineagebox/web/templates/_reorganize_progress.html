@@ -1,0 +1,12 @@
+{# The reorganization under way (reorganize.py): on settings_reorganize.html, and again every few seconds
+   (/settings/reorganize/progress). #}
+{%- set pct = (100 * last.moved / last.total) if last.total else none %}
+<p><b>{% if last.state == "undoing" %}{% trans %}Putting the files back where they were…{% endtrans %}{% else %}{% trans %}Moving the files…{% endtrans %}{% endif %}</b>
+  {% if last.total %}{% trans moved=last.moved|number, total=last.total|number %}{{ moved }} of {{ total }}{% endtrans %}
+  {%- elif last.state == "moving" %}{% trans %}Working out where everything goes.{% endtrans %}{% endif %}</p>
+{%- if pct is not none %}
+<div class="meter" role="progressbar" aria-valuenow="{{ pct|round|int }}" aria-valuemin="0" aria-valuemax="100"><i style="width: {{ pct }}%"></i></div>
+{%- endif %}
+<p class="hint">{% trans %}You can leave this page: it goes on. Meanwhile the worker doesn't look through the photo folders.{% endtrans %}</p>
+<p><button type="button" class="quiet" data-api="/api/reorganize/stop" data-busy="{{ _('Stopping…') }}">{% trans %}Stop{% endtrans %}</button>
+  <span class="hint inline">{% trans %}What is moved stays moved, and can be put back.{% endtrans %}</span></p>

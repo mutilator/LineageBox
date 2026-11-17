@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}{% trans %}Reorganize folders{% endtrans %}{% endblock %}
+{% block main %}
+<h1>{% trans %}Settings{% endtrans %}</h1>
+<div class="settings-page">
+{% include "_settings_nav.html" %}
+<div class="settings-body">
+<div class="settings">
+<section class="panel" id="reorganize">
+  <h2>{% trans %}Reorganize folders{% endtrans %}</h2>
+  <p class="meta">{% trans %}Moves every photo, video and recording in the watched folders into a folder for its year and month,
+  such as <code>2016/2016-07</code>, by the date LineageBox has for it. Names stay as they are. Nothing is read again and
+  nothing is lost: names, tags, dates, captions and what the old folder names said stay with each photo, and the photos
+  are searched by their old folders' names too.{% endtrans %}</p>
+  <p class="hint">{% trans other=other %}What belongs to a photo goes with it: its sidecars (<code>.xmp</code>), Google Takeout's
+  <code>.json</code>, a video's 720p copy, a Live Photo's clip. Other files (documents, other programs' files) go to
+  <code>{{ other }}</code>, under the path they had. Left as they are: the family's uploads, the Removed folders,
+  ignored folders, and folders with new photos the worker hasn't read yet.{% endtrans %}</p>
+  {%- if demo_resets %}
+  <p class="note">{% trans %}This is the demo: its folders stay as they are.{% endtrans %}</p>
+  {%- endif %}
+
+  {%- if last and last.active %}
+  <div data-live="/settings/reorganize/progress" data-every="3">{% include "_reorganize_progress.html" %}</div>
+  {%- elif not cfg.folders %}
+  <p class="note">{% trans %}No folders are watched yet: pick one on the <a href="/settings#add">Settings</a> page.{% endtrans %}</p>
+  {%- else %}
+  <form method="get" action="/settings/reorganize#preview">
+    <input type="hidden" name="preview" value="1">
+    <p><label><input type="checkbox" name="by_type" value="1"{% if by_type %} checked{% endif %}>
+      {% trans photos=kinds.photo, scans=kinds.scan, videos=kinds.video, recordings=kinds.audio %}Folders by kind at the top: <code>{{ photos }}</code>, <code>{{ scans }}</code>
+      (scanned prints), <code>{{ videos }}</code> and <code>{{ recordings }}</code>, each with its years and months.{% endtrans %}</label></p>
+    <p><label><input type="checkbox" name="remove_empty" value="1"{% if remove_empty %} checked{% endif %}>
+      {% trans %}Take away empty folders when done: every folder with nothing in it, also those that were empty before.{% endtrans %}</label></p>
+    <p><label><input type="checkbox" name="remove_junk" value="1"{% if remove_junk %} checked{% endif %}>
+      {% trans other=other %}Delete junk rather than keep it in <code>{{ other }}</code>: what other programs leave in photo folders that holds
+      nothing of yours, such as <code>Thumbs.db</code>, <code>desktop.ini</code>, macOS's <code>.DS_Store</code> and
+      <code>._</code> files, Dropbox's marks and thumbnail caches. Deleted for good: putting back doesn't bring them back.{% endtrans %}</label></p>
+    <button type="submit">{% trans %}See where everything goes{% endtrans %}</button>
+    <span class="hint inline">{% trans %}Nothing moves yet.{% endtrans %}</span>
+  </form>
+  {%- endif %}
+
+  {%- if plan %}
+  <div id="preview">
+  <h3>{% trans %}Where everything goes{% endtrans %}</h3>
+  {%- if plan.moves %}
+  <ul>
+    <li>{% trans count=plan.media, n=plan.media|number %}{{ n }} photo, video or recording moves.{% pluralize %}{{ n }} photos, videos and recordings move.{% endtrans %}
+      {%- if plan.in_place %} {% trans count=plan.in_place, n=plan.in_place|number %}{{ n }} is where it belongs already.{% pluralize %}{{ n }} are where they belong already.{% endtrans %}{% endif %}</li>
+    {%- if plan.others %}
+    <li>{% trans count=plan.others, n=plan.others|number, other=other %}{{ n }} other file moves: a photo's own files with it, the rest to <code>{{ other }}</code>.{% pluralize %}{{ n }} other files move: a photo's own files with it, the rest to <code>{{ other }}</code>.{% endtrans %}</li>
+    {%- endif %}
+    {%- if plan.renamed %}
+    <li>{% trans count=plan.renamed, n=plan.renamed|number %}{{ n }} gets a number after its name (<code>IMG_1234 (2).JPG</code>): one of that name is in its new folder already.{% pluralize %}{{ n }} get a number after their name (<code>IMG_1234 (2).JPG</code>): one of that name is in their new folder already.{% endtrans %}</li>
+    {%- endif %}
+    {%- if plan.shared_folders %}
+    <li>{% trans count=plan.shared_folders, n=plan.shared_folders|number %}{{ n }} shared folder is emptied: its photos stay shared.{% pluralize %}{{ n }} shared folders are emptied: their photos stay shared.{% endtrans %}</li>
+    {%- endif %}
+  </ul>
+  {%- else %}
+  <p class="note">{% trans %}Everything is where it belongs already.{% endtrans %}</p>
+  {%- endif %}
+  {%- if plan.junk_count %}
+  <details>
+    <summary>{% trans count=plan.junk_count, n=plan.junk_count|number %}{{ n }} junk file is deleted.{% pluralize %}{{ n }} junk files are deleted.{% endtrans %}</summary>
+    <p class="hint">{% for name, n in plan.junk_names.most_common(20) %}<code>{{ name }}</code> {{ n|number }}{{ " · " if not loop.last }}{% endfor %}</p>
+  </details>
+  {%- endif %}
+  {%- if remove_empty %}
+  <p class="hint">{% trans %}Then every folder with nothing in it is taken away.{% endtrans %}</p>
+  {%- endif %}
+  {%- if plan.waiting %}
+  <details>
+    <summary>{% trans count=plan.waiting|length, n=plan.waiting|length|number %}{{ n }} folder stays as it is for now: it has photos or videos the worker hasn't read yet. Reorganize again once it has (see Status).{% pluralize %}{{ n }} folders stay as they are for now: they have photos or videos the worker hasn't read yet. Reorganize again once it has (see Status).{% endtrans %}</summary>
+    <ul class="hint">{% for f in plan.waiting[:50] %}<li><code>{{ media_path(f) }}</code></li>{% endfor %}</ul>
+  </details>
+  {%- endif %}
+  {%- if plan.left %}
+  <details>
+    <summary>{% trans count=plan.left|length, n=plan.left|length|number %}{{ n }} folder is on another disk, so it stays as it is.{% pluralize %}{{ n }} folders are on another disk, so they stay as they are.{% endtrans %}</summary>
+    <ul class="hint">{% for f in plan.left[:50] %}<li><code>{{ media_path(f) }}</code></li>{% endfor %}</ul>
+  </details>
+  {%- endif %}
+  {%- if plan.tops %}
+  <h4>{% trans %}The folders at the top{% endtrans %}</h4>
+  <p class="hint">{% for top, n in plan.tops|dictsort %}<code>{{ top }}</code> {{ n|number }}{{ " · " if not loop.last }}{% endfor %}</p>
+  {%- endif %}
+  {%- if plan.moves %}
+  <h4>{% trans %}For example{% endtrans %}</h4>
+  <ul class="hint moves">
+    {%- for m in plan.examples() %}
+    <li><code>{{ media_path(m.old) }}</code> → <code>{{ media_path(m.new) }}</code></li>
+    {%- endfor %}
+  </ul>
+  <p class="hint">{% trans %}Other programs and backups that know the photos by where they are (another photo program, a backup
+  copying the folders) will find them moved.{% endtrans %}</p>
+  {%- endif %}
+  {%- if plan.moves or plan.junk_count or remove_empty %}
+  <p><button type="button" data-api="/api/reorganize/start" data-body='{{ {"by_type": by_type, "remove_empty": remove_empty, "remove_junk": remove_junk}|tojson }}' data-busy="{{ _('Starting…') }}"
+    data-confirm="{{ _('Move %(n)s files now? It takes a few minutes, and can be put back.', n=plan.moves|length|number) if plan.moves else _('Tidy the folders now?') }}">{% if plan.moves %}{% trans %}Reorganize now{% endtrans %}{% else %}{% trans %}Tidy now{% endtrans %}{% endif %}</button></p>
+  {%- endif %}
+  </div>
+  {%- endif %}
+
+  {%- if last and not last.active %}
+  <h3>{% trans %}The latest reorganization{% endtrans %}</h3>
+  <p>
+  {%- if last.state == "done" %}{% trans count=last.moved, n=last.moved|number, at=last.finished_at|date %}{{ at }}: {{ n }} file moved.{% pluralize %}{{ at }}: {{ n }} files moved.{% endtrans %}
+  {%- elif last.state == "undone" %}{% trans count=last.moved, n=last.moved|number, at=last.undone_at|date %}Put back {{ at }}: {{ n }} file.{% pluralize %}Put back {{ at }}: {{ n }} files.{% endtrans %}
+  {%- else %}{% trans n=last.moved|number, total=last.planned|number, at=last.started_at|date %}Stopped ({{ at }}) after {{ n }} of {{ total }} files.{% endtrans %}{% endif %}
+  {%- if last.state != "undone" and last.junk %} {% trans count=last.junk, n=last.junk|number %}{{ n }} junk file deleted.{% pluralize %}{{ n }} junk files deleted.{% endtrans %}{% endif %}
+  {%- if last.state != "undone" and last.emptied %} {% trans count=last.emptied, n=last.emptied|number %}{{ n }} empty folder taken away.{% pluralize %}{{ n }} empty folders taken away.{% endtrans %}{% endif %}
+  {%- if last.by_type %} <span class="hint inline">{% trans %}with folders by kind{% endtrans %}</span>{% endif %}</p>
+  {%- if last.problems %}
+  <details>
+    <summary>{% trans count=last.problems|length, n=last.problems|length|number %}{{ n }} file couldn't be moved{% pluralize %}{{ n }} files couldn't be moved{% endtrans %}</summary>
+    <ul class="hint">{% for p in last.problems %}<li>{{ p }}</li>{% endfor %}</ul>
+  </details>
+  {%- endif %}
+  {%- endif %}
+  {%- if undoable and not (last and last.active) %}
+  <p><button type="button" class="quiet" data-api="/api/reorganize/undo" data-busy="{{ _('Starting…') }}"
+    data-confirm="{{ _('Move the files of the reorganization of %(at)s back where they were? Files moved or removed since stay where they are now.', at=undoable.started_at|date) }}">{% trans count=undoable.moved, n=undoable.moved|number %}Put back the {{ n }} file it moved…{% pluralize %}Put back the {{ n }} files it moved…{% endtrans %}</button>
+    {%- if last.id != undoable.id %} <span class="hint inline">{% trans at=undoable.started_at|date %}(the reorganization of {{ at }}){% endtrans %}</span>{% endif %}</p>
+  {%- endif %}
+</section>
+</div>
+</div>
+</div>
+{% endblock %}

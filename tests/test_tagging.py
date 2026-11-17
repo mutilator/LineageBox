@@ -170,6 +170,24 @@ def test_what_was_made_from_a_deleted_photo_goes_and_comes_back(lib, cfg, librar
     assert catalog.image(con, blue)["stage"] & STAGE_INGEST
 
 
+def test_a_photo_back_under_another_name_gets_its_preview_in_the_same_pass(lib, cfg, library):
+    """Its folder moved: for a while no file of it was on the share, so its preview went. When the next scan finds it
+    in its new place, that pass's ingest links the new file and makes the preview again, rather than the pass after
+    (which can be hours later, behind the faces of a big folder)."""
+    con = lib
+    blue = image_of(con, BLUE)
+    sha = catalog.image(con, blue)["sha256"]
+    (library / "2016").rename(library / "moved")
+    scan(con, cfg)
+    assert cleanup.drop_derivatives(con, cfg) == 1 and not cfg.preview_path(sha).exists()
+    (library / "moved").rename(library / "Sorted 2016")
+    scan(con, cfg)
+    assert ingest(con, cfg, show_progress=False).rebuilt == 1
+    assert image_of(con, rel("Sorted 2016", "IMG_20160811_182239.jpg")) == blue
+    assert cfg.preview_path(sha).is_file() and cfg.thumb_path(sha).is_file()
+    assert catalog.image(con, blue)["stage"] & STAGE_INGEST
+
+
 def test_a_removed_photo_keeps_its_preview_until_emptied(lib, cfg):
     con = lib
     blue = image_of(con, BLUE)

@@ -229,6 +229,9 @@ def run(con: sqlite3.Connection, cfg: Config, stop: Callable[[], bool] | None = 
             con.execute("DELETE FROM settings WHERE key = ?", (SWEPT,))
             con.commit()
         return stats
+    from lineagebox import reorganize  # it needs more of LineageBox than this does
+    if reorganize.busy(con):  # the files are being moved (reorganize.py): written once they are where they go
+        return stats
     if not settings.get(con, SWEPT):
         queue_all(con)
         settings.put(con, SWEPT, datetime.now().isoformat(timespec="seconds"))  # commits the queue with it
@@ -238,7 +241,7 @@ def run(con: sqlite3.Connection, cfg: Config, stop: Callable[[], bool] | None = 
                                          WHERE {retry.waiting(STAGE, 's.image_id')} ORDER BY image_id DESC""")]
     refused = 0  # permission refusals in a row
     for n, image_id in enumerate(ids):
-        if time.monotonic() > until or (stop is not None and stop()):
+        if time.monotonic() > until or (stop is not None and stop()) or reorganize.busy(con):
             stats.left = len(ids) - n
             break
         # taken off the list first: a change made while it is written puts it back on, for the next pass
