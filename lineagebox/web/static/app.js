@@ -1872,7 +1872,7 @@ if (treeFrame) {
 
 // The tree as one PNG, drawn from the page as it is laid out: each box's background and border, the lines between
 // the cards (the stylesheet draws them with ::before and ::after), the faces and the words. Twice the size it is on
-// screen, or less for a tree too large for the browser to hold as one picture. Always in the light colours, on white,
+// screen, or less for a tree too large for the browser to hold as one picture. Always in the light colors, on white,
 // whichever the page shows: the picture is printed, sent and shown elsewhere.
 const PICTURE_MOST_SIDE = 16_384;         // px: browsers refuse a canvas wider or taller
 const PICTURE_MOST_PIXELS = 120_000_000;  // and one larger than about this
@@ -1881,7 +1881,7 @@ async function treePicture(sheet) {
   const root = document.documentElement;
   const theme = root.dataset.theme;
   sheet.style.transform = "none";  // measured as laid out, unzoomed
-  root.classList.add("drawing");  // no colour fades (app.css) while the light colours are read
+  root.classList.add("drawing");  // no color fades (app.css) while the light colors are read
   root.dataset.theme = "light";
   const origin = sheet.getBoundingClientRect();
   const items = [];
@@ -1891,7 +1891,7 @@ async function treePicture(sheet) {
     sheet.style.transform = held;
     if (theme) root.dataset.theme = theme;
     else delete root.dataset.theme;
-    void getComputedStyle(sheet).color;  // the page's own colours back before fades are allowed again
+    void getComputedStyle(sheet).color;  // the page's own colors back before fades are allowed again
     root.classList.remove("drawing");
   }
   const faces = new Map();  // src -> the picture, loaded once (a card off screen may not have loaded its own)
@@ -2122,7 +2122,7 @@ function passkeyAnswer(cred) {
 
 function passkeyTrouble(err) {
   if (err.name === "NotAllowedError" || err.name === "AbortError") {
-    return t("The passkey wasn't used: it was cancelled, or took too long. Try again.");
+    return t("The passkey wasn't used: it was canceled, or took too long. Try again.");
   }
   if (err.name === "InvalidStateError") return t("This phone or computer has a passkey for this account already.");
   if (err.name === "SecurityError") return t("Passkeys don't work on this address.");
@@ -2662,7 +2662,7 @@ addEventListener("beforeunload", (e) => {  // a story being told isn't lost to a
   if (storyRecording) e.preventDefault();
 });
 
-// ---- Albums, favourites, tours with stories and the family book (albums.py, favourites.py, slideshow.py, book.py) ----
+// ---- Albums, favorites, tours with stories and the family book (albums.py, favorites.py, slideshow.py, book.py) ----
 
 // A slideshow's title card (tours.title_card): the tour's or album's name, the time its photos span, its words, and
 // how many photos it has. playTour shows it in place of a photo.
@@ -2685,9 +2685,9 @@ document.addEventListener("click", async (e) => {
     await post(button.dataset.heart, { on });
     button.setAttribute("aria-pressed", String(on));
     button.textContent = on ? "♥" : "♡";
-    button.title = on ? t("One of your favourites: press to take the heart off (h)")
-      : t("A favourite of yours? Tours and memories show favourites first (h)");
-    notice(on ? t("One of your favourites now.") : t("No longer one of your favourites."));
+    button.title = on ? t("One of your favorites: press to take the heart off (h)")
+      : t("A favorite of yours? Tours and memories show favorites first (h)");
+    notice(on ? t("One of your favorites now.") : t("No longer one of your favorites."));
   } catch (err) {
     notice(t("That didn't work: {why}", { why: err.message }), { error: true });
   } finally {
@@ -2882,7 +2882,7 @@ document.querySelector(".top .profile")?.addEventListener("focusout", (e) => {
   }
 });
 
-// Colours, in the round button's panel at the top: Automatic (as the computer or phone is set), Light or Dark, kept
+// Colors, in the round button's panel at the top: Automatic (as the computer or phone is set), Light or Dark, kept
 // in this browser. theme.js puts the choice on every page before it is drawn; a press changes this page at once, and
 // the panel stays open to try the other. Another tab of the site changing it changes this one too.
 const THEME_KEY = "lineagebox-theme";
@@ -2909,7 +2909,7 @@ addEventListener("storage", (e) => {
   if (e.key === THEME_KEY) showTheme(e.newValue);
 });
 
-// Photo tiles, under Colours: Squares or Whole photos, and Small, Medium or Large, kept in this browser the same way
+// Photo tiles, under Colors: Squares or Whole photos, and Small, Medium or Large, kept in this browser the same way
 // (theme.js puts them on each page before it is drawn; app.css lays the grids out by them). "" is the usual one, kept
 // as nothing. A change keeps the photo at the top of the screen where it was, as the rows move around it.
 const LOOKS = { tiles: { key: "lineagebox-tiles", values: ["whole"] },

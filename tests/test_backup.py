@@ -259,7 +259,7 @@ def test_the_export_holds_the_tree_and_what_the_family_said(known, con, cfg, tmp
     assert counts.pop("sidecars") == len([n for n in z.namelist() if n.startswith("xmp/")])
     assert counts.pop("stories") == 0  # recorded stories: tests/test_stories.py
     assert counts.pop("sources") == 0  # written sources: tests/test_life_story.py
-    assert counts.pop("albums") == counts.pop("favourites") == 0  # albums and hearts: tests/test_albums.py
+    assert counts.pop("albums") == counts.pop("favorites") == 0  # albums and hearts: tests/test_albums.py
     assert counts == {"photos": len(data["photos"]), "people": 2, "named_faces": 1, "tags": 2, "captions": 1,
                       "comments": 1, "documents": 1}
 

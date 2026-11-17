@@ -22,7 +22,7 @@ APP = {"X-Requested-With": "lineagebox"}
 
 @pytest.fixture
 def named(con, cfg, library):
-    """A photo with a face named by hand, one recognised, a caption, a tag by hand and one by the AI."""
+    """A photo with a face named by hand, one recognized, a caption, a tag by hand and one by the AI."""
     path = write_jpeg(library / "Lake" / "IMG_0001.jpg", size=(400, 300), color=(30, 90, 160),
                       taken="2004:07:15 13:20:00")
     scan(con, cfg)

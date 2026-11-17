@@ -3,7 +3,7 @@ birth date was born.
 
 InsightFace estimates an age for every face (face.est_age). Measured on the library LineageBox was developed on
 (2026-11-07: 3,612 faces named by hand of 16 people with a birth date, on photos with a camera date, plus 16,292
-recognised), the estimate is far too rough to tell anyone's age:
+recognized), the estimate is far too rough to tell anyone's age:
 
 - Children are estimated as adults: faces of children under 2 came out 28 years old on average (90% within 47
   years of the truth), of 4 to 6 year-olds 27, of 10 to 12 year-olds 21. Adults are 10 years out on average, with
@@ -14,7 +14,7 @@ recognised), the estimate is far too rough to tell anyone's age:
   Recognition doesn't use it (people.py).
 
 What it does say: a face estimated under 15 is a young child. All 134 such faces named by hand were children of 10 or
-less (the oldest 10.8), and 2 of 1,563 recognised ones were 12 or 13. Only about one face in seven of a child under 7
+less (the oldest 10.8), and 2 of 1,563 recognized ones were 12 or 13. Only about one face in seven of a child under 7
 is estimated that young, so it is a hint now and then, never a measure. And whatever the faces look like, a photo
 taken before someone was born isn't of them: on that library, 535 named faces were in photos dated before the person
 was born, 533 of them from one camera whose clock had been wrong for a while (two years behind, and reset to its
@@ -69,7 +69,7 @@ def births(con: sqlite3.Connection) -> dict[int, str]:
 
 
 def age_checks(con: sqlite3.Connection, ok: set[int] = frozenset()) -> list[dict]:
-    """Faces named as someone (by hand or recognised) that can't be them by their age (Cleanup → Confirm faces →
+    """Faces named as someone (by hand or recognized) that can't be them by their age (Cleanup → Confirm faces →
     Ages to check): the photo was taken before they were born (often a camera's clock: see camera_clock.py), or the
     face looks like a young child's while they were grown up then, on a photo whose date someone set or said is right
     (otherwise the date is the likelier mistake: Suggested dates → Looks too young, scan_dates.young). ok: faces said

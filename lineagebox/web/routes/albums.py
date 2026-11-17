@@ -1,12 +1,12 @@
 """Albums picked by hand (albums.py): the list, an album with its slideshow, putting photos in it and in order,
-captions, the cover, sharing it, and saving it as a video; and favourites (favourites.py), the hearts on photos."""
+captions, the cover, sharing it, and saving it as a video; and favorites (favorites.py), the hearts on photos."""
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
-from lineagebox import access, accounts, albums, catalog, changes, favourites, sharing, slideshow, tours
+from lineagebox import access, accounts, albums, catalog, changes, favorites, sharing, slideshow, tours
 from lineagebox.catalog import VISIBLE
 from lineagebox.web.common import MEMBER, _by, _from_app, _images_or_404, _share_panel
 from lineagebox.web.deps import con, page, site, viewer, writer
@@ -17,7 +17,8 @@ from lineagebox.web.site import Site
 router = APIRouter()
 ACCESS = {
     "/albums": MEMBER,
-    "/favourites": MEMBER,
+    "/favorites": MEMBER,
+    "/favourites": MEMBER,          # what the page was called before the spelling was put right
     "/album/{album_id}": MEMBER,
     "/album/{album_id}/video": MEMBER,
     "/download/album/{album_id}": MEMBER,
@@ -32,7 +33,8 @@ ACCESS = {
     "/api/albums/{album_id}/remove": MEMBER,
     "/api/albums/{album_id}/delete": MEMBER,
     "/api/albums/{album_id}/video": MEMBER,
-    "/api/images/{image_id}/favourite": MEMBER,
+    "/api/images/{image_id}/favorite": MEMBER,
+    "/api/images/{image_id}/favourite": MEMBER,   # the same, under its old spelling
 }
 SECONDS = 5  # each photo's in an album's slideshow
 
@@ -130,7 +132,7 @@ def _track(w, v: access.Viewer, summary: str, album_ids):
 
 @router.get("/albums", response_class=HTMLResponse)
 def albums_page(request: Request, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
-    """Their own albums (an admin's: every album), those others shared with them, and their favourites."""
+    """Their own albums (an admin's: every album), those others shared with them, and their favorites."""
     every = albums.listing(c)
     shared = {r[0] for r in w.execute("SELECT DISTINCT album_id FROM main.share WHERE album_id IS NOT NULL")}
     from_whom = {x["item_id"]: x["by_name"] for x in sharing.with_me(w, v.account_id) if x["kind"] == "album"} \
@@ -139,23 +141,29 @@ def albums_page(request: Request, v=Depends(viewer), c=Depends(con), w=Depends(w
         a["shared"] = a["id"] in shared
         a["from"] = from_whom.get(a["id"])
     mine = [a for a in every if albums.theirs(v, a)]
-    loved = [i for i in favourites.mine(w, v) if v.sees_image(i)]
+    loved = [i for i in favorites.mine(w, v) if v.sees_image(i)]
     cover = catalog.image(c, loved[0]) if loved else None
     return page(request, "albums.html", nav="tours", albums=mine, others=[a for a in every if a not in mine],
-                favourites=len(loved), favourite_cover=cover["sha256"] if cover else None)
+                favorites=len(loved), favorite_cover=cover["sha256"] if cover else None)
 
 
-@router.get("/favourites", response_class=HTMLResponse)
-def favourites_page(request: Request, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
+@router.get("/favourites", include_in_schema=False)
+def favourites_page() -> RedirectResponse:
+    """Where the page used to be: anyone with it bookmarked or shared lands on it all the same."""
+    return RedirectResponse("/favorites", status_code=301)
+
+
+@router.get("/favorites", response_class=HTMLResponse)
+def favorites_page(request: Request, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     """The photos the viewer gave a heart, the latest first, to look through, play, or make an album of."""
-    order = favourites.mine(w, v)
+    order = favorites.mine(w, v)
     rows = {r["id"]: r for r in c.execute(f"""SELECT i.id, i.sha256, i.taken_at, i.taken_at_source, i.media, i.duration
                                               FROM image i WHERE i.id IN (SELECT value FROM json_each(?))
                                               AND {VISIBLE}""", (_json(order),))}
     images = [rows[i] for i in order if i in rows]
     chosen = tours.picked(c, [im["id"] for im in images])
-    slides = [tours.title_card("Favourites", chosen), *tours.slides(c, chosen)] if chosen else []
-    return page(request, "favourites.html", nav="tours", images=images, slides=slides, seconds=SECONDS,
+    slides = [tours.title_card("Favorites", chosen), *tours.slides(c, chosen)] if chosen else []
+    return page(request, "favorites.html", nav="tours", images=images, slides=slides, seconds=SECONDS,
                 ids=[im["id"] for im in images])
 
 
@@ -213,7 +221,7 @@ def album_names(v=Depends(viewer), w=Depends(writer)):
 
 @router.post("/api/albums", dependencies=[Depends(_from_app)])
 def create_album(body: AlbumBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
-    """A new album, with the photos given (favourites made into an album), or none yet."""
+    """A new album, with the photos given (favorites made into an album), or none yet."""
     ids = _seen(c, v, body.image_ids)
     album_id = albums.create(w, body.name, _by(v), body.about)
     albums.add(w, album_id, ids)
@@ -319,11 +327,12 @@ def album_video(album_id: int, v=Depends(viewer), c=Depends(con), w=Depends(writ
     return ask_for_video(w, v, "album", album_id, a["name"], slides, SECONDS)
 
 
-@router.post("/api/images/{image_id}/favourite", dependencies=[Depends(_from_app)])
-def favourite(image_id: int, body: HeartBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
+@router.post("/api/images/{image_id}/favorite", dependencies=[Depends(_from_app)])
+@router.post("/api/images/{image_id}/favourite", dependencies=[Depends(_from_app)], include_in_schema=False)
+def favorite(image_id: int, body: HeartBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     """The viewer's heart on a photo, given or taken off. Only theirs: it changes nothing anyone else sees, so it
     isn't kept on Recent changes (pressing ♡ again takes it back)."""
     _seen(c, v, [image_id])
-    favourites.put(w, v, image_id, body.on)
+    favorites.put(w, v, image_id, body.on)
     w.commit()
     return {"on": body.on}

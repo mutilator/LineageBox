@@ -303,7 +303,7 @@ def relations_to(g: Graph, ego: int) -> dict[int, Kin]:
     if ego not in g.people:
         return {}
     out = {ego: Kin("you", "you", set(), 0)}
-    blood = {}  # by birth or adoption; foster family is labelled, and the rest is worked out from these
+    blood = {}  # by birth or adoption; foster family is labeled, and the rest is worked out from these
     for x in g.people:
         if x == ego:
             continue
@@ -811,7 +811,7 @@ def view(g: Graph, center: int, ego: int | None = None) -> dict:
     """The family around one person, for the Family page, instead of everyone at once: their grandparents and parents
     above, their own generation (partners, brothers and sisters), and below, their children and their brothers' and
     sisters' children. With how many generations go on above and below, to climb to by making someone else the
-    centre, and the way there from ego (ego, their mother, her father...) to climb back. Stand-in parents (siblings
+    center, and the way there from ego (ego, their mother, her father...) to climb back. Stand-in parents (siblings
     with none entered) are left out."""
     birth = lambda p: (g.people[p]["birth_date"] or "9999", g.name(p))
     real = lambda ids: sorted((p for p in ids if p > 0 and p in g.people), key=birth)

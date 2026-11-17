@@ -34,7 +34,7 @@ are never shown to members. They get a **Download** button instead. What thumbna
 each photo) names only the people the member sees.
 
 Tags, places on the map, life events, documents, written sources, tours, albums, family books, search results (by words and by meaning) and counts all
-follow from those people and photos, and so does a photo's **More like this**. Each account's favourites (♡) are its
+follow from those people and photos, and so does a photo's **More like this**. Each account's favorites (♡) are its
 own: nobody else sees them. Settings, Status and the Cleanup pages
 that move files are for admins only, except Blank and blurry and Similar shots of a member's own uploads (below).
 

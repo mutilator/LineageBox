@@ -1,4 +1,4 @@
-"""Long tapes and sound: sound recordings (cassettes, voice memos) catalogued, played and transcribed, songs left
+"""Long tapes and sound: sound recordings (cassettes, voice memos) cataloged, played and transcribed, songs left
 out; long videos' chapters and the frames that cover them."""
 import subprocess
 
@@ -47,7 +47,7 @@ def test_chapters_start_after_blanks_and_at_the_biggest_changes():
 # ---- with ffmpeg ---------------------------------------------------------------------------------------------------
 
 @needs_ffmpeg
-def test_sound_recordings_are_catalogued_played_and_transcribed(con, cfg, library, monkeypatch):
+def test_sound_recordings_are_cataloged_played_and_transcribed(con, cfg, library, monkeypatch):
     make_sound(library / "Tapes" / "Grandma side A.m4a", tags=[("creation_time", "1994-05-01T10:00:00Z")])
     make_sound(library / "Tapes" / "memo.3gp", codec="aac", fmt="3gp")  # a "video" with no picture: a voice note
     make_sound(library / "Tapes" / "old memo.wma", codec="wmav2")       # browsers can't play: a copy is made
@@ -100,7 +100,7 @@ def test_sound_recordings_are_catalogued_played_and_transcribed(con, cfg, librar
 
 @needs_ffmpeg
 def test_long_videos_get_chapters_and_more_frames(con, cfg, library):
-    # an 11-minute tape: a test card, a blank, colour bars, then a moving pattern
+    # an 11-minute tape: a test card, a blank, color bars, then a moving pattern
     path = library / "Tapes" / "tape1.mp4"
     path.parent.mkdir(parents=True)
     parts = [("rgbtestsrc", 200), ("color=c=black", 6), ("smptebars", 214), ("testsrc", 240)]

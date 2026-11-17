@@ -28,21 +28,21 @@ def group(con: sqlite3.Connection) -> tuple[int, int]:
     # file-time dates say when a copy was made, not when the photo was taken, so they cannot rule a pair out
     days = [r["day"] if r["taken_at_source"] != "mtime" else None for r in rows]
 
-    neighbours: dict[int, list[int]] = {}
+    neighbors: dict[int, list[int]] = {}
     for start in range(0, len(hashes), CHUNK):
         dist = np.bitwise_count(hashes[start:start + CHUNK, None] ^ hashes[None, :])
         for i, j in zip(*np.nonzero(dist <= MAX_DISTANCE)):
             i += start
             if i != j and (days[i] is None or days[j] is None or days[i] == days[j]):
-                neighbours.setdefault(i, []).append(j)
+                neighbors.setdefault(i, []).append(j)
 
-    # largest image first: it becomes the representative of every unassigned neighbour
-    order = sorted(neighbours, key=lambda i: (-rows[i]["pixels"], rows[i]["taken_at_source"] != "exif", ids[i]))
+    # largest image first: it becomes the representative of every unassigned neighbor
+    order = sorted(neighbors, key=lambda i: (-rows[i]["pixels"], rows[i]["taken_at_source"] != "exif", ids[i]))
     rep_of: dict[int, int] = {}
     for i in order:
         if i in rep_of:
             continue
-        members = [j for j in neighbours[i] if j not in rep_of]
+        members = [j for j in neighbors[i] if j not in rep_of]
         if members:
             rep_of[i] = i
             for j in members:

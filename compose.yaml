@@ -70,7 +70,7 @@ services:
     # Installs a newer LineageBox when an admin presses Update now on the Status page. It is the one container with
     # Docker access, which is root on this machine, so: it has no network; it reads no settings and no catalog, only
     # whether the web app has made the empty file update/requested in the data folder; and it only updates the
-    # containers labelled lineagebox.update in this project, each to the newest copy of the image it already runs.
+    # containers labeled lineagebox.update in this project, each to the newest copy of the image it already runs.
     # docs/install.md#updating-and-backups says how to do without it.
     image: ${LINEAGEBOX_IMAGE:-ghcr.io/mutilator/lineagebox}:${LINEAGEBOX_VERSION:-latest}
     command: ["updater"]

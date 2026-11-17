@@ -36,7 +36,7 @@
       {%- if skip or skip_groups %}{% trans %}That's all, but for the ones you skipped{% endtrans %}{% else %}{% trans %}No faces waiting{% endtrans %}{% if only %} {% trans %}here{% endtrans %}{% endif %}{% endif %}</h2>
     <p>{% if skip or skip_groups %}<a class="button primary" href="/people/name{% if only %}?only={{ only }}{% endif %}">{% trans %}Go through the skipped ones{% endtrans %}</a>{% endif %}
       {%- if only %} <a class="button" href="/people/name">{% trans %}All faces to name{% endtrans %}</a>{% endif %}</p>
-    <p class="hint">{% trans %}New photos bring new faces: they are found, and recognised where they clearly match, as the
+    <p class="hint">{% trans %}New photos bring new faces: they are found, and recognized where they clearly match, as the
       photos come in. <a href="/people">Back to People</a>{% endtrans %}{% if viewer.admin %} · {% trans %}<a href="/cleanup/faces">Cleanup → Confirm faces</a> lists them all at once{% endtrans %}{% endif %}</p>
   </div>
 </section>
@@ -95,15 +95,15 @@
         <h2 class="naming-question" tabindex="-1" data-naming-focus>{% trans %}Named already{% endtrans %}</h2>
         <p class="hint">{% trans %}As someone outside your part of the family: only an admin can change it.{% endtrans %}</p>
         {%- elif who %}
-        {#- a recognised face that looks more like someone else now asks about them: its name is the less likely #}
+        {#- a recognized face that looks more like someone else now asks about them: its name is the less likely #}
         {%- set ask, sure = (card.more_like, card.more_like.sure) if card.more_like else (who, card.sure) %}
         <h2 class="naming-question" tabindex="-1" data-naming-focus>{% trans %}Is this{% endtrans %}
           {%- if ask.face %} <img class="naming-who" src="/face/{{ ask.face }}" alt="" width="44" height="44">{% endif %}
           <a href="/person/{{ ask.id }}">{{ ask.name }}</a>?</h2>
         <p class="hint">
           {%- if card.asked %}{% trans asker=card.asked.asker or _("Someone") %}{{ asker }} asked who this is.{% endtrans %} {% endif %}
-          {%- if card.more_like %}{% trans name=who.name, other=ask.name %}Recognised as {{ name }} automatically, but looks more like {{ other }} now that more faces are named.{% endtrans %}
-          {%- elif card.how == "recognised" %}{% trans %}Recognised automatically; nobody has said yet whether it's right.{% endtrans %}
+          {%- if card.more_like %}{% trans name=who.name, other=ask.name %}Recognized as {{ name }} automatically, but looks more like {{ other }} now that more faces are named.{% endtrans %}
+          {%- elif card.how == "recognized" %}{% trans %}Recognized automatically; nobody has said yet whether it's right.{% endtrans %}
           {%- elif card.how == "named" %}{% trans name=who.name %}Named {{ name }} by hand.{% endtrans %}
           {%- else %}{% trans name=who.name %}Looks like {{ name }}{% endtrans %}{% if card.with %}{% trans %}, who isn't named in this photo yet{% endtrans %}{% endif %}.{% endif %}
           {%- if sure is not none %} <b class="sure{% if sure < 0.9 %} unsure{% endif %}">{% trans pct=(sure * 100 + 0.000001)|int %}About {{ pct }}% sure.{% endtrans %}</b>{% endif %}</p>

@@ -610,7 +610,7 @@ def _save(con: sqlite3.Connection, found: list) -> bool:
 
 
 def usable_faces_sql(alias: str = "f") -> str:
-    """Faces good enough to cluster and recognise (box size measured on the preview, max side 2048)."""
+    """Faces good enough to cluster and recognize (box size measured on the preview, max side 2048)."""
     return f"""{alias}.det_score >= {MIN_DET_SCORE} AND {alias}.quality >= {MIN_QUALITY}
                AND min(({alias}.x2 - {alias}.x1) * min(i.width, i.width * 2048.0 / max(i.width, i.height)),
                        ({alias}.y2 - {alias}.y1) * min(i.height, i.height * 2048.0 / max(i.width, i.height)))

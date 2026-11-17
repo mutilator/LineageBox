@@ -35,7 +35,7 @@ def dated(con, cfg, library):
                    taken=f"{day:%Y:%m:%d} 10:00:00")
     scan(con, cfg)
     ingest(con, cfg)
-    con.execute("UPDATE image SET sharpness = 100")  # flat test colours look blurry
+    con.execute("UPDATE image SET sharpness = 100")  # flat test colors look blurry
     con.commit()
     return {name: con.execute("SELECT image_id FROM file WHERE path = ?", (rel("Dated", name),)).fetchone()[0]
             for name in shots}
@@ -88,7 +88,7 @@ def test_a_members_home_shows_her_own_family_first(site, cfg, con):
     ours, rest = page.split('id="family-latest"')[1].split('id="latest"')
     assert "Recent photos of your family" in ours and "<h2>Most recent photos</h2>" in rest
     assert "your closest family: Nell, Rex, Milo, Bart, Sam." in ours  # parents, partner, then brother and sister
-    for name in ("cora_bart.jpg", "rex.jpg", "hank_sam.jpg"):  # her, her father (recognised), her brother
+    for name in ("cora_bart.jpg", "rex.jpg", "hank_sam.jpg"):  # her, her father (recognized), her brother
         assert sha(con, ph[name]) in ours and sha(con, ph[name]) not in rest, name
     assert sha(con, ph["scenery.jpg"]) not in ours and sha(con, ph["scenery.jpg"]) in rest
     assert sha(con, ph["hidden.jpg"]) not in page

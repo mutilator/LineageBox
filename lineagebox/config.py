@@ -153,7 +153,7 @@ class Config:
         return self.previews_dir / sha256[:2] / f"{sha256}.jpg"
 
     def source_path(self, rel: str) -> Path:
-        """Where a catalogued file is: its catalog path is relative to the media root."""
+        """Where a cataloged file is: its catalog path is relative to the media root."""
         return self.share_root / rel
 
     def frame_path(self, sha256: str, idx: int) -> Path:

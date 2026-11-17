@@ -93,7 +93,7 @@ async def record_story(request: Request, image: int | None = None, person: int |
     length = request.headers.get("content-length", "")
     if length.isdigit() and int(length) > stories.MOST_BYTES:
         raise stories.TooBig(f"That recording is over {stories.MOST_BYTES >> 20} MB. Record it in parts, or keep the "
-                             "long recording in a photo folder: it is catalogued there.")
+                             "long recording in a photo folder: it is cataloged there.")
 
     def allowed():  # before anything is read: what it is about must be theirs to see, and not too many at once
         if image is not None:

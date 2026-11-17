@@ -13,13 +13,13 @@ where the camera or the folder says when, lighter where only the file's time doe
 {#- Placing a photo, or for an admin a folder, by hand (/map?place=image:12 or /map?place=folder:3, from its page):
     map.js fills this in and shows it. A pin is put down by clicking the map, by finding a town, or (from the keyboard)
     in the middle of the map, then dragged to the spot. #}
-<section class="map-placing" id="placing" hidden aria-labelledby="placing-title">
+<section class="map-placing" id="placing" hidden aria-labeledby="placing-title">
   <img id="placing-thumb" alt="" hidden>
   <div>
     <h2 id="placing-title">{% trans %}Where was <span id="placing-what">this photo</span> taken?{% endtrans %}</h2>
     <p class="hint" id="placing-where">{% trans %}Click the map where it was taken, or find a town, then drag the pin to the spot.{% endtrans %}</p>
     <p class="placing-find"><label>{% trans %}Find a town{% endtrans %} <input type="search" id="placing-town" autocomplete="off" placeholder="{{ _('town or city') }}"></label>
-      <button type="button" class="quiet" id="placing-centre" title="{{ _('Move the map with the arrow keys and + and −, then put the pin in its middle') }}">{% trans %}Pin the middle of the map{% endtrans %}</button></p>
+      <button type="button" class="quiet" id="placing-center" title="{{ _('Move the map with the arrow keys and + and −, then put the pin in its middle') }}">{% trans %}Pin the middle of the map{% endtrans %}</button></p>
     <ul class="placing-towns" id="placing-towns" aria-live="polite"></ul>
     <p class="placing-buttons"><button type="button" class="primary" id="placing-save" disabled>{% trans %}Save this place{% endtrans %}</button>
       <button type="button" class="quiet" id="placing-clear" hidden>{% trans %}Take it off the map{% endtrans %}</button>

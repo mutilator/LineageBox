@@ -4,15 +4,15 @@
 {% block title %}{% trans name=person.name %}{{ name }}: faces{% endtrans %}{% endblock %}
 {% block main %}
 <nav class="crumbs"><a href="/people">{% trans %}People{% endtrans %}</a><span class="sep">/</span><a href="/person/{{ person.id }}">{{ person.name }}</a><span class="sep">/</span><h1>{% trans %}Faces{% endtrans %}</h1></nav>
-<p class="meta">{% trans confirmed_count=confirmed_count|number, auto_count=auto_count|number %}{{ confirmed_count }} faces named by you · {{ auto_count }} recognised automatically{% endtrans %}</p>
+<p class="meta">{% trans confirmed_count=confirmed_count|number, auto_count=auto_count|number %}{{ confirmed_count }} faces named by you · {{ auto_count }} recognized automatically{% endtrans %}</p>
 
 {% if auto_faces %}
 {%- set about = {"person_id": person.id}|tojson %}
-<h2>{% trans %}Recognised automatically <small>least sure first</small>{% endtrans %}</h2>
+<h2>{% trans %}Recognized automatically <small>least sure first</small>{% endtrans %}</h2>
 <p class="meta">{% trans name=person.name %}Is each of these {{ name }}? ✓ says yes: the face counts as named by you, and recognition learns
-from it. × (not them) says no: the name comes off, it is never recognised as them again, and it can be named as whoever it is on
+from it. × (not them) says no: the name comes off, it is never recognized as them again, and it can be named as whoever it is on
 its photo. Or untick any you aren't sure of and say yes to the rest at once; the unticked ones stay as they are.
-<a href="/people/name?only=recognised">One at a time</a> asks about them with bigger pictures.{% endtrans %}</p>
+<a href="/people/name?only=recognized">One at a time</a> asks about them with bigger pictures.{% endtrans %}</p>
 <form class="check-faces" data-yes-faces="/api/people/{{ person.id }}/yes" data-reload>
   <div class="faces">
     {%- for f in auto_faces %}

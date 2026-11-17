@@ -38,7 +38,7 @@ One JSON object:
 | `folders` | Folders whose place, event or date someone set by hand: `path`, and those of `kind`, `place`, `event`, `year`, `month`, `day` that are set, and `hidden` when nothing in the folder is shown to family members. |
 | `stories` | Stories recorded about a person (those about a photo are in its record): each as a photo's (below), with `person`, whom it is about, and `event` when it is about one of their life events (its GEDCOM `tag`, and `type` and `date` if it has them). |
 | `albums` | The albums the family made (photos picked by hand), oldest first: `name`, `about` (the words under its name), `made_by` (`email` and `person` of the account that made it; none: the admins', or made at home without accounts), `created_at`, `photos` (in the album's order, each its `sha256` and the album's own `caption` for it, when it has one) and `cover` (the SHA-256 of its cover photo). |
-| `photos` | One record for each photo, video and sound recording, in the order they were catalogued. |
+| `photos` | One record for each photo, video and sound recording, in the order they were cataloged. |
 
 Every path is relative to the media root, the folder all the photo sources are in, with `/` between folders, as the
 catalog writes them: `local/Photos/2012/Zoo/DSC_0001.jpg`. Times are local, without a time zone, as cameras write
@@ -69,7 +69,7 @@ them. Each record holds only the fields it has a value for.
 | `stories` | Stories recorded about it, oldest first: `file` (in the zip's `stories/`), `mime`, `seconds` (its length, when known), `title`, `at`, `by` (as a comment's), `words` (what is said in it) and `words_by_hand` (`true` when someone wrote or corrected them; otherwise Whisper wrote them down). |
 | `transcript_corrections` | Lines of a video's or recording's transcript that someone put right: `at` (the second the line starts at) and `text` (`""`: nobody said it). The rest of the transcript is Whisper's, and isn't exported. |
 | `document` | When the photo is a record (a certificate, an obituary, a letter): its `kind` and `title`, and `records`, what it is a record of: each `{"person": id}`, or `{"event": {...}}`, one of their life events, with its GEDCOM `tag` (`BIRT`, `MARR`, `DEAT`...), and those of `type`, `date` (as GEDCOM writes it: `"3 MAR 1950"`, `"ABT 1950"`), `place` that it has, and `person` (an id) or `couple` (two ids). |
-| `favourite_of` | Who gave it a heart (♡): each account's `email` and `person`, or `{"home": true}` for one given without family accounts. |
+| `favorite_of` | Who gave it a heart (♡): each account's `email` and `person`, or `{"home": true}` for one given without family accounts. |
 | `hidden` | `true` when it is never shown to family members, only admins (papers, medical records). |
 | `unreadable` | `true` when LineageBox couldn't open the file as a photo or video. |
 
@@ -79,7 +79,7 @@ A face:
 |---|---|
 | `box` | `[left, top, right, bottom]` as shares of the photo's width and height, from 0 to 1, with the photo the right way up (as it is shown, its EXIF rotation applied). For a video, of the frame. |
 | `person` | Who it is, by `id`. |
-| `named_by` | `hand` (someone named it) or `recognition` (LineageBox recognised a face someone had named elsewhere). |
+| `named_by` | `hand` (someone named it) or `recognition` (LineageBox recognized a face someone had named elsewhere). |
 | `not_people` | People someone said this face is not, by `id`. A face can have these and no `person`. |
 | `frame_seconds` | For a video: how far into it the frame is, in seconds. |
 
@@ -116,5 +116,5 @@ A photo with a date given by hand, one named face, a tag, a caption and a commen
 
 Any JSON reader opens `photos.json`; for a very big library, a streaming one (such as Python's `ijson`) reads it a photo
 at a time. To find a photo's file on another machine, look for its `files` paths under that machine's photo folder, or
-compare SHA-256s if the folders were reorganised. To bring the people across, import `family-tree.ged` into the other
+compare SHA-256s if the folders were reorganized. To bring the people across, import `family-tree.ged` into the other
 program and match `people` by `uid`, or by their record (`gedcom`).

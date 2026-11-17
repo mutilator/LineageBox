@@ -7,7 +7,7 @@ A zip of:
   date (as said, for a date set by hand), tags given and taken off by hand, names on faces with their boxes, people
   added to it, captions and comments, and what a document records; and the places confirmed on the map, the
   folders described by hand, people's life stories, chosen portraits and adoptions, and the written sources with
-  what each is cited for; the albums the family made, in their order with their captions, and whose favourite each
+  what each is cited for; the albums the family made, in their order with their captions, and whose favorite each
   photo is. docs/export.md describes every field;
 - README.txt: which file is what.
 
@@ -42,7 +42,7 @@ ABOUT = """LineageBox export, made {made} by LineageBox {version}
 {tree}  The family tree, as GEDCOM 7.0: genealogy programs import it.
 {photos}      Every photo and video: its paths from the photo folders' root, its SHA-256, its date, tags given
                  or taken off by hand, names on faces with their boxes, people added to it, captions, comments,
-                 what a document records and whose favourite it is; and the family's albums, in their order with
+                 what a document records and whose favorite it is; and the family's albums, in their order with
                  their captions. People are given by "id": the "people" list has each one's name,
                  UID and record in {tree} (@I<id>@).
 
@@ -125,8 +125,8 @@ def _photos(con: sqlite3.Connection, out, head: dict) -> dict:
     counts["stories"] = len(told) + sum(map(len, told_of_photos.values()))
     corrected = {r[0]: json.loads(r[1]) for r in con.execute("SELECT image_id, edits FROM transcript "
                                                             "WHERE edits IS NOT NULL")}
-    kept_albums = _albums(con)  # albums picked by hand (albums.py), and below each photo's hearts (favourites.py)
-    counts.update(albums=len(kept_albums), favourites=0)
+    kept_albums = _albums(con)  # albums picked by hand (albums.py), and below each photo's hearts (favorites.py)
+    counts.update(albums=len(kept_albums), favorites=0)
 
     out.write(json.dumps(head, ensure_ascii=False)[:-1])  # the head's fields, then the lists, in one object
     for key, items in (("people", people), ("places", places), ("folders", folders),
@@ -152,10 +152,10 @@ def _photos(con: sqlite3.Connection, out, head: dict) -> dict:
         counts["captions"] += "caption" in record
         counts["comments"] += len(record.get("comments", ()))
         counts["documents"] += "document" in record
-        if loved := mine["favourites"]:  # whose favourite it is: each account's, or {"home": true} without accounts
-            record["favourite_of"] = [_clean({"email": r["email"], "person": r["by_person"]}) or {"home": True}
+        if loved := mine["favorites"]:  # whose favorite it is: each account's, or {"home": true} without accounts
+            record["favorite_of"] = [_clean({"email": r["email"], "person": r["by_person"]}) or {"home": True}
                                       for r in loved]
-            counts["favourites"] += len(loved)
+            counts["favorites"] += len(loved)
         out.write(("\n" if first else ",\n") + json.dumps(record, ensure_ascii=False))
         first = False
     out.write("\n]}\n")
@@ -182,7 +182,7 @@ _QUERIES = {  # each in image order, for _ByImage
     "comments": """SELECT c.image_id, c.kind, c.text, c.at, c.edited_at, a.email, a.person_id AS by_person
                    FROM comment c LEFT JOIN account a ON a.id = c.account_id ORDER BY c.image_id, c.at, c.id""",
     "placed": "SELECT image_id, lat, lon, at FROM image_place ORDER BY image_id",  # put on the map by hand
-    "favourites": """SELECT f.image_id, a.email, a.person_id AS by_person FROM favourite f
+    "favorites": """SELECT f.image_id, a.email, a.person_id AS by_person FROM favourite f
                      LEFT JOIN account a ON a.id = f.account_id ORDER BY f.image_id, f.at, f.id""",
 }
 

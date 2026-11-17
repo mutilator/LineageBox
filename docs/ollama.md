@@ -17,7 +17,7 @@ The model must be able to look at pictures (a "vision" model). LineageBox checks
 - **Check the connection** on the Settings page says whether Ollama has the model and whether the model can look at pictures.
 - The Status page shows a red note when it can't, or when Ollama answers every photo with an error.
 
-| Model | Download | Licence | Notes |
+| Model | Download | License | Notes |
 |---|---|---|---|
 | `ministral-3` (the default) | about 6 GB | Apache-2.0 | What LineageBox was tuned with. About 6.5 GB of graphics memory with one photo at a time; with a desktop graphics card, a few seconds a photo. |
 | `gemma3:12b` | about 8 GB | [Gemma Terms of Use](https://ai.google.dev/gemma/terms) | More accurate than ministral-3, about half as fast. |
@@ -30,7 +30,7 @@ container limited to 2.4 GB: Ollama turns part of the model into a larger form a
 part way. Status then says the model was killed and most likely ran out of memory. On a machine that runs other things
 too, a memory limit on Ollama's container (`mem_limit` in a compose override) keeps that from stopping them instead.
 
-Each model comes with its own licence, which applies to how you use it. The model's page on [ollama.com](https://ollama.com/library) names it.
+Each model comes with its own license, which applies to how you use it. The model's page on [ollama.com](https://ollama.com/library) names it.
 
 You set the model on the Settings page (**AI (Ollama)**, **Model**). Changing it describes every photo again with the new one. Descriptions are kept per model, so going back to the old model doesn't redo them. A photo someone had described again with another model (below) keeps that description.
 
@@ -48,7 +48,7 @@ You set the model on the Settings page (**AI (Ollama)**, **Model**). Changing it
 
 A second, small model reads every description (and the family's captions), so that a search finds what its words mean, not only the words themselves: "kids sledding" finds "children on a snowy hill", and each photo's page shows **More like this**. It is set on the Settings page as **Model for search by meaning**, and downloaded with its own button there (or `ollama pull nomic-embed-text`).
 
-| Model | Download | Licence | Notes |
+| Model | Download | License | Notes |
 |---|---|---|---|
 | `nomic-embed-text` (the default) | 274 MB | Apache-2.0 | The most accurate of those tried. About 0.06 s a description on a desktop processor alone, so a 20,000-photo library takes about 20 minutes even without a graphics card. |
 | `all-minilm` | 46 MB | Apache-2.0 | Three times as fast and a sixth of the size; finds a little less. |

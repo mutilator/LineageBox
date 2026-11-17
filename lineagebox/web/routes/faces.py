@@ -155,7 +155,7 @@ def not_a_face(face_id: int, v=Depends(viewer), c=Depends(con), w=Depends(writer
 
 @router.post("/api/images/{image_id}/faces", dependencies=[Depends(_from_app)])
 def look_again(image_id: int, v=Depends(viewer), c=Depends(con), w=Depends(writer), s: Site = Depends(site)):
-    """Look for faces in the photo again, more closely; new ones are recognised where they clearly match."""
+    """Look for faces in the photo again, more closely; new ones are recognized where they clearly match."""
     if catalog.image(c, image_id) is None:
         raise HTTPException(404, "No such photo")
     if s.limits(v) and not s.look_tries.allow(str(v.account_id)):
@@ -170,9 +170,9 @@ def look_again(image_id: int, v=Depends(viewer), c=Depends(con), w=Depends(write
         raise HTTPException(503, f"Face recognition isn't available: {e}") from None
     if not new and not back:
         return {"message": "No other faces found."}
-    recognised = people.identify(w, new + back)  # against everyone, as the worker would
+    recognized = people.identify(w, new + back)  # against everyone, as the worker would
     found = [f"found {len(new)} more face{'' if len(new) == 1 else 's'}" if new else "",
-             f"brought back {len(back)}" if back else "", f"recognised {recognised}" if recognised else ""]
+             f"brought back {len(back)}" if back else "", f"recognized {recognized}" if recognized else ""]
     return {"message": "; ".join(s for s in found if s).capitalize() + ".", "reload": True}
 
 
@@ -245,4 +245,4 @@ def confirm_faces(person_id: int, body: FacesBody, v=Depends(viewer), c=Depends(
 
 @router.post("/api/people/identify", dependencies=[Depends(_from_app)])
 def identify(c=Depends(con)):
-    return {"recognised": people.identify(c), "groups": people.cluster(c)[0]}
+    return {"recognized": people.identify(c), "groups": people.cluster(c)[0]}

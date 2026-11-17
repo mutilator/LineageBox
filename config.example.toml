@@ -6,7 +6,7 @@
 # the page's values win: what is here only gives their starting values. docs/configuration.md lists them all.
 
 # The folder your photo folders are in. Every path in the catalog starts here, so choose it once. The folders to
-# catalogue inside it are picked on the Settings page (Watched folders). LineageBox only reads it, except when Cleanup
+# catalog inside it are picked on the Settings page (Watched folders). LineageBox only reads it, except when Cleanup
 # is asked to move photos to a Removed folder.
 media_root = "photos"            # e.g. 'C:\Users\you\Pictures' or "/home/you/Pictures"
 

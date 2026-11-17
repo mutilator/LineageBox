@@ -2,7 +2,7 @@
     done: each ticked off from the catalog as it is done, the next one to do a link to where it is done. first_run:
     first_run.checklist(), or none. -#}
 {%- if first_run %}
-<section class="first-run" id="first-run" aria-labelledby="first-run-title">
+<section class="first-run" id="first-run" aria-labeledby="first-run-title">
   <h2 id="first-run-title">{% trans done=first_run.done, needed=first_run.needed %}Getting started <small>{{ done }} of {{ needed }} done</small>{% endtrans %}</h2>
   <p class="meta">{% trans %}What makes a new LineageBox worth opening. Each step ticks itself off once it is done, however it was
     done; this list goes when they all are.{% endtrans %}</p>

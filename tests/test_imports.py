@@ -21,7 +21,7 @@ NS = ('xmlns:x="adobe:ns:meta/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-synt
 
 
 def packet(regions=(), keywords=(), caption=None, extra=""):
-    """An XMP packet as digiKam or Lightroom write one: regions as (name, centre x, centre y, w, h)."""
+    """An XMP packet as digiKam or Lightroom write one: regions as (name, center x, center y, w, h)."""
     items = "".join(f'<rdf:li><rdf:Description mwg-rs:Name="{n}" mwg-rs:Type="Face"><mwg-rs:Area stArea:x="{x}" '
                     f'stArea:y="{y}" stArea:w="{w}" stArea:h="{h}" stArea:unit="normalized"/></rdf:Description>'
                     f'</rdf:li>' for n, x, y, w, h in regions)

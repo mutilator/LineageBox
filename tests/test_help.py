@@ -45,7 +45,7 @@ def test_every_page_list_matches_the_menu(cfg, con):
     member.cookies.set(accounts.COOKIE, accounts.new_session(con, accounts.add(con, "emma@example.com", emma), 30))
     shown, listed = menu_and_list(member.get("/people").text)
     assert listed - shown == {"/news"} and shown <= listed
-    assert {"/upload", "/folders", "/albums", "/favourites", "/tags", "/cleanup"} <= shown
+    assert {"/upload", "/folders", "/albums", "/favorites", "/tags", "/cleanup"} <= shown
     assert not {"/status", "/settings", "/"} & shown
 
 
@@ -62,7 +62,7 @@ def test_the_help_is_about_the_page_it_is_on(cfg, con):
     assert "Help: Settings" in client.get("/settings").text
 
 
-def test_the_help_says_whose_it_is_and_under_which_licence(cfg):
+def test_the_help_says_whose_it_is_and_under_which_license(cfg):
     """The AGPL's notices: a changed copy has to keep showing them, so the original has to show them."""
     html = TestClient(webapp.create_app(cfg), client=LAN).get("/people").text
     assert "GNU Affero General Public License" in html and "no warranty" in html and "Its source code" not in html

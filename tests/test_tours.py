@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-from lineagebox import (access, events, family, favourites, memories, people, settings, slideshow,
+from lineagebox import (access, events, family, favorites, memories, people, settings, slideshow,
                         tour_suggestions, tours, video)
 from lineagebox.ingest import ingest
 from lineagebox.scan import scan
@@ -34,7 +34,7 @@ def tlib(con, cfg, library):
     rng = np.random.default_rng(3)
     for name, (_, who) in SHOTS.items():
         image_id = con.execute("SELECT image_id FROM file WHERE path = ?", (rel("Tours", name),)).fetchone()[0]
-        con.execute("UPDATE image SET sharpness = 100 WHERE id = ?", (image_id,))  # flat test colours look blurry
+        con.execute("UPDATE image SET sharpness = 100 WHERE id = ?", (image_id,))  # flat test colors look blurry
         for x, person in enumerate(who):
             emb = rng.standard_normal(512).astype(np.float32)
             con.execute("""INSERT INTO face(image_id, x1, y1, x2, y2, det_score, quality, embedding, person_id,
@@ -223,7 +223,7 @@ def test_dates_on_slides_are_as_exact_as_they_are_known(con, tlib):
     assert tours.span_words([None]) == ""
 
 
-def test_favourites_come_first(con, cfg, tlib):
+def test_favorites_come_first(con, cfg, tlib):
     """A heart wins a photo its place in a year, and a memory's cover. Each account has its own hearts."""
     years = tours.answer(kind(con, "Throughout the years")["spec"], {"person": tlib["Owen"]})
     years["pick"]["count"] = 1
@@ -232,22 +232,22 @@ def test_favourites_come_first(con, cfg, tlib):
     loved = ({_image(con, "dec22.jpg"), _image(con, "mar22.jpg")} - set(first)).pop()  # the one not picked
     name = "dec22.jpg" if loved == _image(con, "dec22.jpg") else "mar22.jpg"
     client = TestClient(webapp.create_app(cfg), client=LAN)  # at home: one set of hearts, of nobody in particular
-    r = client.post(f"/api/images/{loved}/favourite", json={"on": True}, headers=APP)
+    r = client.post(f"/api/images/{loved}/favorite", json={"on": True}, headers=APP)
     assert r.json() == {"on": True}
     assert in_2022() == [loved]
     picked = tours.photos(con, years)
     assert memories.cover(picked, date(2026, 1, 1)) == next(p["sha"] for p in picked if p["hearts"])
     assert 'aria-pressed="true"' in client.get(f"/image/{loved}").text
-    assert favourites.mine(con, access.EVERYONE) == [loved]
-    assert "Your favourites" in client.get("/albums").text and _sha(con, name) in client.get("/favourites").text
-    client.post(f"/api/images/{loved}/favourite", json={"on": False}, headers=APP)
-    assert favourites.mine(con, access.EVERYONE) == [] and in_2022() == first
+    assert favorites.mine(con, access.EVERYONE) == [loved]
+    assert "Your favorites" in client.get("/albums").text and _sha(con, name) in client.get("/favorites").text
+    client.post(f"/api/images/{loved}/favorite", json={"on": False}, headers=APP)
+    assert favorites.mine(con, access.EVERYONE) == [] and in_2022() == first
     # an account's heart is its own
     a, b = [access.Viewer(account={"id": con.execute("INSERT INTO account(email, role, created_at) VALUES (?, 'member',"
                                                      " 'x')", (f"{n}@example.com",)).lastrowid,
                                    "person_id": None, "role": "member"}, admin=False) for n in ("a", "b")]
-    favourites.put(con, a, _image(con, "jun24.jpg"), True)
-    assert favourites.has(con, a, _image(con, "jun24.jpg")) and not favourites.has(con, b, _image(con, "jun24.jpg"))
+    favorites.put(con, a, _image(con, "jun24.jpg"), True)
+    assert favorites.has(con, a, _image(con, "jun24.jpg")) and not favorites.has(con, b, _image(con, "jun24.jpg"))
 
 
 def _sha(con, name):

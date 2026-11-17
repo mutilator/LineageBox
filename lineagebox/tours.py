@@ -12,7 +12,7 @@ import sqlite3
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
-from lineagebox import comments, dates, errors, events, family, favourites
+from lineagebox import comments, dates, errors, events, family, favorites
 from lineagebox.catalog import VISIBLE
 
 SEASONS = dates.SEASONS
@@ -306,13 +306,13 @@ def photos(con: sqlite3.Connection, spec: dict, blurry_below: float | None = Non
         found = _around_birthday(con, found, spec)
     elif spec["when"]["mode"] in ("anniversary", "events"):
         found = _around_events(con, found, spec)
-    hearts = favourites.counts(con, found)  # the viewer's own on a member's connection, everyone's on an admin's
+    hearts = favorites.counts(con, found)  # the viewer's own on a member's connection, everyone's on an admin's
     for p in found.values():
         faces = p["faces"] if targets is None else {k: q for k, q in p["faces"].items() if k in targets}
         p["hearts"] = hearts.get(p["id"], 0)
-        # a favourite before any photo without a heart: of near-duplicates, in each year or month, in a spread
+        # a favorite before any photo without a heart: of near-duplicates, in each year or month, in a spread
         p["score"] = (sum(sorted(faces.values())[-3:]) + min(max(p["sharpness"], 0), 300) / 30
-                      + favourites.WEIGHT * p["hearts"])
+                      + favorites.WEIGHT * p["hearts"])
     best: dict[int, dict] = {}
     for p in found.values():  # near-duplicates: the best of each group
         if p["group"] not in best or p["score"] > best[p["group"]]["score"]:

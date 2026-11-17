@@ -497,12 +497,12 @@ def _still(cfg: Config, slide: dict, background: Image.Image) -> np.ndarray:
         draw = ImageDraw.Draw(frame)
         y = HEIGHT // 2 - 90
         for line in _lines(slide["title"], _font(64), WIDTH - 160, 2):
-            _centred(draw, line, _font(64), y, (255, 255, 255))
+            _centered(draw, line, _font(64), y, (255, 255, 255))
             y += 78
         for text, size in ((slide.get("span"), 34), (slide.get("about"), 28), (slide.get("count"), 26)):
             for line in _lines(text or "", _font(size), WIDTH - 200, 2):
                 y += 8
-                _centred(draw, line, _font(size), y, (225, 225, 225))
+                _centered(draw, line, _font(size), y, (225, 225, 225))
                 y += size + 6
         return np.asarray(frame)
     picture = _picture(cfg, slide.get("sha"))
@@ -540,7 +540,7 @@ def _band(slide: dict) -> Image.Image:
     return out
 
 
-def _centred(draw: ImageDraw.ImageDraw, text: str, font, y: int, fill) -> None:
+def _centered(draw: ImageDraw.ImageDraw, text: str, font, y: int, fill) -> None:
     draw.text(((WIDTH - font.getlength(text)) / 2, y), text, font=font, fill=fill)
 
 

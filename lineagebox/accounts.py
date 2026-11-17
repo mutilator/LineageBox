@@ -316,7 +316,7 @@ def setup_uri(secret: str, email: str, issuer: str = "LineageBox") -> str:
 
 def setup_qr(uri: str) -> str:
     """The setup link as a QR code for the app to scan: an SVG to put in a page. Dark on white whatever the page's
-    colours, as the apps' cameras expect."""
+    colors, as the apps' cameras expect."""
     return segno.make(uri, error="m").svg_inline(scale=5, border=4, dark="#000", light="#fff")
 
 

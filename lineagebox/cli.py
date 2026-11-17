@@ -80,7 +80,7 @@ def cmd_people(con, cfg, args):
     from lineagebox import people
 
     if args.identify:
-        print(f"recognised {people.identify(con)} more faces of named people")
+        print(f"recognized {people.identify(con)} more faces of named people")
     clusters, faces = people.cluster(con)
     print(f"{clusters} groups of unnamed faces ({faces} faces) ready to name on the People page")
 

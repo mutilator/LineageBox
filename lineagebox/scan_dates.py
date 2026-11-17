@@ -159,7 +159,7 @@ def _trusted_day(r, scanned: set[int]) -> date | None:
 
 
 def young(con: sqlite3.Connection, ok: set[int] = frozenset()) -> dict[int, list[dict]]:
-    """Photos where someone named or recognised looks as they did as a child (see YOUNG_NEAR) while the photo's date
+    """Photos where someone named or recognized looks as they did as a child (see YOUNG_NEAR) while the photo's date
     makes them grown up (face_ages.GROWN_UP or more): image id -> those faces, each {"face_id", "person_id", "name",
     "born", "age" (by the photo's date), "why": "looks" (like a young child's) or "like" (their own childhood faces),
     "day": the middle of their dated childhood faces it looks most like, or None}. Not photos dated by hand, nor
@@ -403,7 +403,7 @@ def suggestions(con: sqlite3.Connection, item: dict, south: bool = False, day_fi
             f"{f['name']} looks like a child in it, {face_ages.CHILD_AT_MOST} or younger; its date makes {f['name']}"
             f" {f['age']}.", label=f"between {year} and {year + face_ages.CHILD_AT_MOST}")
     lower, upper, why = date_hints._from_people(con, item["id"])
-    if item.get("found") == "no date" and (near := date_hints._from_neighbours(con, item["id"])):
+    if item.get("found") == "no date" and (near := date_hints._from_neighbors(con, item["id"])):
         said, last, reason = near  # not a scan: the camera-dated photos beside it are from its time (date_hints)
         if lower is None or last >= lower:
             try:

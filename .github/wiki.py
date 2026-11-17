@@ -75,7 +75,7 @@ GUIDE_ABOUT = {
     "Dates": "where dates come from, dating photos by hand, cameras whose clock was wrong, and dating scans",
     "Working on many photos at once": "ticking photos to tag, date, describe, file or download them together",
     "Tours": "slideshows picked by rules, played with captions or saved as a video",
-    "Albums and favourites": "photos picked by hand and put in order, and the photos you love",
+    "Albums and favorites": "photos picked by hand and put in order, and the photos you love",
     "Cleanup": "copies, similar shots, damaged, blurry and turned photos, checks of the tree, and Recent changes",
     "Status": "what the worker is doing, what is waiting, storage, backups and alerts",
     "Settings": "each part of the Settings page",
@@ -133,7 +133,7 @@ SIDEBAR = """\
 - [Security](Security)
 - [The LineageBox name](Trademarks)
 - [Third-party notices](Third-party-notices)
-- [Licence (AGPL-3.0)]({github}/blob/main/LICENSE)
+- [License (AGPL-3.0)]({github}/blob/main/LICENSE)
 - [Source code]({github})
 """
 FOOTER = ("LineageBox is free software under the [GNU AGPL, version 3]({github}/blob/main/LICENSE). · "

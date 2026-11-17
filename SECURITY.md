@@ -32,7 +32,7 @@ The intended rules are in [docs/access-control.md](docs/access-control.md). In s
   up -d`.
 - The `updater` service in `compose.yaml` has the Docker socket, which is the same as root on that machine. It has no
   network and reads no settings or catalog: it acts only when the web app has created the empty file
-  `update/requested` in the catalog folder, and then only updates the containers labelled `lineagebox.update` in its own
+  `update/requested` in the catalog folder, and then only updates the containers labeled `lineagebox.update` in its own
   compose project, each to the newest copy of the image it already runs. A way to make it do anything else, run
   anything, or touch other containers is a vulnerability. To do without it, see
   [Updating and backups](docs/install.md#updating-and-backups).

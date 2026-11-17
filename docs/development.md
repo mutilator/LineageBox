@@ -128,7 +128,7 @@ prebuilt arm64 wheels.
   family members. Keep lines to about 120 characters. On pages members see, keep what only an admin can act on (file
   formats, codecs, model and program names, "the worker", raw error messages) behind `viewer.admin`, and mark keyboard
   hints `kbd-hint` (hidden where there is no mouse). The answers about a face are **Not them** and **Don't know**
-  everywhere. Colours come from the variables at the top of `app.css`; a new one goes in all three of its blocks (light,
+  everywhere. Colors come from the variables at the top of `app.css`; a new one goes in all three of its blocks (light,
   dark for the system, dark when chosen).
 - **Nothing specific to one library.** No hard-coded names, places, years or tags. Thresholds and suggestions are
   rules, measured if need be, and worked out from the installer's own catalog. Use made-up names in tests and

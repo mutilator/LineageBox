@@ -26,7 +26,7 @@ PERSON_EVENTS = {"BIRT": "Born", "ADOP": "Adopted", "BAPM": "Baptized", "CHR": "
                  "NATU": "Naturalized", "NATI": "Nationality", "RELI": "Religion", "ORDN": "Ordained",
                  "TITL": "Title", "RETI": "Retired", "WILL": "Made a will", "DEAT": "Died", "BURI": "Buried",
                  "CREM": "Cremated", "PROB": "Probate", "EVEN": "Other event"}
-COUPLE_EVENTS = {"ENGA": "Engaged", "MARB": "Banns read", "MARL": "Marriage licence", "MARC": "Marriage contract",
+COUPLE_EVENTS = {"ENGA": "Engaged", "MARB": "Banns read", "MARL": "Marriage license", "MARC": "Marriage contract",
                  "MARS": "Marriage settlement", "MARR": "Married", "DIVF": "Divorce filed", "DIV": "Divorced",
                  "ANUL": "Annulled", "EVEN": "Other event"}
 ONE_EACH = {"BIRT", "DEAT", "BURI", "CREM"}  # a person has at most one of these

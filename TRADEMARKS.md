@@ -1,7 +1,7 @@
 # The LineageBox name
 
 LineageBox's code is free software under the [GNU Affero General Public License, version 3](LICENSE): anyone may use,
-change and share it. The licence covers the code, not the name. "LineageBox" is a trademark of Scott Gusler, so that
+change and share it. The license covers the code, not the name. "LineageBox" is a trademark of Scott Gusler, so that
 people can tell the project, and copies that are the same as it, from changed ones.
 
 ## Fine without asking
@@ -20,7 +20,7 @@ people can tell the project, and copies that are the same as it, from changed on
 - **For a product, service, company or domain name** that could make people think it is LineageBox, or that it comes
   from or is backed by the project.
 
-A fork still follows the licence: keep the copyright notices, including the one at the end of the help panel, and
+A fork still follows the license: keep the copyright notices, including the one at the end of the help panel, and
 offer the source code of your copy to the people who use it.
 
 Not sure whether your use is fine, or want permission for something else? Ask in an issue on the project's GitHub page.

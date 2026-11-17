@@ -19,7 +19,7 @@ it can be undone), a folder by an admin. Where a photo is, the first of:
 3. the nearest folder above it (or its own) that is placed by hand (folder_place) or whose name gives a place on the
    map; at one folder, by hand wins.
 A place by hand is "confirmed GPS": it goes into the photo's XMP sidecar (sidecars.py) when those are on, and into the
-file only when an admin asks (writeback.py). A place from a folder's name is a town's or landmark's centre, so it stays
+file only when an admin asks (writeback.py). A place from a folder's name is a town's or landmark's center, so it stays
 in the catalog.
 """
 import sqlite3
@@ -191,7 +191,7 @@ def map_data(con: sqlite3.Connection, year: int | None = None) -> dict:
             add(("placed", lat, lon), town(round(own[0], 2), round(own[1], 2), "Placed by hand"), lat, lon, r)
             continue
         if r["gps_lat"] is not None:
-            lat, lon = round(r["gps_lat"], 2), round(r["gps_lon"], 2)  # about a kilometre
+            lat, lon = round(r["gps_lat"], 2), round(r["gps_lon"], 2)  # about a kilometer
             add(("gps", lat, lon), town(lat, lon, "Taken here (GPS)"), lat, lon, r)
             continue
         hit = hand.nearest(r["origin"], r["folder_id"], coords)
@@ -300,7 +300,7 @@ class HandPlaces:
                                        WHERE image_id = ? AND NOT missing""", (image_id,)).fetchone()
             folder_id, origin = row if row else (None, None)
         # the nearest folder with a place, as on the map: one named for a place, below one placed by hand, wins, and
-        # its place (a town's centre) stays in the catalog
+        # its place (a town's center) stays in the catalog
         hit = self.nearest(origin, folder_id, self.named)
         return (*hit[2], "folder") if hit and hit[2] else None
 

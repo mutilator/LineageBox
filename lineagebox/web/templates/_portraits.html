@@ -10,7 +10,7 @@
 <div class="faces portraits">
   {%- for f in faces %}
   <button type="button" class="portrait-choice{% if f.id == portrait %} on{% endif %}" data-api="/api/people/{{ person.id }}/portrait"
-    data-body='{{ {"face_id": f.id}|tojson }}' data-reload{% if f.id == portrait %} aria-pressed="true"{% endif %} title="{{ _('Show this one for %(name)s (recognised)', name=person.name) if f.assigned_by == 'auto' else _('Show this one for %(name)s', name=person.name) }}">
+    data-body='{{ {"face_id": f.id}|tojson }}' data-reload{% if f.id == portrait %} aria-pressed="true"{% endif %} title="{{ _('Show this one for %(name)s (recognized)', name=person.name) if f.assigned_by == 'auto' else _('Show this one for %(name)s', name=person.name) }}">
     <img src="/face/{{ f.id }}" alt="{{ _('A face of %(name)s from %(year)s', name=person.name, year=f.taken_at[:4]) if f.taken_at else _('A face of %(name)s', name=person.name) }}" loading="lazy" width="80" height="80"></button>
   {%- endfor %}
 </div>

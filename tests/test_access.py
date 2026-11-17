@@ -76,7 +76,7 @@ def test_photos_follow_the_people(con, cfg, fam):
     v = access.compute(con, cora)
     ph = fam["photos"]
     seen = {name for name, i in ph.items() if i in v.images}
-    # her picnic, her father (recognised), her brother with Tina's father; not Tina's father alone, Zed, the dog,
+    # her picnic, her father (recognized), her brother with Tina's father; not Tina's father alone, Zed, the dog,
     # her friend added by hand, a photo with nobody in it, nor the photo an admin hid
     assert seen == {"cora_bart.jpg", "rex.jpg", "hank_sam.jpg"}
     assert all(catalog.image(con, i)["sha256"] in v.shas for i in v.images)

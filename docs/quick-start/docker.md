@@ -1,7 +1,7 @@
 # Quick start: everything on one machine
 
 This guide sets up LineageBox and its AI helpers together in Docker, on one NAS, home server or PC. It takes about 15
-minutes, plus the downloads. Then the library is catalogued in the background.
+minutes, plus the downloads. Then the library is cataloged in the background.
 
 If you also have a desktop PC with a graphics card, the AI runs much faster there. See
 [A NAS, plus a PC with a graphics card](nas-and-pc.md) instead.

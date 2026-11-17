@@ -21,7 +21,7 @@ from lineagebox import errors, video
 from lineagebox.config import Config
 
 MOST_BYTES = 60 * 2**20  # an hour of a phone's voice memo; 30 minutes recorded in the browser is about 8 MB
-MOST_SECONDS = 30 * 60   # a story, not a tape: a longer recording goes in a photo folder (it is catalogued there)
+MOST_SECONDS = 30 * 60   # a story, not a tape: a longer recording goes in a photo folder (it is cataloged there)
 TITLE_MOST = 120         # characters in the few words typed with one
 WORDS_MOST = 20000       # characters in a corrected transcript (30 minutes of speech is about 25,000)
 KEEP_REMOVED_DAYS = 30   # a story taken away can be brought back (Undo) this long
@@ -86,7 +86,7 @@ def save(con: sqlite3.Connection, cfg: Config, data: bytes, account_id: int | No
         raise Problem("Nothing was recorded: try again, a little closer to the microphone.")
     if len(data) > MOST_BYTES:
         raise TooBig(f"That recording is over {MOST_BYTES >> 20} MB. Record it in parts, or keep the long recording "
-                     "in a photo folder: it is catalogued there.")
+                     "in a photo folder: it is cataloged there.")
     kind = kind_of(data[:16])
     if kind is None:
         raise Problem("That isn't a sound recording LineageBox can keep (it takes what browsers and phones record: "

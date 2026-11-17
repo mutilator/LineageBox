@@ -92,7 +92,7 @@ faces. DeepFace pulls in TensorFlow.
 ### What a face's estimated age can say
 
 InsightFace estimates an age for every face (`face.est_age`). Measured on 3,612 hand-named faces of 16 people with a
-birth date, on photos with a camera date (plus 16,292 recognised ones), it can't tell anyone's age:
+birth date, on photos with a camera date (plus 16,292 recognized ones), it can't tell anyone's age:
 
 | True age | Faces | Estimate's error, mean | 90% within |
 |---|---|---|---|
@@ -110,7 +110,7 @@ Children are estimated as adults, and across one person's photos the estimate ro
 chance (rank correlation −0.36 to 0.49). Two young brothers in 1,357 photos together: the older looked older 49% of the
 time. So the rule is:
 
-- **Recognition doesn't use ages.** Birth dates do help: nobody is recognised or suggested in a photo taken before they
+- **Recognition doesn't use ages.** Birth dates do help: nobody is recognized or suggested in a photo taken before they
   were born.
 - **Dating a photo by faces** (measured 2026-11-08 on 5,382 faces named by hand on dated photos). Birth date plus the
   estimated age: half more than 20 years off. The person's 10 most alike faces of other times (more than 60 days
@@ -123,7 +123,7 @@ time. So the rule is:
   them grown up then goes under Suggested dates → **Looks too young**, dated about when their alike childhood photos
   were taken. The AI's description can't tell it: it called 11% of grown-ups in one-person photos a girl or a boy.
 - **Only "a young child" is said.** All 134 faces estimated under 15 were children of 10 or less (2 of 1,563
-  recognised ones were 12 or 13), though only one face in seven of a child under 7 is estimated that young. So a face
+  recognized ones were 12 or 13), though only one face in seven of a child under 7 is estimated that young. So a face
   estimated under 15 named as someone 18 or older then is listed under Confirm faces → **Ages to check** when the
   photo's date was set by hand or said to be right, and under Suggested dates → **Looks too young** otherwise; and someone
   with no birth date whose face looks that young on two days or more gets a hint by Born: born at most 12 years
@@ -164,7 +164,7 @@ dated photo also takes its near-duplicate group's camera date by itself (`dedup.
 - **Speed:** about 4 s a photo for the full record on that graphics card, and 2.4–2.6 s with two Ollama slots and four
   requests in flight (1.7× one slot). `gemma3:12b` was more accurate but more than twice as slow.
 - **Accuracy:** 11 of 15 varied photos were fully right. Typical mistakes were a fawn called a goat and a red rake
-  called an umbrella. Descriptions are labelled as AI-made in the UI, and people's tags override them.
+  called an umbrella. Descriptions are labeled as AI-made in the UI, and people's tags override them.
 - **Folder context helps a lot.** With the folder's place and event in the prompt, the model names landmarks it would
   otherwise miss. An eclipse photo went from "a firework explodes" to "partial solar eclipse".
 - **Don't send `num_ctx`.** When another client (Open WebUI, say) shares the Ollama server, a context size
@@ -244,13 +244,13 @@ in 36–350 ms on the ARM board.
   showed them Tags and Cleanup first, so the rest went under More; but then eight pages hid behind one word. Of four
   layouts tried as clickable mock-ups (menus by task, a side menu, a second row of tabs, an All pages panel), the
   user chose the side menu, with every page in sight in sections named for what you do: Library (the ways to look
-  through the photos, Tags among them), Collections (Favourites, Albums, Tours), People, Tidy up (Name faces with
+  through the photos, Tags among them), Collections (Favorites, Albums, Tours), People, Tidy up (Name faces with
   Cleanup) and Admin. Upload became **Add photos**, a button above them, as it is something you do rather than a
-  place. Colours, Photo tiles and Language aren't pages: they went to the round button at the top. The help's "Every
+  place. Colors, Photo tiles and Language aren't pages: they went to the round button at the top. The help's "Every
   page" list follows the menu, and a test checks that they match.
 - **One word for each answer about a face.** Six words meant "not this person" (No, ×, stranger, Strangers, Hide,
   don't know who). They are now two, whatever the action behind them, which stays as it was: **Not them** (the face
-  isn't who it is named, suggested or grouped as; the × on a small face picture is labelled so) and **Don't know**
+  isn't who it is named, suggested or grouped as; the × on a small face picture is labeled so) and **Don't know**
   (nobody knows them: stop asking). Don't know on one face stops asking that account; on a group (Don't know them) or
   a face in a photo to finish it sets the faces aside for everyone, as Hide and stranger did, and says so.
 - **The first steps are worked out, not ticked by hand.** Each is read from the catalog (a watched folder, a
@@ -262,8 +262,8 @@ in 36–350 ms on the ARM board.
   put away, so Home stops counting faces for it.
 - **Light or dark per browser, before the first paint.** The choice is the person's, not the install's, so it lives in
   the browser. A tiny script file in the page's head (the Content-Security-Policy allows no inline script) puts it
-  on `<html>` before the stylesheet applies, so a dark page never flashes light. The dark colours are written twice
-  in the stylesheet, for the system's setting and for the choice. The tree's picture is drawn from the light colours
+  on `<html>` before the stylesheet applies, so a dark page never flashes light. The dark colors are written twice
+  in the stylesheet, for the system's setting and for the choice. The tree's picture is drawn from the light colors
   on white, whatever the page shows, since it is printed and sent; printing turns the page light too.
 - **Long pages a piece at a time.** A tile is about 430 bytes of page, so a folder of 5,000 photos was over 2 MB of
   page and 5,000 elements for a phone to lay out, all made by the router at once. Folder, year, tag and tour pages now
@@ -394,7 +394,7 @@ in 36–350 ms on the ARM board.
   1 s on the development PC. The slides are kept as the one who asked saw them, so a member's video holds only what
   they may see without anything being worked out again in the worker.
 
-## Albums, favourites and the family book
+## Albums, favorites and the family book
 
 - **Albums are not tours with a fixed list.** A tour picks again every time it opens; an album is what someone put in
   it, in their order. Both are shared the same way, and a shared album passes on only the photos its maker may pass on
@@ -403,7 +403,7 @@ in 36–350 ms on the ARM board.
   grandmother" in the wedding album and "Grandma at 80" everywhere else. Where an album has none, the photo's own
   shows, so nothing is written twice.
 - **A heart outweighs what else a tour weighs** (100, where the three clearest faces and a sharp photo give about
-  60-90): among similar shots, or for a year's place, a favourite is picked first; between two favourites the usual
+  60-90): among similar shots, or for a year's place, a favorite is picked first; between two favorites the usual
   scores decide. On a member's connection only their own hearts count; on an admin's, everyone's, so a photo several
   people love comes first in the tours admins make for the family.
 - **Dates on slides say what is known**: a date typed as a span shows as typed ("Summer 1987"), a folder's year as
@@ -454,7 +454,7 @@ another program would take them as the family's word.
 
 **Places.** A place put on the map by hand, for a photo (anyone who sees it) or a folder (an admin), is "confirmed
 GPS": it wins over the camera's GPS, which phones get wrong indoors, and goes into the sidecar, and into the file only
-when an admin asks. A place read from a folder's name, even confirmed on the map, is a town's or landmark's centre,
+when an admin asks. A place read from a folder's name, even confirmed on the map, is a town's or landmark's center,
 not where each photo was taken, so it stays in the catalog. A folder's place by hand is only for its photos without
 GPS of their own, as on the map: it never goes into the sidecar or file of a photo whose camera gave a position, nor
 past a nearer folder whose name gives a place (`HandPlaces.of`).
@@ -463,12 +463,12 @@ past a nearer folder whose name gives a place (`HandPlaces.of`).
 cities of over 5,000 people (about 70,000, CC BY 4.0), trimmed to a name, a position to about 100 m, the region,
 country and population: 1 MB compressed, 0.2 s to read when first needed. The list of towns over 15,000 people is half
 the size but leaves country areas 30 km or more from any name; the list of those over 1,000 is two and a half times the
-size. The nearest town wins, not the biggest near it: a village a kilometre away says more than a city twenty
-kilometres off. Under 10 km a photo is "in" the town, under 50 km "near" it, beyond that "60 km from" it.
+size. The nearest town wins, not the biggest near it: a village a kilometer away says more than a city twenty
+kilometers off. Under 10 km a photo is "in" the town, under 50 km "near" it, beyond that "60 km from" it.
 
 **Other apps' names** come in below everything set here, once per photo, from the start of the file only (Pillow reads
 a file's headers, not its picture), so a library of tens of thousands is read in a few passes. A name's face is the
-one its box overlaps by a fifth or more of their combined area, or whose centre each box holds: apps draw boxes from
+one its box overlaps by a fifth or more of their combined area, or whose center each box holds: apps draw boxes from
 the hairline to the chin or just around the eyes, so the same face's boxes overlap by about a third.
 
 ## Family

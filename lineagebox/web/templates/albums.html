@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m %}
-{#- Albums (albums.py): their own (an admin's: every album), those shared with them, and their favourites. #}
+{#- Albums (albums.py): their own (an admin's: every album), those shared with them, and their favorites. #}
 {% block title %}{% trans %}Albums{% endtrans %}{% endblock %}
 {% block main %}
 <nav class="crumbs"><a href="/tours">{% trans %}Tours{% endtrans %}</a><span class="sep">/</span><h1>{% trans %}Albums{% endtrans %}</h1></nav>
@@ -26,12 +26,12 @@
 {{ m.album_cards(others) }}
 {%- endif %}
 
-<h2>{% trans %}Favourites{% endtrans %}</h2>
+<h2>{% trans %}Favorites{% endtrans %}</h2>
 <div class="folders">
-  <a class="folder-card" href="/favourites">
-    {% if favourite_cover %}<img src="/t/{{ favourite_cover }}" loading="lazy" alt="">{% else %}<span class="ph"></span>{% endif %}
-    <span class="label"><span class="name">{% trans %}♥ Your favourites{% endtrans %}</span><span class="count">{{ favourites|number }}</span></span>
+  <a class="folder-card" href="/favorites">
+    {% if favorite_cover %}<img src="/t/{{ favorite_cover }}" loading="lazy" alt="">{% else %}<span class="ph"></span>{% endif %}
+    <span class="label"><span class="name">{% trans %}♥ Your favorites{% endtrans %}</span><span class="count">{{ favorites|number }}</span></span>
   </a>
 </div>
-<p class="hint">{% trans %}♡ on a photo's page makes it one of your favourites: tours and memories show favourites first.{% endtrans %}</p>
+<p class="hint">{% trans %}♡ on a photo's page makes it one of your favorites: tours and memories show favorites first.{% endtrans %}</p>
 {% endblock %}

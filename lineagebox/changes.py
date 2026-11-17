@@ -5,7 +5,7 @@ details, two people merged or someone removed, something shared or no longer sha
 touch as they were before and after, whoever made it: a family member, an admin, or anyone at home without family
 accounts. Undoing it puts the "before" rows back, but only while those rows are still as the change left them: a change
 made over it since is never overwritten (the undo says so instead). What the worker does in the meantime (grouping and
-recognising unnamed faces) doesn't count as a change over it. Rows a change added are found as the ids above the
+recognizing unnamed faces) doesn't count as a change over it. Rows a change added are found as the ids above the
 largest one before it, so someone who already existed is never taken for someone new.
 
 A family change that lets an account see someone it couldn't before (a false link can: marking a brother's wife as
@@ -61,7 +61,7 @@ ORDER += ["image_place", "folder_place"]
 KEYS["tag_alias"] = ("name",)
 ORDER.insert(ORDER.index("tag") + 1, "tag_alias")
 FAMILY ={"parent", "sibling", "partner", "relation", "person"}
-# A face's group and score are the worker's, and so is its recognising an unnamed face: neither keeps a change from
+# A face's group and score are the worker's, and so is its recognizing an unnamed face: neither keeps a change from
 # being undone. A name given by a person, or a face set aside by one, does.
 WORKERS = {"cluster_id", "assign_score", "assign_lead"}
 CHOSEN = {"user", "rejected", "not_a_face"}
@@ -277,7 +277,7 @@ def undo_own(con: sqlite3.Connection, viewer: access.Viewer, change_id: int) -> 
 
 def _unchanged(table: str, now: dict | None, then: dict | None) -> bool:
     """Whether a row is still as a change left it. A face is, when only the worker has been at it since: its group
-    and score, or a recognised name on a face that no person had named or set aside then, nor since."""
+    and score, or a recognized name on a face that no person had named or set aside then, nor since."""
     if now == then:
         return True
     if table != "face" or now is None or then is None:

@@ -15,7 +15,7 @@ STAGES = {"scan": "Looking for new and changed files", "back up the catalog": "B
           "ingest": "Reading new photos",
           "dedup": "Grouping similar shots", "folders": "Reading folder names (AI)",
           "folder dates": "Dating photos from folder names", "faces": "Finding faces",
-          "recognise": "Recognising named people", "group faces": "Grouping faces",
+          "recognize": "Recognizing named people", "group faces": "Grouping faces",
           "sharpness": "Measuring sharpness", "places": "Finding places on the map", "search index": "Updating the search",
           "transcribe": "Transcribing videos (Whisper)", "describe": "Describing photos and videos (AI)",
           "slideshow videos": "Saving tours and albums as videos"}
@@ -26,7 +26,7 @@ STAGES.update({"describe again": "Describing photos again, as asked (AI)",
 STAGES.update({"look again": "Looking for faces again, as asked",
                "look closely at every photo": "Looking closely at every photo for faces",
                "count people": "Counting the people in photos whose faces don't add up (AI)",
-               "how sure": "Working out how sure each recognised face is"})
+               "how sure": "Working out how sure each recognized face is"})
 SILENT_AFTER = timedelta(minutes=3)  # an idle worker checks in every 15 s
 
 

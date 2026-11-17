@@ -203,7 +203,7 @@ def _valid(key: str) -> bool:
 
 def portrait(con: sqlite3.Connection, pid: int) -> int | None:
     """The face shown for someone, as catalog.people picks it: the one chosen, while still theirs, else the clearest
-    named by hand, else the clearest recognised."""
+    named by hand, else the clearest recognized."""
     row = con.execute(f"""SELECT f.id FROM face f JOIN image i ON i.id = f.image_id
                           WHERE f.person_id = :p AND {VISIBLE}
                           ORDER BY f.id IS (SELECT cover_face_id FROM person WHERE id = :p) DESC,
@@ -212,7 +212,7 @@ def portrait(con: sqlite3.Connection, pid: int) -> int | None:
 
 
 def portrait_choices(con: sqlite3.Connection, pid: int, limit: int = 60, year: str = "") -> list[sqlite3.Row]:
-    """Faces to choose someone's portrait from: named as them by hand first, then recognised, the clearest first;
+    """Faces to choose someone's portrait from: named as them by hand first, then recognized, the clearest first;
     those of photos from one year only, if one is given."""
     return con.execute(f"""SELECT f.id, f.image_id, f.assigned_by, i.taken_at FROM face f
                            JOIN image i ON i.id = f.image_id

@@ -35,10 +35,10 @@ LineageBox ships in English only, and is ready for translations: [docs/translati
 how to make one (extract the text with pybabel, translate the `.po` files, compile them) and try it. Send the `.po` and
 `.mo` files of your language as a pull request, like code.
 
-## Licence
+## License
 
 LineageBox is under the [GNU Affero General Public License, version 3](LICENSE). By opening a pull request, you agree
-that your contribution is shared under the same licence.
+that your contribution is shared under the same license.
 
 ## Security
 

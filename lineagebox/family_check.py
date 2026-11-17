@@ -151,7 +151,7 @@ def _dates(con: sqlite3.Connection, g: family.Graph) -> list[Issue]:
 
 
 def _photos(con: sqlite3.Connection, g: family.Graph) -> list[Issue]:
-    """Photos that don't fit someone's dates: named in them (by hand, recognised, or added to them by hand) when
+    """Photos that don't fit someone's dates: named in them (by hand, recognized, or added to them by hand) when
     they were taken before the person was born, or more than LONG_AFTER years after the year they died; and, for
     someone with no birth date, a photo of them from before a parent by birth was born. Only photos with a date of
     their own count (not a file's time); a date read from a folder's or file's name is compared by its year. One

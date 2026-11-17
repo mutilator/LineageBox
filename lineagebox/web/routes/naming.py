@@ -4,15 +4,15 @@ the order). And the answers about one face that this page, Check faces and any o
 tapped on its photo) use:
 
 - GET /api/faces/{id}/who: what to ask about the face, as JSON: where it is on its photo, its name now (and whom a
-  recognised face looks more like now, if anyone), who it most likely is, and whether someone asked who it is. GET
+  recognized face looks more like now, if anyone), who it most likely is, and whether someone asked who it is. GET
   /people/name/face/{id}?one=1: the same as a card to show.
 - POST /api/faces/{id}/yes {"person_id"}: it is them, named by hand. POST /api/faces/{id}/no {"person_id", "also"}:
-  it isn't, nor any of also (the name comes off if it was theirs; never suggested or recognised as them again); /who
+  it isn't, nor any of also (the name comes off if it was theirs; never suggested or recognized as them again); /who
   then says who it may be instead.
 - Who it is, typed: POST /api/faces/{id}/name {"name", "name_id"} (routes/faces.py). Don't know: POST
   /api/faces/{id}/skip (routes/home.py), never asked of this account again.
 - POST /api/people/{id}/yes {"yes": [face ids]}: Check faces' ticked faces are them.
-- POST /api/faces/sure-yes {"step", "at_least"}: yes to every face of the queue's step (recognised, or looks like
+- POST /api/faces/sure-yes {"step", "at_least"}: yes to every face of the queue's step (recognized, or looks like
   someone) that is at least so sure (people.how_sure), as one change to undo.
 """
 import json
@@ -43,12 +43,12 @@ ACCESS = {
     "/api/faces/sure-yes": MEMBER,
 }
 
-QUEUE_FOR = 300  # seconds the faces recognised and the groups are kept for each viewer (_kept)
-STEPS = {"asked": "Asked about", "suggested": "Looks like someone", "recognised": "Recognised, to check",
+QUEUE_FOR = 300  # seconds the faces recognized and the groups are kept for each viewer (_kept)
+STEPS = {"asked": "Asked about", "suggested": "Looks like someone", "recognized": "Recognized, to check",
          "groups": "Groups to name"}
 MOST_PASSED = 2000  # faces, and groups, a page passes over at most (Skip): the oldest are asked again
 GROUP_SHOWN = 12  # faces of a group on its card
-SURE_STEPS = ("suggested", "recognised")  # the steps whose faces can be said yes to at once, the surest
+SURE_STEPS = ("suggested", "recognized")  # the steps whose faces can be said yes to at once, the surest
 
 
 class Problem(errors.Problem):
@@ -84,10 +84,10 @@ def _state(only: str, skip: str, skip_groups: str) -> dict:
 
 
 def _kept(s: Site, v: access.Viewer, c) -> dict:
-    """The faces recognised automatically and the groups, in the queue's order. Listing them reads every face, so they
+    """The faces recognized automatically and the groups, in the queue's order. Listing them reads every face, so they
     are kept QUEUE_FOR seconds for each viewer, through the changes the answers make, and what was answered since is
     taken out of them as the queue is walked (_walk)."""
-    return s.keep(v, ("name faces",), QUEUE_FOR, lambda: {"recognised": people.recognised_to_check(c),
+    return s.keep(v, ("name faces",), QUEUE_FOR, lambda: {"recognized": people.recognized_to_check(c),
                                                            "groups": people.unnamed_groups(c)}, through_changes=True)
 
 
@@ -107,7 +107,7 @@ def _walk(kept: dict, key: str, still, passed: set[int], key_of) -> tuple[object
     return found, sum(key_of(x) not in passed for x in items)
 
 
-def _still_recognised(c, chunk) -> set:
+def _still_recognized(c, chunk) -> set:
     return {(r[0], r[1]) for r in c.execute("""SELECT id, person_id FROM face WHERE assigned_by = 'auto'
                                                AND id IN (SELECT value FROM json_each(?))""",
                                             (json.dumps([f for f, _ in chunk]),))}
@@ -127,7 +127,7 @@ def _next(s: Site, v: access.Viewer, c, w, state: dict, every_count: bool = Fals
        Confirm faces): right 99.7% of the time at its bar, one tap each, and the face then counts for that person
        (their page, search, tours, and who sees the photo); person by person, the largest first, the likeliest face
        first;
-    3. faces recognised automatically, the least certain first (people.recognised_to_check);
+    3. faces recognized automatically, the least certain first (people.recognized_to_check);
     4. the groups of faces nobody has named, the largest first: a name there names many faces at once, but it takes
        someone who knows who they are, and many groups are strangers. One whose faces together look like someone
        named (people.looks_like) asks whether they are them."""
@@ -145,15 +145,15 @@ def _next(s: Site, v: access.Viewer, c, w, state: dict, every_count: bool = Fals
                    if f["id"] not in passed]
         return (waiting[0] if waiting else None), len(waiting)
 
-    def recognised():
-        return _walk(_kept(s, v, c), "recognised", lambda chunk: _still_recognised(c, chunk), passed, lambda x: x[0])
+    def recognized():
+        return _walk(_kept(s, v, c), "recognized", lambda chunk: _still_recognized(c, chunk), passed, lambda x: x[0])
 
     def groups():
         return _walk(_kept(s, v, c), "groups", lambda chunk: _still_grouped(c, chunk), passed_groups, lambda x: x)
 
     for _ in range(5):  # again only when what was found went meanwhile (named that moment, on another page)
         counts, found = {}, None
-        for step, work in (("asked", asked), ("suggested", suggested), ("recognised", recognised), ("groups", groups)):
+        for step, work in (("asked", asked), ("suggested", suggested), ("recognized", recognized), ("groups", groups)):
             if not every_count and (found is not None or only not in ("", step)):
                 continue
             first, counts[step] = work()
@@ -206,12 +206,12 @@ def _who(c, pid: int, face_id: int) -> dict | None:
 
 
 def _face_card(v: access.Viewer, c, w, face_id: int, suggest: tuple | None = None) -> dict | None:
-    """What to ask about one face the viewer sees (None if they don't): how it is named now ("how": "recognised"
+    """What to ask about one face the viewer sees (None if they don't): how it is named now ("how": "recognized"
     automatically or "named" by hand, as "person"), or who it most likely is ("suggested", worked out against
     everyone, as on its photo's page, and shown only if the viewer sees them; suggest: (person, score, how sure)
     worked out already), else nobody ("open": who is it?). "outside": named as someone outside a member's part of the
-    family, whom only an admin can change. "sure": how sure a recognised or suggested name is (people.how_sure).
-    "more_like": someone a recognised face looks more like than its name (people.looks_more_like), with how sure, whom
+    family, whom only an admin can change. "sure": how sure a recognized or suggested name is (people.how_sure).
+    "more_like": someone a recognized face looks more like than its name (people.looks_more_like), with how sure, whom
     the card asks about instead. Also whether someone asked who it is, and who else is named in the photo."""
     f = catalog.face(c, face_id)
     if f is None:
@@ -220,8 +220,8 @@ def _face_card(v: access.Viewer, c, w, face_id: int, suggest: tuple | None = Non
             "asked": None, "with": []}
     if f["person_id"] is not None:
         card["person"] = _who(c, f["person_id"], face_id)
-        card["how"] = "outside" if card["person"] is None else "recognised" if f["assigned_by"] == "auto" else "named"
-        if card["how"] == "recognised":
+        card["how"] = "outside" if card["person"] is None else "recognized" if f["assigned_by"] == "auto" else "named"
+        if card["how"] == "recognized":
             card["sure"] = people.how_sure(f["assign_score"], f["assign_lead"])
             if (f["assign_lead"] or 0) < 0 and (more := people.looks_more_like(w, face_id)) \
                     and (other := _who(c, more[0], face_id)):
@@ -267,8 +267,8 @@ def _group_card(s: Site, v: access.Viewer, c, cluster_id: int, w=None) -> dict |
 def _sure_enough(s: Site, v: access.Viewer, c, step: str, bar: float) -> dict[int, list[int]]:
     """The faces of a step of the queue (SURE_STEPS) at least bar sure (people.how_sure), by person, but for those the
     viewer said they don't know."""
-    if step == "recognised":
-        found = people.recognised_sure(c, bar)
+    if step == "recognized":
+        found = people.recognized_sure(c, bar)
     else:
         groups, _ = _faces_to_confirm(s, v, c)
         found = {g["person_id"]: [f["id"] for f in g["faces"] if (f.get("sure") or 0) >= bar - 1e-9] for g in groups}
@@ -329,8 +329,8 @@ def who(face_id: int, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     named = suggest = None
     if how == "outside":
         named = {"outside": True}
-    elif how in ("recognised", "named"):
-        named = {"person_id": person["id"], "name": person["name"], "by": "auto" if how == "recognised" else "user"}
+    elif how in ("recognized", "named"):
+        named = {"person_id": person["id"], "name": person["name"], "by": "auto" if how == "recognized" else "user"}
         if card["sure"] is not None:
             named["sure"] = round(card["sure"], 3)
         if more := card["more_like"]:
@@ -370,7 +370,7 @@ def yes(face_id: int, body: PersonBody, v=Depends(viewer), c=Depends(con), w=Dep
 
 @router.post("/api/faces/{face_id}/no", dependencies=[Depends(_from_app)])
 def no(face_id: int, body: NoBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
-    """It isn't them (people.not_this_person), nor any of also (Neither: not the name a face was recognised as, nor
+    """It isn't them (people.not_this_person), nor any of also (Neither: not the name a face was recognized as, nor
     whom it looks more like). /api/faces/{id}/who then says who else it may be."""
     pids = list(dict.fromkeys([body.person_id, *body.also]))
     names = [_answerable(c, v, face_id, pid)[1] for pid in pids]
@@ -386,7 +386,7 @@ def sure_yes(body: SureBody, v=Depends(viewer), c=Depends(con), w=Depends(writer
     """Yes to every face of a step of the queue (SURE_STEPS) at least so sure, worked out again now: each named as its
     person by hand (people.is_them; recognition then learns from it), all as one change to undo."""
     if body.step not in SURE_STEPS:
-        raise HTTPException(400, "Only recognised faces and those that look like someone can be said yes to at once.")
+        raise HTTPException(400, "Only recognized faces and those that look like someone can be said yes to at once.")
     found = _sure_enough(s, v, c, body.step, body.at_least / 100)
     ids = [f for faces in found.values() for f in faces]
     if not ids:

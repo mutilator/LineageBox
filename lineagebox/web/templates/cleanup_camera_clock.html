@@ -86,7 +86,7 @@ they are, and <a href="/cleanup/changes">Recent changes</a> can undo it.{% endtr
 {%- endif %}
 
 <div class="clock-browse">
-  <section class="clock-photos" aria-labelledby="clock-month">
+  <section class="clock-photos" aria-labeledby="clock-month">
     <p class="clock-when" aria-label="{{ _('Years') }}">
       {%- for y, n in shown.years %}<a class="chip{% if y == shown.year %} on{% endif %}" href="{{ here(year=y, month=None, page=None, photo=None) }}"{% if y == shown.year %} aria-current="true"{% endif %}>{{ y }} <small>{{ n.photos|number }}</small>{% if n.flagged %} <span class="clock-mark warn" title="{{ _('With someone not born yet') }}">⚠</span>{% endif %}</a> {% endfor %}</p>
     <p class="clock-when" aria-label="{{ _('Months') }}">

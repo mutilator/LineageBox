@@ -1,4 +1,4 @@
-"""Albums picked by hand, favourites, and tours and albums saved as one video file.
+"""Albums picked by hand, favorites, and tours and albums saved as one video file.
 
 - album: an ordered set of photos with a cover and a few words about it, made by an account (NULL: the admins', or
   anyone's at home without family accounts). album_photo holds its photos in their order, each with the album's own
@@ -8,7 +8,7 @@
 - share gains album_id: an album is shared like a tour. The table's CHECK says which one thing a share is of, and
   SQLite can't change a CHECK, so the table is built again with every row and id kept. Nothing refers to share, so its
   rows can go with the old table without foreign keys being switched off.
-- favourite: a heart on a photo, one per account (NULL: given at home, without family accounts). Tours and memories
+- favorite: a heart on a photo, one per account (NULL: given at home, without family accounts). Tours and memories
   prefer the photos with one.
 - slideshow_video: a tour or an album someone asked to have as one video file to send. The worker makes it, in the
   data folder, from the slides as that person saw them (slideshow.py).

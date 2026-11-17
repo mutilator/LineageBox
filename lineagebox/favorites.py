@@ -1,4 +1,4 @@
-"""Favourites: a heart on a photo, each account its own (♡ on the photo's page).
+"""Favorites: a heart on a photo, each account its own (♡ on the photo's page).
 
 A heart says "this one" among many: tours pick a photo with one before the others like it (tours.photos), and Home's
 memories show one as their cover. Each account keeps its own hearts; at home without family accounts there is one set,

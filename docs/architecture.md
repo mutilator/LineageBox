@@ -71,7 +71,7 @@ videos wait for it instead.
    left. **dates** (`dates.py`) picks each photo's
    date from EXIF, else the folder, else the file name, else the file time. A camera whose clock was put right
    (`camera_clock.py`, Cleanup → Camera clocks) has its new photos' dates moved as they are read.
-4. **faces** (`faces.py`) runs InsightFace on the previews. **people** (`people.py`) recognises faces of named people
+4. **faces** (`faces.py`) runs InsightFace on the previews. **people** (`people.py`) recognizes faces of named people
    (`identify`) and groups the rest with HDBSCAN (`cluster`), then the faces it leaves alone in twos and threes
    where they are plainly one person (`_small_groups`). Then **other apps' names** (`imports.py`, when `[xmp] import`
    is on): each photo is read once (`metadata_read`) for what other apps left, from the start of the original
@@ -138,7 +138,7 @@ The main tables:
 | `transcript`, `video_frame`, `video_chapters` | Videos and recordings: what is said (with the lines people corrected, `transcript.edits`), the frames looked at, long videos' chapters. |
 | `story` | Recorded stories (`stories.py`): a voice note about a photo, or a person or one of their life events. The sound is a file in the data folder's `stories/`, never on the photo share. |
 | `album`, `album_photo`, `album_passed` | Albums picked by hand (`albums.py`): who made each (NULL: the admins'), its cover and words; its photos in order, each with the album's own caption; and, of a shared album, the photos its maker may pass on (as `tour_photo` for a tour). |
-| `favourite` | Hearts on photos (`favourites.py`), one per account (NULL: given at home without accounts). Tours and memories prefer them. |
+| `favourite` | Hearts on photos (`favorites.py`; the table keeps the older spelling), one per account (NULL: given at home without accounts). Tours and memories prefer them. |
 | `slideshow_video` | A tour or album someone asked to have as one video file (`slideshow.py`): the slides as they saw them, its state for the page, and the file's name in the data folder's `videos/`. |
 | `settings` | Everything the Settings page changes, and the worker's state for the Status page. |
 | `account`, `session`, `upload` | Family accounts. |
@@ -177,7 +177,7 @@ together and both run it, so the second process finds the work done. A migration
 
 Re-runs never overwrite what a person decided:
 
-- `face.assigned_by`: `user` (named by hand) beats `auto` (recognised). `rejected` and `not_a_face` faces are set
+- `face.assigned_by`: `user` (named by hand) beats `auto` (recognized). `rejected` and `not_a_face` faces are set
   aside.
 - `face_not_person` records "this face is not that person". Recognition and suggestions respect it.
 - `image_tag.source`: `user` marks a tag given by hand, and `not` marks one taken off for good. Describing a photo
@@ -280,7 +280,7 @@ Templates are in `web/templates`, and `web/static/app.js` drives the pages.
   button's panel is). `help.py` `MENU` has a line for each of its pages, in its order, for the help's "Every page"
   list (`tests/test_help.py` checks they match). Light or dark: `static/theme.js`
   (a file, as the Content-Security-Policy allows no inline script) puts the browser's choice (`localStorage`
-  `lineagebox-theme`) on `<html data-theme>` before the page is drawn, and `app.css` defines the colours for
+  `lineagebox-theme`) on `<html data-theme>` before the page is drawn, and `app.css` defines the colors for
   `prefers-color-scheme` and for `data-theme`; a person's page (`body.person-page`) and Family (`body.family-page`)
   have a print style, and app.js unfolds their panels for printing.
 - The first steps (`first_run.py`, `_first_run.html`): Home (and the empty start page) works out each step from the
@@ -324,7 +324,7 @@ translation is a catalog added under `lineagebox/locale/<language>/LC_MESSAGES/`
 | Config and storage | `config.py`, `settings.py`, `db.py`, `migrations/`, `mounts.py` (refuses a catalog on a network share) |
 | Reading files | `scan.py`, `ingest.py`, `media.py` (decoding, thumbnails, previews), `video.py` (ffmpeg: frames, chapters, sound waves, copies), `chapters.py` (long videos' chapters), `check.py` |
 | Understanding photos | `dates.py`, `dedup.py`, `folders.py`, `faces.py`, `people.py`, `describe.py`, `llm.py`, `speech.py`, `quality.py`, `orientation.py`, `places.py` (the map, places by hand), `towns.py` (the nearest town, from `data/towns.tsv.gz`), `face_ages.py` (what faces' ages can say: names that don't fit, a birth-year hint), `date_hints.py` (a probable date for a scan), `camera_clock.py`, `scan_dates.py` (scans dated by the day they were scanned: what can tell their real date), `headcount.py` (the AI's careful count of the people in a photo, and how sure it is) |
-| Finding photos | `search.py` (words, filters, suggestions), `embeddings.py` (search by meaning, More like this), `catalog.py` (shared read queries), `tagging.py` (also tags across the library), `tours.py`, `tour_suggestions.py`, `albums.py` (albums picked by hand), `favourites.py` (hearts), `slideshow.py` (a tour or album saved as a video), `comments.py` (captions and comments), `stories.py` (recorded stories), `live.py` (Live Photos) |
+| Finding photos | `search.py` (words, filters, suggestions), `embeddings.py` (search by meaning, More like this), `catalog.py` (shared read queries), `tagging.py` (also tags across the library), `tours.py`, `tour_suggestions.py`, `albums.py` (albums picked by hand), `favorites.py` (hearts), `slideshow.py` (a tour or album saved as a video), `comments.py` (captions and comments), `stories.py` (recorded stories), `live.py` (Live Photos) |
 | Family | `family.py` (relationship words from a `Graph`), `events.py`, `documents.py` (documents and written sources), `family_check.py`, `gedcom.py`, `gedcom_import.py`, `life.py` (a person's life by age, for their page), `book.py` (a family book to print or save as a PDF, `static/book.css`) |
 | Cleanup | `cleanup.py` (moves to Removed, restore, empty; a photo's sidecar goes with it), `writeback.py` (ExifTool: a rotation, and what the family gave a photo, into its file), `reorganize.py` (the photo folders moved into year and month folders by LineageBox, the catalog following each file; put back) |
 | Other photo programs | `xmp.py` (XMP written and read, IPTC read), `sidecars.py` (XMP sidecars beside the photos, in zips and the export), `imports.py` (names, tags and dates from other apps, Picasa and Google Takeout) |

@@ -13,7 +13,7 @@ from lineagebox import (access, catalog, comments, copies, documents, events, fa
 from lineagebox import places as map_places, sidecars  # places: a list's name in search_page
 from lineagebox import chapters, speech, stories  # long videos' chapters, transcripts, recorded stories
 from lineagebox import embeddings  # search by meaning
-from lineagebox import albums, favourites  # the albums a photo is in, the viewer's heart on it
+from lineagebox import albums, favorites  # the albums a photo is in, the viewer's heart on it
 from lineagebox import headcount  # how many people a photo shows, and how sure the AI is of it
 from lineagebox.folders import FolderIndex
 from lineagebox.web.common import (ADMIN, MEMBER, _covers, _kin_labels, _name_choices, _others_by_whose, _share_panel,
@@ -349,7 +349,7 @@ def image_page(request: Request, image_id: int, ctx: str = "", v=Depends(viewer)
                 portraits={pid: life.portrait(c, pid) for pid in {f["person_id"] for f in faces if f["person_id"]}},
                 place=map_places.photo_place(c, image_id, img), xmp=sidecars.packet(c, image_id) is not None,
                 live=catalog.live_clip(c, image_id) if not is_video else None,
-                favourite=favourites.has(w, v, image_id), in_albums=albums.containing(c, image_id),
+                favorite=favorites.has(w, v, image_id), in_albums=albums.containing(c, image_id),
                 sharing=_share_panel(w, v, "image", image_id) if getattr(request.state, "account", None) and (
                     v.admin or any(not f["missing"] for f in files)) else None)
 

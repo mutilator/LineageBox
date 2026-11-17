@@ -80,7 +80,7 @@ Back to [naming faces](#naming-faces).
 """,
     "SECURITY.md": "# Security\n\nPrivately.\n",
     "CHANGELOG.md": "# Changelog\n\n## 1.0.0 (2026-01-01)\n\n- The first, [installed](docs/install.md#ports).\n",
-    "LICENSE": "The licence.\n",
+    "LICENSE": "The license.\n",
 }
 
 

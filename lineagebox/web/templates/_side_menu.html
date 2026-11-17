@@ -29,10 +29,10 @@
                   ("/timeline", _("Timeline"), "timeline", nav == "timeline"),
                   ("/map", _("Map"), "map", nav == "map"),
                   ("/tags", _("Tags"), "tags", nav == "tags")]),
-  (_("Collections"), [("/favourites", _("Favourites"), "heart", menu_path == "/favourites"),
+  (_("Collections"), [("/favorites", _("Favorites"), "heart", menu_path == "/favorites"),
                       ("/albums", _("Albums"), "albums", menu_path.startswith("/album")),
                       ("/tours", _("Tours"), "tours", nav == "tours" and not menu_path.startswith("/album")
-                                                      and menu_path != "/favourites")]),
+                                                      and menu_path != "/favorites")]),
   (_("People"), [("/people", _("People"), "people", nav == "people" and not menu_path.startswith("/people/name")),
                  ("/family", _("Family"), "family", nav == "family")]),
   (_("Tidy up"), [("/people/name", _("Name faces"), "faces", menu_path.startswith("/people/name")),
@@ -46,7 +46,7 @@
     <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="{{ side_icons.add }}"/></svg><span class="label">{% trans %}Add photos{% endtrans %}</span></a>
   {%- endif %}
   {%- for heading, links in side_sections if links %}
-  <div class="side-group"{% if heading %} role="group" aria-labelledby="side-{{ loop.index }}"{% endif %}>
+  <div class="side-group"{% if heading %} role="group" aria-labeledby="side-{{ loop.index }}"{% endif %}>
     {%- if heading %}<span class="side-heading" id="side-{{ loop.index }}">{{ heading }}</span>{% endif %}
     {%- for href, name, icon, here in links %}
     <a href="{{ href }}"{% if here %} aria-current="page"{% endif %} title="{{ name }}">

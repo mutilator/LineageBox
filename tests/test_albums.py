@@ -167,15 +167,15 @@ def test_the_family_book(site, con, cfg):
     assert f'href="/book/person/{p["Rex"]}"' in cora.get(f"/person/{p['Rex']}").text
 
 
-def test_albums_and_favourites_are_in_the_export(site, con, cfg, tmp_path):
+def test_albums_and_favorites_are_in_the_export(site, con, cfg, tmp_path):
     cora = client(site, con, "Cora")
     ph = site["photos"]
     album_id = add(cora, "Picnic", ph["cora_bart.jpg"], ph["rex.jpg"]).json()["album_id"]
     cora.post(f"/api/albums/{album_id}/caption", json={"image_id": ph["rex.jpg"], "text": "Grandpa"}, headers=APP)
-    cora.post(f"/api/images/{ph['rex.jpg']}/favourite", json={"on": True}, headers=APP)
+    cora.post(f"/api/images/{ph['rex.jpg']}/favorite", json={"on": True}, headers=APP)
     out = tmp_path / "x.zip"
     counts = export.write(con, cfg, out)
-    assert counts["albums"] == 1 and counts["favourites"] == 1
+    assert counts["albums"] == 1 and counts["favorites"] == 1
     data = json.loads(zipfile.ZipFile(out).read(export.PHOTOS))
     sha = {i: catalog.image(con, i)["sha256"] for i in ph.values()}
     assert data["albums"] == [{"name": "Picnic", "made_by": {"email": "cora@example.com",
@@ -185,7 +185,7 @@ def test_albums_and_favourites_are_in_the_export(site, con, cfg, tmp_path):
                                           {"sha256": sha[ph["rex.jpg"]], "caption": "Grandpa"}],
                                "cover": sha[ph["cora_bart.jpg"]]}]
     rex = next(r for r in data["photos"] if r["sha256"] == sha[ph["rex.jpg"]])
-    assert rex["favourite_of"] == [{"email": "cora@example.com", "person": site["people"]["Cora"]}]
+    assert rex["favorite_of"] == [{"email": "cora@example.com", "person": site["people"]["Cora"]}]
 
 
 def test_albums_at_home(cfg, con, library):

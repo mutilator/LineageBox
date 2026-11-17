@@ -4,7 +4,7 @@
 {% block main %}
 <nav class="crumbs"><a href="/cleanup">{% trans %}Cleanup{% endtrans %}</a><span class="sep">/</span><h1>{% trans %}Confirm faces{% endtrans %}</h1></nav>
 <p class="meta">{% trans %}All at once here; <a href="/people/name">People → Name faces</a> asks about them one at a time, with
-bigger pictures and buttons, and also about the faces recognised automatically.{% endtrans %}</p>
+bigger pictures and buttons, and also about the faces recognized automatically.{% endtrans %}</p>
 <nav class="tabs" aria-label="{{ _('Faces to confirm') }}">
   <a href="/cleanup/faces?show=together"{% if show == "together" %} aria-current="page"{% endif %}>{% trans %}Seen together{% endtrans %}
     <small>{% trans beside=beside|number %}{{ beside }} faces{% endtrans %}</small></a>

@@ -32,7 +32,7 @@ Every page is in the menu at the side, in sections:
 - **Add photos** (with a family account), the button at the top: photos and videos from this computer or phone.
 - **Home**.
 - **Library:** **Folders**, **Timeline**, **Map** and **Tags**, the ways to look through the photos.
-- **Collections:** **Favourites**, **Albums** and **Tours**.
+- **Collections:** **Favorites**, **Albums** and **Tours**.
 - **People:** **People** and **Family**.
 - **Tidy up:** **Name faces** and **Cleanup**.
 - **Admin** (admins only): **Status** and **Settings**.
@@ -44,12 +44,12 @@ in, with Sign out, and how the site looks (below). The LineageBox logo always go
 
 ### Light or dark
 
-**Colours**, under the round button at the top right: **Automatic** follows the computer or phone (light, or dark when it is set to dark),
+**Colors**, under the round button at the top right: **Automatic** follows the computer or phone (light, or dark when it is set to dark),
 **Light** and **Dark** keep that one. The choice is kept in each browser, so a phone and a computer can differ, and the
-page never flashes the other colours first. The map's popups and boxes follow it too; a picture of the family tree is
+page never flashes the other colors first. The map's popups and boxes follow it too; a picture of the family tree is
 always drawn on white.
 
-**Photo tiles**, under Colours, sets how lists of photos look, Home's photos by the day too, in each browser the
+**Photo tiles**, under Colors, sets how lists of photos look, Home's photos by the day too, in each browser the
 same way:
 
 - **Squares** (as it was): every photo in a square, cropped around the faces in it, so heads in a tall photo and the
@@ -58,7 +58,7 @@ same way:
 - **Small**, **Medium** and **Large**: how big the tiles are. On a phone or tablet, pinch two fingers apart over the
   photos to make them larger, or together to make them smaller.
 
-**Language**, below Colours, is there only once a translation has been added ([translating](translating.md)):
+**Language**, below Colors, is there only once a translation has been added ([translating](translating.md)):
 **Automatic** shows the site in the first language your browser asks for that LineageBox has, and picking one keeps it
 in this browser. Names, captions and what the family wrote stay as they were written.
 
@@ -88,23 +88,23 @@ from every face you name, so each answer helps it find the rest.
   stops asking you about it; **Ask the family** puts it on everyone's Home under **Who is this?**.
 - The faces come in this order: those someone in the family asked about; those in photos with people already named
   that look like someone else (nobody is in a photo twice, so each face is matched to the closest person not yet
-  named in that photo); those recognised automatically that nobody has checked, the least sure first; and last,
+  named in that photo); those recognized automatically that nobody has checked, the least sure first; and last,
   groups of faces that look like one person, down to groups of two or three, to name all at once. When a group's
   faces together look like someone already named, it asks **Are these …?** and **Yes** names them all; otherwise the
   folders the photos are in may suggest the name. The buttons at the top go through one kind only. Family members are
   asked only about photos and people they can see.
-- **How sure a name is.** A face recognised, or one that looks like someone, says how sure it is: of faces that sure,
+- **How sure a name is.** A face recognized, or one that looks like someone, says how sure it is: of faces that sure,
   how many are them. It comes from how alike the face is to the person's faces named by hand and how far ahead of the
   next likeliest person they are, measured on faces named by hand, and it never says more than 98%: even of the
-  surest, about 1 in 50 is someone else, often a brother or sister. A recognised face that, after more faces are
+  surest, about 1 in 50 is someone else, often a brother or sister. A recognized face that, after more faces are
   named, looks more like someone else is the least sure of its name, so it comes first, and asks about the one it
-  looks more like: **Is this …?** says what it was recognised as, **Yes** names it as the one it looks like,
+  looks more like: **Is this …?** says what it was recognized as, **Yes** names it as the one it looks like,
   **No, it's …** keeps the name it was given, and **Neither** says it is neither. The name stays until you answer.
-  **Looks like someone** and **Recognised, to check** can say yes to every face at least 98%, 95% or 90% sure at once:
+  **Looks like someone** and **Recognized, to check** can say yes to every face at least 98%, 95% or 90% sure at once:
   each then counts as named by you, and recognition learns from it, so pick a bar you trust. **Undo**, in the message
   after, puts them all back.
 - **Cleanup → Confirm faces** has the same faces as lists, for going through many at once: **Seen together** (untick
-  the faces that aren't them, then confirm; unticked faces are never suggested or recognised as that person again),
+  the faces that aren't them, then confirm; unticked faces are never suggested or recognized as that person again),
   **Photos to finish** (**don't know** sets aside someone nobody knows) and **Unnamed groups** (the **×**, not them,
   on a face takes out one that doesn't belong; **Don't know them** sets aside a group nobody knows; who a group looks
   like is filled in). Two more lists check what was found:
@@ -118,7 +118,7 @@ from every face you name, so each answer helps it find the rest.
     takes it off as it is).
 - **Cleanup → No faces found** (admins) lists the photos where the AI is sure it sees someone but no face was found at
   all, the newest first (hover over one for the description). Tick those with faces to find and press **Look
-  again**: the worker looks at them more closely in the background, a few a minute, and recognises the faces it
+  again**: the worker looks at them more closely in the background, a few a minute, and recognizes the faces it
   finds. Tick those whose people face away or are too far off and press **No faces to find**: they aren't listed
   again (Undo, or Recent changes, lists them again).
 - **How sure the AI is.** A description's count of the people in a photo can be far off (a hundred people at a concert
@@ -132,21 +132,21 @@ from every face you name, so each answer helps it find the rest.
 - **Every photo is looked at closely** by the worker on its own, in the background, some each pass: the same closer
   look as **Look for faces again**, at twice the size, which finds the small faces the first look misses in group
   photos. A photo where the AI sees people but no face is found is also looked at turned each way: a scan or an old
-  photo on its side has its faces found that way, and then shows on **Turned photos**. New faces are recognised where
+  photo on its side has its faces found that way, and then shows on **Turned photos**. New faces are recognized where
   they clearly match; a face marked as not a face stays so. A photo looked at closely leaves **Faces missed** and **No
   faces found**. New photos get it a little after they arrive, and **Settings → Faces** says how many are left and
   when to look at every photo again: every 6 months, every year, or only when you ask (**Look again at every photo
   now**). Looking again finds faces in photos turned since, or after an update that looks better.
 
   Admins' **Find more photos of these people**, on People, names the faces elsewhere that clearly match.
-- A face's look can't tell anyone's age (it takes children for adults), so ages are never used to recognise anyone.
+- A face's look can't tell anyone's age (it takes children for adults), so ages are never used to recognize anyone.
   On the page of someone with no birth date, **Born** may say between which years the photos say they were born, when
   their face looks like a young child's in some of them.
 - On a photo, **Fix** next to a wrong name lets you type who the face really is, or pick **not them** to take
-  the name off so the face waits to be named. It is never suggested or recognised as the wrong person again. An
+  the name off so the face waits to be named. It is never suggested or recognized as the wrong person again. An
   unnamed face that looks like someone not yet in the photo offers their name to click.
 - **Check faces** on a person's page lists their named faces, the least alike first, for spotting mistakes, and the
-  faces recognised as them, the least sure first, each with how sure: **✓** says one is them (it then counts as named
+  faces recognized as them, the least sure first, each with how sure: **✓** says one is them (it then counts as named
   by you), **×** that it isn't, and **Yes, the ticked are …** confirms every face left ticked.
 
 Names you give by hand always win: recognition never overwrites them.
@@ -194,7 +194,7 @@ step-family) relative to the person marked **This is me**. Those words work in s
 - **A family book**: **A book of …** on a person's page, or **A book of this family** beside View in classic family
   tree style, makes pages to print or keep as a PDF, a gift for a reunion or a memorial. A person's book has their
   portrait, life story, life events, family, the documents that record them, and their best photos year by year
-  (favourites first) with the family's captions; a family's book has everyone descended from that person, a few pages
+  (favorites first) with the family's captions; a family's book has everyone descended from that person, a few pages
   each, with a list of contents. **Print or save as a PDF** opens the browser's print window: choose **Save as PDF**
   as the printer. It is made from what you see, as the tree and photos are now.
 - **Export** (folded away at the bottom of the Family page, under **Family tree programs**) writes the tree as GEDCOM, for Ancestry, FamilySearch, MyHeritage,
@@ -221,7 +221,7 @@ step-family) relative to the person marked **This is me**. Those words work in s
   hourglass meanwhile), and a long obituary is read in two halves.
 - **Remove** (at the bottom of a person's page, for admins) takes someone out of the catalog: added by mistake, or a
   name you don't want any more. Every face named as them loses the name and goes back to the unnamed faces
-  (Cleanup → Confirm faces), where it can be grouped, recognised or named as whoever it is; their family links, life
+  (Cleanup → Confirm faces), where it can be grouped, recognized or named as whoever it is; their family links, life
   events and other names go with them. Someone with an account stays until the account is removed. For a few faces
   named wrongly, use **Check faces**; for someone here twice under two names, **Merge**.
 
@@ -236,7 +236,7 @@ Each person's page tells their life:
   into the next. Press **Play** (or `p`), step with ‹ › or the arrow keys (or swipe the face on a phone), or pick a
   year in the strip under it; **Speed** sets how long each year shows, and with a birth date each year says how old
   they were. **Every photo** takes their clearest face each year from any photo (large, facing the camera, sharp,
-  named by hand before recognised). **Portraits** takes only photos the AI described as a portrait or a selfie, or
+  named by hand before recognized). **Portraits** takes only photos the AI described as a portrait or a selfie, or
   tagged portrait, selfie or headshot, with nobody else as near the camera: fewer years, but one follows on from the
   next more smoothly. **Another from this year** shows that year's next clearest face, and the browser remembers it.
   Photos with no date of their own, or dated across more than two years, are left out.
@@ -441,7 +441,7 @@ opens the photo, and ↗ still opens it in a new tab. On a phone or tablet, hold
 - **The caption** is the family's own words for the photo: who, where, the occasion. Anyone who can see the photo can
   write it or change it, and it shows above the AI's description, in search and on the photo's slide in a tour.
   **Comments** go under it ("I remember this day"); whoever wrote one, or an admin, can change it or take it away.
-- **♡** at the top (or **h**) makes the photo one of your favourites: tours pick it before others like it, and
+- **♡** at the top (or **h**) makes the photo one of your favorites: tours pick it before others like it, and
   memories show it. **Albums**, near the foot, lists the albums it is in and adds it to one.
 - The side panel lists every copy of the file, with download and **Copy network path** (paste it into File
   Explorer's address bar; set the paths under **Settings → On the network**). When the family has given the photo
@@ -638,7 +638,7 @@ photos: with more ticked, the bar says so, and nothing is done to only some of t
 - Photos are picked afresh each time a tour opens: one per group of similar shots, never blurry, with the clearest
   faces, from different days.
 - **Suggested tours** come from what the library holds, such as days that come back year after year.
-- Your **favourites** (♡ on a photo's page) come first: of similar shots, in a year or a month, a photo with a heart
+- Your **favorites** (♡ on a photo's page) come first: of similar shots, in a year or a month, a photo with a heart
   is picked before the others. On an admin's tour everyone's hearts count, so a photo the family loves wins.
 - **Play** starts with a title card (the tour's name and the time its photos span), then shows each photo with its
   caption, who is in it and when it was taken, as exactly as that is known: "Summer 1987" for a date typed as a
@@ -650,7 +650,7 @@ photos: with more ticked, the bar says so, and nothing is done to only some of t
 - With family accounts, a tour can be shared with a relative's account or with everyone who has one. They see the
   photos it picks as it shows them to whoever made it, and it keeps picking new ones for them.
 
-## Albums and favourites
+## Albums and favorites
 
 **Albums** hold photos picked by hand, in the order you want them, with a cover and a caption for each: a wedding, a
 reunion, a trip. Tours pick their photos by rules and change as photos are added; an album holds just what you put in
@@ -665,15 +665,15 @@ it. They are listed on **Albums** (under Tours).
   to take a photo out (it stays in your photos; **Undo** puts it back). **Rename** also takes a few words about the
   album.
 - An album's caption for a photo is the album's own ("Grandma, who flew in from Ohio"). Where it has none, the photo's
-  own caption shows, in grey, so nothing has to be written twice.
+  own caption shows, in gray, so nothing has to be written twice.
 - **Play** shows it as a slideshow in its order, after a title card; **Save as a video** and **Download all** work as
   for a tour. Opening a photo from an album, **← →** go through the album in its order.
 - With family accounts, each member has their own albums, and shares one as a tour is shared: they see its photos
   in its order, including those of your family they couldn't see before, but not photos others shared with you.
   Others may look at an album shared with them; only its maker, or an admin, changes it.
-- **Favourites**: **♡** on a photo's page (or **h**) gives it your heart. Each account has its own. **Your
-  favourites**, on Albums, lists them, the latest first, to play or to make into an album. Tours and Home's memories
-  show favourites first.
+- **Favorites**: **♡** on a photo's page (or **h**) gives it your heart. Each account has its own. **Your
+  favorites**, on Albums, lists them, the latest first, to play or to make into an album. Tours and Home's memories
+  show favorites first.
 
 ## Cleanup
 
@@ -684,7 +684,7 @@ photo from its page. **Empty the Removed folder** is the only thing in LineageBo
 **Private papers** comes first, on its own: photos that look like identity cards (a driver's license, a
 passport, a Social Security card), bank and credit cards, checks, tax forms, insurance cards, health records, or the
 birth and marriage certificates of people still living. Family members shouldn't see these, but a family member sees
-any photo with someone they see named in it, so a driver's license whose face is recognised is seen by that person's
+any photo with someone they see named in it, so a driver's license whose face is recognized is seen by that person's
 whole family. The card turns red while there are some, and admins are told on **New for you** when new ones are found.
 An admin sees the whole library's; a family member sees the photos they uploaded themselves, to hide or keep as they
 choose.
@@ -713,7 +713,7 @@ choose.
   suggested keeper is the largest, then the one with the camera date, then the sharpest. Each photo shows its folder,
   because the small copy is often the one in a named album.
 - **Damaged files:** files a disk spoilt: cut short, with a blank stretch where a block couldn't be read, or with
-  different bytes than when they were catalogued. The worker reads every file whole once, a while each pass. Move them
+  different bytes than when they were cataloged. The worker reads every file whole once, a while each pass. Move them
   to Removed, or copy a good one from a backup over the damaged file.
 - **Blank and blurry:** ranked by a sharpness score measured from the pixels, worst first. Black frames and lens caps
   come first, and soft keepers further down. The cut-off is under **Settings → Cleanup**.
@@ -787,7 +787,7 @@ format), and pointing at a line says what it counts. **Check now** starts a work
 Changes here apply without a restart. They are kept in the catalog, so the web UI and the worker both see them, and
 they win over `.env` and config files. On a new LineageBox, [the first steps](#the-first-steps) on Home point to the
 parts to set first (the watched folder, the AI). Light or dark is not here: each browser chooses its own, under
-the round button at the top → Colours.
+the round button at the top → Colors.
 
 The menu at the side shows one part at a time (on a phone, it is above the settings):
 
@@ -854,7 +854,7 @@ The menu at the side shows one part at a time (on a phone, it is above the setti
 - `/` searches.
 - `g` then a letter goes to a page (the help lists them).
 - On a photo, `←` `→` step through photos and `Esc` goes back; `h` gives it your heart, or takes it off.
-- On a tour, an album or Your favourites, `p` plays the slideshow. The slideshow holds the keyboard while it plays:
+- On a tour, an album or Your favorites, `p` plays the slideshow. The slideshow holds the keyboard while it plays:
   space pauses, `←` `→` step, `Esc` closes it and puts you back on **Play**; a screen reader stays in it.
 - On someone's Through the years, `p` plays or pauses and `←` `→` step a year.
 - The keys of one letter or sign (`?`, `/`, `g` and the letters on buttons) can be turned off at the foot of the help

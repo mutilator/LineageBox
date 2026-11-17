@@ -69,7 +69,7 @@ def test_the_menu_at_the_side_has_every_page_in_sections(cfg, con):
     nav = nav_of(html)
     assert '<nav id="menu" class="side"' in html and "side-add" not in nav
     assert sections_of(nav) == [("", ["/home"]), ("Library", ["/", "/timeline", "/map", "/tags"]),
-                                ("Collections", ["/favourites", "/albums", "/tours"]),
+                                ("Collections", ["/favorites", "/albums", "/tours"]),
                                 ("People", ["/people", "/family"]), ("Tidy up", ["/people/name", "/cleanup"]),
                                 ("Admin", ["/status", "/settings"])]
     assert '<a href="/timeline" aria-current="page"' in nav and nav.count('aria-current="page"') == 1
@@ -78,8 +78,8 @@ def test_the_menu_at_the_side_has_every_page_in_sections(cfg, con):
 
     nav = nav_of(client.get("/people/name").text)
     assert '<a href="/people/name" aria-current="page"' in nav and '<a href="/people" aria-current' not in nav
-    nav = nav_of(client.get("/favourites").text)
-    assert '<a href="/favourites" aria-current="page"' in nav and '<a href="/tours" aria-current' not in nav
+    nav = nav_of(client.get("/favorites").text)
+    assert '<a href="/favorites" aria-current="page"' in nav and '<a href="/tours" aria-current' not in nav
     # how the site looks is in the round button's panel, here a plain button, as nobody is signed in
     assert 'class="looks-button" data-panel="profile"' in html and 'data-look="tiles"' in html
     assert "lineagebox-side" in (STATIC / "theme.js").read_text(encoding="utf-8")
@@ -99,7 +99,7 @@ def test_a_family_members_menu(cfg, con):
 
 def test_light_or_dark_is_chosen_before_the_page_is_drawn(cfg):
     """theme.js, a file of the site's own (no inline script gets past the Content-Security-Policy), comes before the
-    stylesheet; the stylesheet has the dark colours for the system's choice and for one made in the browser, and a
+    stylesheet; the stylesheet has the dark colors for the system's choice and for one made in the browser, and a
     print style; the tree's picture is always drawn light."""
     html = TestClient(webapp.create_app(cfg), client=LAN).get("/people").text
     assert html.index('<script src="/static/theme.js') < html.index('<link rel="stylesheet" href="/static/app.css')

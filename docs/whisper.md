@@ -14,7 +14,7 @@ The service can run in three places:
 
 Transcribing runs during the same hours as AI descriptions (**When the AI may describe** on the Settings page).
 
-The service downloads its models from Hugging Face the first time it starts: the Whisper models (by OpenAI, MIT licence) and the Silero VAD model that finds the speech (MIT licence). LineageBox doesn't ship them. Each comes from a fixed version of its repository and is used only when its SHA-256 matches the one in `whisper_service/checksums.py`, which lists every model there. To use a model that isn't listed, put the file in the models folder yourself.
+The service downloads its models from Hugging Face the first time it starts: the Whisper models (by OpenAI, MIT license) and the Silero VAD model that finds the speech (MIT license). LineageBox doesn't ship them. Each comes from a fixed version of its repository and is used only when its SHA-256 matches the one in `whisper_service/checksums.py`, which lists every model there. To use a model that isn't listed, put the file in the models folder yourself.
 
 ## On a Windows PC with an NVIDIA graphics card
 

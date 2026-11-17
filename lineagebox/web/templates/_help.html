@@ -1,7 +1,7 @@
 {# The help panel: ? opens it on every page. The keys of this page's own boxes and buttons (data-key) are listed by
    app.js when it opens. #}
 {% set h = help_for(help_page|default("")) %}
-<dialog id="help" class="help" aria-labelledby="help-title">
+<dialog id="help" class="help" aria-labeledby="help-title">
   <form method="dialog" class="help-close"><button aria-label="{{ _('Close help') }}" title="{{ _('Close (Esc)') }}">×</button></form>
   <h2 id="help-title">{% trans title=h.title %}Help: {{ title }}{% endtrans %}</h2>
   {%- for p in h.about %}
@@ -33,7 +33,7 @@
           and (signed_in or href != "/upload") %}<dt><a href="{{ href }}">{{ name }}</a></dt><dd>{{ what }}</dd>{% endfor %}
   </dl>
   {#- The AGPL's "Appropriate Legal Notices" (its sections 0 and 5d): the copyright, that there is no warranty, that
-      LineageBox may be shared under the licence and where to read it. A changed copy has to keep showing them. #}
+      LineageBox may be shared under the license and where to read it. A changed copy has to keep showing them. #}
   <h3>{% trans %}About LineageBox{% endtrans %}</h3>
   <p>{% trans %}LineageBox {{ lineagebox_version }}, © 2026 Scott Gusler. It is free software: you may use, change and share it
     under the

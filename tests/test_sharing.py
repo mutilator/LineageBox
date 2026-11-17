@@ -46,7 +46,7 @@ def client(site, con, who):
 
 
 def uploaded(c, con, cfg, files: dict[str, str], folder="") -> dict[str, int]:
-    """Upload {path: colour}, let the worker read them, and give each file's photo."""
+    """Upload {path: color}, let the worker read them, and give each file's photo."""
     for path, color in files.items():
         assert c.post("/api/upload", params={"path": path, "folder": folder}, content=jpeg(color),
                       headers=APP).status_code == 200

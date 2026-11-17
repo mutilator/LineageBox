@@ -1,5 +1,5 @@
-// Light or dark, as chosen in this browser (the round button → Colours, app.js), put on the page before it is drawn,
-// so it never shows the other colours first. Loaded in the <head> of every page, before the stylesheet: the site's
+// Light or dark, as chosen in this browser (the round button → Colors, app.js), put on the page before it is drawn,
+// so it never shows the other colors first. Loaded in the <head> of every page, before the stylesheet: the site's
 // pages have no inline scripts (the Content-Security-Policy in web/common.py allows only the site's own files).
 // Nothing kept, or the browser keeping nothing, means "as the computer or phone is set": the stylesheet follows
 // prefers-color-scheme.

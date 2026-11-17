@@ -101,7 +101,7 @@ def decode(data: bytes, ext: str, max_side: int) -> Decoded:
     progressive = im.format in _JPEG_FORMATS and bool(im.info.get("progressive"))
     if progressive and im.width * im.height > MAX_PROGRESSIVE_PIXELS:
         raise ValueError(f"{im.width} x {im.height} pixels: too large a progressive JPEG to read")
-    # a big scan or PNG is decoded whole, then copied as its colours are converted (a 64 MP TIFF took 0.5-0.7 GB), and
+    # a big scan or PNG is decoded whole, then copied as its colors are converted (a 64 MP TIFF took 0.5-0.7 GB), and
     # a big progressive JPEG nearly so: only a couple at once, so a folder of them can't use up a small box's memory
     # with ingest's threads
     big = (im.format is not None and (im.format not in _JPEG_FORMATS or progressive)
@@ -223,7 +223,7 @@ def _fit(size: tuple[int, int], max_side: int) -> tuple[int, int]:
 
 def _to_rgb(im: Image.Image) -> Image.Image:
     if im.mode.startswith("I;16") or im.mode in ("I", "F"):
-        # greys of 16 bits or more (scanners' TIFFs): scaled to 8 bits by the range they are stored in, not cut off at
+        # grays of 16 bits or more (scanners' TIFFs): scaled to 8 bits by the range they are stored in, not cut off at
         # white: 16 bits by 257 (65535 is white), floats from 0-1, wider ones by their own brightest
         depth16 = im.mode.startswith("I;16")
         im = im.convert("F" if im.mode == "F" else "I")

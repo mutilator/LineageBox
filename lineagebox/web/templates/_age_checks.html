@@ -24,7 +24,7 @@ a whole camera's dates at once under <a href="/cleanup/camera-clock">Camera cloc
       <a href="/image/{{ f.image_id }}" title="{{ _('Open the photo') }}"><img src="/face/{{ f.face_id }}" alt="{{ _('The face') }}" width="80" height="80" loading="lazy"></a>
       <span>{{ f.taken_at|date(false) }}
         <span class="hint">{% if f.why == "born after" %}{% trans %}before they were born{% endtrans %}{% else %}{% trans %}looks like a young child's{% endtrans %}{% endif %}
-          · {{ _("named by hand") if f.by == "user" else _("recognised") }}{% if f.camera and viewer.admin %} · {{ f.camera }}{% endif %}</span></span>
+          · {{ _("named by hand") if f.by == "user" else _("recognized") }}{% if f.camera and viewer.admin %} · {{ f.camera }}{% endif %}</span></span>
       <span class="age-answers">
         <button type="button" class="quiet" data-api="/api/faces/{{ f.face_id }}/not" data-remove="#age{{ f.face_id }}"
                 title="{{ _("It isn't %(name)s: take the name off", name=p.name) }}">{% trans %}Not them{% endtrans %}</button>

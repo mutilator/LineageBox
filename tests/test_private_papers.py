@@ -44,8 +44,8 @@ def test_what_looks_private():
 
 def test_found_hidden_and_fine_to_show(con, cfg):
     owen = people.person_id(con, "Owen")
-    licence = described(con, 1, "A driver's license with a photo of an adult man.")
-    face(con, licence, like(A), owen, "auto")  # recognised: Owen's family sees it
+    license = described(con, 1, "A driver's license with a photo of an adult man.")
+    face(con, license, like(A), owen, "auto")  # recognized: Owen's family sees it
     taxes = described(con, 2, "A partially filled IRS Form 1099-MISC.", tags=["tax form"], taken="2021-01-01T10:00:00")
     card = described(con, 3, "A card on a table.", "object/still life", text=f"Number {SSN}")
     described(con, 4, "A birthday cake with candles.", "object/still life")
@@ -61,7 +61,7 @@ def test_found_hidden_and_fine_to_show(con, cfg):
     con.commit()
 
     found = private.suggestions(con)
-    assert [f["id"] for f in found] == [licence, theirs, card, taxes, nobody]  # someone named first, then by kind
+    assert [f["id"] for f in found] == [license, theirs, card, taxes, nobody]  # someone named first, then by kind
     assert {f["id"]: (f["kind"], f["why"], f["named"]) for f in found}[card] == (
         "id", "a number set out like a Social Security number", False)
 
@@ -79,14 +79,14 @@ def test_found_hidden_and_fine_to_show(con, cfg):
     assert SSN not in page and "Number" not in page  # what the AI read is never shown
     assert "2 of them have someone named in them" in page
     only = client.get("/cleanup/private?kind=certificates").text
-    assert f'value="{theirs}"' in only and f'value="{nobody}"' in only and f'value="{licence}"' not in only
+    assert f'value="{theirs}"' in only and f'value="{nobody}"' in only and f'value="{license}"' not in only
 
     url = "/api/images/hide-private"
-    assert client.post(url, json={"image_ids": [licence, theirs]}).status_code == 403  # the site's scripts only
+    assert client.post(url, json={"image_ids": [license, theirs]}).status_code == 403  # the site's scripts only
     assert client.post(url, json={"image_ids": [99999]}, headers=APP).status_code == 404
-    hid = client.post(url, json={"image_ids": [licence, theirs]}, headers=APP).json()
+    hid = client.post(url, json={"image_ids": [license, theirs]}, headers=APP).json()
     assert hid["message"] == "Hidden from family members: 2 photos." and hid["undo"]
-    assert {r[0] for r in con.execute("SELECT id FROM image WHERE hidden")} == {licence, theirs}
+    assert {r[0] for r in con.execute("SELECT id FROM image WHERE hidden")} == {license, theirs}
     fine = client.post("/api/images/private-ok", json={"image_ids": [nobody]}, headers=APP).json()
     assert fine["undo"] and settings.get(con, private.OK_KEY) == [nobody]
     assert [f["id"] for f in private.suggestions(con)] == [card, taxes]
@@ -99,7 +99,7 @@ def test_found_hidden_and_fine_to_show(con, cfg):
 
 
 def test_admins_are_told_of_new_ones_once(con):
-    licence = described(con, 1, "A driver's license on a table.")
+    license = described(con, 1, "A driver's license on a table.")
     con.commit()
     assert outbox.private_papers(con) == 1
     assert outbox.private_papers(con) == 0  # told already
@@ -113,7 +113,7 @@ def test_admins_are_told_of_new_ones_once(con):
     assert outbox.private_papers(con) == 1
     assert json.loads(con.execute("SELECT data FROM outbox WHERE kind = 'private' ORDER BY id DESC").fetchone()[0]) == {
         "photos": 1, "named": 0}
-    con.execute("UPDATE image SET hidden = 1 WHERE id = ?", (licence,))
+    con.execute("UPDATE image SET hidden = 1 WHERE id = ?", (license,))
     con.commit()
     assert outbox.private_papers(con) == 0
 
@@ -133,46 +133,46 @@ def test_members_hide_their_own_uploads(con, cfg, library):
     cora = fx.account(con, p["Cora"], "cora@example.com")
     bart = fx.account(con, p["Bart"], "bart@example.com")
     settings.save(con, cfg, {"accounts_enabled": True})
-    for name, color in (("licence.jpg", "red"), ("cake.jpg", "green")):
+    for name, color in (("license.jpg", "red"), ("cake.jpg", "green")):
         assert upload(client(cfg, con, cora), name, jpeg(color), folder="Papers").status_code == 200
     scan(con, cfg)
     ingest(con, cfg, show_progress=False)
     up = {n: con.execute("SELECT image_id FROM file WHERE path LIKE ?", (f"%/Papers/{n}",)).fetchone()[0]
-          for n in ("licence.jpg", "cake.jpg")}
+          for n in ("license.jpg", "cake.jpg")}
     seen = photos["cora_bart.jpg"]  # a photo she sees, not one she uploaded
-    for image_id, caption in ((up["licence.jpg"], "A driver's license with a photo of a woman."),
+    for image_id, caption in ((up["license.jpg"], "A driver's license with a photo of a woman."),
                               (up["cake.jpg"], "A birthday cake with candles."),
                               (seen, "A driver's license on a table.")):
         con.execute("""INSERT INTO analysis(image_id, model, prompt_version, created_at, caption, photo_type, raw_json)
                        VALUES (?, 'test', 1, '2026-01-01', ?, 'document/screenshot', '{}')""", (image_id, caption))
     # Cora is named in her upload: her brother Bart sees it
     con.execute("INSERT INTO image_person(image_id, person_id, added_at) VALUES (?, ?, '2026-01-01')",
-                (up["licence.jpg"], p["Cora"]))
+                (up["license.jpg"], p["Cora"]))
     con.commit()
-    assert up["licence.jpg"] in access.compute(con, bart).images
+    assert up["license.jpg"] in access.compute(con, bart).images
 
     as_cora = client(cfg, con, cora)
     assert 'data-later="/cleanup/counts/private"' in as_cora.get("/cleanup").text
     card = as_cora.get("/cleanup/counts/private").text
     assert "photos you uploaded" in card and '<span class="num">1</span>' in card
     page = as_cora.get("/cleanup/private").text
-    assert "Photos you uploaded" in page and f'value="{up["licence.jpg"]}"' in page and f'value="{seen}"' not in page
+    assert "Photos you uploaded" in page and f'value="{up["license.jpg"]}"' in page and f'value="{seen}"' not in page
     assert 'href="/cleanup/changes"' not in page  # an admin's page
 
     url = "/api/images/hide-private"
     assert as_cora.post(url, json={"image_ids": [seen]}, headers=APP).status_code == 403
     assert as_cora.post("/api/images/private-ok", json={"image_ids": [seen]}, headers=APP).status_code == 403
     assert as_cora.post(url, json={"image_ids": [photos["zed.jpg"]]}, headers=APP).status_code == 404  # unseen
-    hid = as_cora.post(url, json={"image_ids": [up["licence.jpg"]]}, headers=APP)
+    hid = as_cora.post(url, json={"image_ids": [up["license.jpg"]]}, headers=APP)
     assert hid.status_code == 200, hid.text
-    assert con.execute("SELECT hidden FROM image WHERE id = ?", (up["licence.jpg"],)).fetchone()[0] == 1
-    assert up["licence.jpg"] not in access.compute(con, bart).images  # the rest of the family no longer sees it
-    assert up["licence.jpg"] in access.compute(con, dict(accounts.get(con, cora["id"]))).images  # she still does
-    assert as_cora.get(f"/image/{up['licence.jpg']}").status_code == 200
+    assert con.execute("SELECT hidden FROM image WHERE id = ?", (up["license.jpg"],)).fetchone()[0] == 1
+    assert up["license.jpg"] not in access.compute(con, bart).images  # the rest of the family no longer sees it
+    assert up["license.jpg"] in access.compute(con, dict(accounts.get(con, cora["id"]))).images  # she still does
+    assert as_cora.get(f"/image/{up['license.jpg']}").status_code == 200
 
     # her own change, undone
     assert as_cora.post(f"/api/changes/{hid.json()['undo']}/undo-own", headers=APP).status_code == 200
-    assert up["licence.jpg"] in access.compute(con, bart).images
+    assert up["license.jpg"] in access.compute(con, bart).images
 
     everyone = client(cfg, con, sam).get("/cleanup/private").text  # an admin's: the whole library's
-    assert f'value="{up["licence.jpg"]}"' in everyone and f'value="{seen}"' in everyone
+    assert f'value="{up["license.jpg"]}"' in everyone and f'value="{seen}"' in everyone

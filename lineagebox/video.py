@@ -397,7 +397,7 @@ def plays_in_browsers(ext: str, p: Probe) -> bool:
 
 
 def is_copy(name: str) -> bool:
-    """A 720p copy LineageBox made (00005.MTS.720p.mp4): never catalogued as a video of its own. A file of the user's
+    """A 720p copy LineageBox made (00005.MTS.720p.mp4): never cataloged as a video of its own. A file of the user's
     named holiday.720p.mp4 is not one: before the suffix there must be a video's own name."""
     lower = name.lower()
     return lower.endswith(COPY_SUFFIX) and os.path.splitext(lower[:-len(COPY_SUFFIX)])[1] != ""

@@ -35,7 +35,7 @@
   <span class="hint inline">{% trans name=person.name %}when {{ name }} and someone else are the same person{% endtrans %}</span>
 </form>
 {%- endif %}
-<p class="meta">{% trans photo_count=photo_count|number, confirmed_count=confirmed_count|number, auto_count=auto_count|number, person_id=person.id, name=person.name %}{{ photo_count }} photos · {{ confirmed_count }} faces named by you · {{ auto_count }} recognised automatically
+<p class="meta">{% trans photo_count=photo_count|number, confirmed_count=confirmed_count|number, auto_count=auto_count|number, person_id=person.id, name=person.name %}{{ photo_count }} photos · {{ confirmed_count }} faces named by you · {{ auto_count }} recognized automatically
   · <a href="/person/{{ person_id }}/faces" data-key="k">Check faces</a><span class="hint inline">take out faces that aren't {{ name }}</span>{% endtrans %}</p>
 
 {#- Their life story, in the family's words, and the notes (sources a reading added, notes from another tree) #}

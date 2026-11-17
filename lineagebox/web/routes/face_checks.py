@@ -143,7 +143,7 @@ def look_again_later(body: ImageIds, c=Depends(con)):
     settings.put(c, "run_requested", datetime.now().isoformat(timespec="seconds"))
     n = len(ids)
     return {"message": f"{n} photo{'' if n == 1 else 's'} will be looked at again in the background, a few a minute; "
-                       "the faces found are recognised where they clearly match.", "reload": True}
+                       "the faces found are recognized where they clearly match.", "reload": True}
 
 
 @router.post("/api/faces/look-again-all", dependencies=[Depends(_from_app)])
@@ -154,7 +154,7 @@ def look_again_at_all(c=Depends(con)):
     faces.start_round(c)
     settings.put(c, "run_requested", datetime.now().isoformat(timespec="seconds"))
     return {"message": "Every photo will be looked at again in the background, some each pass; the faces found are "
-                       "recognised where they clearly match.", "reload": True}
+                       "recognized where they clearly match.", "reload": True}
 
 
 @router.post("/api/images/no-faces-ok", dependencies=[Depends(_from_app)])

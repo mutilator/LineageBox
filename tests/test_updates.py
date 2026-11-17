@@ -120,12 +120,12 @@ class FakeDocker:
             "ExposedPorts": {"8000/tcp": {}}}}
         self.local[name] = image_id
 
-    def container(self, name, image, service, labelled=True, project="lineagebox", cmd=("serve",)):
+    def container(self, name, image, service, labeled=True, project="lineagebox", cmd=("serve",)):
         cid = hashlib.sha256(f"{name} {len(self.containers)}".encode()).hexdigest()
         image_id = self.local[image]
         labels = {"com.docker.compose.project": project, "com.docker.compose.service": service,
                   "com.docker.compose.image": image_id, "org.opencontainers.image.title": "LineageBox"}
-        if labelled:
+        if labeled:
             labels["lineagebox.update"] = "true"
         self.containers[cid] = {
             "Id": cid, "Name": f"/{name}", "Image": image_id, "State": {"Running": True, "Status": "running"},
@@ -210,7 +210,7 @@ def fake(monkeypatch):
     ids = {"web": d.container("lineagebox-web-1", IMAGE, "web"),
            "worker": d.container("lineagebox-worker-1", IMAGE, "worker", cmd=("worker",)),
            "updater": d.container("lineagebox-updater-1", IMAGE, "updater", cmd=("updater",)),
-           "ollama": d.container("lineagebox-ollama-1", "ollama/ollama:0.40.11", "ollama", labelled=False),
+           "ollama": d.container("lineagebox-ollama-1", "ollama/ollama:0.40.11", "ollama", labeled=False),
            "other": d.container("someone-else-1", IMAGE, "web", project="another")}
     monkeypatch.setattr(updater.socket, "gethostname", lambda: ids["updater"][:12])
     monkeypatch.setattr(updater.time, "sleep", lambda s: None)
@@ -250,7 +250,7 @@ def test_a_newer_image_is_installed_and_the_updater_goes_last(fake):
     assert made["HostConfig"]["Binds"] == ["/srv/photos:/photos/local"]
     assert made["NetworkingConfig"]["EndpointsConfig"]["lineagebox_default"]["Aliases"] == ["web"]
     assert by_name(fake, "lineagebox-worker-1")["created"]["Cmd"] == ["worker"]  # its own command, not the image's
-    # the others are left alone: Ollama (not labelled) and another project's container
+    # the others are left alone: Ollama (not labeled) and another project's container
     assert fake.containers[fake.ids["ollama"]]["Image"] == "sha256:ollama"
     assert fake.containers[fake.ids["other"]]["Image"] == "sha256:old"
     # the old web and worker are gone; the old updater waits for its successor, and won't be restarted by Docker

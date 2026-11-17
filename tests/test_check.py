@@ -39,7 +39,7 @@ def damaged(con, cfg, library):
     for name, seed in (("good", 1), ("blank", 2), ("changed", 3), ("short", 4)):
         noisy_jpeg(d / f"{name}.jpg", seed, comment=b"a comment of the camera" * 400 if name == "changed" else b"")
     whole = (d / "short.jpg").read_bytes()
-    (d / "short.jpg").write_bytes(whole[:len(whole) * 2 // 3])  # cut short before it was ever catalogued
+    (d / "short.jpg").write_bytes(whole[:len(whole) * 2 // 3])  # cut short before it was ever cataloged
     scan(con, cfg)
     ingest(con, cfg)
 
@@ -58,7 +58,7 @@ def test_damage_is_found(con, cfg, damaged):
     assert found == 3
     damage = dict(con.execute("SELECT id, damage FROM file WHERE damage IS NOT NULL"))
     assert "blank stretch of 8 KB" in damage[damaged["blank"]]
-    assert "bytes changed since it was catalogued" in damage[damaged["changed"]]
+    assert "bytes changed since it was cataloged" in damage[damaged["changed"]]
     assert "cut short" in damage[damaged["short"]]
     assert damaged["good"] not in damage  # its EXIF and comment are not taken for its picture
     assert check.check(con, cfg) == (0, 0)  # each file once

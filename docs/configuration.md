@@ -24,7 +24,7 @@ Some settings are deliberately not on the page: the photo folders, the catalog f
 mistake there could lock everyone out.
 
 A few choices belong to each browser, not to the install, and are kept only there (its `localStorage`): light or dark
-(the round button → Colours), photo tiles, the menu as icons only, the map's ticked layers, and whether keys of one
+(the round button → Colors), photo tiles, the menu as icons only, the map's ticked layers, and whether keys of one
 letter work. The catalog's `settings` table also keeps what LineageBox notes for itself, never set by hand; one of
 them, `first_run_hidden`, is set once the first steps on an admin's Home are all done or put away.
 
@@ -44,9 +44,9 @@ it differs.
 | `media_root` | required (Docker: `/photos`) | | The folder every photo source is in. Every catalog path starts here. |
 | `data_dir` | required (Docker: `/data`) | | The catalog: database, thumbnails, previews. Must be on a local disk. |
 | `[scan] folders` | none | Page | Watched folders inside `media_root`, `/`-separated (`local/Pictures`). |
-| `[scan] image_extensions` | `.jpg .jpeg .jpe .jfif .png .tif .tiff .heic .heif .hif` and cameras' raw files (`.nef .nrw .cr2 .cr3 .crw .arw .srf .sr2 .dng .raf .orf .rw2 .rwl .pef .srw .3fr .iiq .mos .mef .mrw .erf .kdc .dcr`) | | Photo file types to catalogue: every kind LineageBox reads. Leave a kind out to skip those files. |
-| `[scan] video_extensions` | `.mts .m2ts .mp4 .m4v .mov .3gp .3g2 .avi .wmv .mpg .mpeg .mkv .webm` | | Video file types. A video file with sound and no picture (a phone's voice note) is catalogued as a sound recording. Whatever a file is named, it is read only as one of the usual kinds of video or sound file (MP4 and QuickTime, MPEG-TS and AVCHD, MPEG, AVI, Windows Media, Matroska and WebM, FLV, DV, MP3, AAC, WAV, Ogg, FLAC, AMR, AIFF); another kind is listed as a file that can't be read. |
-| `[scan] audio_extensions` | `.mp3 .m4a .aac .wav .wma .ogg .oga .opus .flac .amr .aif .aiff` | | Sound recordings to catalogue: digitised cassettes, voice memos. A file tagged as a song from an album (artist, album and track number) is left out as music. Set it to an empty list (`[]`) to catalogue no sound files. |
+| `[scan] image_extensions` | `.jpg .jpeg .jpe .jfif .png .tif .tiff .heic .heif .hif` and cameras' raw files (`.nef .nrw .cr2 .cr3 .crw .arw .srf .sr2 .dng .raf .orf .rw2 .rwl .pef .srw .3fr .iiq .mos .mef .mrw .erf .kdc .dcr`) | | Photo file types to catalog: every kind LineageBox reads. Leave a kind out to skip those files. |
+| `[scan] video_extensions` | `.mts .m2ts .mp4 .m4v .mov .3gp .3g2 .avi .wmv .mpg .mpeg .mkv .webm` | | Video file types. A video file with sound and no picture (a phone's voice note) is cataloged as a sound recording. Whatever a file is named, it is read only as one of the usual kinds of video or sound file (MP4 and QuickTime, MPEG-TS and AVCHD, MPEG, AVI, Windows Media, Matroska and WebM, FLV, DV, MP3, AAC, WAV, Ogg, FLAC, AMR, AIFF); another kind is listed as a file that can't be read. |
+| `[scan] audio_extensions` | `.mp3 .m4a .aac .wav .wma .ogg .oga .opus .flac .amr .aif .aiff` | | Sound recordings to catalog: digitised cassettes, voice memos. A file tagged as a song from an album (artist, album and track number) is left out as music. Set it to an empty list (`[]`) to catalog no sound files. |
 | `[scan] ignore_dirs` | `Thumbs Previews .thumbnails` (Docker adds NAS recycle bins and thumbnail folders) | Page | Folder names (case-insensitive patterns) whose files are listed but never read. |
 
 ### Reading photos

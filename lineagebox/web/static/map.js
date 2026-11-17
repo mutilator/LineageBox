@@ -221,7 +221,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
     if (target.lat != null) { put([target.lat, target.lon], true); save.disabled = true; fitted = true; }
     map.on("click", (e) => put(e.latlng, false));
-    document.getElementById("placing-centre").onclick = () => put(map.getCenter(), false);
+    document.getElementById("placing-center").onclick = () => put(map.getCenter(), false);
     const send = async (body) => {
       let d;
       try {

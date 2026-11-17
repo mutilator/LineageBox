@@ -157,7 +157,7 @@ def test_a_heic_isnt_turned_in_its_file():
     assert writeback.why_not({"media": "photo", "format": "heic"}).startswith("HEIC files can't be changed here")
 
 
-def test_every_kind_catalogued_is_one_media_reads():
+def test_every_kind_cataloged_is_one_media_reads():
     defaults = set(Config.__dataclass_fields__["image_extensions"].default)
     assert defaults == media.JPEG_EXTENSIONS | {".png"} | media.TIFF_EXTENSIONS | media.HEIF_EXTENSIONS | media.RAW_EXTENSIONS
     assert all(e == e.lower() for e in defaults)  # the scan and uploads match them case-insensitively
@@ -292,9 +292,9 @@ def _tiff(im, **save) -> bytes:
 
 
 def test_a_16_bit_scan_is_scaled_not_cut_off_at_white():
-    """A 16-bit grey TIFF (what scanners save): mid-grey stays mid-grey, it isn't turned white."""
-    grey = Image.new("I;16", (40, 30), 32768)
-    d = media.decode(_tiff(grey), ".tif", 2048)
+    """A 16-bit gray TIFF (what scanners save): mid-gray stays mid-gray, it isn't turned white."""
+    gray = Image.new("I;16", (40, 30), 32768)
+    d = media.decode(_tiff(gray), ".tif", 2048)
     assert d.format == "tiff" and d.image.mode == "RGB" and (d.width, d.height) == (40, 30)
     assert 110 < d.image.getpixel((5, 5))[0] < 145
 
@@ -321,7 +321,7 @@ def test_a_tiff_of_several_pages_is_shown_by_its_first():
     assert d.image.getpixel((2, 2))[1] > 100 and d.image.getpixel((2, 2))[0] < 60  # green
 
 
-def test_a_tiff_is_catalogued_with_jpeg_preview_and_thumbnail(cfg, con, library):
+def test_a_tiff_is_cataloged_with_jpeg_preview_and_thumbnail(cfg, con, library):
     """Browsers can't show TIFF: the photo page and grids use the JPEG preview and thumbnail ingest makes."""
     from fastapi.testclient import TestClient
     from lineagebox.ingest import ingest
@@ -345,7 +345,7 @@ def test_a_tiff_is_catalogued_with_jpeg_preview_and_thumbnail(cfg, con, library)
     assert writeback.why_not(dict(row)) is None  # it can be turned, in its file too
 
 
-def test_a_jfif_is_catalogued_as_a_jpeg(cfg, con, library):
+def test_a_jfif_is_cataloged_as_a_jpeg(cfg, con, library):
     """Windows and browsers save many pictures from the web as .jfif: a JPEG by another name."""
     from fastapi.testclient import TestClient
     from lineagebox.ingest import ingest
@@ -387,8 +387,8 @@ def test_a_compressed_tiff_is_turned_upright_once(compression, orientation, corn
     assert dark == [corner]
 
 
-def test_greys_of_more_than_16_bits_and_floats():
-    """32-bit greys within 16 bits' range are read as 16-bit; wider ones by their brightest; floats from 0 to 1."""
+def test_grays_of_more_than_16_bits_and_floats():
+    """32-bit grays within 16 bits' range are read as 16-bit; wider ones by their brightest; floats from 0 to 1."""
     assert media.decode(_tiff(Image.new("I", (20, 10), 32768)), ".tif", 2048).image.getpixel((2, 2))[0] in (127, 128)
     wide = Image.new("I", (20, 10), 1 << 20)
     wide.putpixel((0, 0), 1 << 21)  # the brightest: white, the rest half as bright

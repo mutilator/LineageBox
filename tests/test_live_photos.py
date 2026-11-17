@@ -20,7 +20,7 @@ def image_of(con, path):
 
 
 def by_hand(con, path, media, duration=None):
-    """Catalogue a scanned file as if it had been read (no ffmpeg needed): its image row, linked to it."""
+    """Catalog a scanned file as if it had been read (no ffmpeg needed): its image row, linked to it."""
     image = con.execute("""INSERT INTO image(sha256, format, media, duration, codecs, playable, taken_at, stage)
                            VALUES (?, ?, ?, ?, ?, ?, '2021-07-04T10:11:12', 1)""",
                         (f"{abs(hash(path)):064x}"[-64:], path.rpartition(".")[2].lower(), media, duration,

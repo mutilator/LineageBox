@@ -109,4 +109,4 @@ pybabel update -i lineagebox/locale/lineagebox-js.pot -d lineagebox/locale -D li
 ## Sending it back
 
 Open a pull request with the `.po` and `.mo` files of your language
-([contributing](../CONTRIBUTING.md#translations)). A translation is shared under the same licence as LineageBox.
+([contributing](../CONTRIBUTING.md#translations)). A translation is shared under the same license as LineageBox.

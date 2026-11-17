@@ -7,7 +7,7 @@ For a member who is person P (docs/access-control.md, "Who a member sees"):
   current partner, so a couple sees the same family; people the member added themselves, and those in
   groups they made; then the admin's exceptions on the account (someone, alone or with their family, also shown or
   not shown). Friends, pets and other relationships are outside it.
-- photos: those someone they can see is in (a face named by hand or recognised, or added to the photo by hand), and
+- photos: those someone they can see is in (a face named by hand or recognized, or added to the photo by hand), and
   their own uploads. A photo an admin hid, or one in a hidden folder, is left out unless they uploaded it.
 - and what another account shared with them, or with everyone (sharing.py): a folder, a photo, a tour with the photos
   it shows its maker, or an album with the photos its maker may pass on (albums.py). Only shares that still hold count:
@@ -218,7 +218,7 @@ def hidden(con: sqlite3.Connection) -> tuple[str, list]:
 
 def images_for(con: sqlite3.Connection, people: set[int], account_id: int | None, upload_folder: str | None,
                alone: bool = False) -> set[int]:
-    """The photos a member sees: someone they see is in it, by a face named by hand or recognised or added by hand,
+    """The photos a member sees: someone they see is in it, by a face named by hand or recognized or added by hand,
     unless hidden by an admin; and their own uploads, hidden or not. alone (a demo, demo.py): never what other
     accounts uploaded, whoever is in it."""
     not_shown, args = hidden(con)

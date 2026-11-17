@@ -144,7 +144,7 @@ def video_row(con, path):
 
 
 @needs_ffmpeg
-def test_videos_are_catalogued_with_frames(con, cfg, videos):
+def test_videos_are_cataloged_with_frames(con, cfg, videos):
     s = scan(con, cfg)
     assert s.files == 10  # 6 photo files + 4 video files
     i = ingest(con, cfg, show_progress=False)
@@ -254,7 +254,7 @@ def test_720p_copies_and_cleanup(con, cfg, videos):
     p = video.probe(made)
     assert (p.video_codec, p.audio_codec) == ("h264", "aac")
     assert con.execute("SELECT playable FROM image WHERE id = ?", (mts["id"],)).fetchone()[0] == "copy"
-    # the copy is no video of its own: not catalogued, so in no count, duplicate list or folder
+    # the copy is no video of its own: not cataloged, so in no count, duplicate list or folder
     files = con.execute("SELECT count(*) FROM file").fetchone()[0]
     scan(con, cfg)
     assert con.execute("SELECT count(*) FROM file").fetchone()[0] == files

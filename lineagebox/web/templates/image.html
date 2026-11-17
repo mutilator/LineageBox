@@ -58,8 +58,8 @@
       {%- if boxed %}
       <button type="button" class="stage-button" data-faces-toggle aria-pressed="true" data-key="f" data-key-label="{{ _('Show or hide the faces on the photo') }}" title="{{ _('Show or hide the faces on the photo (f)') }}">{% trans %}☺<span class="wide-only"> Faces</span>{% endtrans %}</button>
       {%- endif %}
-      {#- favourites.py: the viewer's own heart on it, which tours and memories prefer (app.js, data-heart) #}
-      <button type="button" class="stage-button heart" data-heart="/api/images/{{ img.id }}/favourite" aria-pressed="{{ 'true' if favourite else 'false' }}" data-key="h" data-key-label="{{ _('A favourite of yours, or no longer') }}" title="{{ _('One of your favourites: press to take the heart off') if favourite else _('A favourite of yours? Tours and memories show favourites first') }} (h)" aria-label="{{ _('Favourite') }}">{{ "♥" if favourite else "♡" }}</button>
+      {#- favorites.py: the viewer's own heart on it, which tours and memories prefer (app.js, data-heart) #}
+      <button type="button" class="stage-button heart" data-heart="/api/images/{{ img.id }}/favorite" aria-pressed="{{ 'true' if favorite else 'false' }}" data-key="h" data-key-label="{{ _('A favorite of yours, or no longer') }}" title="{{ _('One of your favorites: press to take the heart off') if favorite else _('A favorite of yours? Tours and memories show favorites first') }} (h)" aria-label="{{ _('Favorite') }}">{{ "♥" if favorite else "♡" }}</button>
       <button type="button" class="stage-button" data-full data-key="v" data-key-label="{{ _('Only the photo, full screen') }}" title="{{ _('Only the photo, full screen (v; Esc comes back)') }}" aria-label="{{ _('Full screen') }}">⛶</button>
     </div>
     {% if prev_id %}<a class="step prev" rel="prev" href="/image/{{ prev_id }}?ctx={{ ctx|urlencode }}" aria-label="{{ _('Previous photo') }}">‹</a>{% endif %}
@@ -210,7 +210,7 @@
         <a href="/person/{{ f.person_id }}">{{ f.name }}</a>
         {% if ages.get(f.person_id) %}<span class="age">{{ ages[f.person_id] }}</span>{% endif %}
         {% if kin.get(f.person_id) %}<span class="hint inline">{{ kin[f.person_id] }}</span>{% endif %}
-        {% if f.assigned_by == "auto" %}<span class="hint inline">{% trans %}recognised{% endtrans %}</span>{% endif %}
+        {% if f.assigned_by == "auto" %}<span class="hint inline">{% trans %}recognized{% endtrans %}</span>{% endif %}
         <span class="fix" id="fix{{ f.id }}" hidden>
           <form class="name-form compact" data-api="/api/faces/{{ f.id }}/name" data-reload>
             <input name="name" data-names autocomplete="off" required placeholder="{{ _('Who is this?') }}" aria-label="{{ _('Who is this, if not %(name)s?', name=f.name) }}">

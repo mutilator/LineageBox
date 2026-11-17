@@ -23,7 +23,7 @@ from lineagebox.face_ages import CHILD_AT_MOST, CHILD_LOOKS, SURE, births
 from lineagebox.faces import usable_faces_sql
 
 NEEDS = ("mtime", "folder")  # photos dated only by these get a suggestion
-NEIGHBOURS = 3               # dated photos in its folder needed
+NEIGHBORS = 3               # dated photos in its folder needed
 SAME_MONTH = 31              # days the middle 80% of them, or the two beside it, span at most for the month
 SAME_YEARS = 2 * 365         # ...and for about the year of their middle
 BESIDE_YEAR = 365            # days apart the two dated photos beside it by file name may be, for about the year
@@ -56,7 +56,7 @@ def suggest(con: sqlite3.Connection, image_id: int) -> dict | None:
     if img is None or img["taken_at_source"] not in NEEDS:
         return None
     why, text, label = [], None, None
-    found = _from_neighbours(con, image_id)
+    found = _from_neighbors(con, image_id)
     lower, upper, people_why = _from_people(con, image_id)
     if found:
         text, last_year, reason = found
@@ -79,7 +79,7 @@ def suggest(con: sqlite3.Connection, image_id: int) -> dict | None:
     return {"text": text, "label": label, "why": why}
 
 
-def _from_neighbours(con: sqlite3.Connection, image_id: int) -> tuple[str, int, str] | None:
+def _from_neighbors(con: sqlite3.Connection, image_id: int) -> tuple[str, int, str] | None:
     """(the date to suggest, the last year it allows, why) from the dated photos in its folders, or None."""
     rows = con.execute(f"""
         WITH came(id) AS (SELECT {ORIGIN} FROM file f WHERE f.image_id = ? AND NOT f.missing)
@@ -100,7 +100,7 @@ def _from_neighbours(con: sqlite3.Connection, image_id: int) -> tuple[str, int, 
     after = next((dated[r["image_id"]] for r in own[at + 1:] if r["image_id"] in dated), None)
     beside = abs((after - before).days) if before and after else None
     times = sorted(dated.values())
-    spread = (_quantile(times, 0.9) - _quantile(times, 0.1)).days if len(times) >= NEIGHBOURS else None
+    spread = (_quantile(times, 0.9) - _quantile(times, 0.1)).days if len(times) >= NEIGHBORS else None
     if beside is not None and beside <= SAME_MONTH:
         mid = _middle(before, after)
         return _month(mid), mid.year, f"The photos just before and after it in its folder were taken in {_month(mid)}."

@@ -3,7 +3,7 @@
 Made from what is already there, on the viewer's own connection, so a member's book holds only their part of the
 family and the photos they see: each person's portrait (the face chosen for them, else their clearest named face, cut
 from its photo), the life story the family wrote, their life events, their family, the documents that are records of
-them, and their best photos year by year (tours.photos, so favourites come first) with the family's captions. The
+them, and their best photos year by year (tours.photos, so favorites come first) with the family's captions. The
 browser prints it: the page has print styles (book.css) with a page for each person, and Print → Save as PDF makes the
 file. No PDF library is needed, and nothing is sent anywhere.
 """
@@ -25,7 +25,7 @@ PORTRAIT = 2.6        # a portrait's side, in heights of the face: the face with
 
 def portrait(con: sqlite3.Connection, pid: int) -> dict | None:
     """The person's portrait: the face chosen for them (person.cover_face_id, while still theirs), else their clearest
-    named face (by hand before recognised), cut square from its photo. Gives the photo's sha256 and the img's size and
+    named face (by hand before recognized), cut square from its photo. Gives the photo's sha256 and the img's size and
     place in a square frame, in percent (CSS). None without a named face in a photo."""
     row = con.execute(f"""SELECT i.sha256, i.width, i.height, f.x1, f.y1, f.x2, f.y2 FROM face f
                           JOIN image i ON i.id = f.image_id

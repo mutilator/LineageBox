@@ -151,15 +151,15 @@ The guides go step by step:
   Play slideshows such as "the grandchildren, summer 2021", with a title card, the family's captions and dates as
   exact as they are known ("Summer 1987"), and save one as a video file to send. Home opens on memories: this week in
   earlier years, a birthday coming up, someone through the years.
-- **Albums and favourites.** Pick photos by hand for a wedding or a reunion, put them in order, choose a cover, caption
-  each and share the album with the family. A heart on a photo makes it a favourite, which tours and memories show
+- **Albums and favorites.** Pick photos by hand for a wedding or a reunion, put them in order, choose a cover, caption
+  each and share the album with the family. A heart on a photo makes it a favorite, which tours and memories show
   first.
 - **Tidies up safely.** It lists duplicate copies, burst shots, smaller copies, blank and blurry shots, photos on their
   side, and files a disk has damaged. Nothing is removed until you pick it, and removed files can be restored.
 - **Plays every video in the browser,** making 720p copies of camcorder and old phone formats that browsers can't
   play. iPhone photos (HEIC), most cameras' raw files, and Live Photos (shown as one photo that moves) are read too.
 - **Long tapes and sound.** A digitised tape gets chapters, where each recording on it starts, and frames all through
-  it. Cassettes and voice memos are catalogued as sound recordings, played and transcribed. Any line Whisper misheard
+  it. Cassettes and voice memos are cataloged as sound recordings, played and transcribed. Any line Whisper misheard
   can be corrected, and it hears whichever language is spoken.
 - **Keeps the family's work safe.** Every night it makes a checked copy of the catalog (the names, the tree, the words)
   where your backup program can take it, and **Download everything** gives one file of it that other programs read.
@@ -254,9 +254,9 @@ Copyright © 2026 Scott Gusler.
 
 LineageBox is free software under the [GNU Affero General Public License, version 3](LICENSE) (`AGPL-3.0-only`), and
 comes with no warranty. You may use, change and share it. If you share a copy, changed or not, or let people use a
-changed copy over a network, you must offer them its source code under the same licence.
+changed copy over a network, you must offer them its source code under the same license.
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md#additional-permission-for-openssl) adds one permission, for the
-OpenSSL libraries that come with OpenCV. The licence doesn't cover the name: a changed copy you share needs another one
+OpenSSL libraries that come with OpenCV. The license doesn't cover the name: a changed copy you share needs another one
 ([TRADEMARKS.md](TRADEMARKS.md)).
 
 LineageBox finds and recognizes faces with InsightFace's `buffalo_l` models, which it downloads the first time it looks
@@ -265,9 +265,9 @@ Check that your use fits, or turn faces off (**Settings → Faces**). For other 
 recognition-oss-pack@insightface.ai.
 
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) lists the software LineageBox and its Docker images include, and their
-licences.
+licenses.
 
-## Acknowledgements
+## Acknowledgments
 
 LineageBox is built on [InsightFace](https://github.com/deepinsight/insightface), [Ollama](https://ollama.com),
 [whisper.cpp](https://github.com/ggml-org/whisper.cpp), [FFmpeg](https://ffmpeg.org),

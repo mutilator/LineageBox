@@ -1,6 +1,6 @@
-/* The colours: light, and dark when the computer or phone is set to dark (prefers-color-scheme) unless light is
-   chosen in this browser, or when dark is chosen (the round button → Colours puts data-theme on <html>; theme.js does
-   it again before each page is drawn). The dark ones are written twice, once for each way in: a colour added here goes in all
+/* The colors: light, and dark when the computer or phone is set to dark (prefers-color-scheme) unless light is
+   chosen in this browser, or when dark is chosen (the round button → Colors puts data-theme on <html>; theme.js does
+   it again before each page is drawn). The dark ones are written twice, once for each way in: a color added here goes in all
    three blocks. */
 :root {
   --bg: #f6f6f3;
@@ -10,7 +10,7 @@
   --line: #e2e0da;     /* separators and panels' edges: decoration */
   --edge: #8a8984;     /* what can be clicked or typed in: buttons, boxes, the tree's lines (3:1 on the page) */
   --accent: #2f62c9;
-  --on-accent: #fff;   /* words on the accent colour */
+  --on-accent: #fff;   /* words on the accent color */
   --tile: #e8e6e0;
   --stage: #111110;
   --danger: #b42318;
@@ -1133,7 +1133,7 @@ fieldset.demo-locked { border: 0; margin: 0; padding: 0; min-width: 0; }  /* a d
 
 /* Naming faces one at a time (People → Name faces, app.js): the whole photo with the face outlined, beside the face
    and the question (above them on phones), and answers big enough to tap (44 px and more). Check faces: ✓ and × on
-   each face recognised, a box to tick it. */
+   each face recognized, a box to tick it. */
 .naming-start { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 4px 0 18px; }
 .naming-start .button { min-height: 44px; display: inline-flex; align-items: center; padding: 6px 20px;
                         font-size: 1rem; }
@@ -1424,7 +1424,7 @@ table.cameras th, table.cameras td { text-align: left; padding: 6px 8px; border-
   .scan-suggest button, .scan-actions button, .scan-type button, .scan-type input, .scan-young button { min-height: 44px; }
 }
 
-/* ---- Albums, favourites, tours with stories (albums.py, favourites.py, slideshow.py; album.html, tour.html) ---- */
+/* ---- Albums, favorites, tours with stories (albums.py, favorites.py, slideshow.py; album.html, tour.html) ---- */
 .player .title-card { display: grid; gap: 10px; justify-items: center; text-align: center; color: #fff; padding: 24px;
   animation: fade-in .6s; }
 .player .title-card h2 { font-size: clamp(1.8rem, 5vw, 3.2rem); margin: 0; }
@@ -1588,7 +1588,7 @@ ul.life-events > li { margin: 2px 0; display: flex; flex-wrap: wrap; align-items
 .brand { display: flex; flex: none; align-items: center; gap: 8px; }
 .brand:hover { text-decoration: none; }
 .brand img { display: block; width: 24px; height: 24px; border-radius: 6px; }
-/* how the site looks (Colours, Photo tiles, Language), in the round button's panel at the top */
+/* how the site looks (Colors, Photo tiles, Language), in the round button's panel at the top */
 .theme-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; width: 100%; padding: 8px 0 2px;
               border-top: 1px solid var(--line); color: var(--muted); }
 .theme-pick > span { flex-basis: 100%; font-size: .9rem; }
@@ -1626,7 +1626,7 @@ ul.life-events > li { margin: 2px 0; display: flex; flex-wrap: wrap; align-items
 .first-run-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 4px 0 0; }
 .first-steps .vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
-/* the map's popups and boxes in the page's colours, so that dark reaches them (Leaflet draws them white); the map
+/* the map's popups and boxes in the page's colors, so that dark reaches them (Leaflet draws them white); the map
    itself stays as the tile server draws it */
 #map.leaflet-container { background: var(--tile); }
 #map .leaflet-popup-content-wrapper, #map .leaflet-popup-tip { background: var(--surface); color: var(--text); }
@@ -1639,10 +1639,10 @@ ul.life-events > li { margin: 2px 0; display: flex; flex-wrap: wrap; align-items
 #map .leaflet-control-layers-separator { border-top-color: var(--line); }
 #map .leaflet-control-attribution { background: color-mix(in srgb, var(--surface) 82%, transparent); color: var(--muted); }
 
-/* the tree's picture is drawn in the light colours (app.js treePicture): nothing fades while they are read */
+/* the tree's picture is drawn in the light colors (app.js treePicture): nothing fades while they are read */
 .drawing, .drawing *, .drawing *::before, .drawing *::after { transition: none !important; }
 
-/* printing: the light colours on white, without the top bar, the help or the message at the foot (the family book
+/* printing: the light colors on white, without the top bar, the help or the message at the foot (the family book
    has its own, book.css). A person's page and the Family page print as a page about them: what is written, not the
    boxes and buttons to change it (filled-in boxes print as their words, empty ones not at all). */
 @media print {

@@ -6,7 +6,7 @@ name, a position to about 100 m, the country and region, and how many people liv
 (https://www.geonames.org/, CC BY 4.0: the map page and THIRD_PARTY_NOTICES.md say so). 5,000 people is the size that
 keeps the list under a megabyte while a photo taken in the country is still near a town it can be named after; GeoNames'
 list of towns over 1,000 is two and a half times the size. A photo is named after the nearest town, not the biggest one
-near it: a village a kilometre away says more than a city twenty kilometres off.
+near it: a village a kilometer away says more than a city twenty kilometers off.
 
 It is read the first time a name is wanted (a fifth of a second), and kept in memory: about 10 MB.
 """

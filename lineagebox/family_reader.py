@@ -957,7 +957,7 @@ def _mend(by_id: dict, relatives: list, about: str | None, obituary: bool, wed: 
 
 
 _BUILDING = re.compile(r"\b(?:hospital|medical|health|nursing|hospice|care|rehabilitation|assisted|manor|home|"
-                       r"center|centre|industries|company|co|inc|corporation|corp|commission|department|schools?|"
+                       r"center|center|industries|company|co|inc|corporation|corp|commission|department|schools?|"
                        r"college|university|academy|factory|mill|plant|store|bank|church|association|services|"
                        r"office|base|station|team)\b", re.I)
 _WED = re.compile(r"\b(?:married|marriage|marry|wed|wedding|united in|vows)\b", re.I)

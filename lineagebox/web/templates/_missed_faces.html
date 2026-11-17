@@ -2,7 +2,7 @@
     AI is sure it sees more people than faces were found (headcount.py), to look for faces again. -#}
 <p class="meta">{% trans sure=sure_at %}Group photos where some faces were found and the AI, counting the people on its own,
 is at least {{ sure }}% sure there are more: small faces at the back, or faces turned a little. <b>Look for faces
-again</b> looks more closely (about 20 seconds each); the faces it finds are recognised where they clearly match, and
+again</b> looks more closely (about 20 seconds each); the faces it finds are recognized where they clearly match, and
 the photo leaves this list. Photos with family named in them come first.{% endtrans %}
 {%- if viewer.admin %} {% trans %}Photos with no face found at all are under <a href="/cleanup/no-faces">Cleanup → No faces found</a>.{% endtrans %}{% endif %}</p>
 {% include "_pager.html" %}

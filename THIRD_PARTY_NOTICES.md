@@ -3,13 +3,13 @@
 LineageBox is copyright © 2026 Scott Gusler and licensed under the GNU Affero General Public License, version 3
 (`AGPL-3.0-only`), in [LICENSE](LICENSE), with the [additional permission](#additional-permission-for-openssl) below.
 
-This file lists what LineageBox's repository and its Docker images include that others made, and under which licences.
-Where a licence asks for an acknowledgement, it is given here. Both images carry this file and LICENSE in `/app`.
+This file lists what LineageBox's repository and its Docker images include that others made, and under which licenses.
+Where a license asks for an acknowledgment, it is given here. Both images carry this file and LICENSE in `/app`.
 
 ## Additional permission for OpenSSL
 
 Finding faces loads OpenCV (InsightFace uses it), and the OpenCV build LineageBox installs carries OpenSSL 1.1, whose
-licence can't be combined with the AGPL on its own terms. This permission allows it:
+license can't be combined with the AGPL on its own terms. This permission allows it:
 
 > **Additional permission under GNU AGPL version 3 section 7**
 >
@@ -20,7 +20,7 @@ licence can't be combined with the AGPL on its own terms. This permission allows
 
 ## In this repository
 
-| Component | Where | Licence |
+| Component | Where | License |
 |---|---|---|
 | [Leaflet](https://leafletjs.com) 1.9.4, the map | `lineagebox/web/static/vendor/leaflet-1.9.4/` | BSD-2-Clause. © 2010-2023 Volodymyr Agafonkin, © 2010-2011 CloudMade. The text is in `LICENSE` next to it. |
 | [GeoNames](https://www.geonames.org/) towns and cities, for naming photos with GPS after the nearest town | `lineagebox/data/towns.tsv.gz` | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), © GeoNames. Changed: `cities5000.txt` (populated places of over 5,000 people, downloaded 2026-11-07) trimmed to each town's name, position (rounded to 3 decimals), country and region (names from `countryInfo.txt` and `admin1CodesASCII.txt`) and population in thousands. The Map page credits it. |
@@ -45,17 +45,17 @@ PSF License (`/usr/local/lib/python3.12/LICENSE.txt`).
   the Artistic License).
 - **tzdata**: public domain.
 - **DejaVu Sans** (`fonts-dejavu-core`, which ffmpeg's libraries bring in anyway), for the words drawn on tours and
-  albums saved as a video: the Bitstream Vera Fonts licence and public domain (changes by the DejaVu authors), which
+  albums saved as a video: the Bitstream Vera Fonts license and public domain (changes by the DejaVu authors), which
   allow using and passing on the fonts with any software.
 
-Each Debian package's copyright and licence is in `/usr/share/doc/<package>/copyright`. `/app/packages.txt` lists
+Each Debian package's copyright and license is in `/usr/share/doc/<package>/copyright`. `/app/packages.txt` lists
 every Debian package in the image and its exact version.
 
 **Python packages**, in `/venv`. `docker/requirements.txt` pins the ones LineageBox asks for; `/app/python-packages.txt`
-lists the exact set. Each package's licence files are in its `*.dist-info` folder in
+lists the exact set. Each package's license files are in its `*.dist-info` folder in
 `/venv/lib/python3.12/site-packages`.
 
-| Licence | Packages |
+| License | Packages |
 |---|---|
 | MIT | annotated-doc, annotated-types, anyio, cbor2, charset-normalizer, fastapi, h11, insightface (the library; its models are [below](#downloaded-when-lineagebox-runs)), narwhals, onnxruntime, pip, pydantic, pydantic-core, rawpy, typing-inspection, urllib3 |
 | BSD-3-Clause | click, cloudpickle, httpcore, httpx, idna, Jinja2, joblib, lazy-loader, MarkupSafe, networkx, numpy (some parts 0BSD, MIT, Zlib or CC0-1.0), pillow-heif (its own code; the libraries in its wheel are listed below), protobuf, pycparser, scikit-image (some parts BSD-2-Clause), scikit-learn, scipy, segno, starlette, threadpoolctl, tifffile, uvicorn, webauthn |
@@ -83,7 +83,7 @@ or inside the package:
   (**GPL-2.0-or-later**), which pillow-heif says makes its wheel as a whole GPL-licensed. Their versions and the
   links to their source are in `pillow_heif-*.dist-info/licenses/LICENSES_bundled.txt`; the texts of the GPL and LGPL
   are in `/usr/share/common-licenses`.
-- **Pillow:** FreeType (FreeType License), HarfBuzz, libjpeg-turbo (IJG, BSD-3-Clause and Zlib licences), Little CMS,
+- **Pillow:** FreeType (FreeType License), HarfBuzz, libjpeg-turbo (IJG, BSD-3-Clause and Zlib licenses), Little CMS,
   libwebp, libtiff, OpenJPEG, libpng, libavif, Brotli, liblzma, zstd, libxcb, libXau and zlib. Their texts are in
   `pillow-*.dist-info/licenses/LICENSE`.
 - **numpy and scipy:** OpenBLAS with LAPACK (BSD-3-Clause), the GCC Fortran runtime (GPL-3.0-or-later with the GCC
@@ -94,7 +94,7 @@ or inside the package:
 - **onnxruntime and ml_dtypes:** code compiled in from other projects, among them Eigen (MPL-2.0), listed with their
   texts in `onnxruntime/ThirdPartyNotices.txt` and `ml_dtypes-*.dist-info/licenses/`.
 
-**Acknowledgements these libraries ask for:**
+**Acknowledgments these libraries ask for:**
 
 - Portions of this software are copyright © The FreeType Project (https://freetype.org). All rights reserved.
 - This software is based in part on the work of the Independent JPEG Group.
@@ -114,10 +114,10 @@ or inside the package:
   - [stb_vorbis](https://github.com/nothings/stb) 1.22: public domain (Unlicense) or MIT, © Sean Barrett;
   - ggml's YaRN code: MIT, © 2023 Jeffrey Quesnelle and Bowen Peng.
 
-  Their licence texts are in `/opt/whisper/licenses`.
-- **Python packages:** fastapi, uvicorn, httpx and the packages they need, under the licences in the table above
+  Their license texts are in `/opt/whisper/licenses`.
+- **Python packages:** fastapi, uvicorn, httpx and the packages they need, under the licenses in the table above
   (mostly MIT and BSD-3-Clause; opentelemetry-api Apache-2.0, certifi MPL-2.0, typing_extensions PSF-2.0).
-  `/opt/whisper/python-packages.txt` lists them; their licence files are in `/usr/local/lib/python3.12/site-packages`.
+  `/opt/whisper/python-packages.txt` lists them; their license files are in `/usr/local/lib/python3.12/site-packages`.
 
 ## Source code for copyleft components
 
@@ -148,10 +148,10 @@ when its SHA-256 is the one in the code (`lineagebox/faces.py`, `whisper_service
 - **Silero VAD**, the model that finds the speech, by the whisper service from
   [Hugging Face](https://huggingface.co/ggml-org/whisper-vad). MIT, © Silero Team.
 - **The Ollama model you choose**, by Ollama (a separate program, MIT). The default `ministral-3` is under the
-  Apache-2.0 licence. `gemma3` is under the [Gemma Terms of Use](https://ai.google.dev/gemma/terms) and its
+  Apache-2.0 license. `gemma3` is under the [Gemma Terms of Use](https://ai.google.dev/gemma/terms) and its
   [Prohibited Use Policy](https://ai.google.dev/gemma/prohibited_use_policy). Each model's page on
-  [ollama.com](https://ollama.com/library) names its licence. The default model for search by meaning,
-  `nomic-embed-text` (Nomic AI), is under the Apache-2.0 licence; like the others, Ollama downloads it when asked,
+  [ollama.com](https://ollama.com/library) names its license. The default model for search by meaning,
+  `nomic-embed-text` (Nomic AI), is under the Apache-2.0 license; like the others, Ollama downloads it when asked,
   and LineageBox doesn't include it.
 
 ## Online services

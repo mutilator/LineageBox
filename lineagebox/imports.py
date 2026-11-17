@@ -49,7 +49,7 @@ from lineagebox.folders import FolderIndex
 STAGE = "metadata"
 MINUTES = 10           # each pass reads for this long at most: a first pass over a big library takes several
 MATCH_IOU = 0.2        # a box another app drew and a face found here are one face when they overlap this much (or
-                       # each one's centre is inside the other's box): apps draw boxes from the hairline to the chin,
+                       # each one's center is inside the other's box): apps draw boxes from the hairline to the chin,
                        # or just around the eyes and mouth, so the same face's boxes overlap by a third or more
 TAKEOUT_MAX = 1 << 20  # bytes: a Takeout JSON is a few hundred; anything bigger is something else
 TAKEOUT_NAME = 51      # Takeout shortens a JSON's whole name to this many characters
@@ -485,11 +485,11 @@ def _match(regions, faces) -> list:
         scored = []
         for r in regions:
             box = _turned((r["x1"], r["y1"], r["x2"], r["y2"]), turn)
-            centre = ((box[0] + box[2]) / 2, (box[1] + box[3]) / 2)
+            center = ((box[0] + box[2]) / 2, (box[1] + box[3]) / 2)
             for f in faces:
                 fb = (f["x1"], f["y1"], f["x2"], f["y2"])
                 iou = _overlap(box, fb)
-                if iou >= MATCH_IOU or (_inside(centre, fb) and _inside(((fb[0] + fb[2]) / 2, (fb[1] + fb[3]) / 2),
+                if iou >= MATCH_IOU or (_inside(center, fb) and _inside(((fb[0] + fb[2]) / 2, (fb[1] + fb[3]) / 2),
                                                                        box)):
                     scored.append((iou, r, f))
         scored.sort(key=lambda s: -s[0])

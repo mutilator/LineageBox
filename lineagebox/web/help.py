@@ -40,7 +40,7 @@ MENU = (("/upload", N_("Add photos"), N_("photos and videos from this computer o
         ("/timeline", N_("Timeline"), N_("photos by the year and month they were taken")),
         ("/map", N_("Map"), N_("where photos were taken and where family lived, year by year")),
         ("/tags", N_("Tags"), N_("keywords given by the AI or by you; open one to work on its photos")),
-        ("/favourites", N_("Favourites"), N_("the photos you gave a heart")),
+        ("/favorites", N_("Favorites"), N_("the photos you gave a heart")),
         ("/albums", N_("Albums"), N_("photos picked by hand, in your own order, with captions")),
         ("/tours", N_("Tours"), N_("slideshows picked by rules: a person, a season, anniversaries")),
         ("/people", N_("People"), N_("everyone named, and faces to name; type to find someone")),
@@ -143,7 +143,7 @@ PAGES = {
            "once."))),
     "cleanup_damaged": Page(N_("Damaged files"), (
         N_("Files a disk spoilt: cut short, with a blank stretch where a block couldn't be read, or with other bytes "
-           "than when they were catalogued, though nobody changed them. The worker reads every file whole once, a "
+           "than when they were cataloged, though nobody changed them. The worker reads every file whole once, a "
            "while each pass, then each new file."),
         N_("Tick and move them to the Removed folder, or put a good copy over the damaged file (from a backup): the "
            "worker reads it again. Fine as it is takes one off the list for good."))),
@@ -265,16 +265,16 @@ PAGES = {
            "later. A face nobody looks enough like has a box to type who it is in, and Don't know, after which you "
            "aren't asked about it again. Recognition learns from every face you name."),
         N_("The faces come in this order: those someone in the family asked about (Who is this?, on Home), then those "
-           "in photos with people already named that look like someone else, then those recognised automatically that "
+           "in photos with people already named that look like someone else, then those recognized automatically that "
            "nobody has checked, the least sure first, and last the groups of faces that look like one person, to "
            "name all at once (Don't know them sets aside a group nobody in the family knows). A group whose faces "
            "together look like someone already named asks “Are these …?”: Yes names them all. The buttons at the top "
            "show one kind only."),
-        N_("A face recognised or suggested says how sure it is: of faces that sure, how many are them, as measured on "
+        N_("A face recognized or suggested says how sure it is: of faces that sure, how many are them, as measured on "
            "faces named by hand. It never says more than 98%: even of the surest, about 1 in 50 is someone else, such as "
-           "a brother. Looks like someone and Recognised, to check can say yes to every face at least 98%, 95% or 90% "
+           "a brother. Looks like someone and Recognized, to check can say yes to every face at least 98%, 95% or 90% "
            "sure at once; Undo, in the message after, puts them all back."),
-        N_("A recognised face can look more like someone else once more faces are named (brothers and sisters, most "
+        N_("A recognized face can look more like someone else once more faces are named (brothers and sisters, most "
            "often). Such a face comes first, as the least sure of its name, and asks whether it is the one it looks "
            "more like: Yes names it them, “No, it's …” keeps the name it was given, and Neither says it is neither."),
         N_("Not a face hides a pattern, a statue or a poster. Ask the family puts a face on Home for everyone who sees "
@@ -285,7 +285,7 @@ PAGES = {
         N_("Seen together: unnamed faces in photos where someone is already named, grouped by who they look most like. "
            "Nobody is in a photo twice, so each face is compared only with the people not named in its photo yet: next "
            "to one brother, a boy who looks like both brothers is suggested as the other. Untick any face that isn't "
-           "them, then confirm: the ticked faces are named, and the unticked ones are never suggested or recognised as "
+           "them, then confirm: the ticked faces are named, and the unticked ones are never suggested or recognized as "
            "them again."),
         N_("Photos to finish: photos and videos where two or more people are named and someone else isn't yet. Type "
            "who each face is or take the guess; “don't know” stops asking about someone nobody knows. In a video, "
@@ -322,7 +322,7 @@ PAGES = {
         N_("Photos where the AI's description sees people but no face was found in them, the newest first. Hover over "
            "a photo for what the description says."),
         N_("Look again: the ticked photos are looked at again more closely (at twice the size, keeping fainter faces), "
-           "in the background, a few a minute; the faces found are recognised where they clearly match. No faces to "
+           "in the background, a few a minute; the faces found are recognized where they clearly match. No faces to "
            "find: their people face away or are too far off, and they aren't listed again; Undo, or Recent changes, "
            "lists them again. Either takes them off this list."),
         N_("The worker also looks closely at every photo on its own, some each pass (Settings → Faces), and at a photo "
@@ -368,7 +368,7 @@ PAGES = {
            "p), step with ‹ › or the arrow keys (or swipe the face on a phone), or pick a year in the strip under it. "
            "Speed sets how long each year shows."),
         N_("Every photo takes their clearest face each year from any photo: large, facing the camera and sharp, named "
-           "by hand before recognised. Portraits takes only photos the AI described as a portrait or a selfie, or "
+           "by hand before recognized. Portraits takes only photos the AI described as a portrait or a selfie, or "
            "tagged portrait, selfie or headshot, with nobody else as near the camera: the faces follow on more "
            "smoothly, but there are fewer years. The number beside each says how many years it finds."),
         N_("Photos with no date of their own, or dated across more than two years (the 1960s), and faces too small "
@@ -376,10 +376,10 @@ PAGES = {
         N_("Another from this year shows the year's next clearest face, and this browser remembers it. A face that "
            "isn't them: open the photo and take the name off it, and it leaves here too."))),
     "person_faces": Page(N_("Checking faces"), (
-        N_("The faces recognised as this person, the least certain first, and the ones you named. Click × (not them) "
-           "on any face that isn't them: the name comes off, it is never recognised as them again, and it can be named "
+        N_("The faces recognized as this person, the least certain first, and the ones you named. Click × (not them) "
+           "on any face that isn't them: the name comes off, it is never recognized as them again, and it can be named "
            "as whoever it is on its photo."),
-        N_("On a face recognised automatically, ✓ says it is them: it then counts as named by you, and recognition "
+        N_("On a face recognized automatically, ✓ says it is them: it then counts as named by you, and recognition "
            "learns from it. Yes, the ticked are … does that for every face still ticked; untick any you aren't sure "
            "of, and they stay as they are."))),
     "family": Page(N_("Family"), (
@@ -435,7 +435,7 @@ PAGES = {
            "to whoever made it."),
         N_("Albums, below your tours: photos picked by hand instead of by rules. All albums opens Albums."))),
     "tour": Page(N_("A tour"), (
-        N_("Its photos, best of each group of similar shots; your favourites (♡ on a photo) come before others like "
+        N_("Its photos, best of each group of similar shots; your favorites (♡ on a photo) come before others like "
            "them. Play shows them full screen, after a title card with the tour's name and the time its photos span. "
            "Each photo shows its caption, who is in it and when it was taken, as exactly as that is known (“Summer "
            "1987”); a video plays to its end."),
@@ -456,7 +456,7 @@ PAGES = {
         N_("Make one here by its name, or tick photos on any page of photos and type an album's name in the bar at the "
            "bottom (a new name makes a new album). A photo's page adds it too, under Albums."),
         N_("Shared with you: albums others in the family made and shared with you."),
-        N_("Your favourites: the photos you gave a heart (♡ on a photo's page)."))),
+        N_("Your favorites: the photos you gave a heart (♡ on a photo's page)."))),
     "album": Page(N_("An album"), (
         N_("Its photos in its own order, each with the album's caption for it; where the album has none, the photo's "
            "own caption shows. Play shows them full screen, after a title card; Save as a video makes one video file "
@@ -470,14 +470,14 @@ PAGES = {
            "with you are not passed on.")), (
         ("Space", N_("pause or go on (in the slideshow)")), ("← →", N_("previous or next photo (in the slideshow)")),
         ("Esc", N_("leave the slideshow, or put back a photo you are dragging")))),
-    "favourites": Page(N_("Your favourites"), (
-        N_("The photos you gave a heart (♡ on a photo's page), the latest first. Tours pick a favourite before other "
+    "favorites": Page(N_("Your favorites"), (
+        N_("The photos you gave a heart (♡ on a photo's page), the latest first. Tours pick a favorite before other "
            "photos like it, and memories on Home use one as their cover."),
         N_("Play shows them as a slideshow; Make an album of them puts them in an album you can order, caption and "
            "share."))),
     "book": Page(N_("A family book"), (
         N_("A book of one person, or of a person and everyone descended from them: a cover, their portrait, their life "
-           "story, life events, family, documents, and their best photos year by year (favourites first), with the "
+           "story, life events, family, documents, and their best photos year by year (favorites first), with the "
            "family's captions."),
         N_("Print or save as a PDF opens the browser's print window: choose Save as PDF as the printer for a file to "
            "send or take to a print shop. Each person starts on a new page."),
@@ -532,11 +532,11 @@ PAGES = {
         N_("Tags: × takes one off for good; type in “+ tag” to add one. People: name a face by typing who it is; add "
            "someone whose face wasn't found with “Someone else here?”. “Fix” on a named face puts a wrong name right: "
            "type who it is instead, or “not them” to take the name off so the face waits to be named. Either way it is "
-           "never suggested or recognised as the wrong person again."),
+           "never suggested or recognized as the wrong person again."),
         N_("An unnamed face that looks like someone not already in the photo shows their name with a ?: click it if "
            "it's them. “not a face” hides a pattern or a statue; “ask the family” puts the face on Home, under Who is "
            "this?, for everyone who sees the photo. “Look for faces again” looks more closely than the first time, for "
-           "small faces in group photos; the new faces are recognised where they clearly match, and faces marked not a "
+           "small faces in group photos; the new faces are recognized where they clearly match, and faces marked not a "
            "face come back."),
         N_("Taken: a date that is wrong (a scan dated by its folder, a camera with its clock wrong) can be put right "
            "as exactly as you know it: 1987-08-14, June 1987, summer 1987, 1987, the 1980s, about 1987, between summer "
@@ -552,7 +552,7 @@ PAGES = {
         N_("Is this a document? Mark scans of certificates, letters and records, then say whose record it is: it shows "
            "on their page as a source."),
         N_("Sharing, for a photo you uploaded: share it with one family account or with everyone who has one."),
-        N_("♡ at the top makes the photo one of your favourites (h): tours pick it before others like it, and memories "
+        N_("♡ at the top makes the photo one of your favorites (h): tours pick it before others like it, and memories "
            "show it. Albums, near the foot: the albums it is in, and a box to add it to one (a new name makes a new "
            "album)."),
         N_("Stories: record what you remember about the photo, in your own words, under its comments (Record a story). "

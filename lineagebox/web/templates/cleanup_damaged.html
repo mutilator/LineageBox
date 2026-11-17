@@ -3,7 +3,7 @@
 {% block main %}
 <nav class="crumbs"><a href="/cleanup">{% trans %}Cleanup{% endtrans %}</a><span class="sep">/</span><h1>{% trans %}Damaged files{% endtrans %}</h1></nav>
 <p class="meta">{% trans checked=p.checked|number, files=p.files|number %}Files a disk spoilt: cut short, with a blank stretch where a block couldn't be read, or with other bytes
-than when they were catalogued. The worker reads every file whole once ({{ checked }} of
+than when they were cataloged. The worker reads every file whole once ({{ checked }} of
 {{ files }} so far), then each new one. Previews and thumbnails that are gone are made again from
 the originals by the worker, once a day.{% endtrans %}</p>
 {% if files %}

@@ -20,7 +20,7 @@
     <li><a href="/settings#devices">{% trans %}Photo frames{% endtrans %}</a></li>
   </ul>
   <p class="nav-group" id="settings-nav-accounts">{% trans %}Family accounts{% endtrans %}</p>
-  <ul aria-labelledby="settings-nav-accounts">
+  <ul aria-labeledby="settings-nav-accounts">
     <li><a href="/accounts"{% if request.url.path == "/accounts" %} aria-current="page"{% endif %}>{% trans %}Accounts and sign-in{% endtrans %}
       <small>{{ _("on") if cfg.accounts_enabled else _("off") }}</small></a></li>
     {%- if not demo_resets %}{#- no codes in a demo (demo.CLOSED) #}

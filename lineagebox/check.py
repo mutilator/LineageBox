@@ -1,13 +1,13 @@
 """Damaged files: originals a disk has spoilt, and previews or thumbnails that are gone (Cleanup → Damaged files).
 
 A failing drive, or a copy made from one, can leave a photo cut short, with a blank (zero-filled) stretch where a
-block couldn't be read, or with other bytes than were read when it was catalogued, while its size and date stay the
+block couldn't be read, or with other bytes than were read when it was cataloged, while its size and date stay the
 same, so the scan sees nothing. check() reads every file whole and records what is wrong with it:
 - it can't be read;
 - a JPEG or PNG is cut short (no end marker after its picture), or doesn't decode (JPEGs are decoded at an eighth
   of their size: every byte of the picture is still read, in a fraction of the time);
 - a JPEG's picture data holds BLANK zero bytes in a row: a compressed picture never does, a lost disk block does;
-- its bytes differ from those it was catalogued with (image.sha256), though its size and date didn't change.
+- its bytes differ from those it was cataloged with (image.sha256), though its size and date didn't change.
 Videos and raw files are checked by their bytes only. A file whose size or date changed is the scan's: it is read as
 a new photo.
 
@@ -39,7 +39,7 @@ _ZEROS = re.compile(rb"\x00{%d,}" % BLANK)
 
 
 def problem(path: Path, sha256: str, fmt: str) -> str | None:
-    """What is wrong with a catalogued file, in words, or None. Photos are read into memory to look at their insides;
+    """What is wrong with a cataloged file, in words, or None. Photos are read into memory to look at their insides;
     videos and raw files, which can be gigabytes, are hashed a piece at a time. Raises OSError when it can't be read:
     a disk that can't read a block, or a share that dropped meanwhile, which check() tells apart."""
     if fmt in ("jpeg", "png") and path.stat().st_size <= WHOLE:
@@ -54,7 +54,7 @@ def problem(path: Path, sha256: str, fmt: str) -> str | None:
                 h.update(piece)
         digest = h.hexdigest()
     if digest != sha256:
-        return "its bytes changed since it was catalogued, though its size and date didn't"
+        return "its bytes changed since it was cataloged, though its size and date didn't"
     return None
 
 

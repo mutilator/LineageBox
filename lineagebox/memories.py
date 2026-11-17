@@ -6,7 +6,7 @@ Each memory is a tour, saved or not. Its card opens it: an unsaved one at /tours
 and can be kept as one. Its photos are picked by tours.photos on the viewer's own connection, so a member's memories
 are only of what they see. Nothing here knows whose photos these are: the years, people and occasions all come from
 what the catalog holds, and the row changes from day to day (this week in other years, a different tour of the
-viewer's own, another cover). Favourites (favourites.py) are preferred: a memory's cover is one with a heart when there
+viewer's own, another cover). Favorites (favorites.py) are preferred: a memory's cover is one with a heart when there
 is one, and a run of days with hearts on its photos counts as bigger when the biggest are picked.
 """
 import json
@@ -17,7 +17,7 @@ from collections import Counter, defaultdict
 from datetime import date, timedelta
 from urllib.parse import urlencode
 
-from lineagebox import favourites, tours
+from lineagebox import favorites, tours
 from lineagebox.catalog import ORIGIN, VISIBLE
 
 LEAST = 4       # photos a memory needs
@@ -31,7 +31,7 @@ DENSE = 30            # days with photos from which most days are everyday ones,
 BUSY = 2              # ...those with this many times the photos of the usual day (the median)
 OCCASION_TAGS = 0.3   # of a day's photos with a tag that says what it was ("wedding"), for it to name the day
 SHOWN = 0.25          # of its photos someone is named in, for their life event (or "their" wedding) to name it
-HEART_PHOTOS = 5      # photos a heart counts as, when the biggest runs of days are picked (favourites.py)
+HEART_PHOTOS = 5      # photos a heart counts as, when the biggest runs of days are picked (favorites.py)
 # what the AI says when a photo is of no occasion, instead of nothing (its descriptions' "event")
 NO_EVENT = {"", "none", "null", "n/a", "na", "unknown", "no event", "nothing", "everyday", "everyday life",
             "daily life", "casual", "candid", "other", "not specified", "not evident"}
@@ -129,7 +129,7 @@ def span(found: list[dict]) -> str:
 
 
 def cover(found: list[dict], today: date) -> str:
-    """One of the best few photos, another each day: of the favourites, when some have a heart."""
+    """One of the best few photos, another each day: of the favorites, when some have a heart."""
     loved = [p for p in found if p.get("hearts")]
     best = sorted(loved or found, key=lambda p: (-p["score"], p["id"]))[:6]
     return random.Random(today.toordinal()).choice(best)["sha"]
@@ -180,8 +180,8 @@ def year_events(con, year: int, today: date, blurry_below: float | None = None, 
 
 
 def _hearts(con, found: list[dict]) -> list[int]:
-    """How many hearts each run of days has on its photos (those the connection holds: favourites.counts)."""
-    hearts = favourites.counts(con, [i for r in found for i in r["ids"]])
+    """How many hearts each run of days has on its photos (those the connection holds: favorites.counts)."""
+    hearts = favorites.counts(con, [i for r in found for i in r["ids"]])
     return [sum(hearts.get(i, 0) for i in r["ids"]) for r in found]
 
 

@@ -9,7 +9,7 @@ Two ways to pick the photos:
 
 The clearest face is large on the photo's preview (more of it to line up), facing the camera (facing()) and sharp
 (ArcFace's embedding norm, face.quality, which blur and odd angles lower). One named by hand counts a little more than
-one recognised, which may be someone else. Each year keeps its best PER_YEAR, so a page can offer another from that
+one recognized, which may be someone else. Each year keeps its best PER_YEAR, so a page can offer another from that
 year.
 
 Left out: videos (their faces are on frames, not the photo), faces set aside, faces with no landmarks or too small to
@@ -167,7 +167,7 @@ def _age(con: sqlite3.Connection, img, pid: int, births: dict) -> str | None:
 def aligned(picture: Path, landmarks: bytes) -> Image.Image:
     """The face on this picture (a photo's preview), turned so its eyes are level, scaled so they are EYES_APART of
     the width apart, and moved so they sit EYES_AT down the middle of a SIZE picture. Past the photo's edges (a face
-    near one, or turned) is the photo's own average colour, which stands out less than black.
+    near one, or turned) is the photo's own average color, which stands out less than black.
     Raises ValueError for landmarks that can't be lined up (both eyes in one place)."""
     pts = _points(landmarks)
     if pts is None:

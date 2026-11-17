@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from lineagebox import access, accounts, catalog, devices, memories, outbox, settings, sharing, tours
-from lineagebox import albums, cleanup, comments, documents, face_ages, favourites, life, places, stories
+from lineagebox import albums, cleanup, comments, documents, face_ages, favorites, life, places, stories
 from lineagebox.web import app as webapp
 from lineagebox.web import site as site_module
 from lineagebox.web.common import _from_app
@@ -48,7 +48,7 @@ def site(con, cfg, library):
     albums.add(con, fam["albums"]["shared"], [fam["photos"]["rex.jpg"]])
     sharing.share(con, who["Sam"]["id"], "album", fam["albums"]["shared"], None)
     sharing.remember_album(con, fam["albums"]["shared"], [fam["photos"]["rex.jpg"]])
-    favourites.put(con, access.Viewer(account=who["Tina"], admin=False), fam["photos"]["zed.jpg"], True)
+    favorites.put(con, access.Viewer(account=who["Tina"], admin=False), fam["photos"]["zed.jpg"], True)
     # an unnamed face beside Cora and Bart, and one in Zed's photo, grouped together by the clustering
     fam["open_face"] = con.execute("""INSERT INTO face(image_id, x1, y1, x2, y2, det_score, quality, embedding, cluster_id)
                                       VALUES (?, 0.7, 0.1, 0.9, 0.5, 0.9, 25, ?, 77)""",
@@ -463,7 +463,7 @@ def test_the_write_sweep(swept, cfg, con):
         ("/api/shares", {"album_id": site["albums"]["Tina"], "to": "everyone"}),
         ("/api/shares", {"album_id": site["albums"]["shared"], "to": "everyone"}),
         (f"/api/albums/{site['albums']['Tina']}/video", None),
-        (f"/api/images/{zed}/favourite", {"on": True}),
+        (f"/api/images/{zed}/favorite", {"on": True}),
         # a tour of people she can't see: its name would have been made from theirs
         ("/api/tours", {"spec": {"title": "{people}", "who": {"mode": "people", "person_ids": [zp, p["Hank"]]}},
                         "name": ""}),

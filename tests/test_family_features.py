@@ -434,7 +434,7 @@ def test_removing_someone_added_by_mistake(site, cfg, con):
 
 
 def test_removing_someone_named_in_photos_unnames_their_faces(site, cfg, con):
-    """Their name comes off every face that had it, which is unnamed again (to be grouped, recognised or named), and
+    """Their name comes off every face that had it, which is unnamed again (to be grouped, recognized or named), and
     off the photos they were added to by hand; nothing else's faces change, and search no longer finds them there."""
     p, ph, fc = site["people"], site["photos"], site["faces"]
     sam = signed_in(cfg, con, site["who"]["Sam"])
@@ -456,7 +456,7 @@ def test_removing_someone_named_in_photos_unnames_their_faces(site, cfg, con):
     assert not con.execute("SELECT 1 FROM person WHERE id = ?", (p["Hank"],)).fetchone()
     rows = con.execute("""SELECT person_id, assigned_by, assign_score, cluster_id, named_by FROM face
                           WHERE id IN (SELECT value FROM json_each(?))""", (json.dumps(hank_faces),)).fetchall()
-    assert [tuple(r) for r in rows] == [(None,) * 5] * 2  # as if never named: free to be recognised or grouped
+    assert [tuple(r) for r in rows] == [(None,) * 5] * 2  # as if never named: free to be recognized or grouped
     sams = con.execute("SELECT person_id, assigned_by FROM face WHERE id = ?", (sams_face,)).fetchone()
     assert tuple(sams) == (p["Sam"], "user")  # the face beside theirs keeps its name
     for sql in ("SELECT 1 FROM image_person WHERE person_id = ?", "SELECT 1 FROM face_not_person WHERE person_id = ?",

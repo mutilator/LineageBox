@@ -13,7 +13,7 @@ from lineagebox.scan import scan
 
 def a_video(con, cfg) -> int:
     """One of the sample photos, made out to be a video that has sound and needs a 720p copy. One that can be read:
-    the library's broken one can be catalogued first (on Linux the folder may list it first), and no copy is tried
+    the library's broken one can be cataloged first (on Linux the folder may list it first), and no copy is tried
     for it."""
     scan(con, cfg)
     ingest.ingest(con, cfg, show_progress=False)

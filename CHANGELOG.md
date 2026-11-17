@@ -6,6 +6,15 @@ copies it there when the version is tagged ([releases](docs/development.md#relea
 A **catalog update** adds to the catalog's tables. LineageBox copies the catalog before it updates it, and earlier
 versions can't open the updated one.
 
+## Unreleased
+
+### Updated
+
+- **American spelling throughout**, in what the site says and in the code: Favorites (was Favourites), colors,
+  recognized, catalog, license, center, gray, labeled, neighbor. `/favourites` still opens Favorites, and the
+  heart's old address still works, so bookmarks, shared links and a phone that cached the old page keep working.
+  An export's `photos.json` now writes `favorites` and `favorite_of`.
+
 ## 1.8.0 (2026-11-16)
 
 **Catalog update** (migrations 036 to 038).
@@ -54,10 +63,10 @@ versions can't open the updated one.
 
 ### Updated
 
-- **Name faces** asks about the likelier person. A recognised face that, after more faces were named, looks more
+- **Name faces** asks about the likelier person. A recognized face that, after more faces were named, looks more
   like someone else (often a brother or sister) came first as "Is this … ? About 0% sure", asking about its less
-  likely name. It now asks whether it is the person it looks like, says what it was recognised as, and answers
-  **Yes**, **No, it's …** (keeps the name) or **Neither**. People born after a photo no longer make a recognised
+  likely name. It now asks whether it is the person it looks like, says what it was recognized as, and answers
+  **Yes**, **No, it's …** (keeps the name) or **Neither**. People born after a photo no longer make a recognized
   face in it look less sure.
 
 ## 1.7.0 (2026-11-12)
@@ -66,7 +75,7 @@ versions can't open the updated one.
 
 ### New
 
-- **How sure a face's name is:** People → Name faces says how sure it is of each face it recognised, or thinks looks
+- **How sure a face's name is:** People → Name faces says how sure it is of each face it recognized, or thinks looks
   like someone (at most 98%: even of the surest, about 1 in 50 is someone else), and asks about the least sure first.
   **Yes to the surest at once** names every face of a step at least 98%, 95% or 90% sure, with Undo. Check faces
   shows it under each face.
@@ -93,10 +102,10 @@ versions can't open the updated one.
 ### Updated
 
 - **The menu is at the side**, with every page in sight in sections: Library (Folders, Timeline, Map, Tags),
-  Collections (Favourites, Albums, Tours), People, Tidy up (Name faces, Cleanup) and, for admins, Admin. **Add
+  Collections (Favorites, Albums, Tours), People, Tidy up (Name faces, Cleanup) and, for admins, Admin. **Add
   photos** is a button above them. It can shrink to its icons, and on a phone ☰ opens it. Nothing is under More any
   more.
-- Colours, Photo tiles and Language moved to the round button at the top right.
+- Colors, Photo tiles and Language moved to the round button at the top right.
 - **Photo tiles** now apply to Home's photos by the day too: squares aimed at the faces, or whole photos, in three
   sizes.
 
@@ -113,7 +122,7 @@ versions can't open the updated one.
 
 - **Through the years:** a person's face a year at a time, lined up on the eyes, from their page or their Home. Play
   it, step through it or pick a year, with faces from every photo or from portraits only.
-- **Photo tiles** (Settings → Colours): squares cropped around the faces in them, so heads stay in sight, or whole
+- **Photo tiles** (Settings → Colors): squares cropped around the faces in them, so heads stay in sight, or whole
   photos in rows, in three sizes. On a phone, pinch to make them larger or smaller.
 - **A closer look at every photo:** the worker looks at each photo again more closely, and turned each way where the
   AI sees people but no face was found, to find the small and sideways faces the first look missed. It looks again
@@ -174,12 +183,12 @@ versions can't open the updated one.
   filters (people together, years, a place, photos or videos, faces to name).
 - **Name faces:** one face at a time with Yes, No and Skip, easy on a phone.
 - **A new photo viewer** with zoom, swipe and face boxes.
-- **iPhone photos (HEIC), most cameras' raw files, TIFF and Live Photos.** Cassettes and voice memos are catalogued
+- **iPhone photos (HEIC), most cameras' raw files, TIFF and Live Photos.** Cassettes and voice memos are cataloged
   as sound recordings, played and transcribed; long videos list their chapters.
 - **Recorded stories** about a photo, a person or a life event, written down by Whisper.
 - **Life stories** on each person's page, by age, with **sources** (a book, a website, a census page) and **adoption
   and fostering**.
-- **Albums, favourites, slideshow videos** to save and send, and **the family book** to print: a person's stories,
+- **Albums, favorites, slideshow videos** to save and send, and **the family book** to print: a person's stories,
   life events, family, documents and best photos year by year.
 - **New for you:** new photos of your family and faces someone asked about; for admins, also damaged files, a disk
   nearly full, a service with a problem and a new version.

@@ -4,7 +4,7 @@
 {% block main %}
 <nav class="crumbs"><a href="/people">{% trans %}People{% endtrans %}</a><span class="sep">/</span><h1>{% trans %}Name faces{% endtrans %}</h1></nav>
 <p class="meta">{% trans %}One face at a time: say whether it is who it looks like, or type who it is. Every answer helps
-recognise the rest.{% endtrans %}</p>
+recognize the rest.{% endtrans %}</p>
 <nav class="filters naming-steps" aria-label="{{ _('Which faces') }}">
   <a href="/people/name"{% if not only %} aria-current="page"{% endif %}>{% trans %}All{% endtrans %} <span>{{ counts.values()|sum|number }}</span></a>
   {%- for key, label in steps.items() %}

@@ -59,7 +59,7 @@ def test_cluster_name_identify_and_search(lib, cfg):
     o_faces = [add_face(con, i, like(A)) for i in owen[:5]]
     for i in lucas[:4]:
         add_face(con, i, like(B))
-    blurry = add_face(con, owen[5], like(A), quality=9.0)  # below the quality bar: never clustered or recognised
+    blurry = add_face(con, owen[5], like(A), quality=9.0)  # below the quality bar: never clustered or recognized
     con.commit()
 
     clusters, faces = people.cluster(con)
@@ -128,7 +128,7 @@ def test_seen_together(lib, cfg):
     url, app_header = f"/api/people/{owen}/faces", {"X-Requested-With": "lineagebox"}
     assert client.post(url, json={"yes": [brother]}).status_code == 403
     assert client.post("/api/people/9999/faces", json={"yes": [brother]}, headers=app_header).status_code == 404
-    # ticked: named; unticked: not him, so neither suggested nor recognised as him again
+    # ticked: named; unticked: not him, so neither suggested nor recognized as him again
     assert client.post(url, json={"yes": [brother], "no": [other]}, headers=app_header).json() == {"named": 1}
     row = lambda f: tuple(con.execute("SELECT person_id, assigned_by FROM face WHERE id = ?", (f,)).fetchone())
     assert row(brother) == (owen, "user") and row(other) == (None, None)
@@ -214,7 +214,7 @@ def test_people_pages_and_api(lib, cfg):
     assert client.post(f"/api/clusters/{cid}/ignore?face={other}", headers=app_header).status_code == 409
     assert con.execute("SELECT count(*) FROM person").fetchone()[0] == 0
 
-    # a stranger taken out of the group before naming it, even the first face, which the page sends to recognise
+    # a stranger taken out of the group before naming it, even the first face, which the page sends to recognize
     # the group by
     name_url = html.unescape(re.search(rf'data-api="(/api/clusters/{cid}/name\?[^"]+)"', page).group(1))
     stranger = int(re.search(r"face=(\d+)", name_url).group(1))
@@ -284,7 +284,7 @@ def test_not_them_leaves_the_face_to_name(lib, cfg):
 
 def test_fix_names_a_face_as_someone_else(lib, cfg):
     """'Fix' on a named face opens a box for who it really is: the new name goes on, and the face is never suggested or
-    recognised as the wrong person again. Fixed back, it is them after all."""
+    recognized as the wrong person again. Fixed back, it is them after all."""
     con = lib
     o0 = image(con, rel("Owen", "o0.jpg"))
     face = add_face(con, o0, like(A))
@@ -305,7 +305,7 @@ def test_fix_names_a_face_as_someone_else(lib, cfg):
 
 
 def test_looking_for_faces_again(lib, cfg, monkeypatch):
-    """A photo looked at again more closely: faces missed the first time are added and recognised, one marked not a
+    """A photo looked at again more closely: faces missed the first time are added and recognized, one marked not a
     face comes back, and unnamed faces show who they most look like among those not in the photo yet."""
     from lineagebox import faces
     con = lib
@@ -344,7 +344,7 @@ def test_looking_for_faces_again(lib, cfg, monkeypatch):
     assert f'data-api="{url}"' in page and f'id="f{hidden}"' not in page
     assert client.post(url).status_code == 403
     assert client.post(url, headers=app_header).json() == {
-        "message": "Found 1 more face; brought back 1; recognised 1.", "reload": True}
+        "message": "Found 1 more face; brought back 1; recognized 1.", "reload": True}
     new = con.execute("SELECT id, person_id, assigned_by FROM face WHERE image_id = ? ORDER BY id", (o[1],)).fetchall()
     assert [tuple(r)[1:] for r in new] == [(None, None), (None, None), (owen, "auto")]
     assert client.post(url, headers=app_header).json() == {"message": "No other faces found."}

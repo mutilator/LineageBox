@@ -229,7 +229,7 @@ for both is, with only the citations they see. `tree_media` (files another famil
 person or the source. A person's life by age (`/person/{id}/life/{group}`) and the faces to choose a portrait from
 (`/person/{id}/portraits`) are read on the member's own connection: only their photos, and nobody they don't see.
 
-Favourites (`favourites.py`) are each account's own: the scoped `favourite` view holds only the member's hearts, so
+Favorites (`favorites.py`) are each account's own: the scoped `favourite` view holds only the member's hearts, so
 their tours and memories weigh only what they love (an admin's weigh everyone's), and nobody sees whose heart is on a
 photo. A family book (`book.py`, `/book/person/{id}`, `/book/branch/{id}`) is made on the member's own connection:
 the people, life events, documents and photos in it are only those they see, and a branch holds only the descendants

@@ -1,5 +1,5 @@
 /* A family book (book.html): on screen, sheets of paper on the page; printed (or saved as a PDF), a cover, the
-   contents, and a page for each person, black on white whatever the screen's colours. */
+   contents, and a page for each person, black on white whatever the screen's colors. */
 
 .book { max-width: 21cm; margin: 0 auto 2rem; }
 .book > section {

@@ -167,7 +167,7 @@ def people(con: sqlite3.Connection) -> list[sqlite3.Row]:
             UNION ALL
             SELECT l.person_id, l.image_id, 'hand' FROM image_person l JOIN image i ON i.id = l.image_id WHERE {VISIBLE})
         SELECT p.id, p.name, count(DISTINCT s.image_id) AS photos,
-               sum(s.assigned_by = 'user') AS confirmed, sum(s.assigned_by = 'auto') AS recognised,
+               sum(s.assigned_by = 'user') AS confirmed, sum(s.assigned_by = 'auto') AS recognized,
                (SELECT c.id FROM face c JOIN image i ON i.id = c.image_id WHERE c.person_id = p.id AND {VISIBLE}
                 ORDER BY c.id IS (SELECT o.cover_face_id FROM person o WHERE o.id = c.person_id) DESC,
                          c.assigned_by = 'user' DESC, c.quality DESC LIMIT 1) AS cover_face,

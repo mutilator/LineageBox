@@ -62,8 +62,8 @@ def test_a_face_is_lined_up_on_its_eyes(tmp_path):
     im = Image.new("RGB", (400, 300), (200, 200, 200))
     draw = ImageDraw.Draw(im)
     left, right = (100, 150), (180, 110)
-    for (x, y), colour in ((left, (255, 0, 0)), (right, (0, 0, 255))):
-        draw.ellipse((x - 5, y - 5, x + 5, y + 5), fill=colour)
+    for (x, y), color in ((left, (255, 0, 0)), (right, (0, 0, 255))):
+        draw.ellipse((x - 5, y - 5, x + 5, y + 5), fill=color)
     picture = tmp_path / "preview.png"
     im.save(picture)
     marks = np.array([(left[0] / 400, left[1] / 300), (right[0] / 400, right[1] / 300), (0.35, 0.5), (0.3, 0.6),
@@ -76,12 +76,12 @@ def test_a_face_is_lined_up_on_its_eyes(tmp_path):
     red, blue = out.getpixel((round((width - wanted) / 2), eye_y)), out.getpixel((round((width + wanted) / 2), eye_y))
     assert red[0] > 200 and red[2] < 60, red     # level, at the same place in every picture
     assert blue[2] > 200 and blue[0] < 60, blue
-    assert all(abs(c - 199) <= 3 for c in out.getpixel((2, 2)))  # past the photo's edge: its average colour
+    assert all(abs(c - 199) <= 3 for c in out.getpixel((2, 2)))  # past the photo's edge: its average color
     # a huge face is made smaller first, and still lands on the same places
     big = Image.new("RGB", (2000, 1500), (200, 200, 200))
     draw = ImageDraw.Draw(big)
-    for (x, y), colour in (((600, 700), (255, 0, 0)), ((1400, 700), (0, 0, 255))):
-        draw.ellipse((x - 30, y - 30, x + 30, y + 30), fill=colour)
+    for (x, y), color in (((600, 700), (255, 0, 0)), ((1400, 700), (0, 0, 255))):
+        draw.ellipse((x - 30, y - 30, x + 30, y + 30), fill=color)
     big.save(picture)
     marks = np.array([(0.3, 700 / 1500), (0.7, 700 / 1500), (0.5, 0.6), (0.4, 0.7), (0.6, 0.7)],
                      dtype=np.float32).tobytes()
@@ -137,7 +137,7 @@ def emma(lib_cfg):
 
     faces = {
         "1990_small": face("1990_small.jpg", 0.5, 0.4, 0.06),
-        "1990_big": face("1990_big.jpg", 0.5, 0.4, 0.15, by="auto"),  # larger wins, though only recognised
+        "1990_big": face("1990_big.jpg", 0.5, 0.4, 0.15, by="auto"),  # larger wins, though only recognized
         "1991_profile": face("1991_profile.jpg", 0.5, 0.4, 0.15, turn=0.5),
         "1991_facing": face("1991_facing.jpg", 0.5, 0.4, 0.15),
         "1992_portrait": face("1992_portrait.jpg", 0.5, 0.3, 0.12),

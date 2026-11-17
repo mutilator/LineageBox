@@ -246,7 +246,7 @@ def test_an_admins_merge_is_kept_and_undone(site, cfg, con):
 
 def test_a_removal_is_undone_after_the_worker_regroups(cfg, con, library):
     """Without family accounts (everyone at home is an admin) a removal is kept too: undoing it brings the person
-    back with their names on their faces, even after the worker has grouped and recognised those faces since."""
+    back with their names on their faces, even after the worker has grouped and recognized those faces since."""
     fam = fx.build(con, cfg, library)
     p = fam["people"]
     named = con.execute("SELECT id FROM face WHERE person_id = ?", (p["Bart"],)).fetchall()
@@ -257,7 +257,7 @@ def test_a_removal_is_undone_after_the_worker_regroups(cfg, con, library):
     undo = r.json()["undo"]
     assert catalog.person(con, p["Bart"]) is None
     con.execute("UPDATE face SET cluster_id = 9, assigned_by = 'auto', person_id = ? WHERE id = ?",
-                (p["Zed"], named[0][0]))  # recognised as someone else by the worker
+                (p["Zed"], named[0][0]))  # recognized as someone else by the worker
     con.commit()
     assert home.post(f"/api/changes/{undo}/undo-own", headers=APP).status_code == 200
     assert catalog.person(con, p["Bart"])["name"] == "Bart"

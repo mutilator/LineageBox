@@ -4,7 +4,7 @@ It is the one part of LineageBox with Docker access, which is the same as root o
 and nothing it reads can change what it does:
 - It has no network (network_mode: none) and reads no setting, catalog or config file. An update is asked for by the
   file /update/requested being there; the file is never opened.
-- Which containers and images come from Docker itself, as compose made them: the containers labelled lineagebox.update
+- Which containers and images come from Docker itself, as compose made them: the containers labeled lineagebox.update
   in the updater's own compose project, each updated to the newest copy of the image name it already runs. Ollama and
   anything else on the machine are never touched.
 - It writes one file, /update/status.json, from which the web app shows how an update went.
@@ -111,7 +111,7 @@ def main(folder: Path = FOLDER, docker: Docker | None = None, rounds: int | None
 
 
 def update(docker: Docker, me: dict, say=lambda message: None) -> dict:
-    """Pull every labelled container's image; make again those whose image changed, the updater last. Returns the
+    """Pull every labeled container's image; make again those whose image changed, the updater last. Returns the
     status to show."""
     project = me["Config"]["Labels"].get(PROJECT)
     filters = {"label": [LABEL] + ([f"{PROJECT}={project}"] if project else [])}

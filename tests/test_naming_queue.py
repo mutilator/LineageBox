@@ -1,4 +1,4 @@
-"""People → Name faces: one face at a time, in the queue's order (asked about, looks like someone, recognised, groups),
+"""People → Name faces: one face at a time, in the queue's order (asked about, looks like someone, recognized, groups),
 the answers (yes, no, a name, skip, don't know), Check faces' yes, and a member's queue holding nothing from outside
 their part of the family."""
 import json
@@ -30,7 +30,7 @@ def card_face(html):
 @pytest.fixture
 def queue(lib, cfg):
     """Owen and Lucas named by hand on three photos each; a face someone asked about, one beside Lucas that looks like
-    Owen, one recognised as Owen, and a group of four faces of someone else."""
+    Owen, one recognized as Owen, and a group of four faces of someone else."""
     con = lib
     o = [image(con, rel("Owen", f"o{i}.jpg")) for i in range(6)]
     lu = [image(con, rel("Lucas", f"l{i}.jpg")) for i in range(6)]
@@ -40,13 +40,13 @@ def queue(lib, cfg):
     con.execute("INSERT INTO face_question(face_id, account_id, asked_at) VALUES (?, NULL, '2026-01-02T10:00:00')",
                 (asked,))
     brother = add_face(con, lu[0], unit(A + 1.1 * B), x=0.5)  # beside Lucas: suggested as Owen
-    recognised = add_face(con, o[4], like(A))
+    recognized = add_face(con, o[4], like(A))
     group = [add_face(con, i, like(C), x=0.5) for i in (lu[3], lu[4], lu[5], o[5])]
     con.commit()
-    assert people.identify(con) == 1 and face_row(con, recognised) == (owen, "auto")
+    assert people.identify(con) == 1 and face_row(con, recognized) == (owen, "auto")
     con.executemany("UPDATE face SET cluster_id = 5 WHERE id = ?", [(f,) for f in group])
     con.commit()
-    return {"con": con, "owen": owen, "lucas": lucas, "asked": asked, "brother": brother, "recognised": recognised,
+    return {"con": con, "owen": owen, "lucas": lucas, "asked": asked, "brother": brother, "recognized": recognized,
             "group": group, "o": o, "lu": lu}
 
 
@@ -56,7 +56,7 @@ def test_one_face_at_a_time_in_order(queue, cfg):
     assert 'href="/people/name"' in client.get("/people").text  # reached from People
 
     page = client.get("/people/name").text
-    for step, n in (("All", 4), ("Asked about", 1), ("Looks like someone", 1), ("Recognised, to check", 1),
+    for step, n in (("All", 4), ("Asked about", 1), ("Looks like someone", 1), ("Recognized, to check", 1),
                     ("Groups to name", 1)):
         assert re.search(rf">{step} <span>{n}</span>", page), step
     # 1. the face someone asked about, which looks like nobody: a box for who it is, Don't know, Skip
@@ -79,21 +79,21 @@ def test_one_face_at_a_time_in_order(queue, cfg):
     assert yes.status_code == 200 and yes.json()["message"] == "Named Owen."
     assert face_row(con, q["brother"]) == (q["owen"], "user")
 
-    # 3. the face recognised automatically, least certain first; No takes the name off, and nobody else is close
+    # 3. the face recognized automatically, least certain first; No takes the name off, and nobody else is close
     card = client.get(f"/people/name/next?{skipped}").text
-    assert card_face(card) == ("face", q["recognised"]) and "Recognised automatically" in card
-    assert f'data-again="/people/name/face/{q["recognised"]}"' in card
-    no = client.post(f"/api/faces/{q['recognised']}/no", json={"person_id": q["owen"]}, headers=APP)
+    assert card_face(card) == ("face", q["recognized"]) and "Recognized automatically" in card
+    assert f'data-again="/people/name/face/{q["recognized"]}"' in card
+    no = client.post(f"/api/faces/{q['recognized']}/no", json={"person_id": q["owen"]}, headers=APP)
     assert no.status_code == 200 and "Not Owen" in no.json()["message"]
-    assert face_row(con, q["recognised"]) == (None, None)
+    assert face_row(con, q["recognized"]) == (None, None)
     assert [r[0] for r in con.execute("SELECT person_id FROM face_not_person WHERE face_id = ?",
-                                      (q["recognised"],))] == [q["owen"]]
-    again = client.get(f"/people/name/face/{q['recognised']}").text
-    assert card_face(again) == ("face", q["recognised"]) and "Who is this?" in again and "Is this" not in again
-    assert people.identify(con, [q["recognised"]]) == 0  # nor recognised as him again
+                                      (q["recognized"],))] == [q["owen"]]
+    again = client.get(f"/people/name/face/{q['recognized']}").text
+    assert card_face(again) == ("face", q["recognized"]) and "Who is this?" in again and "Is this" not in again
+    assert people.identify(con, [q["recognized"]]) == 0  # nor recognized as him again
 
     # 4. the group: its faces, a name box
-    card = client.get(f"/people/name/next?skip={q['asked']},{q['recognised']}").text
+    card = client.get(f"/people/name/next?skip={q['asked']},{q['recognized']}").text
     assert card_face(card) == ("group", 5) and re.search(r"4 faces\s+in 4 photos", card)
     url = re.search(r'data-url="(/api/clusters/5/name\?[^"]+)"', card).group(1).replace("&amp;", "&")
     named = client.post(url, json={"name": "Cleo"}, headers=APP)
@@ -101,7 +101,7 @@ def test_one_face_at_a_time_in_order(queue, cfg):
     assert {face_row(con, f) for f in q["group"]} == {(named.json()["person_id"], "user")}
 
     # nothing left but what was skipped
-    card = client.get(f"/people/name/next?skip={q['asked']},{q['recognised']}").text
+    card = client.get(f"/people/name/next?skip={q['asked']},{q['recognized']}").text
     assert card_face(card) is None and "the ones you skipped" in card
     # Don't know: never asked of them again (without accounts, the question is taken off)
     assert client.post(f"/api/faces/{q['asked']}/skip", headers=APP).status_code == 200
@@ -112,10 +112,10 @@ def test_one_step_only_and_the_kept_queue(queue, cfg):
     q, con = queue, queue["con"]
     client = TestClient(webapp.create_app(cfg), client=LAN)
     assert card_face(client.get("/people/name?only=groups").text) == ("group", 5)
-    assert card_face(client.get("/people/name?only=recognised").text) == ("face", q["recognised"])
+    assert card_face(client.get("/people/name?only=recognized").text) == ("face", q["recognized"])
     # answered elsewhere (on the photo's page, by the worker): left out of the kept queue as it is walked
-    people.name_faces(con, [q["recognised"]], "Owen")
-    assert card_face(client.get("/people/name/next?only=recognised").text) is None
+    people.name_faces(con, [q["recognized"]], "Owen")
+    assert card_face(client.get("/people/name/next?only=recognized").text) is None
     con.execute("UPDATE face SET cluster_id = NULL WHERE cluster_id = 5")
     con.commit()
     assert card_face(client.get("/people/name/next?only=groups").text) is None
@@ -153,7 +153,7 @@ def test_who_says_what_to_ask_about_a_face(queue, cfg):
     assert who["named"] is None and who["suggest"]["person_id"] == q["owen"] and who["suggest"]["name"] == "Owen"
     assert who["suggest"]["face"] and who["photo"]["src"].startswith("/p/") and len(who["box"]) == 4
     assert who["card"] == f"/people/name/face/{q['brother']}?one=1" and who["asked"] is False
-    who = client.get(f"/api/faces/{q['recognised']}/who").json()
+    who = client.get(f"/api/faces/{q['recognized']}/who").json()
     assert who["named"] == {"person_id": q["owen"], "name": "Owen", "by": "auto", "sure": 0.98}
     assert who["suggest"] is None
     who = client.get(f"/api/faces/{q['asked']}/who").json()
@@ -172,14 +172,14 @@ def test_check_faces_says_yes(queue, cfg):
     client = TestClient(webapp.create_app(cfg), client=LAN)
     page = client.get(f"/person/{q['owen']}/faces").text
     assert f'data-yes-faces="/api/people/{q["owen"]}/yes"' in page
-    assert f'data-api="/api/faces/{q["recognised"]}/yes"' in page and f'data-api="/api/faces/{more}/not"' in page
+    assert f'data-api="/api/faces/{q["recognized"]}/yes"' in page and f'data-api="/api/faces/{more}/not"' in page
     url = f"/api/people/{q['owen']}/yes"
-    assert client.post(url, json={"yes": [q["recognised"]]}).status_code == 403
+    assert client.post(url, json={"yes": [q["recognized"]]}).status_code == 403
     assert client.post(url, json={"yes": [99999]}, headers=APP).status_code == 404
-    r = client.post(url, json={"yes": [q["recognised"], more]}, headers=APP)
+    r = client.post(url, json={"yes": [q["recognized"], more]}, headers=APP)
     assert r.status_code == 200 and r.json()["named"] == 2 and "2 faces confirmed as Owen" in r.json()["message"]
-    assert face_row(con, q["recognised"]) == face_row(con, more) == (q["owen"], "user")
-    assert "Recognised automatically" not in client.get(f"/person/{q['owen']}/faces").text
+    assert face_row(con, q["recognized"]) == face_row(con, more) == (q["owen"], "user")
+    assert "Recognized automatically" not in client.get(f"/person/{q['owen']}/faces").text
 
 
 def test_people_without_a_named_face_show_a_photo_or_their_initial(queue, cfg):
@@ -217,12 +217,12 @@ def family(con, cfg, library):
     fam["new"] = {
         # beside Cora and Bart: plainly Hank, whom Cora doesn't see (his photo with Sam she does)
         "like_hank": face("cora_bart.jpg", hank, 0.85),
-        # Zed's photo, which Cora doesn't see: asked about, recognised as Zed, and in a group
+        # Zed's photo, which Cora doesn't see: asked about, recognized as Zed, and in a group
         "zed_asked": face("zed.jpg", fx.unit(500).tobytes(), 0.7),
         "zed_auto": face("zed.jpg", fx.unit(501).tobytes(), 0.8, person_id=p["Zed"], assigned_by="auto",
                          assign_score=0.6),
         "zed_grouped": face("zed.jpg", fx.unit(502).tobytes(), 0.9, cluster_id=9),
-        # recognised as Hank in the photo of him with Sam, which she sees: his name is not hers to check
+        # recognized as Hank in the photo of him with Sam, which she sees: his name is not hers to check
         "hank_auto": face("hank_sam.jpg", hank, 0.85, person_id=p["Hank"], assigned_by="auto", assign_score=0.55),
         # Cora's own: one asked about, and one in the group
         "asked": face("cora_bart.jpg", fx.unit(503).tobytes(), 0.95),
@@ -261,7 +261,7 @@ def test_a_members_queue_holds_only_their_part_of_the_family(family, cfg, con):
         pages.append(page)
         assert len(shown) < 20
     assert ("face", new["asked"]) in shown and ("group", 9) in shown
-    assert ("face", family["faces"]["rex.jpg"][0]) in shown  # Rex, recognised automatically: hers to check
+    assert ("face", family["faces"]["rex.jpg"][0]) in shown  # Rex, recognized automatically: hers to check
     for kind, i in shown:
         assert kind == "group" or i not in hidden_faces, i
     for text in pages:

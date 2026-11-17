@@ -8,7 +8,7 @@ services:
     # published with each release, like LineageBox's; `docker compose up -d --build` builds it here instead
     image: ${LINEAGEBOX_WHISPER_IMAGE:-ghcr.io/mutilator/lineagebox-whisper}:${LINEAGEBOX_VERSION:-latest}
     build:
-      context: .   # the project's root, for the licence files
+      context: .   # the project's root, for the license files
       dockerfile: whisper_service/Dockerfile
     labels:
       lineagebox.update: "true"   # updated with LineageBox (updater.py)
