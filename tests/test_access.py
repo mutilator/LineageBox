@@ -16,6 +16,19 @@ def names(fam, ids):
     return {by_id[i] for i in ids}
 
 
+def test_a_member_sees_the_partners_they_once_had(con, fam):
+    """Their own former husband, wife, boyfriend or girlfriend is theirs to see, children between them or not: they
+    are in the photos of the years the two were together. Someone else's former partner still needs a child in the
+    family, so a brother's ex-girlfriend stays outside it."""
+    g = family.load(con)
+    p = fam["people"]
+    bart = names(fam, access.people_for(g, p["Bart"]))
+    assert {"Eve", "Fay"} <= bart          # Eve, with their son Ellis, and Fay, with no children between them
+    assert "Fay" not in names(fam, access.people_for(g, p["Cora"]))   # her brother's, not hers
+    assert "Ed" in names(fam, access.people_for(g, p["Tina"]))        # her former husband
+    assert names(fam, access.people_for(g, p["Sam"])) == names(fam, access.people_for(g, p["Tina"]))
+
+
 @pytest.mark.parametrize("who", ["Cora", "Sam", "Tina"])
 def test_the_rules_on_the_example(con, fam, who):
     g = family.load(con)

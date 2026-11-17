@@ -30,6 +30,13 @@ versions can't open the updated one.
 
 ### Updated
 
+- **Former partners are family on Home:** the row of buttons holds the partners someone once had, last, so their
+  photos and the years together are a click away like anyone else's. The last button, **Hide former partners**,
+  leaves them out, and this browser remembers that choice.
+- **A family member sees their own former partner.** Until now someone's former wife or girlfriend was part of their
+  family only when they had children together, so an ex-wife of many years, in hundreds of photos, was missing from
+  People and her photos were not shown. Other people's former partners are unchanged: those still need a child in
+  the family.
 - **WebM videos** are read like any other, and play without a 720p copy when the browser can show them (VP8 or VP9
   with Opus or Vorbis sound).
 

@@ -48,6 +48,11 @@
     {%- if p.face %}<img src="/face/{{ p.face }}" alt="" width="48" height="48" loading="lazy">{% else %}<span class="ph">{{ p.name[:1] }}</span>{% endif %}
     <span><b>{{ p.name }}</b>{% if p.id == me %}<small>{% trans %}you{% endtrans %}</small>{% elif kin_words.get(p.id) %}<small>{% trans p_id=kin_words[p.id] %}your {{ p_id }}{% endtrans %}</small>{% endif %}</span></a>
   {%- endfor %}
+  {#- the partners someone once had are tiles like anyone else's, unless this browser said not to #}
+  {%- if had_formers %}<a class="kin-button kin-choice" href="/home?formers={{ 0 if formers else 1 }}"
+    title="{{ _('Former husbands, wives and partners are family too: their photos and theirs together are here unless you hide them') }}">
+    <span class="ph">{{ "–" if formers else "+" }}</span>
+    <span><b>{% if formers %}{% trans %}Hide former partners{% endtrans %}{% else %}{% trans %}Show former partners{% endtrans %}{% endif %}</b></span></a>{% endif %}
 </nav>
 {% endif %}
 {% if ours %}

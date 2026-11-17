@@ -31,6 +31,24 @@ FAMILY = 48  # those of a member's own family, above them: whole days, about thi
 FAMILY_MOST = 96  # ...and never more
 FAMILY_MORE = 60  # and this many more each time they ask for older ones
 RECENT_DAYS = 7  # days named by their weekday (Yesterday, Tuesday); older ones are under their month
+FORMERS = "formers"  # whether Home's family holds the partners someone once had: this browser's choice, in a cookie
+
+
+def formers_shown(request: Request) -> bool:
+    """Whether the partners someone once had are among Home's family: what was just chosen there (?formers=0 or 1),
+    else what this browser chose before, else yes. An ex-wife of twenty years is in as many photos as anyone."""
+    chosen = request.query_params.get(FORMERS)
+    if chosen in ("0", "1"):
+        return chosen == "1"
+    return request.cookies.get(FORMERS) != "0"
+
+
+def _remember_formers(request: Request, response: HTMLResponse, shown: bool) -> HTMLResponse:
+    """Keep that choice for this browser, when it was just made."""
+    if request.query_params.get(FORMERS) in ("0", "1"):
+        response.set_cookie(FORMERS, "1" if shown else "0", max_age=365 * 86400, samesite="lax",
+                            secure=request.url.scheme == "https")
+    return response
 
 
 def home_page(request: Request, v: access.Viewer, c) -> HTMLResponse:
@@ -40,7 +58,8 @@ def home_page(request: Request, v: access.Viewer, c) -> HTMLResponse:
     whose children would fill the member's Home otherwise. An admin also sees how full the disks are."""
     s = site(request)
     today = date.today()
-    kin = kin_of(v, c)
+    formers = formers_shown(request)
+    kin = kin_of(v, c, formers)
     ours, ours_older = latest(c, today, kin, FAMILY, FAMILY_MOST) if kin else ([], False)
     stream, older = latest(c, today, leave_out=[r["id"] for r in ours])
     shown = {r["id"] for r in stream} | {r["id"] for r in ours}
@@ -60,13 +79,17 @@ def home_page(request: Request, v: access.Viewer, c) -> HTMLResponse:
         shared = _shared_with_me(w, c, v)
     disks = s.keep(v, ("storage",), 60, lambda: storage.disks(c, s.live(c))) if v.admin else []
     me = own_person(v, c)
-    buttons = faces_of(c, kin or closest(c, me))  # theirs first, then their family's: an admin's too
+    buttons = faces_of(c, kin or closest(c, me, formers))  # theirs first, then their family's: an admin's too
     family_of = [p for p in buttons if p["id"] != me]
-    return page(request, "home.html", nav="home", days=by_day(stream, today), older=older, added=added, mine=mine,
-                ours=by_day(ours, today), ours_older=ours_older, kin=[p["name"] for p in family_of], me=me,
-                buttons=buttons, kin_words=_kin_words(c, me, [p["id"] for p in family_of]) if family_of else {},
-                questions=who_is_this(c, v), first_name=you[0].split()[0] if you else None, shared=shared,
-                disks=disks, first_run=first_run.checklist(c, s.live(c)) if v.admin and not v.seeing_as else None)
+    had = me is not None and c.execute("SELECT 1 FROM partner WHERE NOT current AND ? IN (a, b) LIMIT 1",
+                                       (me,)).fetchone() is not None
+    shown = page(request, "home.html", nav="home", days=by_day(stream, today), older=older, added=added, mine=mine,
+                 ours=by_day(ours, today), ours_older=ours_older, kin=[p["name"] for p in family_of], me=me,
+                 buttons=buttons, kin_words=_kin_words(c, me, [p["id"] for p in family_of]) if family_of else {},
+                 questions=who_is_this(c, v), first_name=you[0].split()[0] if you else None, shared=shared,
+                 formers=formers, had_formers=had,
+                 disks=disks, first_run=first_run.checklist(c, s.live(c)) if v.admin and not v.seeing_as else None)
+    return _remember_formers(request, shown, formers)
 
 
 def faces_of(c, people: list[int]) -> list[dict]:
@@ -94,22 +117,22 @@ def own_person(v: access.Viewer, c) -> int | None:
     return family.me(c) if v.account is None or v.me is not None else None
 
 
-def closest(c, me: int | None) -> list[int]:
-    """Whose buttons Home shows: this person first, then their immediate family (family.immediate); only them if
-    they have none in the tree, nobody if me is None."""
+def closest(c, me: int | None, formers: bool = True) -> list[int]:
+    """Whose buttons Home shows: this person first, then their immediate family (family.immediate, the partners they
+    once had among them unless `formers` is False); only them if they have none in the tree, nobody if me is None."""
     if me is None:
         return []
     g = family.load(c)
-    return family.immediate(g, me) if me in g.people else [me]
+    return family.immediate(g, me, formers) if me in g.people else [me]
 
 
-def kin_of(v: access.Viewer, c) -> list[int]:
+def kin_of(v: access.Viewer, c, formers: bool = True) -> list[int]:
     """A member's immediate family, them first (family.immediate), whose photos and memories their Home starts with;
     none for an admin, or a member who isn't anyone in the tree."""
     if v.admin or v.me is None:
         return []
     g = family.load(c)
-    return family.immediate(g, v.me) if v.me in g.people else []
+    return family.immediate(g, v.me, formers) if v.me in g.people else []
 
 
 def latest(c, today: date, people: list[int] | None = None, about: int = LATEST, most: int = LATEST_MOST,
@@ -171,7 +194,7 @@ def home_family(request: Request, before: date, month: str = "", person: int | N
     (their Home, /home/person)."""
     if person is not None:
         _people_or_404(c, person)
-    kin = [person] if person is not None else kin_of(v, c)
+    kin = [person] if person is not None else kin_of(v, c, formers_shown(request))
     ours, older = latest(c, date.today(), kin, FAMILY_MORE, FAMILY_MOST, before=before) if kin else ([], False)
     shown = tuple(int(x) for x in month.split("-")[:2]) if month[:4].isdecimal() and month[5:7].isdecimal() else None
     return page(request, "_home_days.html", part=True, days=by_day(ours, date.today(), shown), older=older,
@@ -219,11 +242,12 @@ def home_memories(request: Request, v=Depends(viewer), c=Depends(con), s: Site =
     row is kept 10 minutes for each viewer (and worked out again after a change). A member's starts with their own
     family's days of photos, and this week in earlier years is of them; suggestions of only them come first."""
     today = date.today()
+    formers = formers_shown(request)
 
     def work():
         blurry = s.live(c).blurry_below
         saved = [t for t in tours.tours(c) if v.admin or t["account_id"] == v.account_id]
-        kin = kin_of(v, c)
+        kin = kin_of(v, c, formers)
         found = suggestions(s, v, c)
         if kin:
             ours = set(kin)
@@ -232,7 +256,8 @@ def home_memories(request: Request, v=Depends(viewer), c=Depends(con), s: Site =
         return memories.row(memories.years_ago(c, today, blurry, kin or None), memories.suggested(found, today),
                             memories.own_tours(c, saved, today, blurry),
                             memories.family_occasions(c, kin, today, blurry) if kin else [])
-    return page(request, "_memories.html", memories=s.keep(v, ("memories", today.isoformat()), 600, work))
+    return page(request, "_memories.html",
+                memories=s.keep(v, ("memories", today.isoformat(), formers), 600, work))
 
 
 def who_is_this(c, v: access.Viewer, limit: int = 12) -> list[dict]:

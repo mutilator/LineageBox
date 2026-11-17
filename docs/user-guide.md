@@ -369,10 +369,13 @@ else, finds only the photos they can see, and suggests only the people, places a
   day to day; one opens like a tour, and **Keep as a tour** saves it. Below come faces someone asked about, what
   others shared with you, then the newest photos by the day they were taken (Yesterday, Tuesday, then by month),
   older photos added lately, and your own uploads. A relative with a family account sees the newest photos of
-  themselves and their closest family (parents, partner, brothers and sisters, children) first, however long ago they
-  were taken, with **Show older photos of your family** to go further back, and then the rest. A row of buttons
-  above them opens the memories and newest photos of one person: the first is their own, with only photos of them,
-  then one for each of their closest family. There, under the memories, **Through the years** plays their face a year
+  themselves and their closest family (parents, partner, brothers and sisters, children, and the partners they once
+  had) first, however long ago they were taken, with **Show older photos of your family** to go further back, and
+  then the rest. A row of buttons above them opens the memories and newest photos of one person: the first is their
+  own, with only photos of them, then one for each of their closest family. A former husband, wife, boyfriend or
+  girlfriend is one of them, since those years of photos are the family's too; the last button, **Hide former
+  partners**, leaves them out for whoever would rather not see them (this browser remembers, and **Show former
+  partners** brings them back). There, under the memories, **Through the years** plays their face a year
   at a time; click it to watch the whole of it (see A person's page). Anyone who is someone in the tree has these buttons, admins too
   (without family accounts, the person marked with **This is me**), though an admin's Home doesn't put their
   family's photos first. Their memories start

@@ -979,6 +979,9 @@ fieldset.demo-locked { border: 0; margin: 0; padding: 0; min-width: 0; }  /* a d
 .kin-button img, .kin-button .ph { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; flex: none; }
 .kin-button .ph { display: grid; place-items: center; background: var(--tile); font-weight: 600; }
 .kin-button > span:last-child { display: grid; line-height: 1.25; }
+/* the last tile shows or hides the partners someone once had: the same tile, drawn as a choice */
+.kin-choice { border-style: dashed; }
+.kin-choice .ph { font-size: 1.4rem; color: var(--muted); }
 .kin-button b { font-size: 1.05rem; font-weight: 600; }
 .kin-button small { font-size: .8rem; opacity: .8; }
 /* a day's photos, as Photo tiles says (the round button): squares aimed at their faces, each row but the last

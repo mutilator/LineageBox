@@ -91,10 +91,12 @@ There is no sign-in. Everyone on the home network is an admin.
 2. P's ancestors, all the way up;
 3. everyone descended from those ancestors (all blood relatives);
 4. the partners of everyone in 1–3, and those partners' children (but not the partners' parents or siblings);
-5. former partners of 1–3, only when they share a child with someone in the tree;
-6. P's current partner's side, by the same rules;
-7. people the member added, and groups they made with the people in them;
-8. the account's exceptions, set by an admin: a person or a branch, added or taken away.
+5. P's own former partners, married or not and whether or not there are children between them: a former husband,
+   wife, boyfriend or girlfriend is in the photos of the years the two were together;
+6. former partners of 2–3, only when they share a child with someone in the tree;
+7. P's current partner's side, by the same rules;
+8. people the member added, and groups they made with the people in them;
+9. the account's exceptions, set by an admin: a person or a branch, added or taken away.
 
 Siblings entered without parents share a stand-in parent (a negative id), so they still count as siblings. Pets,
 friends and other relationships are outside the tree unless the member added them.

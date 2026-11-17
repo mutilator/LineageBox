@@ -159,13 +159,15 @@ class Graph:
         return out
 
 
-def immediate(g: Graph, pid: int) -> list[int]:
+def immediate(g: Graph, pid: int, formers: bool = True) -> list[int]:
     """Someone and their immediate family, in that order: parents, current partner, brothers and sisters (half ones
-    too) and children, each by name. A member's Home shows their photos first."""
+    too), children, and last the partners they once had, each by name. A member's Home shows their photos first, and
+    (formers False, their own choice there) can leave the former partners out."""
     by_name = lambda ids: sorted(ids, key=lambda i: g.name(i).lower())  # noqa: E731
     partners = {q for q, (current, _) in g.partners.get(pid, {}).items() if current}
+    past = {q for q, (current, _) in g.partners.get(pid, {}).items() if not current} if formers else set()
     ids = [pid, *by_name(g.effective_parents.get(pid, ())), *by_name(partners), *by_name(g.all_siblings(pid)),
-           *by_name(g.effective_children.get(pid, ()))]
+           *by_name(g.effective_children.get(pid, ())), *by_name(past)]
     return [i for i in dict.fromkeys(ids) if i in g.people]  # not the stand-in parent of siblings with none entered
 
 

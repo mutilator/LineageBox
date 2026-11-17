@@ -101,6 +101,27 @@ def test_a_members_home_shows_her_own_family_first(site, cfg, con):
                                                                                               p["Cora"])
 
 
+def test_former_partners_are_among_home_tiles_unless_hidden(site, cfg, con):
+    """A former husband or wife is family on Home like anyone else, last of the tiles, and one tile hides them all;
+    what this browser chose is remembered."""
+    p = site["people"]
+    tina = signed_in(cfg, con, site["who"]["Tina"])
+    tiles = lambda page: re.findall(r'href="/home/person/(\d+)"', page.split('class="kin-buttons"')[1]
+                                    .split("</nav>")[0])
+    page = tina.get("/home").text
+    assert tiles(page)[-1] == str(p["Ed"]) and tiles(page)[0] == str(p["Tina"])  # hers first, the one she had last
+    assert "<b>Ed</b>" in page and "Hide former partners" in page
+    hidden = tina.get("/home?formers=0").text
+    assert str(p["Ed"]) not in tiles(hidden) and "Show former partners" in hidden
+    assert tina.cookies.get("formers") == "0"
+    assert str(p["Ed"]) not in tiles(tina.get("/home").text)        # remembered, without the choice in the address
+    assert str(p["Ed"]) in tiles(tina.get("/home?formers=1").text)  # and shown again
+    # nobody else's tiles change, and the choice is only offered to those who have one
+    cora = signed_in(cfg, con, site["who"]["Cora"])
+    assert "former partners" not in cora.get("/home").text
+    assert family.immediate(family.load(con), p["Tina"], formers=False)[-1] != p["Ed"]
+
+
 def test_a_button_for_each_of_her_family_opens_their_own_home(site, cfg, con):
     ph, p = site["photos"], site["people"]
     cora = signed_in(cfg, con, site["who"]["Cora"])

@@ -2,8 +2,9 @@
 
 For a member who is person P (docs/access-control.md, "Who a member sees"):
 - people: P, P's ancestors, every blood relative (everyone descended from those ancestors), the partners of all of
-  them (former partners only when they share a child with someone in the tree) and those partners' children; the same
-  again from P's current partner, so a couple sees the same family; people the member added themselves, and those in
+  them (someone else's former partner only when they share a child with someone in the tree, but P's own always: an
+  ex-wife is in the photos of the years they were together) and those partners' children; the same again from P's
+  current partner, so a couple sees the same family; people the member added themselves, and those in
   groups they made; then the admin's exceptions on the account (someone, alone or with their family, also shown or
   not shown). Friends, pets and other relationships are outside it.
 - photos: those someone they can see is in (a face named by hand or recognised, or added to the photo by hand), and
@@ -185,6 +186,10 @@ def people_for(g: family.Graph, pid: int | None, rules=(), added=()) -> set[int]
     seen = set()
     if pid is not None and pid in g.people:
         seen = family_side(g, pid)
+        # Their own partners, current or former. family_side keeps someone else's ex out unless a child ties them to
+        # the family (a cousin's ex-girlfriend is not the family's business), but one's own ex is: they are in the
+        # photos of the years the two were together, with or without children (the user's ask, 2026-11-16).
+        seen |= set(g.partners.get(pid, {}))
         for partner, (current, _bond) in g.partners.get(pid, {}).items():
             if current:
                 seen |= family_side(g, partner)

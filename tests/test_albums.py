@@ -194,10 +194,14 @@ def test_albums_at_home(cfg, con, library):
     from lineagebox.scan import scan
     scan(con, cfg)
     ingest(con, cfg)
-    ids = [r[0] for r in con.execute("SELECT id FROM image ORDER BY id")][:2]
+    # photos that are there: the library's broken file has an image row too, and which row ingest writes first
+    # is a race between its threads
+    ids = [r[0] for r in con.execute(f"SELECT i.id FROM image i WHERE {catalog.VISIBLE} ORDER BY i.id LIMIT 2")]
     c = TestClient(webapp.create_app(cfg), client=LAN)
     r = c.post("/api/albums", json={"name": "Zoo day", "image_ids": ids}, headers=APP)
     album_id = int(r.json()["go"].rpartition("/")[2])
+    broken = con.execute("SELECT id FROM image WHERE error IS NOT NULL").fetchone()[0]
+    assert c.post("/api/albums", json={"name": "No", "image_ids": [broken]}, headers=APP).status_code == 404
     assert albums.get(con, album_id)["account_id"] is None and albums.photo_ids(con, album_id) == ids
     page = c.get(f"/album/{album_id}").text
     assert "Zoo day" in page and "Save as a video" in page and SHARE_FORM not in page  # sharing is for accounts
