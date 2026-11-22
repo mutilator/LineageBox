@@ -1,0 +1,28 @@
+name: The documentation
+description: A page in the docs or the wiki that's wrong, out of date, missing something or hard to follow.
+labels: [documentation]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The wiki is made from the `docs/` folder at each release, so a fix to one is a fix to both. A pull request
+        that changes the file in `docs/` is welcome too.
+  - type: input
+    id: page
+    attributes:
+      label: Which page
+      description: Its link, or its name and the heading.
+      placeholder: https://github.com/mutilator/LineageBox/blob/main/docs/install.md#a-network-share-smbcifs
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's wrong or missing
+      description: What it says, what's actually so, or what you looked for and couldn't find.
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: What it could say

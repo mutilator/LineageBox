@@ -1,0 +1,126 @@
+name: Something isn't working
+description: A page, a button, the worker or an install that doesn't do what it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting it.
+        [Troubleshooting](https://github.com/mutilator/LineageBox/blob/main/docs/troubleshooting.md) may already
+        have the answer, and the **Status** page names most problems in red.
+
+        **A way for someone to see photos or people they shouldn't, or to get in without signing in, is a security
+        problem.** Please don't post it here: report it privately as
+        [SECURITY.md](https://github.com/mutilator/LineageBox/blob/main/SECURITY.md) says.
+
+        Issues are public. Leave out photos, people's names, email addresses and network addresses you don't want
+        seen, in the logs and screenshots too.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, and any message on the page, word for word.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to make it happen
+      description: The steps from the start, so someone else can see it too.
+      placeholder: |
+        1. Open People and choose someone
+        2. Press Merge
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where it happens
+      options:
+        - Home
+        - Folders, Timeline or a photo's page
+        - Search
+        - Map or Tags
+        - Favorites, Albums or Tours
+        - People, Name faces or recognition
+        - Family tree
+        - Cleanup
+        - Add photos (uploads)
+        - Status or Settings
+        - Signing in or family accounts
+        - Phone app or photo frames
+        - The worker (reading photos, faces, descriptions, transcripts)
+        - Installing or updating
+        - Somewhere else
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: LineageBox version
+      description: >-
+        On **Status → Version and updates**, or from `docker compose exec web python -m lineagebox --version`.
+      placeholder: "1.10.3"
+    validations:
+      required: true
+  - type: dropdown
+    id: runs
+    attributes:
+      label: How LineageBox runs
+      options:
+        - Docker (the published image)
+        - Docker (an image I built myself)
+        - From source (Python, no Docker)
+        - The public demo
+    validations:
+      required: true
+  - type: dropdown
+    id: accounts
+    attributes:
+      label: Family accounts
+      options:
+        - "Off: everyone on the home network sees everything"
+        - "On: I was signed in as an admin"
+        - "On: I was signed in as a family member"
+        - "On: I wasn't signed in"
+    validations:
+      required: true
+  - type: textarea
+    id: setup
+    attributes:
+      label: The machine and the services
+      description: >-
+        What LineageBox runs on (a NAS, a PC, a Raspberry Pi... and its system), where the photos are (on the
+        machine or a network share), and where Ollama and Whisper run, if they matter here. For a problem on a page,
+        the browser and the device.
+      placeholder: |
+        A NAS, Docker; photos on the NAS
+        Ollama on a Windows PC with a graphics card, model ministral-3
+        Firefox on a phone
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: >-
+        The end of `docker compose logs worker` and `docker compose logs web` from around the time it happened.
+        Check them for names, email addresses and network addresses first.
+      render: text
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: Screenshots, when it started (after an update?), or anything you've already tried.
+  - type: checkboxes
+    id: private
+    attributes:
+      label: Before you send it
+      options:
+        - label: I've left out photos, people's names, email addresses and network addresses I don't want public.
+          required: true

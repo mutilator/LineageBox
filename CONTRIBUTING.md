@@ -4,9 +4,11 @@ Thanks for helping. Bug reports, ideas, documentation fixes and code are all wel
 
 ## Reporting a problem
 
-Open an issue with what you did, what you expected and what happened. Include the end of `docker compose logs worker`
-and `docker compose logs web`, and how LineageBox runs (Docker or from source, the machine, where Ollama runs).
-[Troubleshooting](docs/troubleshooting.md) may already have the answer.
+[Open an issue](https://github.com/mutilator/LineageBox/issues/new/choose) and pick the form that fits: something
+that isn't working, an idea, a question, or the documentation. The bug form asks for what you did, what you expected
+and what happened, the version, how LineageBox runs (Docker or from source, the machine, where Ollama runs) and the
+end of `docker compose logs worker` and `docker compose logs web`. [Troubleshooting](docs/troubleshooting.md) may
+already have the answer.
 
 Please leave out photos, people's names, email addresses and network addresses you don't want public.
 

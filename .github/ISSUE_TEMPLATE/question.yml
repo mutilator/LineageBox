@@ -1,0 +1,33 @@
+name: A question or help setting up
+description: How to do something, or help with an install that won't come together.
+labels: [question]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The [documentation](https://github.com/mutilator/LineageBox/blob/main/docs/README.md) covers installing,
+        Ollama, Whisper, family accounts and every page, and
+        [Troubleshooting](https://github.com/mutilator/LineageBox/blob/main/docs/troubleshooting.md) the usual
+        problems. If they don't answer it, ask here.
+
+        Issues are public. Leave out photos, people's names, email addresses and network addresses you don't want
+        seen.
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+      description: What you're trying to do, and what you've tried or read so far.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: LineageBox version
+      description: On **Status → Version and updates**, if it's running.
+  - type: textarea
+    id: setup
+    attributes:
+      label: Your setup
+      description: >-
+        For setup questions: what it runs on (a NAS, a PC... Docker or from source), where the photos are, and where
+        Ollama and Whisper run.

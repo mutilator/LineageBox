@@ -1,0 +1,38 @@
+name: An idea
+description: Something LineageBox could do, or do better.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea. LineageBox is used by families with very different libraries, so the best ideas work from
+        whatever photos, people and places a family already has, with no names, places, years or tags built in.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you'd like to do
+      description: What you, or someone in your family, is trying to do, and what gets in the way today.
+      placeholder: When my mother looks through the photos of her parents, she can't...
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: How it could work
+      description: What you'd see and press. A sketch or a screenshot of another program is welcome.
+  - type: dropdown
+    id: who
+    attributes:
+      label: Who it's for
+      options:
+        - The person who runs LineageBox
+        - Family members who sign in
+        - Everyone
+        - People setting it up for the first time
+    validations:
+      required: true
+  - type: textarea
+    id: today
+    attributes:
+      label: What you do today instead
+      description: Another program, a workaround, or doing without.
