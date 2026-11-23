@@ -291,7 +291,7 @@ versions can't open the updated one.
 
 - **Demo mode**, for a public demo of LineageBox: one-click sign-in as a family member or an admin, small upload
   limits, the server's settings locked, and a reset to the saved demo on a schedule ([demo](docs/demo.md)). Try it
-  at https://linbox.g-tech.dev.
+  at https://demo.lineagebox.com.
 - **Cleanup → No faces found:** photos where no face was found at all. Tick those to look at again more closely, or
   those with no faces to find.
 - **Suggested dates → Looks too young:** photos where a grown-up's face looks like their childhood, with a date

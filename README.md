@@ -9,7 +9,7 @@
 
 <br>
 
-<h2 align="center"><a href="https://linbox.g-tech.dev">▶&nbsp;&nbsp;Try the live demo: linbox.g-tech.dev</a></h2>
+<h2 align="center"><a href="https://demo.lineagebox.com">▶&nbsp;&nbsp;Try the live demo: demo.lineagebox.com</a></h2>
 
 <p align="center">A made-up family's photos, papers and family tree to look around in and change.<br>
 Sign in with one click, as a family member or as an admin. It all goes back as it was twice a day.</p>

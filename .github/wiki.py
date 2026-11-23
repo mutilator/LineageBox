@@ -89,7 +89,7 @@ CONTENTS_LENGTH = 4000
 SIDEBAR = """\
 **[LineageBox](Home)**
 
-[▶ Try the live demo](https://linbox.g-tech.dev)
+[▶ Try the live demo](https://demo.lineagebox.com)
 
 **Getting started**
 
@@ -137,7 +137,7 @@ SIDEBAR = """\
 - [Source code]({github})
 """
 FOOTER = ("LineageBox is free software under the [GNU AGPL, version 3]({github}/blob/main/LICENSE). · "
-          "[Source code]({github}) · [Live demo](https://linbox.g-tech.dev) · [Report a problem]({github}/issues)\n")
+          "[Source code]({github}) · [Live demo](https://demo.lineagebox.com) · [Report a problem]({github}/issues)\n")
 
 FENCE = re.compile(r"\s*(```|~~~)")
 LINK = re.compile(r"\[([^\]]*)\]\(([^()\s]+)\)")
