@@ -29,13 +29,103 @@ recognition runs on the LineageBox machine's own processor.
   phones install a site only over HTTPS with a certificate they trust ([remote access](remote-access.md)). Over plain
   http everything else works.
 
+## The setup wizard
+
+LineageBox's [`compose.yaml`](../compose.yaml) starts the setup wizard, not LineageBox itself. The wizard asks where
+things are and writes the compose file that runs LineageBox. It asks:
+
+- where the photos are: folders of this machine, shares on another computer or NAS, or a new shared folder it helps
+  you make;
+- where the catalog goes;
+- who owns the files;
+- where Ollama and Whisper run;
+- a few details, such as the time zone and port.
+
+It knows the usual users, folders and Docker apps of the common NASes (Synology, QNAP, Unraid, TrueNAS,
+OpenMediaVault, UGREEN, ASUSTOR, TerraMaster, ZimaOS), and of Linux, Raspberry Pi, Windows and Mac machines. It makes
+one `compose.yaml` with everything written into it. A NAS's own Docker app (Container Manager, Container Station,
+Portainer, TrueNAS's Install via YAML) takes that file pasted as it is. Then the wizard lists what to do next on that
+machine: the folders to make, how to start LineageBox, and where to open it.
+
+### On the machine LineageBox will run on
+
+There, the wizard looks around for you. It finds which NAS it is, its users and groups, its folders and who owns each
+one, whether a folder is on a network share, and how much space is free. It saves the new `compose.yaml` in place of
+its own and makes the catalog folder, both belonging to the user LineageBox runs as.
+
+1. **Start it** in the folder LineageBox will live in. Over SSH (with `sudo` before `docker` on most NASes):
+
+   ```sh
+   mkdir -p /volume1/docker/lineagebox && cd /volume1/docker/lineagebox      # yours; this is a Synology's usual one
+   curl -fsSLO https://raw.githubusercontent.com/mutilator/LineageBox/main/compose.yaml
+   docker compose up -d
+   ```
+
+   Or in your NAS's Docker app: make a project (a stack, an application) named `lineagebox` in that folder, with
+   [`compose.yaml`](../compose.yaml) as its file.
+2. **Open it.** `docker compose logs web`, or the container's log in the Docker app, shows its address with a key:
+   `http://<this machine>:8000/?key=...`. Open that in a browser on your network. Opened without the key, at plain
+   `http://<this machine>:8000`, it still makes the file, but you type the paths and download it.
+3. **Answer its questions**, then press **Save it on this machine**. The wizard's own `compose.yaml` is kept beside
+   the new one, as `compose.yaml.before-<date>`.
+4. **Start LineageBox the same way:** `docker compose up -d` again, or start the project again in the Docker app.
+   LineageBox takes the wizard's place, in the same project. If the app keeps a copy of the file it was given, put
+   the new file there in place of the wizard's.
+
+The wizard's container:
+
+- sees the machine's files read-only (`/:/host:ro`), to look at folders and who owns them;
+- writes only in its own folder (`.:/install`);
+- runs as root, to look in every folder and to give what it makes to LineageBox's user, with no root powers beyond
+  those;
+- looks at the machine and saves only for requests that bring its key, so no one else on the network can see the
+  machine's folders while it runs;
+- installs and starts nothing itself;
+- stops after an hour unused: start it again the same way.
+
+Take the `/:/host:ro` line out of `compose.yaml` to keep it from looking at anything: you then type the paths, as
+online. On Docker Desktop (Windows, Mac), `/` is Docker's own small Linux, not your computer: type the paths there.
+The wizard is LineageBox's own image, so starting LineageBox afterwards downloads nothing more.
+
+LineageBox's image starts its wizard in place of LineageBox until a compose file says `LINEAGEBOX_SETUP: done`, as
+the wizard's own file and `compose.manual.yaml` do. A compose file from before the wizard has no such line, but it
+mounts a catalog folder, so those installs start LineageBox as before.
+
+**To run the wizard again later**, beside a LineageBox that is running, start it on its own instead. It uses port
+8080, and Ctrl+C stops it:
+
+```sh
+docker run --rm -it -p 8080:8080 -v "$PWD":/install -v /:/host:ro ghcr.io/mutilator/lineagebox setup
+```
+
+### Online
+
+With nothing to install: [demo.lineagebox.com/setup](https://demo.lineagebox.com/setup/). You type the paths
+yourself, then download or copy the file and put it in the folder for LineageBox as `compose.yaml`. Nothing you type
+is kept. A share's password never leaves your browser: it is put into the file there.
+
+**A photos folder you don't have yet.** On a NAS, the wizard suggests making a shared folder for the photos with the
+NAS's own tools, with a size limit if the NAS has them (Synology, TrueNAS). The NAS then backs it up, keeps snapshots,
+shares it with the family's PCs and lets it grow. LineageBox gets it as a folder like any other. Docker itself can't
+put a size limit on a folder. You can also choose a folder next to LineageBox, which Save makes for you.
+
+**Correcting the wizard.** What it knows of each NAS is in
+[`lineagebox/setup/nas.toml`](../lineagebox/setup/nas.toml): the users and groups to suggest, where the folders are,
+the steps in each NAS's own apps, and the processors and memory of its models. If yours is wrong or missing, change
+that file: [CONTRIBUTING.md](../CONTRIBUTING.md#nas-profiles) says how.
+
 ## Quick start
+
+Without the [setup wizard](#the-setup-wizard), by hand, with the settings in a `.env` file:
 
 ```sh
 git clone https://github.com/mutilator/LineageBox lineagebox && cd lineagebox
 cp .env.example .env      # set PHOTOS, TZ, and PUID/PGID to the photos' owner; see below for the rest
 docker compose up -d
 ```
+
+`.env` names the compose file for this way, `compose.manual.yaml`, in `COMPOSE_FILE`: `compose.yaml` is the
+wizard's. Extra compose files (Ollama, Whisper, a network share, your own `compose.override.yaml`) go after it there.
 
 Open `http://<that machine>:8000`: it opens on **Getting started**, the first steps (watch a folder, check the AI,
 name yourself, name the largest groups of faces, start the tree, invite someone), each a link to where it is done and
@@ -44,8 +134,9 @@ folder with your photos and press **Watch**. The worker starts within a minute, 
 got. The first pass reads every photo once, which takes a while for a big library. After that, only new photos are
 read.
 
-With no `.env` at all, LineageBox uses the `photos` and `data` folders next to `compose.yaml`, port 8000 and UTC, and
-runs as user 1000 ([users and permissions](#users-and-permissions)).
+With `.env` as it comes, LineageBox uses the `photos` and `data` folders next to `compose.manual.yaml`, port 8000 and
+UTC, and runs as user 1000 ([users and permissions](#users-and-permissions)). Without `.env`, `docker compose up -d`
+starts the setup wizard instead.
 
 This downloads LineageBox's published image (for x86-64 and 64-bit ARM). To build it here from this folder's code
 instead, run `docker compose up -d --build`. **Update now** on the Status page then replaces it with the published
@@ -69,10 +160,11 @@ contents, not its path.
   `/volume1/family`, rather than mounting each one. Then watch only the folders with photos on the Settings page:
   LineageBox never looks in the others.
 
-Photos on another disk of this machine need a mount of their own. Give each service one more line in a
-`compose.override.yaml` next to `compose.yaml`. Docker compose reads that file by itself, unless `COMPOSE_FILE` is set
-in `.env`: then add `:compose.override.yaml` to the end of it. Make the folder writable for `web` and `copies`, and
-read-only (`:ro`) for `worker`. The folder must be there already: Docker would make a missing one as root.
+Photos on another disk of this machine need a mount of their own. The setup wizard writes one for each folder you
+give it. Otherwise, give each service one more line in a `compose.override.yaml` next to the compose file. Docker
+compose reads that file by itself next to `compose.yaml`; set up by hand, add `:compose.override.yaml` to the end of
+`COMPOSE_FILE` in `.env`. Make the folder writable for `web` and `copies`, and read-only (`:ro`) for `worker`. The
+folder must be there already: Docker would make a missing one as root.
 
 ```yaml
 services:
@@ -92,10 +184,11 @@ unavailable for that source, and Settings says so.
 
 ### A network share (SMB/CIFS)
 
-Docker mounts the share itself, with a login. In `.env`:
+Docker mounts the share itself, with a login. The [setup wizard](#the-setup-wizard) writes this into `compose.yaml`
+for you, for one share or several. By hand, in `.env`:
 
 ```sh
-COMPOSE_FILE=compose.yaml:compose.smb.yaml      # on Windows: compose.yaml;compose.smb.yaml
+COMPOSE_FILE=compose.manual.yaml:compose.smb.yaml      # on Windows: compose.manual.yaml;compose.smb.yaml
 SMB_SHARE=//192.168.1.20/photos
 SMB_USERNAME=me
 SMB_PASSWORD='my password'
@@ -158,8 +251,9 @@ them itself.
 
 LineageBox runs as the user and group in `PUID` and `PGID` (1000 unless set), with no root powers and no setuid
 programs, so a bug in a program that reads photos and videos (ffmpeg, say) can write only what that user may. Set them
-in `.env` to whoever owns your photos: `id -u` and `id -g` give your own. On a Synology, the first user is usually
-1026, in group 100 (`users`).
+to whoever owns your photos (in `.env`, set up by hand): `id -u` and `id -g` give your own. On a Synology, the first user is usually
+1026, in group 100 (`users`). The [setup wizard](#the-setup-wizard) suggests the usual ones for your NAS. Run on the
+machine itself, it also shows who owns each folder.
 
 ```sh
 PUID=1000
@@ -170,18 +264,20 @@ That user must be able to write to the catalog folder, and to the photo folders 
 What LineageBox writes there (the catalog, Removed folders, 720p copies) belongs to them.
 
 **The folders must be there before the first start.** Docker would make a missing one itself, as root, which
-LineageBox couldn't write, so `compose.yaml` stops at `bind source path does not exist` instead. `git clone` makes the
-default `data` and `photos` folders, as whoever clones. For a `DATA` or `PHOTOS` somewhere else, make the folder first,
-as that user: `mkdir -p /volume1/docker/lineagebox`.
+LineageBox couldn't write, so the compose file stops at `bind source path does not exist` instead. The setup wizard's
+Save makes the catalog folder in its own folder, and its steps say how to make the others. Set up by hand, `git clone`
+makes the default `data` and `photos` folders, as whoever clones. For a `DATA` or `PHOTOS` somewhere else, make the
+folder first, as that user: `mkdir -p /volume1/docker/lineagebox`.
 
 - **"... can't be written by the user LineageBox runs as"** when it starts: the folder belongs to someone else, often
   root, because Docker or an earlier install made it. Set `PUID`/`PGID` to its owner, or give it to theirs:
   `sudo chown -R 1000:1000 data`.
 - **Rootless Docker or Podman:** the containers' root is you, so set `PUID=0` and `PGID=0`.
 - **Photos that belong to several users**, so that no one user can write them all: run as root, with only the root
-  powers writing for other users needs. Set `PUID=0` and `PGID=0`, and give the three services these in
-  `compose.override.yaml`. `DAC_OVERRIDE` reads and writes other users' files, `CHOWN` gives 720p copies, Removed
-  folders and turned photos to the original's owner, and `FOWNER` works in folders with the sticky bit.
+  powers writing for other users needs. The setup wizard does this when you tick **The photos belong to several
+  people**. By hand, set `PUID=0` and `PGID=0`, and give the three services these in `compose.override.yaml`.
+  `DAC_OVERRIDE` reads and writes other users' files, `CHOWN` gives 720p copies, Removed folders and turned photos to
+  the original's owner, and `FOWNER` works in folders with the sticky bit.
 
   ```yaml
   services:
@@ -204,10 +300,11 @@ working:
 | Transcripts of what is said in videos (optional) | LineageBox's speech-to-text service: on a PC with an NVIDIA card, or in Docker next to LineageBox | [whisper.md](whisper.md) |
 | Finding and recognizing faces | The LineageBox machine's processor | Nothing to set up |
 
-With no other machine, everything can run in Docker on the LineageBox machine:
+With no other machine, everything can run in Docker on the LineageBox machine. The setup wizard writes them into its
+file when you choose **Here, in Docker**. By hand, in `.env`:
 
 ```sh
-COMPOSE_FILE=compose.yaml:compose.ollama.yaml:compose.whisper.yaml
+COMPOSE_FILE=compose.manual.yaml:compose.ollama.yaml:compose.whisper.yaml
 ```
 
 That works without a graphics card too, but slowly.
@@ -228,8 +325,8 @@ it is back.
 home-network check needs to tell clients apart.
 
 **On a router, or wherever containers on Docker's bridge network can't reach the DNS server** (OpenWrt, for example),
-use host networking. Put this in a `compose.override.yaml` next to `compose.yaml` (and add it to `COMPOSE_FILE` if
-that is set):
+use host networking. The setup wizard does this for OpenWrt, or when you tick it in its last step. By hand, put this
+in a `compose.override.yaml` next to `compose.manual.yaml`, and add it to `COMPOSE_FILE`:
 
 ```yaml
 services:
@@ -250,16 +347,18 @@ With host networking, LineageBox also sees each client's real address for its ho
 
 ## Updating and backups
 
-Every release is published as its version (`1.2.3`), as `1.2`, and as `latest`, at the same time. `compose.yaml` runs
-`latest`, so updating means downloading `latest` again and restarting the containers with it:
+Every release is published as its version (`1.2.3`), as `1.2`, and as `latest`, at the same time. The compose file
+runs `latest`, so updating means downloading `latest` again and restarting the containers with it:
 
 - **From the browser:** admins see **Update available** at the top of the page when a new version is out. **Status →
   Version and updates → Update now** installs it. The `updater` service downloads the new images and restarts
   LineageBox's containers with them, the web UI last; the page waits, and shows the new version when it is back. If a
   new version doesn't start, the one before is put back. Ollama, and anything else on the machine, is left alone.
 - **By hand:** `docker compose pull && docker compose up -d` in LineageBox's folder.
-- **One version only:** set `LINEAGEBOX_VERSION=1.2.3` in `.env` and run `docker compose up -d`. LineageBox stays on
-  that version, and Update now only reinstalls it. Remove the line to go back to the newest.
+- **One version only:** in the compose file, put the version in place of `latest` in each `image:` line (the setup
+  wizard does it from its last step), or set `LINEAGEBOX_VERSION=1.2.3` in `.env` when set up by hand. Then run
+  `docker compose up -d`. LineageBox stays on that version, and Update now only reinstalls it. Go back to `latest` for
+  the newest.
 
 The updater has the Docker socket, which is the same as root on this machine. It has no network and reads nothing
 but whether the web app made the file `update/requested`; [SECURITY.md](../SECURITY.md) says what it may and may not
@@ -315,7 +414,7 @@ can bring it back, then deleted for good). A backup program that takes the copie
 
 **On another disk.** A copy on the catalog's disk is lost with that disk. To keep the copies somewhere else (a second
 disk, a NAS share, or a folder that the Dropbox or Google Drive app syncs), mount that folder into the web and worker
-containers, for example in `compose.override.yaml`:
+containers, for example in a `compose.override.yaml` next to the compose file:
 
 ```yaml
 services:

@@ -43,7 +43,8 @@ include = ["lineagebox*"]
 
 [tool.setuptools.package-data]
 lineagebox = ["migrations/*.sql", "migrations/*.py", "web/templates/*.html", "web/static/*", "web/static/vendor/*/*",
-              "data/*", "locale/*/LC_MESSAGES/*.mo"]   # data: the town list (towns.py); locale: translations
+              "data/*", "locale/*/LC_MESSAGES/*.mo",   # data: the town list (towns.py); locale: translations
+              "setup/nas.toml", "setup/static/*"]      # the setup wizard's machines and page
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

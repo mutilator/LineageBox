@@ -89,10 +89,12 @@ Good to know:
 
 ## In Docker, next to LineageBox
 
+The [setup wizard](install.md#the-setup-wizard) writes Ollama into its compose file when you choose **Here, in Docker**, with the graphics card you pick: then only step 3 is left. Set up by hand, with `.env`:
+
 1. In `.env`, add the Ollama file to the compose files. On Windows, separate them with `;` instead of `:`.
 
    ```sh
-   COMPOSE_FILE=compose.yaml:compose.ollama.yaml
+   COMPOSE_FILE=compose.manual.yaml:compose.ollama.yaml
    ```
 2. `docker compose up -d`. LineageBox uses this Ollama, at `http://ollama:11434`, unless an address was already saved on the Settings page. If one was, change it there to `http://ollama:11434`.
 3. **Download the model:** press **Download ministral-3 to Ollama** on the Settings page and follow it under **Downloads** on the Status page. Or run `docker compose exec ollama ollama pull ministral-3`. The models are kept in the Docker volume `lineagebox_ollama`.
@@ -107,7 +109,7 @@ This Ollama is not published on your network; only LineageBox's containers can r
 2. Add the NVIDIA file:
 
    ```sh
-   COMPOSE_FILE=compose.yaml:compose.ollama.yaml:compose.ollama-nvidia.yaml
+   COMPOSE_FILE=compose.manual.yaml:compose.ollama.yaml:compose.ollama-nvidia.yaml
    ```
 3. `docker compose up -d`. `docker compose logs ollama` says which graphics card Ollama found ("inference compute").
 

@@ -22,7 +22,7 @@ DEFAULT_PATH = Path(__file__).resolve().parent.parent / "config.toml"
 PRIVATE_NETWORKS = ("127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "::1/128", "fc00::/7", "fe80::/10")
 EVERY_DAY = (0, 1, 2, 3, 4, 5, 6)  # Monday is 0
 # environment variables read elsewhere
-NOT_SETTINGS = {"LINEAGEBOX_CONFIG", "LINEAGEBOX_FFMPEG", "LINEAGEBOX_HOST", "LINEAGEBOX_PORT"}
+NOT_SETTINGS = {"LINEAGEBOX_CONFIG", "LINEAGEBOX_FFMPEG", "LINEAGEBOX_HOST", "LINEAGEBOX_PORT", "LINEAGEBOX_SETUP"}
 
 
 # Whole-number settings and the values that work, here and on the Settings page (settings.py)

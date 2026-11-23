@@ -46,10 +46,12 @@ On **Linux with an NVIDIA card**, build whisper.cpp with CUDA (`cmake -B build -
 
 ## In Docker, next to LineageBox
 
-1. In `.env`, add the Whisper file to the compose files. On Windows, separate them with `;` instead of `:`. With Ollama in Docker too, list both: `compose.yaml:compose.ollama.yaml:compose.whisper.yaml`.
+The [setup wizard](install.md#the-setup-wizard) writes Whisper into its compose file when you choose **Here, in Docker**, with the model you pick. Set up by hand, with `.env`:
+
+1. In `.env`, add the Whisper file to the compose files. On Windows, separate them with `;` instead of `:`. With Ollama in Docker too, list both: `compose.manual.yaml:compose.ollama.yaml:compose.whisper.yaml`.
 
    ```sh
-   COMPOSE_FILE=compose.yaml:compose.whisper.yaml
+   COMPOSE_FILE=compose.manual.yaml:compose.whisper.yaml
    ```
 2. `docker compose up -d`. The first time, this builds whisper.cpp for this machine's processor, which takes several minutes. Then the service downloads its models; the Status page's **Downloads** shows how far it is. Videos are transcribed once the downloads have finished.
 3. LineageBox uses it at `http://whisper:9300`, unless an address was already saved on the Settings page. If one was, change it there.

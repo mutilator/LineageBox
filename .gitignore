@@ -7,8 +7,9 @@ __pycache__/
 # secrets and this machine's own settings
 .env
 /config.toml
-# your own changes to compose.yaml (docs/install.md)
+# your own changes to compose.manual.yaml (docs/install.md), and the compose files the setup wizard replaced
 /compose.override.yaml
+/compose.yaml.before-*
 # builds and tools (and the catalogs' templates, made again by pybabel extract: docs/translating.md)
 /lineagebox/locale/*.pot
 dist/

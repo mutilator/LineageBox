@@ -1,6 +1,6 @@
 # Ollama next to LineageBox in Docker, for photo descriptions and folder names, when there is no other machine to run it
 # on. Turn it on in .env:
-#   COMPOSE_FILE=compose.yaml:compose.ollama.yaml     (on Windows: compose.yaml;compose.ollama.yaml)
+#   COMPOSE_FILE=compose.manual.yaml:compose.ollama.yaml     (on Windows: compose.manual.yaml;compose.ollama.yaml)
 # With an NVIDIA graphics card add :compose.ollama-nvidia.yaml, with an AMD one :compose.ollama-amd.yaml.
 # Then download a model with the button on LineageBox's Settings page. docs/ollama.md explains it all.
 services:

@@ -14,8 +14,9 @@ Each layer overrides the one before:
 3. **`config.toml` in the catalog folder** (`data_dir`), if there is one. It's handy on a NAS, where you don't want to
    touch the container. It can't move `data_dir` itself.
 4. **Environment variables** `LINEAGEBOX_<SECTION>_<KEY>`, e.g. `LINEAGEBOX_OLLAMA_URL` for `url` under `[ollama]`, or
-   `LINEAGEBOX_MEDIA_ROOT` for the top-level `media_root`. `compose.yaml` passes the common ones from `.env` under short
-   names ([below](#env-names-for-docker)). Empty values are ignored.
+   `LINEAGEBOX_MEDIA_ROOT` for the top-level `media_root`. The [setup wizard](install.md#the-setup-wizard)'s compose
+   file has the common ones written in, and `compose.manual.yaml` passes them from `.env` under short names
+   ([below](#env-names-for-docker)). Empty values are ignored.
 5. **The Settings page**, for the settings it shows. They are saved in the catalog's `settings` table, so the web UI and
    the worker both see them, and they win over everything above. **Once a setting has been saved on the page, changing
    it in `.env` or a config file has no effect.** Change it on the page.
@@ -173,10 +174,12 @@ Environment variables: `LINEAGEBOX_DEMO_ENABLED`, `LINEAGEBOX_DEMO_PERSON`, `LIN
 | `LINEAGEBOX_CONFIG` | The config file to read instead of the project root's `config.toml`. |
 | `LINEAGEBOX_FFMPEG` | The folder holding `ffmpeg` and `ffprobe`, when they aren't on the `PATH`. |
 | `LINEAGEBOX_HOST`, `LINEAGEBOX_PORT` | Defaults for `lineagebox serve --host` and `--port`. |
+| `LINEAGEBOX_SETUP` | `done` in a compose file, as the setup wizard's and `compose.manual.yaml` have it: LineageBox's image then starts LineageBox. Without it, the image starts its [setup wizard](install.md#the-setup-wizard) instead, until a catalog folder is mounted at `/data`. |
 
 ## `.env` names for Docker
 
-`compose.yaml` maps these `.env` names onto the settings above, and also uses some itself:
+When LineageBox is set up by hand, `compose.manual.yaml` maps these `.env` names onto the settings above, and also
+uses some itself:
 
 | `.env` | Setting | What it is |
 |---|---|---|
@@ -186,7 +189,7 @@ Environment variables: `LINEAGEBOX_DEMO_ENABLED`, `LINEAGEBOX_DEMO_PERSON`, `LIN
 | `BIND` | | The address of this machine to answer on (default all its IPv4 addresses). |
 | `TZ` | | Time zone, for dates and the describing hours (default `UTC`). |
 | `PUID`, `PGID` | | User and group the containers run as: whoever owns the photos and the catalog folder (default 1000). |
-| `COMPOSE_FILE` | | Extra compose files: Ollama, Whisper or a network share in Docker. |
+| `COMPOSE_FILE` | | The compose files: `compose.manual.yaml`, then any of Ollama, Whisper or a network share in Docker. |
 | `LINEAGEBOX_VERSION` | | One release to run (`1.2.3`), instead of the newest (`latest`). |
 | `LINEAGEBOX_IMAGE`, `LINEAGEBOX_WHISPER_IMAGE` | | Another image to run, such as a fork's: its name without the version. |
 | `DOCKER_SOCKET` | | Docker's socket, for the updater service (default `/var/run/docker.sock`). |

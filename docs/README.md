@@ -5,6 +5,8 @@ photos and home videos they appear in, and shared with relatives who sign in wit
 
 ## Getting started
 
+- [The setup wizard](install.md#the-setup-wizard): answer a few questions, online or on your NAS, and get the compose
+  file that runs LineageBox there.
 - [Quick start: everything on one machine](quick-start/docker.md): Docker, with the AI in containers next to LineageBox.
 - [Quick start: a NAS, plus a PC with a graphics card](quick-start/nas-and-pc.md): the fastest setup for a big library.
 - [Quick start: from source](quick-start/from-source.md): Python, without Docker.

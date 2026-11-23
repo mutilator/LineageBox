@@ -20,6 +20,21 @@ Check that it works: `docker compose version`.
 
 ## 2. Get LineageBox
 
+**The easy way:** LineageBox's `compose.yaml` starts the [setup wizard](../install.md#the-setup-wizard), which writes
+the compose file for you. In the folder LineageBox will live in (with `sudo` before `docker` on most NASes):
+
+```sh
+curl -fsSLO https://raw.githubusercontent.com/mutilator/LineageBox/main/compose.yaml
+docker compose up -d && docker compose logs -f web
+```
+
+Open the address it prints. The wizard covers steps 2 to 5: it finds your folders and who owns them, asks where the
+AI runs, and saves the new `compose.yaml` in place of its own. Start that the same way, `docker compose up -d`, and
+LineageBox takes the wizard's place. Then carry on at step 6. The wizard is also online, at
+[demo.lineagebox.com/setup](https://demo.lineagebox.com/setup/), where you type the paths and download the file.
+
+By hand instead, with your settings in a `.env` file:
+
 ```sh
 git clone https://github.com/mutilator/LineageBox lineagebox
 cd lineagebox
@@ -31,7 +46,7 @@ cp .env.example .env
 Open `.env` in a text editor and set:
 
 ```sh
-PHOTOS=/volume1/photo        # the folder with your photos and videos (default: ./photos, next to compose.yaml)
+PHOTOS=/volume1/photo        # the folder with your photos and videos (default: ./photos, next to this file)
 TZ=Europe/London             # your time zone, for dates and the describing hours
 PUID=1000                    # who owns those photos: `id -u` and `id -g` give your own
 PGID=1000
@@ -43,16 +58,17 @@ only reads this folder, except when you ask Cleanup to move a photo to the Remov
 already ([users and permissions](../install.md#users-and-permissions)).
 
 To try LineageBox out first, leave `PHOTOS` as it is and copy a few hundred photos into the `photos` folder next to
-`compose.yaml`.
+`.env`.
 
 Photos on another NAS or a Windows share? See [network shares](../install.md#a-network-share-smbcifs).
 
 ## 4. Turn on the AI helpers
 
-Still in `.env`, add Ollama (photo descriptions) and Whisper (what is said in videos) to the compose files:
+Still in `.env`, add Ollama (photo descriptions) and Whisper (what is said in videos) to the compose files, after
+`compose.manual.yaml`:
 
 ```sh
-COMPOSE_FILE=compose.yaml:compose.ollama.yaml:compose.whisper.yaml
+COMPOSE_FILE=compose.manual.yaml:compose.ollama.yaml:compose.whisper.yaml
 ```
 
 On Windows, separate them with `;` instead of `:`.
@@ -62,7 +78,7 @@ On Windows, separate them with `;` instead of `:`.
   then add `:compose.ollama-nvidia.yaml` to the end.
 - **With an AMD graphics card** (x86-64, supported by ROCm): add `:compose.ollama-amd.yaml` instead.
 - **Without a graphics card:** this still works, but slowly. Pick a small model in step 6.
-- **No AI at all:** leave `COMPOSE_FILE` out. Everything except descriptions and transcripts still works.
+- **No AI at all:** leave `COMPOSE_FILE` as it was. Everything except descriptions and transcripts still works.
 
 ## 5. Start it
 

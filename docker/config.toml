@@ -1,8 +1,9 @@
-# LineageBox's settings in its Docker image. compose.yaml mounts each photo source as a folder of /photos
+# LineageBox's settings in its Docker image. Its compose file mounts each photo source as a folder of /photos
 # (/photos/local, /photos/nas, ...) and the catalog at /data.
 #
 # Change any of these with an environment variable named LINEAGEBOX_<SECTION>_<KEY> (LINEAGEBOX_OLLAMA_URL for [ollama]
-# url; compose.yaml passes the common ones from .env), or with a config.toml in the data folder. Watched folders, the
+# url; the setup wizard's compose file has the common ones, compose.manual.yaml passes them from .env), or with a
+# config.toml in the data folder. Watched folders, the
 # schedule, Ollama, Whisper, "whose photos" and the blur cut-off are then changed on the web UI's Settings page: the
 # values here only apply until then.
 

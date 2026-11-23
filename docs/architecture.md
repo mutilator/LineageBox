@@ -323,6 +323,7 @@ translation is a catalog added under `lineagebox/locale/<language>/LC_MESSAGES/`
 | Area | Modules |
 |---|---|
 | Entry points | `cli.py` (commands), `worker.py`, `web/app.py`, `copies.py`, `health.py` (Docker health check), `updater.py` (the update service) |
+| Installing | `setup/`: the setup wizard, its own small app apart from the web UI, which the image's `serve` starts instead until a compose file says `LINEAGEBOX_SETUP: done` (`first_start`). `compose.py` (answers into one compose file and the steps after it), `profiles.py` and `nas.toml` (what it knows of each NAS), `host.py` (the machine through `/host`), `server.py`, `static/` |
 | Config and storage | `config.py`, `settings.py`, `db.py`, `migrations/`, `mounts.py` (refuses a catalog on a network share) |
 | Reading files | `scan.py`, `ingest.py`, `media.py` (decoding, thumbnails, previews), `video.py` (ffmpeg: frames, chapters, sound waves, copies), `chapters.py` (long videos' chapters), `check.py` |
 | Understanding photos | `dates.py`, `dedup.py`, `folders.py`, `faces.py`, `people.py`, `describe.py`, `llm.py`, `speech.py`, `quality.py`, `orientation.py`, `places.py` (the map, places by hand), `towns.py` (the nearest town, from `data/towns.tsv.gz`), `face_ages.py` (what faces' ages can say: names that don't fit, a birth-year hint), `date_hints.py` (a probable date for a scan), `camera_clock.py`, `scan_dates.py` (scans dated by the day they were scanned: what can tell their real date), `headcount.py` (the AI's careful count of the people in a photo, and how sure it is) |

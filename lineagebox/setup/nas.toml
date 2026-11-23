@@ -1,0 +1,1213 @@
+# The machines LineageBox's setup wizard knows (lineagebox setup; docs/install.md#the-setup-wizard). Corrections and
+# new machines are welcome: change this file alone, run `python -m pytest tests/test_setup.py`, and send a pull
+# request (CONTRIBUTING.md#nas-profiles).
+#
+# Each [[system]] is a kind of NAS or computer. The page lists them in this order, and when the setup container can
+# see the machine's files, the first whose `detect` matches is picked for you. Keys (all but id and name optional):
+#
+#   id, name          a short id (lowercase, dashes) and the name people know it by
+#   kind              "nas", "computer" or "other": where the page lists it
+#   summary           one line under its name
+#   docker_app        the NAS's own app that runs compose files ("" when there is none: SSH only)
+#   compose_how       how to start LineageBox from the compose file in that app, step by step
+#   install_dir       a good folder for compose.yaml and the catalog; photos_example: where photos usually are
+#   share_parent      shared folders are folders of this; network_path: how a Windows PC reaches one, with {host}
+#                     (the machine's name) and {share} (the shared folder), for "Copy network path"
+#   docker_socket     Docker's socket, for the updater
+#   ssh_how, sudo     how to turn on SSH, and whether docker needs sudo there
+#   ids_how           how to find a user's id and group id
+#   share_how         how to make a shared folder for photos; {size} is the size limit in GB, {name} its name. A step
+#                     with {size} is left out when no size was given. quota: shared folders can have a size limit
+#   permissions_how   how to let the user LineageBox runs as ({user}: "uid:gid") write a folder
+#   detect            what tells this machine from its files: "/path" is there, or "/path: words" has the words in it
+#   model_from        "/path: key": the file and key="value" line naming the model
+#   host_network      run on the machine's own network (routers: Docker's bridge network can't reach DNS there)
+#   rootless          the containers' root is the person who runs Docker (rootless Docker, Podman): user 0 is right
+#   windows           paths are Windows' (C:/...)
+#   notes             what trips people up
+#   [[system.users]]  the user and group ids to suggest, most likely first: uid, gid, who; guess = true when the
+#                     number is a common one rather than a sure one, and people should check theirs
+#   [[system.models]] models: name, cpu, arch (amd64, arm64; armv7 and others can't run LineageBox), memory_gb as
+#                     shipped, docker (false: the vendor's Docker app isn't offered for it), note
+#
+# Researched 2026-11-22 from vendors' pages and well-known guides (Synology's applied-model list, QNAP's Container
+# Station tutorial, Unraid's and TrueNAS's docs, the OMV-Extras wiki, TerraMaster's and UGREEN's help pages,
+# TRaSH Guides, linuxserver.io). Values from fewer sources say "unverified" in a comment.
+
+# ---------------------------------------------------------------------------------------------------------------- NAS
+[[system]]
+id = "synology"
+name = "Synology"
+kind = "nas"
+summary = "DSM 7.2 and later, with Container Manager"
+docker_app = "Container Manager"
+compose_how = [
+  "In File Station, make the folder for LineageBox first ({install_dir}). Container Manager doesn't make missing folders.",
+  "Open Container Manager → Project → Create.",
+  "Project name: lineagebox. Path: Set Path, and pick that folder.",
+  "Source: Create docker-compose.yml, and paste the whole file into the editor that opens.",
+  "Press Next (leave the Web Station portal off), then Done. Container Manager downloads LineageBox and starts it.",
+]
+install_dir = "/volume1/docker/lineagebox"
+photos_example = "/volume1/photo"
+share_parent = "/volume1"
+network_path = '\\{host}\{share}'
+docker_socket = "/var/run/docker.sock"
+ssh_how = "Control Panel → Terminal & SNMP → Terminal → Enable SSH service. Only administrators can sign in over SSH."
+sudo = true
+ids_how = [
+  "DSM doesn't show user ids. Turn on SSH, sign in as the user and run: id",
+  "It prints something like uid=1026(anna) gid=100(users): 1026 is the user id, 100 the group id.",
+]
+share_how = [
+  "Control Panel → Shared Folder → Create → Create Shared Folder. Name it {name}, pick the volume, and press Next.",
+  "Tick Enable shared folder quota and give it {size} GB (offered on Btrfs volumes only).",
+  "Finish the wizard.",
+]
+quota = true
+permissions_how = [
+  "Control Panel → Shared Folder → pick the folder → Edit → Permissions → Local users: tick Read/Write for the user LineageBox runs as.",
+  "Synology's shared folders use ACLs: a user without an entry there is refused, however open the folder looks.",
+]
+detect = ["/etc.defaults/synoinfo.conf", "/etc/synoinfo.conf"]
+model_from = "/etc.defaults/synoinfo.conf: upnpmodelname"   # unverified key name
+notes = [
+  "Folders made in File Station or over the network belong to whoever made them, in the group users (100). Running LineageBox as the photos' owner, in group 100, is the usual match.",
+  "Docker over SSH needs sudo.",
+  "With several storage pools there are /volume1, /volume2 and so on: use the volume that holds the photos.",
+  "32-bit models (DS218j, DS216j, DS416j, DS419slim and others with a Marvell Armada 385) can't run LineageBox. Older 64-bit ARM models (DS118, DS218, DS418, DS418j, DS119j, DS218play) have no Container Manager.",
+]
+
+[[system.users]]
+uid = 1026
+gid = 100
+who = "the first user, made when the NAS was set up (an administrator), in the group users"
+
+[[system.users]]
+uid = 1027
+gid = 100
+who = "the next user made in Control Panel → User & Group (ids go up by one)"
+guess = true
+
+[[system.models]]
+name = "DS925+"
+cpu = "AMD Ryzen R1600"
+arch = "amd64"
+memory_gb = 4   # unverified
+docker = true
+
+[[system.models]]
+name = "DS725+"
+cpu = "AMD Ryzen R1600"
+arch = "amd64"
+memory_gb = 4   # unverified
+docker = true
+
+[[system.models]]
+name = "DS425+"
+cpu = "Intel Celeron J4125"
+arch = "amd64"
+memory_gb = 2   # unverified
+docker = true
+
+[[system.models]]
+name = "DS225+"
+cpu = "Intel Celeron J4125"
+arch = "amd64"
+memory_gb = 2   # unverified
+docker = true
+
+[[system.models]]
+name = "DS224+"
+cpu = "Intel Celeron J4125"
+arch = "amd64"
+memory_gb = 2
+docker = true
+
+[[system.models]]
+name = "DS423+"
+cpu = "Intel Celeron J4125"
+arch = "amd64"
+memory_gb = 2
+docker = true
+
+[[system.models]]
+name = "DS923+"
+cpu = "AMD Ryzen R1600"
+arch = "amd64"
+memory_gb = 4
+docker = true
+
+[[system.models]]
+name = "DS723+"
+cpu = "AMD Ryzen R1600"
+arch = "amd64"
+memory_gb = 2
+docker = true
+
+[[system.models]]
+name = "DS1522+"
+cpu = "AMD Ryzen R1600"
+arch = "amd64"
+memory_gb = 8
+docker = true
+
+[[system.models]]
+name = "DS1621+"
+cpu = "AMD Ryzen V1500B"
+arch = "amd64"
+memory_gb = 4
+docker = true
+
+[[system.models]]
+name = "DS1821+"
+cpu = "AMD Ryzen V1500B"
+arch = "amd64"
+memory_gb = 4
+docker = true
+
+[[system.models]]
+name = "DS920+"
+cpu = "Intel Celeron J4125"
+arch = "amd64"
+memory_gb = 4
+docker = true
+
+[[system.models]]
+name = "DS720+"
+cpu = "Intel Celeron J4125"
+arch = "amd64"
+memory_gb = 2
+docker = true
+
+[[system.models]]
+name = "DS420+"
+cpu = "Intel Celeron J4025"
+arch = "amd64"
+memory_gb = 2
+docker = true
+
+[[system.models]]
+name = "DS220+"
+cpu = "Intel Celeron J4025"
+arch = "amd64"
+memory_gb = 2
+docker = true
+
+[[system.models]]
+name = "DS918+"
+cpu = "Intel Celeron J3455"
+arch = "amd64"
+memory_gb = 4
+docker = true
+
+[[system.models]]
+name = "DS218+"
+cpu = "Intel Celeron J3355"
+arch = "amd64"
+memory_gb = 2
+docker = true
+
+[[system.models]]
+name = "DS423"
+cpu = "Realtek RTD1619B"
+arch = "arm64"
+memory_gb = 2
+docker = true
+
+[[system.models]]
+name = "DS223"
+cpu = "Realtek RTD1619B"
+arch = "arm64"
+memory_gb = 2
+docker = true
+
+[[system.models]]
+name = "DS124"
+cpu = "Realtek RTD1619B"
+arch = "arm64"
+memory_gb = 1
+docker = true
+
+[[system.models]]
+name = "DS223j"
+cpu = "Realtek RTD1619B"   # unverified
+arch = "arm64"
+memory_gb = 1
+docker = true
+
+[[system.models]]
+name = "DS420j"
+cpu = "Realtek RTD1296"   # unverified
+arch = "arm64"
+memory_gb = 1
+docker = true
+
+[[system.models]]
+name = "DS220j"
+cpu = "Realtek RTD1296"   # unverified
+arch = "arm64"
+memory_gb = 0.5
+docker = true
+
+[[system.models]]
+name = "DS120j"
+cpu = "Marvell Armada 3720"   # unverified
+arch = "arm64"
+memory_gb = 0.5
+docker = true
+
+[[system.models]]
+name = "DS418"
+cpu = "Realtek RTD1296"
+arch = "arm64"
+memory_gb = 2
+docker = false
+
+[[system.models]]
+name = "DS218"
+cpu = "Realtek RTD1296"
+arch = "arm64"
+memory_gb = 2
+docker = false
+
+[[system.models]]
+name = "DS118"
+cpu = "Realtek RTD1296"
+arch = "arm64"
+memory_gb = 1
+docker = false
+
+[[system.models]]
+name = "DS218play"
+cpu = "Realtek RTD1296"
+arch = "arm64"
+memory_gb = 1
+docker = false
+
+[[system.models]]
+name = "DS218j"
+cpu = "Marvell Armada 385 (32-bit)"
+arch = "armv7"
+memory_gb = 0.5
+docker = false
+
+[[system.models]]
+name = "DS216j"
+cpu = "Marvell Armada 385 (32-bit)"
+arch = "armv7"
+memory_gb = 0.5
+docker = false
+
+[[system.models]]
+name = "DS419slim"
+cpu = "Marvell Armada 385 (32-bit)"
+arch = "armv7"
+memory_gb = 0.5   # unverified
+docker = false
+
+# ---------------------------------------------------------------------------------------------------------------
+[[system]]
+id = "qnap"
+name = "QNAP"
+kind = "nas"
+summary = "QTS 5 or QuTS hero, with Container Station 3"
+docker_app = "Container Station"
+compose_how = [
+  "Make the folder for LineageBox first in File Station ({install_dir}).",
+  "Open Container Station → Applications → Create.",
+  "Application name: lineagebox. Paste the whole file into the editor (Validate YAML checks it).",
+  "Press Create. Container Station downloads LineageBox and starts it.",
+]
+install_dir = "/share/Container/lineagebox"
+photos_example = "/share/Multimedia"
+share_parent = "/share"
+network_path = '\\{host}\{share}'
+docker_socket = "/var/run/docker.sock"
+ssh_how = "Control Panel → Network & File Services → Telnet / SSH → Allow SSH connection. Only administrators can sign in."
+sudo = false   # unverified: an administrator's SSH session runs docker directly
+ids_how = [
+  "QTS doesn't show user ids. Sign in over SSH as an administrator and run: id <user name>",
+  "It prints something like uid=500(anna) gid=100(everyone): 500 is the user id, 100 the group id.",
+]
+share_how = [
+  "Control Panel → Privilege → Shared Folders → Create → Shared Folder. Name it {name} and pick the volume.",
+  "On QuTS hero, give it a size limit of {size} GB in Storage & Snapshots (QTS has quotas per user only).",
+  "Give the user LineageBox runs as Read/Write in the folder's access rights.",
+]
+quota = false   # QTS: per user; QuTS hero (ZFS): per folder (unverified)
+permissions_how = [
+  "Control Panel → Privilege → Shared Folders → the folder's Edit Shared Folder Permission icon → Local users: Read/Write for the user LineageBox runs as.",
+  "With Advanced Folder Permissions or Windows ACL turned on, those decide too, however open the folder looks.",
+]
+detect = ["/etc/config/uLinux.conf", "/etc/config/qpkg.conf"]
+model_from = "/etc/config/uLinux.conf: Model"   # unverified key name
+notes = [
+  "Every QNAP user is in the group everyone (100).",
+  "Make the user before LineageBox first starts.",
+  "Container Station doesn't read a .env file: the wizard writes everything into compose.yaml.",
+  "32-bit ARM models (TS-231P3, TS-431P3 and other Alpine AL-314 ones) can't run LineageBox. ARM models with 512 MB are below Container Station's 1 GB.",
+]
+
+[[system.users]]
+uid = 500
+gid = 100
+who = "the first user made in Control Panel (not admin), in the group everyone"
+guess = true
+
+[[system.users]]
+uid = 501
+gid = 100
+who = "the next user (ids go up by one)"
+guess = true
+
+[[system.models]]
+name = "TS-464"
+cpu = "Intel Celeron N5095"
+arch = "amd64"
+memory_gb = 8
+docker = true
+
+[[system.models]]
+name = "TS-264"
+cpu = "Intel Celeron N5095"
+arch = "amd64"
+memory_gb = 8
+docker = true
+
+[[system.models]]
+name = "TS-364"
+cpu = "Intel Celeron N5095"
+arch = "amd64"
+memory_gb = 4
+docker = true
+
+[[system.models]]
+name = "TS-262"
+cpu = "Intel Celeron N4505"   # unverified
+arch = "amd64"
+memory_gb = 4
+docker = true
+
+[[system.models]]
+name = "TBS-464"
+cpu = "Intel Celeron N5095"
+arch = "amd64"
+memory_gb = 8
+docker = true
+
+[[system.models]]
+name = "TS-473A"
+cpu = "AMD Ryzen V1500B"
+arch = "amd64"
+memory_gb = 8
+docker = true
+
+[[system.models]]
+name = "TS-h973AX"
+cpu = "AMD Ryzen V1500B"
+arch = "amd64"
+memory_gb = 8
+docker = true
+
+[[system.models]]
+name = "TS-453D"
+cpu = "Intel Celeron J4125"
+arch = "amd64"
+memory_gb = 4
+docker = true
+
+[[system.models]]
+name = "TS-253D"
+cpu = "Intel Celeron J4125"
+arch = "amd64"
+memory_gb = 4
+docker = true
+
+[[system.models]]
+name = "TS-451D2"
+cpu = "Intel Celeron J4025"
+arch = "amd64"
+memory_gb = 2
+docker = true
+
+[[system.models]]
+name = "TS-251D"
+cpu = "Intel Celeron J4005"
+arch = "amd64"
+memory_gb = 2
+docker = true
+
+[[system.models]]
+name = "TS-433"
+cpu = "ARM Cortex-A55 (4 cores)"
+arch = "arm64"
+memory_gb = 4
+docker = true   # unverified
+
+[[system.models]]
+name = "TS-233"
+cpu = "ARM Cortex-A55 (4 cores)"
+arch = "arm64"
+memory_gb = 2
+docker = true   # unverified
+
+[[system.models]]
+name = "TS-133"
+cpu = "ARM Cortex-A55"   # unverified
+arch = "arm64"
+memory_gb = 1
+docker = true   # unverified
+
+[[system.models]]
+name = "TS-228A"
+cpu = "Realtek RTD1296"
+arch = "arm64"
+memory_gb = 0.5
+docker = false   # unverified: below Container Station's 1 GB
+
+[[system.models]]
+name = "TS-231P3"
+cpu = "Annapurna Labs Alpine AL-314 (32-bit)"
+arch = "armv7"
+memory_gb = 2
+
+[[system.models]]
+name = "TS-431P3"
+cpu = "Annapurna Labs Alpine AL-314 (32-bit)"
+arch = "armv7"
+memory_gb = 2
+
+# ---------------------------------------------------------------------------------------------------------------
+[[system]]
+id = "unraid"
+name = "Unraid"
+kind = "nas"
+summary = "6.12 or 7, with the Compose Manager Plus plugin"
+docker_app = "Compose Manager Plus"
+compose_how = [
+  "Once: Apps → search Compose Manager Plus → Install.",
+  "Docker → the Compose section under the containers → Add New Stack. Name it lineagebox.",
+  "Edit the stack's compose file, paste the whole file in, and Save.",
+  "Press Compose Up.",
+]
+install_dir = "/mnt/user/appdata/lineagebox"
+photos_example = "/mnt/user/photos"
+share_parent = "/mnt/user"
+network_path = '\\{host}\{share}'
+docker_socket = "/var/run/docker.sock"
+ssh_how = "Settings → Management Access → Use SSH: Yes. You sign in as root."
+sudo = false
+ids_how = [
+  "Containers on Unraid run as nobody (99) in the group users (100): Unraid keeps every share's files that way, even those written over the network.",
+]
+share_how = [
+  "Shares → Add Share. Name it {name}, pick where it is kept, and press Add Share.",
+  "Set SMB Export so the family's PCs can reach it. Unraid shares have no size limit.",
+]
+quota = false
+permissions_how = [
+  "Tools → New Permissions puts a share's files back to nobody:users, which LineageBox can write.",
+]
+detect = ["/etc/unraid-version"]
+notes = [
+  "Keep the catalog on a cache pool if you have one (/mnt/cache/appdata/lineagebox): its database is quicker there than through /mnt/user.",
+  "Never put the catalog on the flash drive.",
+]
+
+[[system.users]]
+uid = 99
+gid = 100
+who = "nobody in the group users: the owner of every share's files, and what Unraid's containers run as"
+
+# ---------------------------------------------------------------------------------------------------------------
+[[system]]
+id = "truenas"
+name = "TrueNAS"
+kind = "nas"
+summary = "SCALE or Community Edition 24.10 and later (TrueNAS CORE has no Docker)"
+docker_app = "Apps"
+compose_how = [
+  "Make the datasets first (the wizard's folders): TrueNAS can't make them while installing.",
+  "Apps → Discover Apps → ⋮ (top right) → Install via YAML.",
+  "Name: lineagebox. Paste the whole file into Custom Config, and Save.",
+]
+install_dir = "/mnt/tank/apps/lineagebox"   # "tank" is the examples' pool name: yours may differ
+photos_example = "/mnt/tank/photos"
+share_parent = "/mnt/tank"
+network_path = '\\{host}\{share}'
+docker_socket = "/var/run/docker.sock"
+ssh_how = "System → Services → SSH → Start, then allow the admin to sign in with a password or key in Credentials → Users."
+sudo = true
+ids_how = [
+  "Credentials → Users → click the user: its UID and primary group are shown.",
+  "Apps usually run as apps (568) in the group apps (568).",
+]
+share_how = [
+  "Datasets → pick the pool → Add Dataset. Name it {name} (the Apps preset suits LineageBox; SMB if the family's PCs reach it too).",
+  "Under Advanced Options, give it a quota of {size} GB.",
+]
+quota = true
+permissions_how = [
+  "Datasets → the dataset → Permissions → Edit: add an entry for the user LineageBox runs as ({user}) with Modify, and apply it to what is inside.",
+  "A folder the app can't write stops it from starting.",
+]
+detect = ["/usr/bin/midclt", "/mnt/.ix-apps"]
+notes = [
+  "Install via YAML has no .env: the wizard writes everything into the file.",
+  "Never share or change the hidden ix-apps dataset.",
+]
+
+[[system.users]]
+uid = 568
+gid = 568
+who = "apps, in the group apps: what TrueNAS apps run as"
+
+[[system.users]]
+uid = 3000
+gid = 3000
+who = "the first user made in Credentials → Users (ids from 3000 up)"
+guess = true
+
+# ---------------------------------------------------------------------------------------------------------------
+[[system]]
+id = "omv"
+name = "OpenMediaVault"
+kind = "nas"
+summary = "OMV 7 with the compose plugin"
+docker_app = "Services → Compose"
+compose_how = [
+  "Once: install Docker from System → omv-extras, and the openmediavault-compose plugin from System → Plugins.",
+  "Services → Compose → Files → Create. Name: lineagebox, and paste the whole file into File. Save.",
+  "Pick the file and press Up.",
+]
+install_dir = "/srv/dev-disk-by-uuid-<your disk>/appdata/lineagebox"
+photos_example = "/srv/dev-disk-by-uuid-<your disk>/photos"
+share_parent = "/srv"
+docker_socket = "/var/run/docker.sock"
+ssh_how = "Services → SSH → Enabled, and put your user in the _ssh group (Users)."
+sudo = true
+ids_how = [
+  "Over SSH: id <user name>. Users made in OMV are in the group users (100).",
+]
+share_how = [
+  "Storage → Shared Folders → Add. Name it {name} and pick the disk. OMV has no size limits per folder.",
+  "Services → SMB/CIFS → Shares → Add, to reach it from the family's PCs.",
+]
+quota = false
+permissions_how = [
+  "Storage → Shared Folders → the folder → Permissions: Read/Write for the user LineageBox runs as. A new shared folder is root's, group users, writable by that group.",
+]
+detect = ["/etc/openmediavault/config.xml"]
+notes = [
+  "Shared folders are under /srv/dev-disk-by-uuid-…: copy the path from Storage → Shared Folders (the Absolute Path column).",
+]
+
+[[system.users]]
+uid = 1000
+gid = 100
+who = "the first user, in the group users"
+guess = true
+
+# ---------------------------------------------------------------------------------------------------------------
+[[system]]
+id = "ugreen"
+name = "UGREEN NASync"
+kind = "nas"
+summary = "UGOS Pro, with its Docker app"
+docker_app = "Docker"
+compose_how = [
+  "Once: App Center → Docker → Install. It makes a docker shared folder.",
+  "Docker → Project → Create. Name it lineagebox, and keep its folder inside the docker shared folder.",
+  "Paste the whole file into the editor and press Deploy.",
+]
+install_dir = "/volume1/docker/lineagebox"
+photos_example = "/volume1/photos"
+share_parent = "/volume1"
+network_path = '\\{host}\{share}'
+docker_socket = "/var/run/docker.sock"
+ssh_how = "Control Panel → Terminal → Enable, then Apply. Sign in as an administrator."
+sudo = true   # unverified
+ids_how = [
+  "Turn on SSH, sign in as the user and run: id",
+  "It prints something like uid=1000(anna) gid=10(admin).",
+]
+share_how = [
+  "Control Panel → Shared Folder → Create. Name it {name} and pick the storage space.",
+  "Don't tick Only accessible for administrators: LineageBox couldn't read it.",
+]
+quota = false   # unverified
+permissions_how = [
+  "Control Panel → Shared Folder → the folder → Edit → Permissions: Read/Write for the user LineageBox runs as.",
+  "UGOS adds ACLs: a folder can look open and still refuse a user without an entry.",
+]
+detect = ["/etc/os-release: ugos"]   # unverified
+notes = [
+  "The DH2300 has no Docker. The DH4300 Plus is 64-bit ARM; the DXP models are x86-64.",
+  "Avoid ports 9999 and 9443 for LineageBox: UGOS's own pages use them.",
+]
+
+[[system.users]]
+uid = 999
+gid = 10
+who = "the first administrator, as in UGREEN's own example"
+guess = true
+
+[[system.models]]
+name = "DXP2800"
+cpu = "Intel N100"
+arch = "amd64"
+memory_gb = 8
+docker = true
+
+[[system.models]]
+name = "DXP4800"
+cpu = "Intel N100"   # unverified
+arch = "amd64"
+memory_gb = 8
+docker = true
+
+[[system.models]]
+name = "DXP4800 Plus"
+cpu = "Intel Pentium Gold 8505"
+arch = "amd64"
+memory_gb = 8
+docker = true
+
+[[system.models]]
+name = "DXP4800 Pro"
+cpu = "Intel Core i3-1315U"
+arch = "amd64"
+memory_gb = 8
+docker = true
+
+[[system.models]]
+name = "DXP6800 Pro"
+cpu = "Intel Core i5-1235U"   # unverified
+arch = "amd64"
+memory_gb = 8
+docker = true
+
+[[system.models]]
+name = "DXP8800 Plus"
+cpu = "Intel Core i5-1235U"   # unverified
+arch = "amd64"
+memory_gb = 8
+docker = true
+
+[[system.models]]
+name = "DH4300 Plus"
+cpu = "Rockchip RK3588C"   # unverified
+arch = "arm64"
+memory_gb = 8   # unverified
+docker = true
+
+[[system.models]]
+name = "DH2300"
+cpu = "Rockchip (ARM)"   # unverified
+arch = "arm64"
+memory_gb = 4   # unverified
+docker = false
+
+# ---------------------------------------------------------------------------------------------------------------
+[[system]]
+id = "asustor"
+name = "ASUSTOR"
+kind = "nas"
+summary = "ADM 4 or 5, with Docker CE and Portainer from App Central"
+docker_app = "Portainer"
+compose_how = [
+  "Once: App Central → Docker CE → Install, then Portainer CE → Install.",
+  "Make the folder for LineageBox first in File Explorer ({install_dir}): Portainer would make it as root.",
+  "Open Portainer → Stacks → Add stack. Name: lineagebox. Paste the whole file into the Web editor.",
+  "Press Deploy the stack.",
+]
+install_dir = "/volume1/Docker/lineagebox"
+photos_example = "/volume1/Photo"
+share_parent = "/volume1"
+network_path = '\\{host}\{share}'
+docker_socket = "/var/run/docker.sock"
+ssh_how = "Settings → Services → Terminal → Enable SSH service. Sign in as an administrator."
+sudo = true   # unverified
+ids_how = [
+  "Access Control → Local Users → pick the user → Edit: its UID is shown. Local Groups shows the groups' ids.",
+  "Or over SSH: id <user name>",
+]
+share_how = [
+  "Access Control → Shared Folders → Add. Name it {name} and pick the volume.",
+]
+quota = false   # unverified
+permissions_how = [
+  "Access Control → Shared Folders → the folder → Edit → Access Rights: Read/Write for the user LineageBox runs as.",
+]
+detect = ["/usr/builtin/etc"]   # unverified
+notes = [
+  "ASUSTOR doesn't say which ids its users get: read yours as above.",
+  "Docker CE is offered for most series. On the entry Drivestor models (AS1102T, AS1104T), check App Central for it first.",
+]
+
+[[system.users]]
+uid = 1000
+gid = 100
+who = "a common first user: read yours in Access Control → Local Users"
+guess = true
+
+[[system.models]]
+name = "AS6704T (Lockerstor 4 Gen2)"
+cpu = "Intel Celeron N5105"
+arch = "amd64"
+memory_gb = 4
+docker = true
+
+[[system.models]]
+name = "AS6604T (Lockerstor 4)"
+cpu = "Intel Celeron J4125"
+arch = "amd64"
+memory_gb = 4
+docker = true
+
+[[system.models]]
+name = "AS5404T (Nimbustor 4 Gen2)"
+cpu = "Intel Celeron N5105"   # unverified
+arch = "amd64"
+memory_gb = 4
+docker = true
+
+[[system.models]]
+name = "AS5402T (Nimbustor 2 Gen2)"
+cpu = "Intel Celeron N5105"   # unverified
+arch = "amd64"
+memory_gb = 4
+docker = true
+
+[[system.models]]
+name = "AS5304T (Nimbustor 4)"
+cpu = "Intel Celeron J4005"
+arch = "amd64"
+memory_gb = 4
+docker = true
+
+[[system.models]]
+name = "AS5202T (Nimbustor 2)"
+cpu = "Intel Celeron J4005"
+arch = "amd64"
+memory_gb = 2
+docker = true
+
+[[system.models]]
+name = "FS6706T (Flashstor 6)"
+cpu = "Intel Celeron N5105"
+arch = "amd64"
+memory_gb = 8
+docker = true
+
+[[system.models]]
+name = "FS6712X (Flashstor 12 Pro)"
+cpu = "Intel Celeron N5105"
+arch = "amd64"
+memory_gb = 8
+docker = true
+
+[[system.models]]
+name = "AS3304T (Drivestor 4 Pro)"
+cpu = "Realtek RTD1296"   # unverified
+arch = "arm64"
+memory_gb = 2
+docker = true   # unverified
+
+[[system.models]]
+name = "AS3302T (Drivestor 2 Pro)"
+cpu = "Realtek RTD1296"   # unverified
+arch = "arm64"
+memory_gb = 2
+docker = true   # unverified
+
+[[system.models]]
+name = "AS1104T (Drivestor 4)"
+cpu = "Realtek RTD1296"
+arch = "arm64"
+memory_gb = 1
+note = "Check App Central for Docker CE: reports differ"
+
+[[system.models]]
+name = "AS1102T (Drivestor 2)"
+cpu = "Realtek RTD1296"
+arch = "arm64"
+memory_gb = 1
+note = "Check App Central for Docker CE: reports differ"
+
+# ---------------------------------------------------------------------------------------------------------------
+[[system]]
+id = "terramaster"
+name = "TerraMaster"
+kind = "nas"
+summary = "TOS 6, with Docker Manager"
+docker_app = "Docker Manager"
+compose_how = [
+  "Once: open Docker Manager from the App Center and install Docker Engine when it asks.",
+  "Docker Manager → Projects → Add. Name: lineagebox. Project path: {install_dir}.",
+  "Compose file source: Create a YAML file, and paste the whole file in.",
+  "Press Validate, then Apply.",
+]
+install_dir = "/Volume1/docker/lineagebox"   # unverified; volumes are /Volume1, /Volume2 (capital V)
+photos_example = "/Volume1/Photos"
+share_parent = "/Volume1"
+network_path = '\\{host}\{share}'
+docker_socket = "/var/run/docker.sock"
+ssh_how = "Control Panel → Terminal & SNMP → Enable SSH. Sign in as the administrator."   # unverified wording
+sudo = false
+ids_how = [
+  "Over SSH: id <user name>.",
+]
+share_how = [
+  "Control Panel → Shared Folder → Create. Name it {name}.",
+]
+quota = false   # unverified
+permissions_how = [
+  "Control Panel → Shared Folder → the folder → Permissions: Read/Write for the user LineageBox runs as.",
+]
+notes = [
+  "TerraMaster doesn't say which ids its users get: read yours over SSH.",
+  "The older ARM models (F2-210, F4-210) are 32-bit and can't run LineageBox.",
+]
+
+[[system.users]]
+uid = 1000
+gid = 100
+who = "a common first user: read yours over SSH"
+guess = true
+
+[[system.models]]
+name = "F4-424 Pro"
+cpu = "Intel Core i3-N305"   # unverified
+arch = "amd64"
+memory_gb = 32   # unverified
+docker = true
+
+[[system.models]]
+name = "F4-424"
+cpu = "Intel N95"   # unverified
+arch = "amd64"
+memory_gb = 8   # unverified
+docker = true
+
+[[system.models]]
+name = "F2-424"
+cpu = "Intel N95"   # unverified
+arch = "amd64"
+memory_gb = 8   # unverified
+docker = true
+
+[[system.models]]
+name = "F4-423"
+cpu = "Intel Celeron N5095"   # unverified
+arch = "amd64"
+memory_gb = 4   # unverified
+docker = true
+
+[[system.models]]
+name = "F2-423"
+cpu = "Intel Celeron N5095"   # unverified
+arch = "amd64"
+memory_gb = 4   # unverified
+docker = true
+
+[[system.models]]
+name = "F4-221"
+cpu = "Intel Celeron J3355"   # unverified
+arch = "amd64"
+memory_gb = 2   # unverified
+docker = true
+
+[[system.models]]
+name = "F2-221"
+cpu = "Intel Celeron J3355"   # unverified
+arch = "amd64"
+memory_gb = 2   # unverified
+docker = true
+
+[[system.models]]
+name = "F4-210"
+cpu = "Rockchip RK3228H (32-bit)"   # unverified
+arch = "armv7"
+memory_gb = 1
+docker = false
+
+[[system.models]]
+name = "F2-210"
+cpu = "Rockchip RK3228H (32-bit)"   # unverified
+arch = "armv7"
+memory_gb = 1
+docker = false
+
+# ---------------------------------------------------------------------------------------------------------------
+[[system]]
+id = "zimaos"
+name = "ZimaOS or CasaOS"
+kind = "nas"
+summary = "ZimaBoard, ZimaBlade, ZimaCube, or CasaOS on another machine"
+docker_app = "App Store"
+compose_how = [
+  "Make the folder for LineageBox first ({install_dir}), over SSH: ZimaOS would make it as root.",
+  "App Store → Install a customized app → Import → the Docker Compose tab: paste the whole file.",
+  "Submit, then Install.",
+]
+install_dir = "/DATA/AppData/lineagebox"
+photos_example = "/DATA/Gallery"   # unverified
+docker_socket = "/var/run/docker.sock"
+ssh_how = "Settings → Developer mode → SSH."   # unverified wording
+sudo = true   # unverified
+ids_how = [
+  "Over SSH: id -u and id -g.",
+]
+share_how = [
+  "In the Files app, make a folder named {name}, and share it to reach it from the family's PCs.",
+]
+quota = false
+permissions_how = [
+  "Over SSH: sudo chown -R {user} <the folder>",
+]
+detect = ["/etc/os-release: zimaos", "/var/lib/casaos"]   # unverified
+notes = [
+  "Keep the catalog on the internal drive: exFAT and NTFS drives can't keep whose files are whose.",
+]
+
+[[system.users]]
+uid = 1000
+gid = 1000
+who = "the first user, as in ZimaOS's own examples"
+guess = true
+
+# ---------------------------------------------------------------------------------------------------- computers
+[[system]]
+id = "raspberrypi"
+name = "Raspberry Pi"
+kind = "computer"
+summary = "Raspberry Pi OS 64-bit, with Docker Engine"
+docker_app = ""
+install_dir = "/opt/lineagebox"
+photos_example = "/mnt/photos"
+docker_socket = "/var/run/docker.sock"
+ssh_how = "Turn on SSH in Raspberry Pi Imager's settings before writing the card, or later with sudo raspi-config → Interface Options → SSH."
+sudo = true
+ids_how = ["Run: id. The first user, made by Raspberry Pi Imager, is 1000 in group 1000."]
+share_how = ["Make the folder on the attached drive: sudo mkdir -p /mnt/photos"]
+quota = false
+permissions_how = ["sudo chown -R {user} <the folder>"]
+detect = ["/etc/rpi-issue", "/sys/firmware/devicetree/base/model: raspberry pi"]
+notes = [
+  "It needs the 64-bit Raspberry Pi OS: the 32-bit one can't run LineageBox.",
+  "Keep the catalog and photos on an SSD, not the SD card, which wears out.",
+  "A Pi 4 with 4 GB or a Pi 5 is the smallest that works well.",
+  "Install Docker with: curl -fsSL https://get.docker.com | sudo sh",
+]
+
+[[system.users]]
+uid = 1000
+gid = 1000
+who = "the first user, made by Raspberry Pi Imager"
+
+[[system.models]]
+name = "Raspberry Pi 5"
+cpu = "Broadcom BCM2712"
+arch = "arm64"
+memory_gb = 8
+note = "2, 4, 8 and 16 GB versions"
+
+[[system.models]]
+name = "Raspberry Pi 4 Model B"
+cpu = "Broadcom BCM2711"
+arch = "arm64"
+memory_gb = 4
+note = "1, 2, 4 and 8 GB versions"
+
+[[system.models]]
+name = "Raspberry Pi 3 Model B+"
+cpu = "Broadcom BCM2837B0"
+arch = "arm64"
+memory_gb = 1
+
+[[system.models]]
+name = "Raspberry Pi Zero 2 W"
+cpu = "Broadcom RP3A0"
+arch = "arm64"
+memory_gb = 0.5
+
+[[system.models]]
+name = "Raspberry Pi 2, 1 or Zero W"
+cpu = "Broadcom BCM2836 / BCM2835 (32-bit)"
+arch = "armv7"
+memory_gb = 1
+
+# ---------------------------------------------------------------------------------------------------------------
+[[system]]
+id = "openwrt"
+name = "OpenWrt router"
+kind = "other"
+summary = "A router with Docker and a drive attached"
+docker_app = ""
+install_dir = "/mnt/sda1/lineagebox"
+photos_example = "/mnt/sda1/photos"
+docker_socket = "/var/run/docker.sock"
+ssh_how = "OpenWrt answers SSH as root."
+sudo = false
+host_network = true
+ids_how = ["OpenWrt has few users: run as the owner of the photos (ls -ln), or as root (0) with the root choice."]
+quota = false
+permissions_how = ["chown -R {user} <the folder>"]
+detect = ["/etc/openwrt_release"]
+notes = [
+  "Containers on Docker's bridge network often can't reach the router's DNS: the wizard runs LineageBox on the router's own network (host networking), answering on its LAN address.",
+  "Leave the router some processor: LineageBox's first pass is heavy work.",
+]
+
+[[system.users]]
+uid = 0
+gid = 0
+who = "root, with the root choice below"
+
+# ---------------------------------------------------------------------------------------------------------------
+[[system]]
+id = "linux"
+name = "Linux server or PC"
+kind = "computer"
+summary = "Ubuntu, Debian or another Linux, with Docker Engine"
+docker_app = ""
+install_dir = "/opt/lineagebox"
+photos_example = "/srv/photos"
+docker_socket = "/var/run/docker.sock"
+ssh_how = "sudo apt install openssh-server"
+sudo = true
+ids_how = [
+  "Run: id. The first user made when Linux was installed is 1000 in group 1000.",
+  "ls -ln <the photos' folder> shows who owns it, as numbers.",
+]
+share_how = ["Make the folder: sudo mkdir -p <the folder>"]
+quota = false
+permissions_how = ["sudo chown -R {user} <the folder>"]
+detect = ["/etc/os-release"]
+notes = [
+  "Install Docker Engine from Docker's own instructions (docs.docker.com/engine/install), or with: curl -fsSL https://get.docker.com | sudo sh",
+  "Without sudo: put yourself in the docker group (sudo usermod -aG docker $USER), then sign in again.",
+]
+
+[[system.users]]
+uid = 1000
+gid = 1000
+who = "the first user, made when Linux was installed"
+
+# ---------------------------------------------------------------------------------------------------------------
+[[system]]
+id = "docker-desktop-windows"
+name = "Windows PC"
+kind = "computer"
+summary = "Docker Desktop on Windows 10 or 11"
+docker_app = ""
+compose_how = [
+  "Save compose.yaml in its own folder ({install_dir}).",
+  "Open PowerShell in that folder (in File Explorer: right-click → Open in Terminal).",
+]
+install_dir = "C:/lineagebox"
+photos_example = "D:/Photos"
+docker_socket = "/var/run/docker.sock"
+sudo = false
+windows = true
+ids_how = ["Windows has no user ids: folders on its drives can be written by any, so 1000 is fine."]
+quota = false
+permissions_how = ["Docker Desktop reaches every drive with its usual WSL 2 setup: nothing to change."]
+notes = [
+  "Every PC looks like the same address to LineageBox through Docker Desktop, so it can't tell the home network's devices apart: fine at home, but a Linux machine is better for family accounts.",
+  "Keep the catalog on the PC's own drive, never a mapped network drive.",
+]
+
+[[system.users]]
+uid = 1000
+gid = 1000
+who = "any user works on Windows' drives"
+
+# ---------------------------------------------------------------------------------------------------------------
+[[system]]
+id = "docker-desktop-mac"
+name = "Mac"
+kind = "computer"
+summary = "Docker Desktop on macOS"
+docker_app = ""
+compose_how = [
+  "Save compose.yaml in its own folder ({install_dir}).",
+  "Open Terminal in that folder.",
+]
+install_dir = "~/lineagebox"
+photos_example = "~/Pictures/Family"
+docker_socket = "/var/run/docker.sock"
+sudo = false
+ids_how = ["Docker Desktop lets any user write the folders it shares, so 1000 is fine."]
+quota = false
+permissions_how = [
+  "Docker Desktop → Settings → Resources → File sharing must list the folder (or one it is in).",
+  "For folders in Pictures, Documents or an external drive, macOS may ask to let Docker in (System Settings → Privacy & Security).",
+]
+notes = [
+  "Every device looks like the same address to LineageBox through Docker Desktop: fine at home, but a Linux machine is better for family accounts.",
+]
+
+[[system.users]]
+uid = 1000
+gid = 1000
+who = "any user works through Docker Desktop's file sharing"
+
+# ---------------------------------------------------------------------------------------------------------- other
+[[system]]
+id = "portainer"
+name = "Portainer"
+kind = "other"
+summary = "Stacks in Portainer, on any Linux machine"
+docker_app = "Portainer"
+compose_how = [
+  "Make the folders first on the machine: Portainer would make missing ones as root, which LineageBox couldn't write.",
+  "Portainer → your environment → Stacks → Add stack. Name: lineagebox. Paste the whole file into the Web editor.",
+  "Press Deploy the stack.",
+]
+install_dir = "/opt/lineagebox"
+photos_example = "/srv/photos"
+docker_socket = "/var/run/docker.sock"
+sudo = true
+ids_how = ["On the machine: ls -ln <the photos' folder> shows who owns it, as numbers. On a NAS, its own entry here says more."]
+quota = false
+permissions_how = ["On the machine: sudo chown -R {user} <the folder>"]
+notes = ["Portainer can't use folders given relative to compose.yaml (./data): the wizard writes whole paths."]
+
+[[system.users]]
+uid = 1000
+gid = 1000
+who = "the usual first user of a Linux machine"
+guess = true
+
+# ---------------------------------------------------------------------------------------------------------------
+[[system]]
+id = "rootless"
+name = "Rootless Docker or Podman"
+kind = "other"
+summary = "Containers run as you, without root"
+docker_app = ""
+install_dir = "~/lineagebox"
+photos_example = "~/Pictures"
+docker_socket = "/run/user/1000/docker.sock"
+sudo = false
+rootless = true
+ids_how = [
+  "The containers' root is you, so LineageBox runs as 0: it writes your own folders, and nothing else on the machine.",
+  "Another id inside would be one of your sub-ids outside, which can't write your folders.",
+]
+quota = false
+permissions_how = ["Nothing to change: the folders are yours."]
+notes = [
+  "Rootless Docker's socket is /run/user/<your id>/docker.sock (Podman's: /run/user/<your id>/podman/podman.sock).",
+  "Ports below 1024 need extra setup.",
+  "Keep it running after you sign out: loginctl enable-linger <you>",
+  "Podman with SELinux (Fedora, RHEL) needs :z on each folder in compose.yaml.",
+]
+
+[[system.users]]
+uid = 0
+gid = 0
+who = "you: the containers' root is the user who runs them"

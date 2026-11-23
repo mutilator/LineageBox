@@ -17,9 +17,10 @@ failures are recorded per photo without stopping the run.
 
 | Command | What it does |
 |---|---|
-| `serve [--host H] [--port P]` | The web UI. It binds `127.0.0.1:8000` by default (`0.0.0.0` in Docker). |
+| `serve [--host H] [--port P]` | The web UI. It binds `127.0.0.1:8000` by default (`0.0.0.0` in Docker). In LineageBox's image it starts the [setup wizard](install.md#the-setup-wizard) instead while no catalog folder is mounted, until the compose file says `LINEAGEBOX_SETUP: done`. |
 | `worker [--once]` | Runs every stage for new photos, then again every interval. `--once` runs one pass and exits. |
 | `copies [--once] [--limit N]` | Makes 720p copies of videos browsers can't play. |
+| `setup [--port P] [--hosted] [--idle M]` | The [setup wizard](install.md#the-setup-wizard): a page, on port 8080, that writes the compose file. It needs no config or catalog. The repository's `compose.yaml` starts it through `serve` (above); `docker run ... ghcr.io/mutilator/lineagebox setup` starts it on its own. Either way the machine's root is at `/host` and the folder to save in at `/install`. It prints its address with a key (looking at the machine and saving need it), and stops after `--idle` minutes unused (60; 0 never). `--hosted` is the public kind: no key, nothing of the machine, no saving. |
 
 ## Stages, in the order the worker runs them
 

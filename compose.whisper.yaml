@@ -1,8 +1,8 @@
 # The speech-to-text service for video transcripts, next to LineageBox in Docker, on this machine's processor, when
 # there is no other machine to run it on. Turn it on in .env:
-#   COMPOSE_FILE=compose.yaml:compose.whisper.yaml     (on Windows: compose.yaml;compose.whisper.yaml)
+#   COMPOSE_FILE=compose.manual.yaml:compose.whisper.yaml     (on Windows: compose.manual.yaml;compose.whisper.yaml)
 # The first start builds it (several minutes) and downloads its models (the Status page shows how far). With Ollama
-# in Docker too: COMPOSE_FILE=compose.yaml:compose.ollama.yaml:compose.whisper.yaml. See docs/whisper.md.
+# in Docker too: COMPOSE_FILE=compose.manual.yaml:compose.ollama.yaml:compose.whisper.yaml. See docs/whisper.md.
 services:
   whisper:
     # published with each release, like LineageBox's; `docker compose up -d --build` builds it here instead

@@ -6,7 +6,7 @@ import sqlite3
 import sys
 from pathlib import Path
 
-from lineagebox import __version__, catalog, config, db, settings
+from lineagebox import __version__, catalog, config, db, settings, setup
 from lineagebox.power import keep_awake
 from lineagebox.ingest import ingest
 from lineagebox.scan import scan
@@ -420,6 +420,15 @@ def main(argv=None):
                                     "watched folders as they are now; reset, with web and worker stopped, puts them "
                                     "back, deleting everything made since")
     p.add_argument("action", choices=["save", "reset"])
+    p = sub.add_parser("setup", help="the setup wizard: a page that asks where the photos, the catalog and the AI are, "
+                                     "and writes the compose file (docs/install.md#the-setup-wizard)")
+    p.add_argument("--host", default="0.0.0.0", help="interface to bind (default: every one; it asks for its key)")
+    p.add_argument("--port", type=int, default=8080)
+    p.add_argument("--hosted", action="store_true", help="for anyone on the internet: no key, nothing of this "
+                                                         "machine, no saving")
+    p.add_argument("--idle", type=int, default=60, help="minutes unused before it stops (0: never)")
+    p.add_argument("--root", default="/host", help=argparse.SUPPRESS)        # the machine's root, read-only
+    p.add_argument("--install", default="/install", help=argparse.SUPPRESS)  # where Save writes
     args = parser.parse_args(argv)
     if args.command in ("worker", "copies", "updater") and not getattr(args, "once", False):
         _stop_on_sigterm()
@@ -428,6 +437,13 @@ def main(argv=None):
         return updater.main()
     if args.command == "backup" and args.check:  # nor this: the catalog may be what was lost
         return check_backup(args.check)
+    if args.command == "setup":  # nor this: it comes before there is any
+        from lineagebox.setup import server
+        return server.serve(args.hosted, args.host, args.port, args.root, args.install,
+                            0 if args.hosted else args.idle)
+    if args.command == "serve" and setup.first_start(args.config):  # the image before a compose file is made for it
+        from lineagebox.setup import server
+        return server.serve(False, args.host, args.port, first=True)
 
     try:
         base = config.load(args.config)

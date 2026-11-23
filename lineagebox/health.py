@@ -6,10 +6,13 @@ import contextlib
 import sqlite3
 import sys
 
-from lineagebox import config
+from lineagebox import config, setup
 
 
 def main() -> int:
+    if setup.first_start():   # the image's setup wizard, before there is a catalog: running is all there is to it
+        print("ok: the setup wizard")
+        return 0
     try:
         cfg = config.load()
         with contextlib.closing(sqlite3.connect(f"file:{cfg.db_path.as_posix()}?mode=ro", uri=True, timeout=10)) as con:

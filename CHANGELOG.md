@@ -6,6 +6,33 @@ copies it there when the version is tagged ([releases](docs/development.md#relea
 A **catalog update** adds to the catalog's tables. LineageBox copies the catalog before it updates it, and earlier
 versions can't open the updated one.
 
+## 1.11.0 (2026-11-23)
+
+### New
+
+- **A setup wizard writes your compose file.** LineageBox's `compose.yaml` now starts it, in place of LineageBox. It
+  asks:
+  - where the photos are: folders of the machine, shares on another computer or NAS, or a new shared folder it helps
+    you make;
+  - where the catalog goes and who owns the files;
+  - where Ollama and Whisper run.
+
+  It then writes the `compose.yaml` that runs LineageBox there, with the steps for your NAS's own Docker app. It knows
+  the usual users, folders and steps of Synology, QNAP, Unraid, TrueNAS, OpenMediaVault, UGREEN, ASUSTOR, TerraMaster
+  and ZimaOS NASes, and of Linux, Raspberry Pi, Windows and Mac machines. On the machine itself it finds your folders,
+  who owns them and your users, and saves the new file in place of its own: start that the same way, and LineageBox
+  takes the wizard's place. It is also online, at [demo.lineagebox.com/setup](https://demo.lineagebox.com/setup/),
+  where you type the paths and download the file ([the setup wizard](docs/install.md#the-setup-wizard)).
+
+### Updated
+
+- **Set up by hand, with `.env`? That compose file is now `compose.manual.yaml`.** `compose.yaml` is the setup
+  wizard's now. An install that updates from the Status page or with `docker compose pull` keeps the compose file it
+  has, so nothing changes for it. If you download the repository's files again (with `git pull`, say), first put
+  `COMPOSE_FILE=compose.manual.yaml` in `.env`, or `compose.manual.yaml` in place of `compose.yaml` where
+  `COMPOSE_FILE` lists it already. If the wizard comes up in LineageBox's place, do that and run
+  `docker compose up -d` again: nothing is lost.
+
 ## 1.10.3 (2026-11-17)
 
 **Catalog update** (migration 041).

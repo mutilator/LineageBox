@@ -36,6 +36,10 @@ Linux. Follow [docs/whisper.md](../whisper.md#on-a-windows-pc-with-an-nvidia-gra
 
 ## On the NAS: LineageBox
 
+The [setup wizard](../install.md#the-setup-wizard) can write the NAS's compose file for you: LineageBox's
+`compose.yaml` starts it ([on the NAS](../install.md#on-the-machine-lineagebox-will-run-on)). Choose **On another
+computer** for Ollama, and give it the PC's address. By hand, with your settings in a `.env` file:
+
 1. **Install Docker** with Compose v2, using the NAS's Docker or Container Manager package, and turn on SSH.
 2. **Get LineageBox**, over SSH:
 

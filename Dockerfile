@@ -28,6 +28,9 @@ COPY LICENSE THIRD_PARTY_NOTICES.md /app/
 RUN /venv/bin/python -m compileall -q /app/lineagebox \
  && /venv/bin/pip freeze --all --disable-pip-version-check > /app/python-packages.txt
 ENV PATH=/venv/bin:$PATH PYTHONPATH=/app PYTHONUNBUFFERED=1 LINEAGEBOX_CONFIG=/app/docker/config.toml
+# serve starts the setup wizard instead of LineageBox until a compose file says LINEAGEBOX_SETUP: done, as the wizard's
+# and compose.manual.yaml do, while no catalog folder is mounted (lineagebox/setup/__init__.py: first_start)
+ENV LINEAGEBOX_SETUP=wizard
 # where this image's releases are published (owner/name on GitHub), for Status → Version and updates; a fork's CI
 # sets its own
 ARG LINEAGEBOX_REPOSITORY="mutilator/LineageBox"
@@ -40,3 +43,5 @@ LABEL org.opencontainers.image.title="LineageBox" \
       org.opencontainers.image.licenses="AGPL-3.0-only" \
       org.opencontainers.image.description="A private family archive: the family tree, and the photos and videos its people are in"
 ENTRYPOINT ["python", "-m", "lineagebox"]
+# the web UI, or, before LineageBox is set up, its setup wizard: what `docker run -p 8000:8000 <image>` shows
+CMD ["serve", "--host", "0.0.0.0", "--port", "8000"]

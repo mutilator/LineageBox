@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>LineageBox setup</title>
+<meta name="description" content="Answer a few questions and get the compose file that runs LineageBox on your NAS or computer.">
+<link rel="icon" href="static/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="static/setup.css">
+<script src="static/setup.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#step">Skip to the questions</a>
+<header class="top">
+  <span class="brand">LineageBox setup</span>
+  <span class="where" id="where"></span>
+</header>
+<div class="shell">
+  <nav class="steps" id="steps" aria-label="Steps"></nav>
+  <main id="step" tabindex="-1">
+    <p class="loading">Loading…</p>
+    <noscript><p class="note">This page needs JavaScript to make your compose file.</p></noscript>
+  </main>
+  <aside class="preview" id="preview" aria-label="The file so far">
+    <div class="preview-head">
+      <h2>compose.yaml</h2>
+      <button type="button" class="quiet small" data-act="hide-preview">Hide</button>
+    </div>
+    <pre id="preview-text"></pre>
+  </aside>
+</div>
+<button type="button" class="show-preview" id="show-preview" data-act="show-preview" hidden>Show the file</button>
+<dialog id="browser" aria-labelledby="browser-title">
+  <div class="browser-head">
+    <h2 id="browser-title">Pick a folder</h2>
+    <button type="button" class="quiet" data-act="close-browser" aria-label="Close">×</button>
+  </div>
+  <div id="browser-body"></div>
+</dialog>
+<div id="notice" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

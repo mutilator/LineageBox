@@ -31,6 +31,21 @@ A few rules shape most of the code ([details](docs/development.md#conventions)):
 - the photo folders are only read, except by Cleanup, uploads, 720p copies and confirmed rotations;
 - UI text is written for non-technical family members.
 
+## NAS profiles
+
+The [setup wizard](docs/install.md#the-setup-wizard) learns each NAS from
+[`lineagebox/setup/nas.toml`](lineagebox/setup/nas.toml). The file holds the user and group ids to suggest, where the
+folders usually are, the steps for that NAS's own Docker app, and its models' processors and memory. If it is wrong
+about your NAS, or your NAS isn't there, a pull request that changes only that file is welcome:
+
+1. Change or add the entry. The top of the file explains each key, and the other entries show the way.
+2. Run `python -m pytest tests/test_setup.py`. It checks every entry and fails on a key it doesn't know.
+3. Say in the pull request where the facts come from: the vendor's documentation, or `id` and `ls -ln` on your own
+   machine. Leave out your own user names, folder names and addresses.
+
+Write the steps as the NAS's menus name them, for people who have never used SSH. Mark a number you aren't sure of with
+`guess = true`.
+
 ## Translations
 
 LineageBox ships in English only, and is ready for translations: [docs/translating.md](docs/translating.md) says

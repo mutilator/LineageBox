@@ -35,7 +35,29 @@ locally, nothing is uploaded to a cloud service, and LineageBox never changes yo
 
 ## Quick start
 
-On any machine with Docker (a NAS, a home server, a PC):
+On any machine with Docker (a NAS, a home server, a PC), LineageBox's `compose.yaml` starts a **setup wizard** that
+asks a few questions:
+
+- where your photos are and where the catalog goes;
+- who owns the files;
+- where the AI runs.
+
+It then writes the `compose.yaml` that runs LineageBox there, with the steps for your NAS's own Docker app. Over SSH,
+in the folder LineageBox will live in (with `sudo` before `docker` on most NASes):
+
+```sh
+curl -fsSLO https://raw.githubusercontent.com/mutilator/LineageBox/main/compose.yaml
+docker compose up -d && docker compose logs -f web
+```
+
+Open the address it prints. On the machine, the wizard finds your folders, who owns them and your users, and saves
+the new file in place of its own. Start that the same way, and LineageBox takes the wizard's place. A NAS's Docker
+app can start [`compose.yaml`](compose.yaml) as a project too ([the setup wizard](docs/install.md#the-setup-wizard)).
+
+The wizard is also **online**, with nothing to install: [demo.lineagebox.com/setup](https://demo.lineagebox.com/setup/).
+Nothing you type is kept, and passwords never leave your browser.
+
+Or by hand, with your settings in a `.env` file:
 
 ```sh
 git clone https://github.com/mutilator/LineageBox lineagebox && cd lineagebox
@@ -46,10 +68,11 @@ docker compose up -d
 LineageBox runs as `PUID`'s user (`id -u`, `id -g` give yours), not as root, so the photo folder must already be
 there and be theirs ([users and permissions](docs/install.md#users-and-permissions)).
 
-To run the AI next to it as well, add this line to `.env` before starting (use `;` instead of `:` on Windows):
+To run the AI next to it as well, add its files to this line in `.env` before starting (use `;` instead of `:` on
+Windows):
 
 ```sh
-COMPOSE_FILE=compose.yaml:compose.ollama.yaml:compose.whisper.yaml
+COMPOSE_FILE=compose.manual.yaml:compose.ollama.yaml:compose.whisper.yaml
 ```
 
 Then open `http://<that machine>:8000`. **Getting started**, on the first page, lists these steps and ticks each off
