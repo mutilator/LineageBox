@@ -291,8 +291,8 @@ def read(answers, systems):
     p.puid, p.pgid = (0, 0) if p.root else (puid if puid is not None else 1000, pgid if pgid is not None else 1000)
     if puid == 0 and not p.root and not (p.system or {}).get("rootless"):
         problem("warning", "puid", "User 0 is root. That is right for rootless Docker or Podman, where the containers' "
-                                   "root is you. Anywhere else, give the photos' owner, or choose \"Photos that "
-                                   "belong to several people\", which gives root the powers it needs.")
+                                   "root is you. Anywhere else, give the photos' owner, or choose \"Run as root\" "
+                                   "below, which gives root the powers it needs.")
 
     # the catalog
     p.data = folder(a.get("data")) or "./data"

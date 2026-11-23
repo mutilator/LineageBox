@@ -26,7 +26,9 @@
 #   windows           paths are Windows' (C:/...)
 #   notes             what trips people up
 #   [[system.users]]  the user and group ids to suggest, most likely first: uid, gid, who; guess = true when the
-#                     number is a common one rather than a sure one, and people should check theirs
+#                     number is a common one rather than a sure one, and people should check theirs;
+#                     documented = true when the vendor's pages or examples give it (the page says "Vendor
+#                     documented"; a guess without it says "Usual default")
 #   [[system.models]] models: name, cpu, arch (amd64, arm64; armv7 and others can't run LineageBox), memory_gb as
 #                     shipped, docker (false: the vendor's Docker app isn't offered for it), note
 #
@@ -82,11 +84,13 @@ notes = [
 uid = 1026
 gid = 100
 who = "the first user, made when the NAS was set up (an administrator), in the group users"
+documented = true
 
 [[system.users]]
 uid = 1027
 gid = 100
 who = "the next user made in Control Panel → User & Group (ids go up by one)"
+documented = true
 guess = true
 
 [[system.models]]
@@ -353,12 +357,14 @@ notes = [
 uid = 500
 gid = 100
 who = "the first user made in Control Panel (not admin), in the group everyone"
+documented = true
 guess = true
 
 [[system.users]]
 uid = 501
 gid = 100
 who = "the next user (ids go up by one)"
+documented = true
 guess = true
 
 [[system.models]]
@@ -519,6 +525,7 @@ notes = [
 uid = 99
 gid = 100
 who = "nobody in the group users: the owner of every share's files, and what Unraid's containers run as"
+documented = true
 
 # ---------------------------------------------------------------------------------------------------------------
 [[system]]
@@ -562,6 +569,7 @@ notes = [
 uid = 568
 gid = 568
 who = "apps, in the group apps: what TrueNAS apps run as"
+documented = true
 
 [[system.users]]
 uid = 3000
@@ -651,6 +659,7 @@ notes = [
 uid = 999
 gid = 10
 who = "the first administrator, as in UGREEN's own example"
+documented = true
 guess = true
 
 [[system.models]]
@@ -976,6 +985,7 @@ notes = [
 uid = 1000
 gid = 1000
 who = "the first user, as in ZimaOS's own examples"
+documented = true
 guess = true
 
 # ---------------------------------------------------------------------------------------------------- computers

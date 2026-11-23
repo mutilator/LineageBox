@@ -72,8 +72,9 @@ def check(path=FILE):
             if not (isinstance(u, dict) and isinstance(u.get("uid"), int) and isinstance(u.get("gid"), int)
                     and isinstance(u.get("who"), str) and u["uid"] >= 0 and u["gid"] >= 0):
                 say(f"each user needs a uid, a gid (whole numbers) and who: {u!r}")
-            elif set(u) - {"uid", "gid", "who", "guess"} or not isinstance(u.get("guess", False), bool):
-                say(f"a user has uid, gid, who and guess (true or false) only: {u!r}")
+            elif (set(u) - {"uid", "gid", "who", "guess", "documented"}
+                  or not all(isinstance(u.get(k, False), bool) for k in ("guess", "documented"))):
+                say(f"a user has uid, gid, who, guess and documented (true or false) only: {u!r}")
         names = set()
         for m in s.get("models", []):
             if not (isinstance(m, dict) and isinstance(m.get("name"), str) and m["name"].strip()):

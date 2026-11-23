@@ -6,6 +6,19 @@ copies it there when the version is tagged ([releases](docs/development.md#relea
 A **catalog update** adds to the catalog's tables. LineageBox copies the catalog before it updates it, and earlier
 versions can't open the updated one.
 
+## 1.11.1 (2026-11-23)
+
+### Updated
+
+- **Setup wizard asks less.** There is no catalog step: where LineageBox keeps its folders is under **Last details → More
+  settings**, and the machine's usual folder suits most people. Each photo folder says where the family's PCs find
+  it, and the machine's name is asked on the first step.
+
+### Fixed
+
+- On a phone, the wizard's last page no longer runs off the side of the screen.
+- The wizard's hint for rootless Docker shows the whole socket path, `/run/user/<your id>/docker.sock`.
+
 ## 1.11.0 (2026-11-23)
 
 ### New

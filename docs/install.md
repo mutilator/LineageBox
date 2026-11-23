@@ -34,12 +34,13 @@ recognition runs on the LineageBox machine's own processor.
 LineageBox's [`compose.yaml`](../compose.yaml) starts the setup wizard, not LineageBox itself. The wizard asks where
 things are and writes the compose file that runs LineageBox. It asks:
 
-- where the photos are: folders of this machine, shares on another computer or NAS, or a new shared folder it helps
-  you make;
-- where the catalog goes;
+- which NAS or computer it is;
 - who owns the files;
+- where the photos are: a new shared folder it helps you make, folders of this machine, or shares on another computer
+  or NAS, and where the family's PCs find each one;
 - where Ollama and Whisper run;
-- a few details, such as the time zone and port.
+- a few details, such as the time zone and port. Where the catalog goes is under **More settings** there: the
+  machine's usual folder suits most people.
 
 It knows the usual users, folders and Docker apps of the common NASes (Synology, QNAP, Unraid, TrueNAS,
 OpenMediaVault, UGREEN, ASUSTOR, TerraMaster, ZimaOS), and of Linux, Raspberry Pi, Windows and Mac machines. It makes
@@ -274,8 +275,8 @@ folder first, as that user: `mkdir -p /volume1/docker/lineagebox`.
   `sudo chown -R 1000:1000 data`.
 - **Rootless Docker or Podman:** the containers' root is you, so set `PUID=0` and `PGID=0`.
 - **Photos that belong to several users**, so that no one user can write them all: run as root, with only the root
-  powers writing for other users needs. The setup wizard does this when you tick **The photos belong to several
-  people**. By hand, set `PUID=0` and `PGID=0`, and give the three services these in `compose.override.yaml`.
+  powers writing for other users needs. Running as one user is safer, so do this only when no one user can. The setup
+  wizard does this when you tick **Run as root, because the photos belong to several people**. By hand, set `PUID=0` and `PGID=0`, and give the three services these in `compose.override.yaml`.
   `DAC_OVERRIDE` reads and writes other users' files, `CHOWN` gives 720p copies, Removed folders and turned photos to
   the original's owner, and `FOWNER` works in folders with the sticky bit.
 
