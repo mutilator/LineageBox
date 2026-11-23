@@ -9,5 +9,5 @@ contact_links:
     url: https://github.com/mutilator/LineageBox/blob/main/docs/troubleshooting.md
     about: The usual problems with installs, Ollama, Whisper, faces and sign-in, and what to do about them.
   - name: Try the demo
-    url: https://linbox.g-tech.dev
+    url: https://demo.lineagebox.com
     about: A made-up family's photos, to see how something works before asking.
