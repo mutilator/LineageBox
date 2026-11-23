@@ -1,0 +1,13 @@
+#!/bin/sh
+# Each commit message: no secrets, private words or real email addresses (.githooks/check_commit.py).
+# Switched on by `git config core.hooksPath .githooks` (docs/development.md#commit-checks).
+root=$(git rev-parse --show-toplevel) || exit 1
+# COMMIT_CHECK_PYTHON names another Python; else the project's .venv, then the first on the PATH.
+for py in "$COMMIT_CHECK_PYTHON" "$root/.venv/Scripts/python.exe" "$root/.venv/bin/python" python3 python py; do
+    [ -n "$py" ] && command -v "$py" >/dev/null 2>&1 || continue
+    # too old, or Windows' stand-in that only offers the Store
+    "$py" -c "import sys; sys.exit(sys.version_info < (3, 10))" 2>/dev/null || continue
+    exec "$py" "$root/.githooks/check_commit.py" message "$1"
+done
+echo "commit check: no Python 3.10 or newer, so nothing was committed (git commit --no-verify skips the checks)" >&2
+exit 1

@@ -10,6 +10,7 @@ git clone https://github.com/mutilator/LineageBox lineagebox && cd lineagebox
 python -m venv .venv
 .venv/bin/python -m pip install -e ".[faces,dev]"      # Windows: .\.venv\Scripts\python.exe -m pip install ...
 cp config.example.toml config.toml                     # point media_root at a folder of test photos
+git config core.hooksPath .githooks                    # the commit checks (below)
 .venv/bin/python -m lineagebox serve                       # http://127.0.0.1:8000
 .venv/bin/python -m lineagebox worker                      # in another terminal
 ```
@@ -23,6 +24,59 @@ long time on a big library.
 
 To build and run the Docker image locally: `LINEAGEBOX_IMAGE=lineagebox-local docker compose up -d --build` (a name of
 its own, so the updater service doesn't swap it for the published image).
+
+## Commit checks
+
+A family photo library is full of things that must never reach a public repository. Before each commit, git can
+check what is about to be committed (`.githooks/check_commit.py`). Switch it on once in each clone:
+
+```sh
+git config core.hooksPath .githooks
+```
+
+It refuses a commit that holds:
+
+- a file that stays on your machine: `.env` files (but `.env.example`), keys and certificates, databases and their
+  backups, logs, archives, model weights, `scratch/`, `config.toml`, anything in `data/` or `photos/`, and anything git
+  is told to ignore (so only `git add -f` could have added it);
+- a photo, video or sound outside `docs/` and the pages' `static/` folders, a picture with GPS coordinates in it, or a
+  file over 2 MB;
+- a secret: a private key, an access token (GitHub, AWS, Google, OpenAI, Anthropic, Slack, Stripe, Hugging Face, npm),
+  or a password written into a URL, the code or the settings;
+- an email address other than a made-up one (`example.com`, `.invalid`, `.test`) or the project's own;
+- a value from your `.env`, or a word from your private list.
+
+The commit message is checked too, for the same words, secrets and addresses. Each problem is listed with its file,
+line and rule, never with the secret itself.
+
+**Your private list** is `.git/info/private-words`. It is inside `.git`, so it is never committed. Put in it what must
+never be in the repository: your family's names, your hosts and your addresses.
+
+```
+# a word or phrase on each line, matched as a whole word in any case; * is any letters or digits
+Miller*
+nas.home.lan
+192.168.1.*
+allow: Copyright 2026 Ann Miller    # may stand, though it holds a word above
+known: tests/test_x.py Joe Miller   # published before you listed the word: may stay in that one file
+path: notes/                        # stays on this machine (a pattern from the top of the repository)
+env: deploy/nas.env                 # an env file whose values must never be committed (.env is always read)
+```
+
+When a check is wrong:
+
+- A line that has to say something it refuses (a made-up key in a test) can carry `commit-check: allow`. That never
+  lets a private word or a `.env` value through: change the list's `allow:` lines for those.
+- Something private that was already published is often best left as it is: among other examples it reads as one, and
+  a commit that changes it shows that it was real (and the old copy stays in the history, and in every clone, anyway).
+  A `known:` line lets that phrase stay in its file, and still refuses it anywhere else.
+- `COMMIT_CHECK_SKIP=large-file git commit ...` skips the rules named (in brackets after each problem) for one commit.
+- `git commit --no-verify` skips every check.
+
+`python .githooks/check_commit.py all` checks every tracked file as it is now. `tests/test_commit_check.py` does the
+same in the suite: on CI without a private list or an `.env`, on your machine with yours. The hooks run with the
+project's `.venv`, else the first Python 3.10 or newer on the PATH (`COMMIT_CHECK_PYTHON` names another). Git skips a
+hook that isn't executable without a word on Linux and macOS, so a new one is added with `git add --chmod=+x`.
 
 ## Releases
 
@@ -254,6 +308,7 @@ lineagebox/                 the package (see architecture.md for the modules)
 whisper_service/        the speech-to-text service: FastAPI in front of whisper.cpp, with its own Dockerfile
 docker/                 the image's config.toml and pinned requirements.txt
 tests/                  pytest suite
+.githooks/              the commit checks: check_commit.py and the two hooks that run it
 docs/                   documentation
 compose*.yaml           Docker Compose: lineagebox, plus optional Ollama, Whisper and SMB files
 Dockerfile              the lineagebox image (linux/amd64 and linux/arm64)

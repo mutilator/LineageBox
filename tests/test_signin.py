@@ -97,7 +97,7 @@ def test_sign_in_with_google(setup, con):
     ({"exp": time.time() - 10}, "took too long"),
     ({"nonce": "another"}, "not the one started here"),
     ({"email_verified": False}, "not verified"),
-    ({"email": "stranger@gmail.com"}, "been invited to these photos"),
+    ({"email": "stranger@example.net"}, "been invited to these photos"),
 ])
 def test_google_sign_ins_that_are_refused(setup, con, change, message):
     c = TestClient(setup["app"], client=OUTSIDE, follow_redirects=False)

@@ -14,7 +14,9 @@ Please leave out photos, people's names, email addresses and network addresses y
 
 ## Making a change
 
-1. Set up a development copy: [docs/development.md](docs/development.md).
+1. Set up a development copy: [docs/development.md](docs/development.md). Switch on the
+   [commit checks](docs/development.md#commit-checks) (`git config core.hooksPath .githooks`), which stop a commit
+   that holds a password, a key, a real email address or a file that should stay on your machine.
 2. Make the change, with a test. The suite fakes the face model, Ollama and Whisper, so it needs no GPU and no
    services.
 3. Run the whole suite: `python -m pytest -q`. After adding a page or an API, make sure `tests/test_access_web.py`
