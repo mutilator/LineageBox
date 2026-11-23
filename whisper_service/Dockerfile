@@ -17,9 +17,9 @@ RUN git clone --depth 1 --branch "$WHISPER_CPP" https://github.com/ggml-org/whis
  && mkdir /out \
  && cp /build/bin/whisper-server /build/bin/whisper-vad-speech-segments /out/ \
  && echo "whisper.cpp $WHISPER_CPP (CPU)" > /out/VERSION
-# The licences of what is compiled into the two programs: whisper.cpp with ggml; cpp-httplib and nlohmann/json (the
+# The licenses of what is compiled into the two programs: whisper.cpp with ggml; cpp-httplib and nlohmann/json (the
 # server); miniaudio and stb_vorbis (reading the sound); the YaRN code in ggml. miniaudio and stb_vorbis keep their
-# terms at the end of their own files. cpp-httplib's and json's headers only name the MIT licence, so its text is
+# terms at the end of their own files. cpp-httplib's and json's headers only name the MIT license, so its text is
 # fetched for the version whisper.cpp bundles, as is YaRN's (no tags there, so at a fixed commit).
 RUN mkdir /out/licenses \
  && cp /src/LICENSE /out/licenses/whisper.cpp.txt \
@@ -35,7 +35,7 @@ RUN mkdir /out/licenses \
  && fetch "https://raw.githubusercontent.com/nlohmann/json/v$json/LICENSE.MIT" /out/licenses/nlohmann-json.txt \
  && fetch https://raw.githubusercontent.com/jquesnelle/yarn/995db5b575e75230b3384d658f8b944c9662f775/LICENSE \
           /out/licenses/yarn.txt \
- && for f in /out/licenses/*; do grep -qi "permission\|public domain" "$f" || { echo "no licence in $f"; exit 1; }; done
+ && for f in /out/licenses/*; do grep -qi "permission\|public domain" "$f" || { echo "no license in $f"; exit 1; }; done
 
 FROM python:3.12-slim
 # packages.txt: every Debian package in the image and its version, for their sources (snapshot.debian.org) and
@@ -56,7 +56,7 @@ WORKDIR /app
 EXPOSE 9300
 HEALTHCHECK --interval=60s --timeout=10s --start-period=60s \
   CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9300/health', timeout=8)"]
-# org.opencontainers.image.source comes from docker/metadata-action in CI. The licence is the service's, LineageBox's
+# org.opencontainers.image.source comes from docker/metadata-action in CI. The license is the service's, LineageBox's
 # (whisper.cpp itself is MIT; the notices are in /opt/whisper/licenses).
 LABEL org.opencontainers.image.title="LineageBox Whisper" \
       org.opencontainers.image.licenses="AGPL-3.0-only" \

@@ -30,7 +30,7 @@ Nothing here can be changed.{% endtrans %}</p>
     <p><label>{% trans %}Client secret{% endtrans %} <input name="google_client_secret" type="password" autocomplete="new-password"
       placeholder="{{ _('kept; type a new one to change it') if cfg.google_client_secret else _('from Google Cloud') }}"></label></p>
     <p><label>{% trans %}Address from outside{% endtrans %} <input name="public_url" value="{{ cfg.public_url }}" placeholder="{{ _('https://photos.example.com') }}"></label>
-      <span class="hint">{% trans %}In Google Cloud → APIs &amp; Services → Credentials, the client's authorised redirect URI is
+      <span class="hint">{% trans %}In Google Cloud → APIs &amp; Services → Credentials, the client's authorized redirect URI is
       <code>{{ redirect_uri }}</code>. Passkeys are made for this name too: change it later, and everyone's passkeys
       stop working until they make new ones.{% endtrans %}</span></p>
     <p><label>{% trans %}Stay signed in for{% endtrans %} <input name="session_days" type="number" min="1" max="365" value="{{ cfg.session_days }}"> {% trans %}days{% endtrans %}</label></p>

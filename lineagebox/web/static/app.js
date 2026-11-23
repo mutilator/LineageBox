@@ -3546,7 +3546,7 @@ function attrText(text) {
 function arcThrough(map, from, to, bend = 0.2, steps = 40) {
   const ZOOM = 18;
   const a = map.project(from, ZOOM), b = map.project(to, ZOOM);
-  const over = { x: (a.x + b.x) / 2 + (b.y - a.y) * bend,     // left of the way travelled: the arc bows north
+  const over = { x: (a.x + b.x) / 2 + (b.y - a.y) * bend,     // left of the way traveled: the arc bows north
                  y: (a.y + b.y) / 2 - (b.x - a.x) * bend };
   const out = [];
   for (let i = 0; i <= steps; i++) {

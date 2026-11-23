@@ -55,7 +55,7 @@ videos wait for it instead.
    (through rawpy) are read; whatever the kind, browsers are shown the JPEG preview and thumbnail. Videos get ffprobe metadata and sampled frames (one
    every 10 s for the first 20, then one a minute, up to 120), and the clearest frame becomes the preview; after a
    frame that takes too long (a tape with no index, decoded from its start) the video keeps the frames it has. A sound
-   file (a digitised cassette, a voice memo, a "video" with no picture) is a recording, `image.media = 'audio'`:
+   file (a digitized cassette, a voice memo, a "video" with no picture) is a recording, `image.media = 'audio'`:
    its preview is a picture of its sound wave, and the faces and describing stages skip it; one tagged as a song
    from an album is left out as music. Later stages use the previews, never the originals. At the end, a Live
    Photo's short clip is paired with its still (`live.py`, `image.live_of`), so it shows only through the still.

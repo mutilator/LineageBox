@@ -143,6 +143,7 @@ FENCE = re.compile(r"\s*(```|~~~)")
 LINK = re.compile(r"\[([^\]]*)\]\(([^()\s]+)\)")
 HEADING = re.compile(r"(#{1,6}) +(.+?) *")
 SCHEME = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*:")  # https:, mailto:
+PICTURES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
 
 
 def runs(text: str) -> list[tuple[bool, list[str]]]:
@@ -256,6 +257,7 @@ class Wiki:
     def __init__(self, root: Path = ROOT, repo: str = REPO):
         self.root = Path(root)
         self.github = f"https://github.com/{repo}"
+        self.raw = f"https://raw.githubusercontent.com/{repo}/main"  # a picture's own file (screenshots in README.md)
         self.pages: dict[str, str] = {}
         self.problems: list[str] = []
         self.guide_anchors: dict[str, tuple[str, str]] = {}  # an anchor of the user guide -> (its page, its anchor)
@@ -389,6 +391,8 @@ class Wiki:
         elif path in PAGES:
             page = PAGES[path]
         elif (self.root / path).exists():
+            if posixpath.splitext(path)[1].lower() in PICTURES:  # shown on the page: GitHub's page of a file is no picture
+                return f"{self.raw}/{path}"
             return f"{self.github}/blob/main/{path}" + (f"#{anchor}" if anchor else "")
         else:
             return href

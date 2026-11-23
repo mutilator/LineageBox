@@ -3,7 +3,7 @@
 An album already holds photos in the order its maker wants them (albums.py), and that is just what a trip is: the
 photos of the first place, then those of the next, and so on. Walking an album in its own order and putting
 consecutive photos taken near one another together gives the stops -- home, the mountains, the park, the monument,
-the shopping trip, home again -- and the line from each to the next is the way the family travelled. Coming back at
+the shopping trip, home again -- and the line from each to the next is the way the family traveled. Coming back at
 the end to the place they set out from is a stop of its own, as it was a day of its own: only photos next to each
 other in the album join up.
 

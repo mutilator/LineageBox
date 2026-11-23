@@ -76,7 +76,7 @@ Sign-in pages follow the browser. What the family wrote (names, captions, commen
       [brand verification](https://developers.google.com/identity/protocols/oauth2/production-readiness/brand-verification)
       first, and that needs a public home page, a privacy policy on the same domain, and the domain verified in Google
       Search Console. A family install does without.
-   3. Create an **OAuth client** of type *Web application*, with the authorised redirect URI
+   3. Create an **OAuth client** of type *Web application*, with the authorized redirect URI
       `https://<your name for LineageBox>/auth/google/callback`. The Family accounts page shows the exact address to
       paste.
 

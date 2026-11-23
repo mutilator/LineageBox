@@ -1,6 +1,6 @@
 # Setting up Whisper: what is said in videos, recordings and stories
 
-LineageBox takes the sound out of each video and sound recording (a digitised cassette, a voice memo), and of each story the family records on a photo or a person's page, and sends it to its speech-to-text service (`whisper_service/`, built on [whisper.cpp](https://github.com/ggml-org/whisper.cpp)). What was said becomes searchable ("happy birthday", a name) and shows on the page, with each line linked to its moment in the video or recording. Wind, music and the usual Whisper inventions ("Thank you.", "you") are filtered out. Recorded stories go first: they are short, and the family's own words.
+LineageBox takes the sound out of each video and sound recording (a digitized cassette, a voice memo), and of each story the family records on a photo or a person's page, and sends it to its speech-to-text service (`whisper_service/`, built on [whisper.cpp](https://github.com/ggml-org/whisper.cpp)). What was said becomes searchable ("happy birthday", a name) and shows on the page, with each line linked to its moment in the video or recording. Wind, music and the usual Whisper inventions ("Thank you.", "you") are filtered out. Recorded stories go first: they are short, and the family's own words.
 
 A line Whisper misheard can be put right on the page ("fix"), and a story's words by whoever recorded it. Corrections are kept as the family's: hearing the video again, or filtering it under better rules, never writes over them.
 

@@ -75,7 +75,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // A journey (journeys.py): an album whose photos were taken in two or more places, drawn in the order the family
-  // travelled, with an arrow on each leg. Its line and its stops open the album's own journey page.
+  // traveled, with an arrow on each leg. Its line and its stops open the album's own journey page.
   function journeyPopup(j) {
     const popup = el("div", { className: "map-popup" }, el("b", { textContent: j.name }));
     const parts = [tn("{n} stop", "{n} stops", j.stops.length)];

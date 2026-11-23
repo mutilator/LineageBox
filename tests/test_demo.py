@@ -160,6 +160,18 @@ def test_link_previews(demo_cfg, con, fam):
     assert TestClient(webapp.create_app(demo_cfg), client=LAN).get("/demo-preview.jpg").status_code == 404  # none set
 
 
+def test_the_note_says_where_to_get_it(demo_cfg, con, fam):
+    """The demo's note links to the source, for visitors who want LineageBox for their own family, when the install
+    knows its repository (the help panel's link to it is on every page, so the note is looked at alone)."""
+    def note(cfg) -> str:
+        page = visitor(webapp.create_app(cfg)).get("/home").text
+        return page.split('class="demo-note"', 1)[1].split("</div>", 1)[0]
+
+    linked = note(dataclasses.replace(demo_cfg, update_repository="example/lineagebox"))
+    assert 'href="https://github.com/example/lineagebox"' in linked and "get it for your own family" in linked
+    assert "<a " not in note(demo_cfg)  # no repository: no link
+
+
 def test_not_a_demo(cfg, con, fam):
     anon = TestClient(webapp.create_app(cfg), client=LAN, follow_redirects=False)
     assert anon.post("/auth/demo", json={"next": "/"}, headers=APP).status_code == 404

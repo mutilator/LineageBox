@@ -258,7 +258,7 @@ PAGES = {
            "moves to the confirmed ones; untick a kind in the box at the top right to see only those left to check."),
         N_("Photos with GPS are named after the nearest town, from a list that comes with LineageBox (nothing is asked "
            "online for that)."),
-        N_("A trip from place to place is a journey: put its photos in an album, in the order you travelled, and the "
+        N_("A trip from place to place is a journey: put its photos in an album, in the order you traveled, and the "
            "album draws the way you went on a map of its own, stop by stop (Albums → an album → See the "
            "journey). Journeys, in the box at the top right, draws them on this map too, with an arrow on each leg; "
            "click a line for its stops and a way into it."),
@@ -486,7 +486,7 @@ PAGES = {
            "the album (it stays in your photos; Undo puts it back)."),
         N_("While you drag a photo, hold it near the top or bottom of the window to scroll the page."),
         N_("Put in date order, in your own album, puts its photos in the order they were taken, earliest first: the "
-           "order a trip was travelled, without dragging every photo. Undo in the message puts the order back."),
+           "order a trip was traveled, without dragging every photo. Undo in the message puts the order back."),
         N_("See the journey, once its photos were taken in two or more places, follows the album on the map: each "
            "place in turn, in the album's own order, with the way from one to the next."),
         N_("Sharing, at the bottom of your own album: share it with one family account or with everyone who has one. "
@@ -496,13 +496,13 @@ PAGES = {
         ("Esc", N_("leave the slideshow, or put back a photo you are dragging")))),
     "journey": Page(N_("A journey"), (
         N_("An album read as a trip: its photos in the album's own order, those taken near one another gathered into "
-           "one stop, and an arc from each stop to the next drawn the way you travelled. It draws itself when the "
+           "one stop, and an arc from each stop to the next drawn the way you traveled. It draws itself when the "
            "page opens, a place at a time; the arrows show which way it went, and coming back at the end to where "
            "you set out is a stop of its own."),
         N_("Follow the journey runs a light along the line, waiting at each place; press it again to stop. Click a "
            "numbered pin, or a stop's name below the map, for its photos."),
         N_("Places this close are one stop: 5 km keeps neighboring towns apart, 100 km makes a day's drive one stop."),
-        N_("The order is the album's own, so put its photos in the order you travelled (drag them on the album's "
+        N_("The order is the album's own, so put its photos in the order you traveled (drag them on the album's "
            "page, or press Put in date order there). A photo with no place yet is left off the line: open it and "
            "pick Put it on the map in its Details."),
         N_("Nothing here is kept: the journey is read from the album every time it is shown, so putting its photos "
@@ -551,7 +551,7 @@ PAGES = {
            "date, years and a place) and sort them: best match, newest or oldest first. Each filter on the search "
            "shows at the top; click it to take it off. On a photo, ← and → go through these same results, in the same "
            "order."),
-        N_("When nothing is found, the page suggests what would find something: a word spelt like a name in your "
+        N_("When nothing is found, the page suggests what would find something: a word spelled like a name in your "
            "photos, or the search without one of its words or filters."), SELECTING),
         keys=(("↓ ↑", N_("in the search box: pick one of the people, places, tags or years it suggests; Enter takes "
                          "it, Esc closes the list")),)),
@@ -599,7 +599,7 @@ PAGES = {
            "brings it back)."),
         N_("Videos and sound recordings: what is said is written out under the player, each line a link to its moment. "
            "A line heard wrong can be put right with “fix” (left empty, it is taken out); corrections are kept and "
-           "searched. A long video, such as a digitised tape, lists its chapters: where each recording on it "
+           "searched. A long video, such as a digitized tape, lists its chapters: where each recording on it "
            "starts.")), (
         ("← →", N_("previous or next photo")), ("Esc", N_("back to where you came from, or out of only the photo")))),
     "cleanup": Page(N_("Cleanup"), (

@@ -50,7 +50,7 @@ class Config:
                                          ".mos", ".mef", ".mrw", ".erf", ".kdc", ".dcr")
     video_extensions: tuple[str, ...] = (".mts", ".m2ts", ".mp4", ".m4v", ".mov", ".3gp", ".3g2", ".avi", ".wmv",
                                          ".mpg", ".mpeg", ".mkv", ".webm")
-    # Sound alone: digitised cassettes, voice memos, recorders' files (media 'audio'; a "video" file with no picture,
+    # Sound alone: digitized cassettes, voice memos, recorders' files (media 'audio'; a "video" file with no picture,
     # like a phone's .3gp voice note, is one too). A song tagged as one from an album is left out (ingest.py).
     audio_extensions: tuple[str, ...] = (".mp3", ".m4a", ".aac", ".wav", ".wma", ".ogg", ".oga", ".opus", ".flac",
                                          ".amr", ".aif", ".aiff")

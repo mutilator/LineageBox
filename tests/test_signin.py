@@ -109,7 +109,7 @@ def test_google_sign_ins_that_are_refused(setup, con, change, message):
 
 
 @pytest.mark.parametrize("error, message", [
-    ("invalid_client", "client ID and secret on Settings"), ("redirect_uri_mismatch", "authorised redirect URIs"),
+    ("invalid_client", "client ID and secret on Settings"), ("redirect_uri_mismatch", "authorized redirect URIs"),
     ("invalid_grant", "took too long"),
 ])
 def test_why_google_refused_is_said(setup, con, error, message):

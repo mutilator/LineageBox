@@ -182,7 +182,7 @@ def reorder(con: sqlite3.Connection, album_id: int, image_ids) -> None:
 
 def in_date_order(con: sqlite3.Connection, album_id: int) -> list[int]:
     """The album's photos, as the connection sees them, by when they were taken, the earliest first: the order a trip
-    was travelled in. Photos with no date at all keep to the end, in the order they are in now."""
+    was traveled in. Photos with no date at all keep to the end, in the order they are in now."""
     return [r[0] for r in con.execute(f"""SELECT i.id FROM album_photo a JOIN image i ON i.id = a.image_id
                                           WHERE a.album_id = ? AND {VISIBLE}
                                           ORDER BY i.taken_at IS NULL, i.taken_at, a.position, a.added_at""",

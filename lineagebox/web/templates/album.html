@@ -17,7 +17,7 @@
   {%- if photos %}<a class="button quiet" href="/download/album/{{ album.id }}" download>{% trans %}Download all{% endtrans %}</a>{% endif %}
   {%- if mine %}
   {%- if photos|length > 1 %}<button type="button" class="quiet" data-api="/api/albums/{{ album.id }}/by-date"
-          title="{{ _('The order a trip was travelled in, without dragging every photo') }}">{% trans %}Put in date order{% endtrans %}</button>{% endif %}
+          title="{{ _('The order a trip was traveled in, without dragging every photo') }}">{% trans %}Put in date order{% endtrans %}</button>{% endif %}
   <button type="button" data-toggle="#album-edit" data-toggle-label="{{ _('Cancel') }}" aria-expanded="false" aria-controls="album-edit">{% trans %}Rename{% endtrans %}</button>
   <button type="button" class="quiet" data-api="/api/albums/{{ album.id }}/delete"
           data-confirm="{{ _('Delete the album %(name)s? Only the album goes: its photos stay where they are.', name=album.name) }}">{% trans %}Delete{% endtrans %}</button>

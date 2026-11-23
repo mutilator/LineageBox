@@ -21,10 +21,10 @@ RUN apt-get update \
 COPY --from=build /venv /venv
 COPY lineagebox /app/lineagebox
 COPY docker/config.toml /app/docker/config.toml
-# LineageBox's licence, and what else the image includes and under which licences
+# LineageBox's license, and what else the image includes and under which licenses
 COPY LICENSE THIRD_PARTY_NOTICES.md /app/
 # compiled now, so containers running as any user (PUID/PGID) never need to write next to the code;
-# python-packages.txt: the exact Python packages, whose licence files are in /venv/lib/python3.12/site-packages
+# python-packages.txt: the exact Python packages, whose license files are in /venv/lib/python3.12/site-packages
 RUN /venv/bin/python -m compileall -q /app/lineagebox \
  && /venv/bin/pip freeze --all --disable-pip-version-check > /app/python-packages.txt
 ENV PATH=/venv/bin:$PATH PYTHONPATH=/app PYTHONUNBUFFERED=1 LINEAGEBOX_CONFIG=/app/docker/config.toml

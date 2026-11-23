@@ -136,6 +136,20 @@ Port 8000.
     assert pages["Changelog"] == "## 1.0.0 (2026-01-01)\n\n- The first, [installed](Installation-guide#ports).\n"
 
 
+def test_a_picture_is_shown_from_its_own_file(sample):
+    """A screenshot in the README is shown in the wiki from the repository's raw file: GitHub's page of a file (blob)
+    is no picture."""
+    (sample / "docs" / "screenshots").mkdir()
+    (sample / "docs" / "screenshots" / "tree.png").write_bytes(b"\x89PNG")
+    readme = sample / "README.md"
+    readme.write_text(readme.read_text(encoding="utf-8") + "\n![The family tree](docs/screenshots/tree.png)\n",
+                      encoding="utf-8")
+    made = wiki.Wiki(sample, "example/lineagebox")
+    home = made.build()["Home"]
+    assert made.problems == []
+    assert "![The family tree](https://raw.githubusercontent.com/example/lineagebox/main/docs/screenshots/tree.png)" in home
+
+
 def test_the_user_guide_is_a_page_per_section(sample):
     pages = wiki.Wiki(sample, "example/lineagebox").build()
     assert pages["User-guide"] == """What each page does.

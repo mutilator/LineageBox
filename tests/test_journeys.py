@@ -25,7 +25,7 @@ TRIP = [("home.jpg", 42.963, -85.668, "2012:07:01 09:00:00"),
 @pytest.fixture
 def trip(con, cfg, library):
     """The photos of the trip, in a folder with no place of its own, each put on the map by hand, and an album of
-    them in the order they were travelled."""
+    them in the order they were traveled."""
     for n, (name, _lat, _lon, taken) in enumerate(TRIP):
         write_jpeg(library / "Vacation" / name, color=("red", "blue", "green")[n % 3], taken=taken)
     scan(con, cfg)
@@ -129,7 +129,7 @@ def test_an_album_with_no_places_says_what_it_takes(con, cfg, library):
 
 
 def test_put_in_date_order_and_undo_it(con, cfg, trip):
-    """An album ticked together comes in any order; this puts it in the order the trip was travelled."""
+    """An album ticked together comes in any order; this puts it in the order the trip was traveled."""
     backwards = [trip["ids"][name] for name, *_ in reversed(TRIP)]
     albums.reorder(con, trip["album"], backwards)
     con.commit()

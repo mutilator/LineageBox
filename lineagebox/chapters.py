@@ -1,4 +1,4 @@
-"""Stage: chapters for long videos (a digitised tape, a long recording), and enough frames to cover them.
+"""Stage: chapters for long videos (a digitized tape, a long recording), and enough frames to cover them.
 
 A video over video.LONG_VIDEO gets chapters where a recording on the tape starts or the picture changes completely
 (video.keyframes, video.chapters), each with a frame taken just after it starts, for the chapter list on its page,

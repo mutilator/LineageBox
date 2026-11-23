@@ -39,7 +39,9 @@
 <a class="skip" href="#main">{% trans %}Skip to the page{% endtrans %}</a>
 {% if demo_resets %}
 <div class="demo-note" role="note">{% trans resets=demo_resets %}This is a demo: the family, their photos and their papers are all
-  made up. Change what you like: it all goes back as it was {{ resets }}.{% endtrans %}</div>
+  made up. Change what you like: it all goes back as it was {{ resets }}.{% endtrans %}
+  {%- if source_url %} {% trans %}LineageBox is free: <a href="{{ source_url }}" target="_blank" rel="noopener">get it
+  for your own family</a>.{% endtrans %}{% endif %}</div>
 {% endif %}
 {% if viewer.seeing_as %}
 <div class="see-as" role="status">{% trans email=viewer.account.email %}You are seeing the site as {{ email }} sees it: nothing can be changed.{% endtrans %}

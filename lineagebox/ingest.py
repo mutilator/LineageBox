@@ -5,7 +5,7 @@ leaving out blank and near-identical ones. The clearest frame becomes its previe
 videos like photos; faces and descriptions use all the frames. A Live Photo's clip (live.py) gets one frame, and is
 paired with its still at the end of each pass, before the stages that leave it out.
 
-A sound file (a digitised cassette, a voice memo; also a "video" file with no picture in it) is a recording: hashed
+A sound file (a digitized cassette, a voice memo; also a "video" file with no picture in it) is a recording: hashed
 like a video, with a picture of its sound wave as its preview and thumbnail, and nothing for the faces and describing
 stages to look at (their bits are set at once). One tagged as a song from an album (video.SONG_TAGS) is music, not a
 family recording: it is recorded as an image with an error starting "song:", so it is never read again and never

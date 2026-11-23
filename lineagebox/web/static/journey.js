@@ -1,5 +1,5 @@
 // A journey (journey.html, journeys.py): an album's stops, in the album's own order, on the map, with the way from
-// each to the next drawn the way the family travelled it. Everything it needs is on the page already (#journey, the
+// each to the next drawn the way the family traveled it. Everything it needs is on the page already (#journey, the
 // same stops the list below the map shows), so nothing is asked for again. Follow the journey runs a light along the
 // line, stopping at each place and lighting it up in the list; credit() for the map's attribution is in app.js.
 document.addEventListener("DOMContentLoaded", () => {
@@ -20,7 +20,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }).addTo(map);
   const at = stops.map((s) => L.latLng(s.lat, s.lon));
 
-  // The way travelled, as travel maps draw it: each leg a dashed arc bowing out to the next place, drawn once when
+  // The way traveled, as travel maps draw it: each leg a dashed arc bowing out to the next place, drawn once when
   // the page opens, a place at a time. When it is done the dots start running along it (CSS, .journey-flow), and
   // an arrow sits in the middle of each leg pointing the way it went. Anyone who asked their computer for less
   // movement gets the finished drawing at once.

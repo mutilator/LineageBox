@@ -223,7 +223,7 @@ _GOOGLE_SAYS = {
     "unauthorized_client": "Google doesn't know the client ID and secret on Settings → Family accounts: an admin "
                            "should check them against Google Cloud.",
     "redirect_uri_mismatch": "Google Cloud doesn't list this site's address for signing in: an admin should add "
-                             "{redirect_uri} to the client's authorised redirect URIs.",
+                             "{redirect_uri} to the client's authorized redirect URIs.",
     "invalid_grant": "That sign-in took too long, or was finished already. Try again from the start.",
 }
 

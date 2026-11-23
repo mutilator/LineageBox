@@ -299,7 +299,7 @@ def order_album(album_id: int, body: PhotosBody, v=Depends(viewer), c=Depends(co
 
 @router.post("/api/albums/{album_id}/by-date", dependencies=[Depends(from_app)])
 def order_album_by_date(album_id: int, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
-    """The album's photos in the order they were taken: a trip put in the order it was travelled, without dragging
+    """The album's photos in the order they were taken: a trip put in the order it was traveled, without dragging
     a few hundred photos. Tracked, so Undo puts the order back."""
     a = _own_album(c, v, album_id)
     with _track(w, v, f"Put the album “{a['name']}” in date order", [album_id]) as kept:

@@ -366,7 +366,7 @@ On the results:
   them), or to photos with no date of their own (to date them); below them, pick years and a place;
 - they are sorted by best match, or the newest or the oldest first;
 - words typed in the box at the top keep the filters on;
-- when nothing is found, the page suggests what would find something: a word spelt like a tag, a name or a place in
+- when nothing is found, the page suggests what would find something: a word spelled like a tag, a name or a place in
   your photos, or the search without one of its words or filters.
 
 A search's address holds its words and filters, so it can be bookmarked or sent to someone in the family (who finds
@@ -490,10 +490,10 @@ opens the photo, and ↗ still opens it in a new tab. On a phone or tablet, hold
 - **Videos** play on the page. Under the player, **Said in the video** lists what was said, each line a link to its
   moment; **fix** beside a line puts right a word Whisper misheard (leave it empty to take out a line nobody said).
   Corrections are kept, searched, and never written over when the video is transcribed again; **as Whisper heard
-  it** puts a line back. A long video (a digitised tape) lists its **chapters**: where each recording on the tape
+  it** puts a line back. A long video (a digitized tape) lists its **chapters**: where each recording on the tape
   starts, or the picture changes completely, each with a picture and the first words said in it. Click one to go
   there. Long videos get more frames too: one every 10 seconds for the first 20, then one a minute.
-- **Sound recordings** (a cassette digitised to MP3, a phone's voice memo) are in the folders and lists like photos,
+- **Sound recordings** (a cassette digitized to MP3, a phone's voice memo) are in the folders and lists like photos,
   marked 🎙 with their length, with a picture of their sound wave. Their page plays them, and shows what is said in
   them as for a video. **Whose voices are these?** adds the people speaking. A song from an album (tagged with its
   artist, album and track number) is left out as music.
@@ -515,7 +515,7 @@ on the map** at the top of the folder's page: its photos, and those of the folde
 own, are then shown there. From the keyboard, move the map with the arrow keys (+ and − zoom) and press **Pin the
 middle of the map**.
 
-A trip from place to place is a **journey**: put its photos in an album, in the order you travelled, and the album
+A trip from place to place is a **journey**: put its photos in an album, in the order you traveled, and the album
 draws the way you went on a map of its own, stop by stop ([journeys](#journeys)). **Journeys**, in the box at the
 map's top right, draws them on this map as well, each leg with an arrow showing which way it went; click a line for
 its stops and a way into it. Picking a year leaves the journeys with a photo from that year.
@@ -693,7 +693,7 @@ it. They are listed on **Albums** (under Tours).
 - An album's caption for a photo is the album's own ("Grandma, who flew in from Ohio"). Where it has none, the photo's
   own caption shows, in gray, so nothing has to be written twice.
 - **Put in date order**, in your own album, puts its photos in the order they were taken, the earliest first — the
-  order a trip was travelled, without dragging a few hundred photos. Photos with no date at all stay at the end.
+  order a trip was traveled, without dragging a few hundred photos. Photos with no date at all stay at the end.
   **Undo** in the message puts the order back.
 - **Play** shows it as a slideshow in its order, after a title card; **Save as a video** and **Download all** work as
   for a tour. Opening a photo from an album, **← →** go through the album in its order.
@@ -709,7 +709,7 @@ it. They are listed on **Albums** (under Tours).
 ## Journeys
 
 A trip — Michigan to Colorado, on to Yellowstone, Mount Rushmore and the Mall of America, then home again — is
-an album whose photos are in the order you travelled. **🗺 See the journey**, at the top of such an album,
+an album whose photos are in the order you traveled. **🗺 See the journey**, at the top of such an album,
 draws it on a map of its own. It draws itself when the page opens, the way a travel film does: the first place, then
 a dashed arc out to the next, a place again, and on to the end. Each leg keeps an arrow showing which way it went,
 and once the whole way is there, dots run along it.
@@ -723,7 +723,7 @@ its photos in another order, or on the map, changes it at once.
    album's name under **Add to an album** in the bar at the foot — a name you have no album of makes a new one.
    The same photos can be in as many albums as you like, so an album for the trip takes nothing away from the albums
    of each place you may already have.
-2. **Put them in the order you travelled.** The album's own order is the order of the journey. **Put in date order**
+2. **Put them in the order you traveled.** The album's own order is the order of the journey. **Put in date order**
    on the album's page is usually all it takes; otherwise drag the photos into place (on a phone or tablet, rest a
    finger on one a moment first).
 3. **Make sure they have places.** A photo from a phone or a camera that recorded where it was is already on the map.

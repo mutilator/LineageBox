@@ -1757,7 +1757,7 @@ dialog.player::backdrop { background: #000; }
 .journey-near { color: var(--muted); font-size: .9rem; }
 .journey-near .chip { font-size: .9rem; }
 .journey-near .chip.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
-/* the way travelled: a dashed arc from each place to the next, drawn when the page opens (journey.js), with dots
+/* the way traveled: a dashed arc from each place to the next, drawn when the page opens (journey.js), with dots
    running along it afterwards the way the family went */
 .journey-line { stroke: var(--accent); stroke-width: 4; opacity: .55; stroke-dasharray: 8 9; stroke-linecap: round; }
 .journey-flow { stroke: var(--accent); stroke-width: 6; stroke-linecap: round; stroke-dasharray: .1 18;

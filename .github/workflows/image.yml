@@ -64,9 +64,14 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      # "latest" comes with a release's version tags (flavor latest=auto), and never from a branch
+      # "latest" comes with a release's version tags (flavor latest=auto), and never from a branch.
+      # The title, description and license are the Dockerfile's, said again here: metadata-action would otherwise
+      # label every image with the repository's About text and GitHub's "AGPL-3.0". They go on the index as well as
+      # the labels, as annotations, since that is where GitHub's package page reads an image of two platforms.
       - id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302  # v6.2.0
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
@@ -74,6 +79,14 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=ref,event=branch
             type=sha,enable=${{ github.ref_type == 'branch' }}
+          labels: |
+            org.opencontainers.image.title=LineageBox
+            org.opencontainers.image.description=A private family archive: the family tree, and the photos and videos its people are in
+            org.opencontainers.image.licenses=AGPL-3.0-only
+          annotations: |
+            org.opencontainers.image.title=LineageBox
+            org.opencontainers.image.description=A private family archive: the family tree, and the photos and videos its people are in
+            org.opencontainers.image.licenses=AGPL-3.0-only
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
         with:
           context: .
@@ -82,12 +95,15 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
       # the speech-to-text service for compose.whisper.yaml (ghcr.io/mutilator/lineagebox-whisper), with the same
       # tags, not tuned to any one processor, since it runs on other machines than this one
       - id: whisper
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302  # v6.2.0
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
         with:
           images: ghcr.io/${{ github.repository }}-whisper
           tags: |
@@ -95,6 +111,14 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=ref,event=branch
             type=sha,enable=${{ github.ref_type == 'branch' }}
+          labels: |
+            org.opencontainers.image.title=LineageBox Whisper
+            org.opencontainers.image.description=Speech to text for LineageBox's videos: whisper.cpp on the processor
+            org.opencontainers.image.licenses=AGPL-3.0-only
+          annotations: |
+            org.opencontainers.image.title=LineageBox Whisper
+            org.opencontainers.image.description=Speech to text for LineageBox's videos: whisper.cpp on the processor
+            org.opencontainers.image.licenses=AGPL-3.0-only
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
         with:
           context: .
@@ -104,6 +128,7 @@ jobs:
           push: true
           tags: ${{ steps.whisper.outputs.tags }}
           labels: ${{ steps.whisper.outputs.labels }}
+          annotations: ${{ steps.whisper.outputs.annotations }}
           cache-from: type=gha,scope=whisper
           cache-to: type=gha,mode=max,scope=whisper
       # only once both images are there: installs are told about a release as soon as it exists. Its notes are its

@@ -81,7 +81,7 @@ versions can't open the updated one.
 
 - **A trip on the map: an album's journey.** An album is already a list of photos in the order you want them, and a
   trip is just that — New York, Colorado, Yellowstone, Mount Rushmore, the Mall of America, home again. Put a
-  trip's photos in an album, in the order you travelled, and **🗺 See the journey** at the top of the album
+  trip's photos in an album, in the order you traveled, and **🗺 See the journey** at the top of the album
   draws it on a map of its own: each place in turn, numbered, with the way from one to the next, arrows pointing
   which way it went, and dots running along the line. **Follow the journey** sends a light along it, waiting at each
   place and lighting that stop up in the list below. Photos taken near one another, one after another in the album,
@@ -102,7 +102,7 @@ versions can't open the updated one.
   Click a line for its stops, how far it went and a way into it. Picking a year leaves the journeys with a photo
   from that year.
 - **Put in date order**, in your own album, puts its photos in the order they were taken, the earliest first: the
-  order a trip was travelled, without dragging a few hundred photos. Photos with no date at all stay at the end, and
+  order a trip was traveled, without dragging a few hundred photos. Photos with no date at all stay at the end, and
   **Undo** in the message puts the order back.
 
 ### Fixed
@@ -129,7 +129,7 @@ versions can't open the updated one.
 
 - **A change to the ticked photos now says plainly that it was made.** Tagging the ticked photos, adding someone to
   them, dating them or putting them in an album left the page exactly as it was, with what you typed still in the
-  box, and said what it had done in small grey words in the bar at the foot: it looked as though nothing had
+  box, and said what it had done in small gray words in the bar at the foot: it looked as though nothing had
   happened. The message now comes up over the bar with a ✓, and **Undo** beside it, the box you typed in is emptied,
   and the photos the change was made to light up for a moment in the list.
 - **Files deleted from a Removed folder by hand are noticed.** The scan never looks inside the Removed folders, so

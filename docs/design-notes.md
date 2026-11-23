@@ -352,7 +352,7 @@ in 36–350 ms on the ARM board.
   the video keeps the frames it has rather than spending hours on the rest. Faces are found on every frame, and each person counts once per video. Four frames go to the AI in one
   request (about 3,200 prompt tokens). Videos read before keep the faces found then; their extra frames get faces
   with **Look for faces again** (the faces stage never looks at a video twice, or it would find the same faces again).
-- **Chapters** for videos over 10 minutes (a digitised tape is many recordings end to end): ffmpeg decodes only the
+- **Chapters** for videos over 10 minutes (a digitized tape is many recordings end to end): ffmpeg decodes only the
   keyframes, 64 pixels wide, and gives each a scene score against the one before and whether it is nearly black.
   Decoding only keyframes was 6× faster than every frame on a 720p H.264 test video (1.9 s against 11.6 s for 10
   minutes, one thread). A chapter starts at the first picture after a blank (the gap between two recordings), else at
@@ -377,7 +377,7 @@ in 36–350 ms on the ARM board.
   and describing stages skip them (their stage bits are set at once; describing leaves `audio` out), and so do
   tours. Their thumbnail is ffmpeg's picture of the sound wave. A file tagged with an artist, an album and a track
   number is taken for a song and left out: a share often holds a music library, which would otherwise fill the
-  library with "recordings" and send hours of lyrics to Whisper. A family's digitised tape tagged that way is rare,
+  library with "recordings" and send hours of lyrics to Whisper. A family's digitized tape tagged that way is rare,
   and the rule is plain enough to get round.
 - **Recorded stories** are kept as files in the data folder, not as BLOBs in the catalog: the catalog is copied whole
   every night, and a few MB of sound each would make every copy that much bigger. The nightly backup copies the files

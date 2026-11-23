@@ -463,7 +463,7 @@ def people_matching(con: sqlite3.Connection, text: str, limit: int = 48) -> list
 
 
 def ideas(con: sqlite3.Connection, text: str, filters: Filters, names, most: int = 6) -> list[dict]:
-    """What to try when a search finds nothing: a word spelt like a name the catalog has (a tag, a person, a place:
+    """What to try when a search finds nothing: a word spelled like a name the catalog has (a tag, a person, a place:
     names, from what the viewer sees), or the search without one of its words. [{'label', 'q', 'count'}], each
     finding something with the same filters. (Leaving out a filter is the search page's: it names them.)"""
     words = _Words.of(con)

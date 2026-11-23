@@ -223,7 +223,7 @@ def search_page(request: Request, q: str = "", select: bool = False, pg: int = Q
     href = lambda **change: _search_href(q, dataclasses.replace(f, **change))  # noqa: E731
     places = s.keep(v, ("search places",), COUNTS_FOR, lambda: search.places(c))
     ideas = []
-    if asked and not results:  # what would find something: a word spelt as a name here, a word or a filter less
+    if asked and not results:  # what would find something: a word spelled as a name here, a word or a filter less
         tags = s.keep(v, ("tags", "count"), COUNTS_FOR, lambda: catalog.tags(c, "", "count", limit=None)[0])
         vocabulary = [t["name"] for t in tags] + list(names.values()) + [name for name, _ in places]
         ideas = [{**i, "href": _search_href(i["q"], f)} for i in search.ideas(c, q, f, vocabulary)]

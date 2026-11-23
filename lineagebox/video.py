@@ -7,13 +7,13 @@ are interlaced and have no date in the container; every one has the recording da
 mdpm_date). Phones write creation_time in UTC. On a small ARM board a frame takes 0.3-0.7 s (1.4 s at 4K) and a 720p
 copy of 1080i takes about as long as the video.
 
-That library's longest video was 44 minutes, which 20 frames covered at one every 2.2 minutes; a digitised tape runs
+That library's longest video was 44 minutes, which 20 frames covered at one every 2.2 minutes; a digitized tape runs
 for hours. Frames are now one every 10 s for the first 20 and then one a minute (a 44-minute video gets 61, a 2-hour
 tape 120), and a video over LONG_VIDEO gets chapters: where the picture changes completely or a blank ends, found
 from its keyframes alone (ffmpeg decodes only those: measured on a 720p H.264 test video, 6x faster than decoding
 every frame).
 
-A file with sound and no picture (a cassette digitised to MP3, a phone's voice memo, a .3gp voice note) is a
+A file with sound and no picture (a cassette digitized to MP3, a phone's voice memo, a .3gp voice note) is a
 recording: media 'audio', with a picture of its sound wave as its thumbnail.
 """
 import io
@@ -36,7 +36,7 @@ from lineagebox import dates, tools
 # on a small ARM board), so a 2-hour tape's 120 take a few minutes.
 FRAME_EVERY, SHORT_FRAMES, LONG_EVERY = 10, 20, 60
 MIN_FRAMES, MAX_FRAMES = 3, 120
-# Chapters: a video this long gets them (a digitised tape, a long recording), at least CHAPTER_EVERY seconds apart and
+# Chapters: a video this long gets them (a digitized tape, a long recording), at least CHAPTER_EVERY seconds apart and
 # at most MOST_CHAPTERS on any length. A cut is a keyframe whose picture differs from the keyframe before by CUT in
 # ffmpeg's scene score (0 to 1): on test videos, unrelated pictures scored 0.52-0.82 and one scene 10 s later
 # 0.02-0.26. A keyframe with BLACK % of its pixels dark is the blank between two recordings on a tape. These are rules,
@@ -70,7 +70,7 @@ SOUND_TYPES = {".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".mp4": "audio/mp4", "
                ".wav": "audio/wav", ".ogg": "audio/ogg", ".oga": "audio/ogg", ".opus": "audio/ogg",
                ".webm": "audio/webm", ".flac": "audio/flac"}
 # A sound file tagged as a song from an album: music, not a family recording. Every one of these must be there, so a
-# digitised tape someone named and dated is still a recording.
+# digitized tape someone named and dated is still a recording.
 SONG_TAGS = ("artist", "album", "track")
 # ...but a CD burned at home and copied back by a computer's player is tagged that way too, with what the player
 # makes up: "Track 1" for a title, a number or "Unknown Album" for an album (old voicemails, a recorded talk). Those
@@ -375,7 +375,7 @@ def frame(path: Path, at: float, max_side: int, p: Probe) -> Image.Image:
 
 
 def audio_wav(path: Path) -> bytes:
-    """The sound as 16 kHz mono 16-bit WAV, what Whisper reads: its first SOUND_SECONDS (a digitised tape can be far
+    """The sound as 16 kHz mono 16-bit WAV, what Whisper reads: its first SOUND_SECONDS (a digitized tape can be far
     longer, and the whole of it would be held in memory)."""
     wav = bytearray(tools.run([tool("ffmpeg"), "-v", "error", "-nostdin", *source(path), "-vn",
                                "-t", str(SOUND_SECONDS), "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", "-f", "wav",

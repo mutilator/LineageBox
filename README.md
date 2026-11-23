@@ -2,12 +2,19 @@
 
 **Your family's history, photos and home videos in one private place, shared with the family.**
 
+[![Latest release](https://img.shields.io/github/v/release/mutilator/LineageBox?style=flat-square)](https://github.com/mutilator/LineageBox/releases/latest)
+[![Tests](https://img.shields.io/github/actions/workflow/status/mutilator/LineageBox/image.yml?branch=main&label=tests&style=flat-square)](https://github.com/mutilator/LineageBox/actions/workflows/image.yml)
+[![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue?style=flat-square)](https://github.com/mutilator/LineageBox/blob/main/LICENSE)
+[![Docker images for amd64 and arm64](https://img.shields.io/badge/docker-amd64%20%7C%20arm64-2496ED?style=flat-square&logo=docker&logoColor=white)](https://github.com/mutilator/LineageBox/pkgs/container/lineagebox)
+
 <br>
 
 <h2 align="center"><a href="https://linbox.g-tech.dev">▶&nbsp;&nbsp;Try the live demo: linbox.g-tech.dev</a></h2>
 
 <p align="center">A made-up family's photos, papers and family tree to look around in and change.<br>
 Sign in with one click, as a family member or as an admin. It all goes back as it was twice a day.</p>
+
+![The family tree as a relative sees it: portraits, and how each person is related to them](docs/screenshots/family-tree.png)
 
 <br>
 
@@ -65,6 +72,12 @@ The guides go step by step:
 
 ## What it does
 
+| Search knows the family | Each photo: who is in it, and what the AI saw |
+|---|---|
+| ![Searching "cousins": the cousins of whoever is signed in, then the photos they are in](docs/screenshots/search-cousins.jpg) | ![A photo with its faces named, the AI's description and tags, and how each person is related](docs/screenshots/photo.jpg) |
+| **A relative's Home** | **Naming faces on a phone** |
+| ![A relative's Home: memories, an album shared with them, and their closest family](docs/screenshots/home.jpg) | ![Name faces on a phone, one face at a time, beside Home](docs/screenshots/phone.jpg) |
+
 ### Family history
 
 - **A family tree built from facts.** Enter parents, partners and siblings. LineageBox works out every other
@@ -98,8 +111,8 @@ The guides go step by step:
 - **Everyone sees their own branch.** Each relative sees their part of the tree and the photos its people are in.
   Partners see the same family. Admins see everything and can make exceptions.
 - **The whole family contributes.** Relatives name faces, fix dates, add relatives and events, and upload photos,
-  videos and whole folders from the browser. **Name faces** puts one face at a time in front of them, with Yes, No and
-  Skip, easy on a phone. **Who is this?** asks the family about a face nobody has named yet.
+  videos and whole folders from the browser. **Name faces** puts one face at a time in front of them, with Yes,
+  Not them and Skip, easy on a phone. **Who is this?** asks the family about a face nobody has named yet.
 - **The family's own words.** Anyone who can see a photo can write its caption, who, where and what happened, and
   comment under it. Their words show above the AI's, in search and in slideshows.
 - **Recorded stories.** Older relatives tell instead of typing: a voice note recorded in the browser or on the phone,
@@ -152,14 +165,14 @@ The guides go step by step:
   exact as they are known ("Summer 1987"), and save one as a video file to send. Home opens on memories: this week in
   earlier years, a birthday coming up, someone through the years.
 - **Albums, journeys and favorites.** Pick photos by hand for a wedding or a reunion, put them in order, choose a
-  cover, caption each and share the album with the family. An album of a trip, in the order you travelled, draws its
+  cover, caption each and share the album with the family. An album of a trip, in the order you traveled, draws its
   journey on a map of its own: each place in turn, the way from one to the next, and a light that follows it. A heart
   on a photo makes it a favorite, which tours and memories show first.
 - **Tidies up safely.** It lists duplicate copies, burst shots, smaller copies, blank and blurry shots, photos on their
   side, and files a disk has damaged. Nothing is removed until you pick it, and removed files can be restored.
 - **Plays every video in the browser,** making 720p copies of camcorder and old phone formats that browsers can't
   play. iPhone photos (HEIC), most cameras' raw files, and Live Photos (shown as one photo that moves) are read too.
-- **Long tapes and sound.** A digitised tape gets chapters, where each recording on it starts, and frames all through
+- **Long tapes and sound.** A digitized tape gets chapters, where each recording on it starts, and frames all through
   it. Cassettes and voice memos are cataloged as sound recordings, played and transcribed. Any line Whisper misheard
   can be corrected, and it hears whichever language is spoken.
 - **Keeps the family's work safe.** Every night it makes a checked copy of the catalog (the names, the tree, the words)
@@ -168,6 +181,27 @@ The guides go step by step:
   Google Photos (Takeout) starts out named: faces, keywords, captions and dates come in, below anything set here.
   The other way, the names, captions and places the family gives go into XMP files beside the photos once you turn
   that on, and downloads always carry them.
+
+## How it compares
+
+Photo servers such as [Immich](https://immich.app) are made to replace Google Photos for the pictures a phone takes
+every day. Genealogy programs such as [Gramps Web](https://www.grampsweb.org) and [webtrees](https://www.webtrees.net)
+are made for researching a family's history. LineageBox is for what lies between them, the archive a family shares:
+
+- **The tree and the photos are one.** The faces in the photos are the people in the tree, so search knows who is
+  whose cousin ("cousins 2019"), and each person's page has their life events, documents, recorded stories and photos
+  at each age.
+- **Every relative sees their own branch,** worked out from the tree, without anyone sorting photos into albums for
+  them. Their pages read through a database connection that holds only what they may see
+  ([access control](docs/access-control.md)), and any change can be undone.
+- **Made for decades of photos, not only this year's.** It reads the folders you have where they are, dates scans as
+  loosely as you know them, puts a wrong camera clock right, finds the chapters of a digitized tape, writes down
+  cassettes and recorded stories, and reads obituaries into the tree as changes you tick.
+- **Nothing is locked in.** What Picasa, digiKam, Lightroom, Windows Photo Gallery or Google Photos (Takeout) knew
+  comes in; the family's names and captions go out in XMP files beside the photos; the tree goes in and out as GEDCOM
+  7.0 or 5.5.1; and **Download everything** gives the whole catalog in one file.
+- **Simple to run.** One Python program with SQLite: no database server to look after and no build step. Every AI
+  feature is optional, and the AI can run on a desktop PC that sleeps at night.
 
 ## Requirements
 
@@ -206,9 +240,11 @@ Every AI feature can be switched off, and the rest keeps working.
 - Without family accounts, LineageBox only answers devices on your home network.
 - Naming photos with GPS after a town uses a list of towns that comes with LineageBox
   ([GeoNames](https://www.geonames.org/), CC BY 4.0): nothing is looked up online for it.
-- LineageBox writes in the photo folders only when asked: Cleanup, uploads, 720p copies, turning a photo, and, once you
-  turn them on, XMP sidecars beside the photos (IMG_1234.JPG.xmp) with the names, captions and places the family gave.
-  It writes those into a photo file itself only when an admin asks, on that photo's page.
+- LineageBox writes in the photo folders when someone asks (Cleanup, uploads, turning a photo), for 720p copies of the
+  videos browsers can't play (`name.720p.mp4`, next to each), and, once you turn them on, for XMP sidecars beside the
+  photos (IMG_1234.JPG.xmp) with the names, captions and places the family gave. It writes those into a photo file
+  itself only when an admin asks, on that photo's page. A folder mounted read-only is never written to; it then has
+  no Cleanup or 720p copies.
 - Nothing is emailed or pushed to phones: what is new for each person (and admins' alerts) is shown inside the site.
 - A photo frame's link works without signing in, so whoever has it sees what it shows (one view of memories or a
   tour, nothing else). By default it works only on the home network; an admin can turn any link off.
