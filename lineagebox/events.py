@@ -277,6 +277,20 @@ def add_name(con: sqlite3.Connection, pid: int, name: str, name_type: str) -> No
                    VALUES (?, ?, ?, ?, ?)""", (pid, name, given, surname, name_type))
 
 
+def whole_name(con: sqlite3.Connection, pid: int, name: str, name_type: str) -> str | None:
+    """What a birth or married name of one word may be short for: "Carter" is most likely a surname alone, and other
+    names are kept whole (a family tree program reads a lone word as a first name), so the page offers someone's
+    first names in front of it ("Emma Carter") to check, since they may have had others then. None for a nickname,
+    a name of more words, or someone whose first names aren't known (a name of one word: Grandpa)."""
+    if name_type not in ("birth", "married") or len(name.split()) != 1:
+        return None
+    row = con.execute("SELECT name, given_name, surname FROM person WHERE id = ?", (pid,)).fetchone()
+    if row is None:
+        return None
+    given, surname = (row[1], row[2]) if row[1] else split_name(row[0])
+    return f"{' '.join(given.split())} {name.strip()}" if given.strip() and surname else None
+
+
 def other_names(con: sqlite3.Connection, pid: int) -> list[sqlite3.Row]:
     return con.execute("SELECT * FROM person_name WHERE person_id = ? ORDER BY type, name", (pid,)).fetchall()
 

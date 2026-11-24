@@ -194,6 +194,15 @@ def load(con: sqlite3.Connection) -> Graph:
     return Graph(people, dict(parents), dict(children), dict(siblings), dict(partners), relations, pedi=pedi)
 
 
+def linked(con: sqlite3.Connection) -> set[int]:
+    """Everyone with a parent, a child, a brother or sister, a partner, or another relationship (a friend) entered.
+    On a connection that sees everyone, the links a family member doesn't see count too (a stepchild's father)."""
+    return {r[0] for r in con.execute("""SELECT child_id FROM parent UNION SELECT parent_id FROM parent
+                                         UNION SELECT a FROM sibling UNION SELECT b FROM sibling
+                                         UNION SELECT a FROM partner UNION SELECT b FROM partner
+                                         UNION SELECT person_id FROM relation UNION SELECT of_id FROM relation""")}
+
+
 def me(con: sqlite3.Connection) -> int | None:
     """The person things are worked out from ("my niece"): whoever is signed in, else the one marked as "me"."""
     if getattr(con, "me", None) is not None:

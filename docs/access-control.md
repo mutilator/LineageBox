@@ -320,6 +320,11 @@ sends them through the usual upload (which needs a session); signing out forgets
   **Faces missed** read the member's own views (`c`); marking a face's age or a photo's faces as fine is for admins.
   **No faces found** (`/cleanup/no-faces`, looking again and setting aside) and Suggested dates' **Looks too young**
   are admins' only.
+- Cleanup → Family tree (`family_check.check(c, w)`): a member's problems are worked out on `c`, so they name only
+  people they see and count only photos they see, and each is listed only when the whole tree (`w`) has it too, not
+  marked fine. Their views leave out every link to someone outside them, so a stepchild whose father is on the other
+  side of the family would otherwise be a child with one parent. The Family page's **Not placed yet** goes by the
+  links of the whole tree (`family.linked(w)`, ids only) for the same reason. Marking a problem fine is for admins.
 
 ### Uploads
 

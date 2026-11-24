@@ -213,9 +213,22 @@ def save_name_parts(person_id: int, body: NamePartsBody, v=Depends(viewer), c=De
 
 @router.post("/api/people/{person_id}/names", dependencies=[Depends(from_app)])
 def add_name(person_id: int, body: OtherNameBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
-    if catalog.person(c, person_id) is None:
+    """Another name for someone. A birth or married name of one word is asked about first (events.whole_name): the
+    answer offers it with their first names in front, to check or change (app.js choose, a box holding the name), or
+    to keep alone, and comes back with checked. Nothing is guessed without that yes."""
+    person = catalog.person(c, person_id)
+    if person is None:
         raise HTTPException(404, "No such person")
-    with changes.tracking(w, v, "person", f"Gave {catalog.person(c, person_id)['name']} another name, {body.name}",
+    whole = None if body.checked else events.whole_name(c, person_id, body.name, body.type)
+    if whole:
+        word, first = body.name.strip(), person["name"].split()[0]
+        return {"choose": {
+            "title": f"{first}'s whole {events.NAME_TYPES[body.type].lower()}?",
+            "text": f"Names are kept whole, with the first names, so that {word} is read as a surname. If {first} had "
+                    "other first names then, change them.",
+            "value": whole, "keep": word, "field": "name", "again": {"checked": True},
+            "yes": "Save", "no": f"Keep just {word}"}}
+    with changes.tracking(w, v, "person", f"Gave {person['name']} another name, {' '.join(body.name.split())}",
                           family_spec(v, person_id)):
         events.add_name(w, person_id, body.name, body.type)
     return {}

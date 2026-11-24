@@ -858,6 +858,9 @@ dialog.choose h2 { margin: 12px 0 6px; font-size: 1.2rem; }
 dialog.choose ul { margin: 10px 0; padding: 0; list-style: none; }
 dialog.choose li label { display: flex; align-items: center; gap: 8px; min-height: 40px; cursor: pointer; }
 dialog.choose li input { width: 20px; height: 20px; margin: 0; }
+/* a text to check (a birth name with first names) */
+dialog.choose p > input { width: 100%; min-height: 44px; font: inherit; padding: 6px 10px; border-radius: 6px;
+                          border: 1px solid var(--edge); background: var(--bg); color: var(--text); }
 .choose-answers { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; }
 .choose-answers button { min-height: 44px; padding: 6px 16px; }
 dialog.help h2 { margin: 12px 0 8px; }

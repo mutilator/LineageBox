@@ -264,6 +264,35 @@ def test_events_and_names_on_the_pages(fam, cfg):
     assert ch.all("NAME")[1].value("TYPE") == "BIRTH"
 
 
+def test_a_birth_name_of_one_word_is_asked_about(fam, cfg):
+    """A birth or married name of one word is most likely a surname alone: the page is asked to offer it with their
+    first names, to check, and it is saved only as it comes back (whole, changed, or kept alone). A nickname, a name
+    of more words and someone whose first names aren't known are saved at once."""
+    con, ids = fam
+    katherine, rex = ids["Katherine Miller"], ids["Rex"]
+    c = TestClient(webapp.create_app(cfg), client=LAN)
+    url = f"/api/people/{katherine}/names"
+    names = lambda pid: [tuple(r) for r in con.execute(
+        "SELECT name, given_name, surname, type FROM person_name WHERE person_id = ? ORDER BY id", (pid,))]
+    ask = c.post(url, json={"name": " Baker ", "type": "birth"}, headers=APP).json()["choose"]
+    assert ask["title"] == "Katherine's whole birth name?" and ask["field"] == "name"
+    assert (ask["value"], ask["keep"], ask["again"], ask["no"]) == ("Katherine Baker", "Baker", {"checked": True},
+                                                                   "Keep just Baker")
+    assert names(katherine) == []  # nothing saved before the answer
+    assert c.post(url, json={"name": "Kate Baker", "type": "birth", "checked": True}, headers=APP).status_code == 200
+    assert c.post(url, json={"name": "Porter", "type": "married", "checked": True}, headers=APP).status_code == 200
+    assert "choose" in c.post(url, json={"name": "Smith", "type": "married"}, headers=APP).json()
+    for name, kind in (("Kat", "nickname"), ("Kathy", "aka"), ("Kate Smith", "married")):
+        assert c.post(url, json={"name": name, "type": kind}, headers=APP).json() == {}
+    assert names(katherine) == [("Kate Baker", "Kate", "Baker", "birth"), ("Porter", "Porter", None, "married"),
+                                ("Kat", "Kat", None, "nickname"), ("Kathy", "Kathy", None, "aka"),
+                                ("Kate Smith", "Kate", "Smith", "married")]
+    events.set_name_parts(con, katherine, "Katherine Ann", "Miller", "married")  # the first names as split, if they are
+    con.commit()
+    assert events.whole_name(con, katherine, "Baker", "birth") == "Katherine Ann Baker"
+    assert c.post(f"/api/people/{rex}/names", json={"name": "Baker", "type": "birth"}, headers=APP).json() == {}
+
+
 def test_merging_carries_events_over(fam):
     con, ids = fam
     typo = people.person_id(con, "Mike Bakker")

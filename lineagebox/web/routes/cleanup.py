@@ -102,6 +102,11 @@ OWN_COUNTS = {
     "blurry": lambda c, now, own: {"blurry": cleanup.blurry(c, now.blurry_below, 0, 0, own)[1], "unmeasured": 0},
     "similar": lambda c, now, own: {"similar_groups": cleanup.similar_groups(c, "all", only=own)[1]},
 }
+# a member's counts that the whole tree bears out: (c, now, a connection that sees everyone). Their part of the tree
+# leaves out the links to people outside it (family_check.check).
+WHOLE_COUNTS = {
+    "family": lambda c, now, whole: {"issues": len(family_check.check(c, whole))},
+}
 COUNTS_FOR = 60  # seconds each part's numbers are kept
 
 
@@ -121,7 +126,8 @@ def cleanup_page(request: Request, v=Depends(viewer), c=Depends(con), s: Site = 
 
 
 @router.get("/cleanup/counts/{part}", response_class=HTMLResponse)
-def cleanup_counts(request: Request, part: str, v=Depends(viewer), c=Depends(con), s: Site = Depends(site)):
+def cleanup_counts(request: Request, part: str, v=Depends(viewer), c=Depends(con), w=Depends(writer),
+                   s: Site = Depends(site)):
     """One part of the Cleanup page with its numbers, to take the place of its Loading…."""
     now = s.live(c)
     if part not in _parts(v, now):
@@ -129,6 +135,8 @@ def cleanup_counts(request: Request, part: str, v=Depends(viewer), c=Depends(con
     # kept a minute (Site.kept): coming back to Cleanup counts nothing again, unless something was changed meanwhile
     if v.limited and part in OWN_COUNTS:  # of what they uploaded
         work = lambda: OWN_COUNTS[part](c, now, own_uploads(c, v))  # noqa: E731
+    elif v.limited and part in WHOLE_COUNTS:
+        work = lambda: WHOLE_COUNTS[part](c, now, w)  # noqa: E731
     else:
         work = lambda: COUNTS[part](c, now)  # noqa: E731
     n = s.keep(v, ("cleanup", part, now.blurry_below, now.turn_suggest), COUNTS_FOR, work)
@@ -150,9 +158,10 @@ def cleanup_turned_page(request: Request, c=Depends(con), s: Site = Depends(site
 
 
 @router.get("/cleanup/family", response_class=HTMLResponse)
-def cleanup_family_page(request: Request, c=Depends(con)):
+def cleanup_family_page(request: Request, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
+    """What looks wrong in the tree; for a member, in their part of it, as the whole tree (w) has it too."""
     issues = defaultdict(list)
-    for issue in family_check.check(c):
+    for issue in family_check.check(c, None if v.admin else w):
         issues[issue.kind].append(issue)
     return page(request, "cleanup_family.html", nav="cleanup", issues=issues, kinds=family_check.KINDS,
                 g=family.load(c), ok_count=len(settings.get(c, family_check.OK_KEY, [])))

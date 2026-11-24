@@ -6,6 +6,21 @@ copies it there when the version is tagged ([releases](docs/development.md#relea
 A **catalog update** adds to the catalog's tables. LineageBox copies the catalog before it updates it, and earlier
 versions can't open the updated one.
 
+## 1.11.2 (2026-11-24)
+
+### Updated
+
+- **Birth and married names are kept whole.** A birth or married name typed as one word on someone's page ("Carter")
+  asks first: it offers their first names in front ("Emma Carter") to check or change, or keeps the word alone. A
+  family tree program then reads Carter as the surname, not as a first name.
+
+### Fixed
+
+- **Cleanup → Family tree lists to a family member only what is wrong in the whole tree.** Someone whose other
+  parent is outside their part of the family (a stepchild's father) was listed as having only one parent, with a
+  suggested parent that couldn't be added. A photo problem an admin marked fine as it is now stays hidden from family
+  members too. The Family page's **Not placed yet** no longer lists people whose family links are outside their part.
+
 ## 1.11.1 (2026-11-23)
 
 ### Updated

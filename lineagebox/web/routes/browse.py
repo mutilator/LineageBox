@@ -587,7 +587,7 @@ def person_faces_page(request: Request, person_id: int, c=Depends(con)):
 
 @router.get("/family", response_class=HTMLResponse)
 def family_page(request: Request, root: int | None = None, center: int | None = None, v=Depends(viewer),
-                c=Depends(con), s: Site = Depends(site)):
+                c=Depends(con), w=Depends(writer), s: Site = Depends(site)):
     if root is not None:  # the whole line down from one ancestor was on this page once: links to it still work
         return RedirectResponse(f"/family/tree?root={root}", status_code=303)
     g = family.load(c)
@@ -598,8 +598,9 @@ def family_page(request: Request, root: int | None = None, center: int | None = 
         if pid != ego:
             groups.setdefault(k.group, []).append(pid)
     circles = people.groups(c)
-    linked = set(kin) | {p for r in g.relations for p in r[:2]} | set(g.parents) | set(g.children)
-    linked |= set(g.partners) | set(g.siblings) | {p for ids in circles.values() for p in ids}
+    # Not placed yet: no link in the whole tree (w), not only in a member's part of it, which leaves out the links to
+    # people outside it; only ids, matched against the people they see
+    linked = set(kin) | family.linked(w) | {p for ids in circles.values() for p in ids}
     named = catalog.people(c, everyone=True)  # those with no photos too: Not placed yet is where they are tidied up
     if center not in g.people:  # the family around you; before "This is me", around whoever has the most photos
         in_family = set(g.parents) | set(g.children) | set(g.partners) | set(g.siblings)

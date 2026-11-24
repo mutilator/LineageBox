@@ -1,9 +1,12 @@
 """Cleanup → Family tree: what looks wrong or unfinished in the family tree, and putting it right."""
+import re
+
 from fastapi.testclient import TestClient
 
 from lineagebox import events, family, family_check, people
 from lineagebox.web import app as webapp
 from tests.conftest import LAN
+from tests.test_access_web import signed_in, site  # noqa: F401 - site is a fixture
 
 APP = {"X-Requested-With": "lineagebox"}
 
@@ -62,3 +65,42 @@ def test_family_tree_problems(con, cfg):
     assert client.post("/api/family/checks/ok", json={"key": key}, headers=APP).status_code == 200
     left = {i.key for i in family_check.check(con)}
     assert key not in left and f"one_parent:{gina}" not in left and f"one_parent:{lyle}" not in left
+
+
+def test_a_member_is_shown_what_the_whole_tree_has(site, cfg, con):
+    """A member's part of the tree leaves out the links to people outside it. Cora sees Jake, the son of her brother
+    Sam's wife Tina, but not Jake's father Ed, Tina's former husband: Jake isn't a child with one parent for her, nor
+    is Sam offered as his other parent. Hal, whom an admin shows her on his own, isn't "not placed yet": he has a
+    brother she doesn't see. What the whole tree has wrong is listed to her as she sees it (the photos she sees), and
+    an admin's fine as it is covers a photo problem even when she sees fewer of its photos."""
+    p, ph, who = site["people"], site["photos"], site["who"]
+    wes = people.person_id(con, "Wes Lane")  # linked to nobody at all
+    for pid in (p["Hal"], wes):
+        con.execute("INSERT INTO access_rule(account_id, person_id, show, branch) VALUES (?, ?, 1, 0)",
+                    (who["Cora"]["id"], pid))
+    events.save(con, None, tag="BIRT", person_id=p["Bart"], date_text="2015")  # cora_bart.jpg is from 2010
+    con.execute("INSERT INTO image_person(image_id, person_id, added_at) VALUES (?, ?, '2026-01-01')",
+                (ph["hidden.jpg"], p["Bart"]))  # and a photo from 2011 an admin hid from the family
+    con.execute("UPDATE image SET taken_at = '2011-05-01T10:00:00', taken_at_source = 'exif' WHERE id = ?",
+                (ph["hidden.jpg"],))
+    con.commit()
+    whole = {i.key: i for i in family_check.check(con)}
+    assert f"one_parent:{p['Jake']}" not in whole and f"one_parent:{p['Cal']}" in whole
+    assert whole[f"photos:{p['Bart']}:before:2"].text.startswith("Bart: in 2 photos")
+
+    cora = signed_in(cfg, con, who["Cora"])
+    page = cora.get("/cleanup/family").text
+    assert "Cal: only Al is entered" in page  # the whole tree has it too
+    assert "Jake: only Tina" not in page and "Sam is the other parent" not in page
+    assert "Bart: in a photo from 2010, before being born in 2015" in page and "2 photos" not in page
+    listed = len(re.findall(r'<li id="issue-', page))
+    assert f'<span class="num">{listed}</span>' in cora.get("/cleanup/counts/family").text
+    family_check.mark_ok(con, f"photos:{p['Bart']}:before:2")  # by an admin, who sees both photos
+    con.commit()
+    assert "Bart: in a photo" not in cora.get("/cleanup/family").text
+    # brothers with no parents, both of whom Tina sees: listed to her as to an admin
+    assert "Hal and Hank" in signed_in(cfg, con, who["Tina"]).get("/cleanup/family").text
+
+    family_page = cora.get("/family").text
+    unplaced = family_page.split("Not placed yet")[1]
+    assert f'/person/{wes}"' in unplaced and f'/person/{p["Hal"]}"' not in unplaced

@@ -6,7 +6,11 @@ child's parents not entered as partners.
 
 Each problem has a key that stays the same while it lasts, so one that is right after all (a parent nobody knows)
 can be marked fine and is not listed again. A photo problem's key holds how many photos it is about: marked fine, it
-comes back if more such photos are named."""
+comes back if more such photos are named.
+
+A family member sees the problems of their part of the tree, as they see it, but only those the whole tree has too:
+their part leaves out the links to people outside it, which would make a stepchild whose father is on the other side
+of the family a child with only one parent."""
 import re
 import sqlite3
 from collections import defaultdict
@@ -55,15 +59,38 @@ class Issue:
     text: str
     choices: list[int] = field(default_factory=list)  # one-click fixes: the other parent it may be
     href: str = ""           # where to see what it is about: the photos
+    what: str = ""           # the problem whoever looks: the key without how many of the photos they see
+
+    def __post_init__(self):
+        self.what = self.what or self.key
 
 
-def check(con: sqlite3.Connection) -> list[Issue]:
-    """Every problem not marked fine, by kind in the order of KINDS."""
+# problems about a group of people, of whom a family member may see only some
+GROUPS = ("loop", "no_parents")
+
+
+def check(con: sqlite3.Connection, whole: sqlite3.Connection | None = None) -> list[Issue]:
+    """Every problem not marked fine, by kind in the order of KINDS. whole: for a family member, a connection that
+    sees everyone (con holds only their part of the family). Their problems are worked out on con, so that they name
+    only people they see, count only photos they see and offer only parents they see; but one is listed only when the
+    whole tree has it too, not marked fine. A link to someone outside their part isn't on con (a stepchild's father,
+    from the other side of the family, would leave the child with one parent), and an admin's fine as it is covers a
+    photo problem of which they see fewer photos."""
     g = family.load(con)
     ok = set(settings.get(con, OK_KEY, []))
-    found = [*_loops(g), *_parents(g), *_dates(con, g), *_photos(con, g), *_twice(con, g), *_no_sex(g)]
+    found = [i for i in _found(con, g) if i.key not in ok]
+    if whole is not None:
+        standing = [i for i in _found(whole, family.load(whole)) if i.key not in ok]
+        whats = {i.what for i in standing}
+        groups = [(i.kind, set(i.people)) for i in standing if i.kind in GROUPS]
+        found = [i for i in found if (any(kind == i.kind and set(i.people) <= them for kind, them in groups)
+                                      if i.kind in GROUPS else i.what in whats)]
     order = list(KINDS)
-    return sorted((i for i in found if i.key not in ok), key=lambda i: (order.index(i.kind), g.name(i.people[0])))
+    return sorted(found, key=lambda i: (order.index(i.kind), g.name(i.people[0])))
+
+
+def _found(con: sqlite3.Connection, g: family.Graph) -> list[Issue]:
+    return [*_loops(g), *_parents(g), *_dates(con, g), *_photos(con, g), *_twice(con, g), *_no_sex(g)]
 
 
 def mark_ok(con: sqlite3.Connection, key: str) -> None:
@@ -197,11 +224,12 @@ def _photos(con: sqlite3.Connection, g: family.Graph) -> list[Issue]:
         if r["early"]:
             out.append(Issue("photos", f"photos:{pid}:before:{r['early']}", [pid],
                              f"{name}: in {_count(r['early'])} from {_span(r['early_from'], r['early_to'])}, before "
-                             f"being born in {r['born'][:4]}", href=see(to=r["born"][:4])))
+                             f"being born in {r['born'][:4]}", href=see(to=r["born"][:4]), what=f"photos:{pid}:before"))
         if r["late"]:
             out.append(Issue("photos", f"photos:{pid}:after:{r['late']}", [pid],
                              f"{name}: in {_count(r['late'])} from {_span(r['late_from'], r['late_to'])}, years after "
-                             f"dying in {r['died'][:4]}", href=see(**{"from": r["late_from"]})))
+                             f"dying in {r['died'][:4]}", href=see(**{"from": r["late_from"]}),
+                             what=f"photos:{pid}:after"))
         if not r["born"] and r["first"]:
             for parent in sorted(g.birth_parents(pid)):
                 if (p_born := births.get(parent)) and int(r["first"]) < int(p_born[:4]):

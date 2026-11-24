@@ -668,6 +668,7 @@ class GroupBody(BaseModel):
 class OtherNameBody(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     type: str
+    checked: bool = False  # a name of one word, asked about (events.whole_name) and sent back as it was answered
 
 
 class StoryBody(BaseModel):
