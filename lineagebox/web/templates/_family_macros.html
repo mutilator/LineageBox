@@ -1,12 +1,22 @@
 {# A person's card, and the tree of one person's descendants: on the Family page and the whole line's page. Imported
-   with context: they read g, covers, kin and ego from the page. #}
+   with context: they read g, covers, kin and ego from the page, and on the whole line's page lines (family.lines):
+   there a card shows its person's line (app.js glides onto them, or brings in the family they come from), and a
+   double click opens their page. #}
 {% macro card(pid, former=false, note="", step=false, direct=false, how="") %}
   {%- if pid < 0 %}
   <span class="fcard ghost{% if direct %} direct{% endif %}"><span class="ph">?</span><span class="name">{% trans %}Their parents{% endtrans %}</span><span class="kin">{% trans %}not entered{% endtrans %}</span></span>
   {%- else %}
+  {%- set line = lines.get(pid) if lines is defined else none %}
+  {%- set tips = [_('Stepchild: a child of the current partner from another relationship')] if step else [] %}
+  {%- if line is not none %}
+  {%- set tips = [_("Put %(name)s in the middle; double-click to open their page", name=g.name(pid)) if line == root else
+                  _("Show the family %(name)s comes from; double-click to open their page", name=g.name(pid))] + tips %}
+  {%- endif %}
   {#- "stepkid", not "step": .step is the photo viewer's arrows #}
-  <a class="fcard{% if direct %} direct{% endif %}{% if former %} former{% endif %}{% if step %} stepkid{% endif %}{% if g.people[pid].deceased %} late{% endif %}" href="/person/{{ pid }}"
-     {%- if step %} title="{{ _('Stepchild: a child of the current partner from another relationship') }}"{% endif %}>
+  <a class="fcard{% if direct %} direct{% endif %}{% if former %} former{% endif %}{% if step %} stepkid{% endif %}{% if g.people[pid].deceased %} late{% endif %}"
+     {%- if line is none %} href="/person/{{ pid }}"
+     {%- else %} href="/family/tree?root={{ line }}&amp;person={{ pid }}" data-id="{{ pid }}" data-line="{{ line }}"{% endif %}
+     {%- if tips %} title="{{ tips|join(' · ') }}"{% endif %}>
     {%- if step %}<span class="step-tag">{% trans %}step{% endtrans %}</span>{% elif how in ("adopted", "foster") %}<span class="step-tag" title="{{ _("Adopted") if how == "adopted" else _("A foster child") }}">{{ how }}</span>{% endif %}
     {%- if covers.get(pid) %}<img src="/face/{{ covers[pid] }}" alt="" loading="lazy">{% else %}<span class="ph">{{ g.name(pid)[:1] }}</span>{% endif %}
     <span class="name">{{ g.name(pid) }}</span>

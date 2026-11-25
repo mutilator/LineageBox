@@ -1752,16 +1752,20 @@ if (matchMedia("(hover: hover) and (pointer: fine)").matches) {
 }
 
 // The whole line down from one ancestor (family_tree.html): the tree on a sheet in a frame. Dragging moves it (so do
-// the arrow keys, the frame focused); the wheel, a pinch and the buttons (+ − 0) zoom. A card still opens its person's
-// page with a click, but not at the end of a drag. It starts with all of the tree if that is still readable, else its
-// top at a readable size; or on the person asked for (data-person), marked.
+// the arrow keys, the frame focused); the wheel, a pinch and the buttons (+ − 0) zoom. A click on someone (not at the
+// end of a drag) shows their line (data-line, from family.lines): the tree glides onto them and marks them, or, for
+// someone who married in, the tree of the family they come from comes in around them, and Back goes to the one before.
+// A double click, or a click on the one marked, opens their page. It starts with all of the tree if that is still
+// readable, else its top at a readable size; or on the person asked for (data-person), marked.
 const treeFrame = document.querySelector("[data-pan-zoom]");
 if (treeFrame) {
   const sheet = treeFrame.firstElementChild;
-  const READABLE = 0.6;  // the smallest zoom it starts at
+  const READABLE = 0.6;  // the smallest zoom it starts at, and that a click on someone brings them to
   const MOST = 3;
   const EDGE = 16;       // px around the tree when all of it shows
   const KEEP = 60;       // px of the tree that always stay in the frame
+  const GLIDE = matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 450;  // ms a move onto someone takes
+  const DOUBLE = 250;    // ms a click waits, to be told from the first of a double click
   let scale = 1;
   let x = 0;
   let y = 0;
@@ -1775,7 +1779,22 @@ if (treeFrame) {
     y = Math.min(treeFrame.clientHeight - KEEP, Math.max(KEEP - down() * scale, y));
     sheet.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
   };
+  let gliding;
+  const glide = () => {  // the next show() moves the sheet there smoothly, and it fades in if it was faded out
+    if (!GLIDE) return;
+    sheet.style.transition = `transform ${GLIDE}ms ease, opacity ${GLIDE}ms ease`;
+    clearTimeout(gliding);
+    gliding = setTimeout(() => (sheet.style.transition = ""), GLIDE);
+  };
+  const still = () => {  // a glide stops where it has got to, to be dragged or zoomed from there
+    if (!sheet.style.transition) return;
+    const m = new DOMMatrix(getComputedStyle(sheet).transform);
+    sheet.style.transition = "";
+    [x, y, scale] = [m.e, m.f, m.a];
+    show();
+  };
   const zoomAt = (factor, px, py) => {  // px, py: the point that stays put, from the frame's corner
+    still();
     const s = Math.min(MOST, Math.max(Math.min(0.25, fitScale()), scale * factor));
     x = px - ((px - x) * s) / scale;
     y = py - ((py - y) * s) / scale;
@@ -1783,35 +1802,152 @@ if (treeFrame) {
     show();
   };
   const fit = () => {
+    still();
     scale = fitScale();
     x = (treeFrame.clientWidth - across() * scale) / 2;
     y = Math.max(EDGE, (treeFrame.clientHeight - down() * scale) / 2);
     show();
   };
-  const onto = (card) => {  // that card at full size, across the middle and a third of the way down (or the tree
-    // in the middle, if it fits across; its top at the top, if they are near it)
+  const spot = (card) => {  // the middle of a card on the sheet, before zooming (the sheet not gliding)
     const s = sheet.getBoundingClientRect();
     const c = card.getBoundingClientRect();
-    const cx = (c.left + c.width / 2 - s.left) / scale;
-    const cy = (c.top + c.height / 2 - s.top) / scale;
-    scale = 1;
-    x = across() <= treeFrame.clientWidth ? (treeFrame.clientWidth - across()) / 2 : treeFrame.clientWidth / 2 - cx;
-    y = Math.min(EDGE, treeFrame.clientHeight / 3 - cy);
+    return [(c.left + c.width / 2 - s.left) / scale, (c.top + c.height / 2 - s.top) / scale];
+  };
+  const onto = (card, size = 1) => {  // that card at that size, across the middle and a third of the way down (or the
+    // tree in the middle, if it fits across; its top at the top, if they are near it)
+    const [cx, cy] = spot(card);
+    scale = size;
+    x = across() * size <= treeFrame.clientWidth ? (treeFrame.clientWidth - across() * size) / 2
+      : treeFrame.clientWidth / 2 - cx * size;
+    y = Math.min(EDGE, treeFrame.clientHeight / 3 - cy * size);
     show();
   };
-  const wanted = treeFrame.dataset.person && sheet.querySelector(`a.fcard[href="/person/${treeFrame.dataset.person}"]`);
-  if (wanted) {
-    wanted.classList.add("here");
-    onto(wanted);
-  } else if (fitScale() >= READABLE) {
-    fit();
-  } else {
-    scale = READABLE;
-    x = (treeFrame.clientWidth - across() * scale) / 2;  // the top of the tree, in the middle
-    y = EDGE;
-    show();
-  }
+  let marked = null;  // the card marked: a click on it opens their page
+  const lineLink = (card) => `/family/tree?root=${card.dataset.line}&person=${card.dataset.id}`;
+  const mark = (card) => {
+    if (marked?.isConnected) {
+      marked.classList.remove("here");
+      marked.href = lineLink(marked);
+      marked.title = marked.dataset.was ?? "";
+    }
+    marked = card;
+    if (!card) return;
+    card.classList.add("here");
+    card.dataset.was = card.title;
+    card.href = `/person/${card.dataset.id}`;
+    card.title = t("Open {name}'s page", { name: card.querySelector(".name")?.textContent || "" });
+  };
+  const start = () => {
+    const wanted = treeFrame.dataset.person && sheet.querySelector(`a.fcard[data-id="${treeFrame.dataset.person}"]`);
+    mark(wanted || null);
+    if (wanted) {
+      onto(wanted);
+    } else if (fitScale() >= READABLE) {
+      fit();
+    } else {
+      scale = READABLE;
+      x = (treeFrame.clientWidth - across() * scale) / 2;  // the top of the tree, in the middle
+      y = EDGE;
+      show();
+    }
+  };
+  start();
   addEventListener("resize", show);
+
+  // Another line's tree, from its page (doc): it fades in around the one clicked (card), who glides from where they
+  // were to the middle, while the tree they were in fades out going along with them. No card after Back or Forward.
+  const treeOf = (url) => fetch(url).then((r) => {
+    if (!r.ok) throw new Error(String(r.status));
+    return r.text();
+  }).then((html) => new DOMParser().parseFromString(html, "text/html"));
+  const arrive = (doc, card) => {
+    const frame = doc.querySelector("[data-pan-zoom]");
+    const came = frame?.querySelector(".tree-sheet");
+    if (!came) throw new Error("no tree");  // signed out, say: the page itself shows why
+    still();
+    const focused = sheet.contains(document.activeElement);
+    const before = card?.isConnected ? [x, y, ...spot(card)] : null;
+    const leaving = sheet.cloneNode(true);
+    leaving.classList.add("leaving");
+    leaving.inert = true;
+    sheet.before(leaving);
+    sheet.replaceChildren(...came.childNodes);
+    treeFrame.dataset.root = frame.dataset.root;
+    if (frame.dataset.person) treeFrame.dataset.person = frame.dataset.person;
+    else delete treeFrame.dataset.person;
+    const here = before && sheet.querySelector(`a.fcard[data-id="${card.dataset.id}"]`);
+    const [cx, cy] = here ? spot(here) : [0, 0];
+    sheet.style.opacity = "0";
+    if (here) {  // where they were
+      x = before[0] + (before[2] - cx) * scale;
+      y = before[1] + (before[3] - cy) * scale;
+      show();
+    }
+    void sheet.offsetWidth;  // that is where both start from
+    glide();
+    sheet.style.opacity = "";
+    if (GLIDE) leaving.style.transition = `transform ${GLIDE}ms ease, opacity ${GLIDE * 0.6}ms ease`;
+    if (here) {
+      mark(here);
+      onto(here, Math.max(scale, READABLE));
+      leaving.style.transform = `translate(${x + (cx - before[2]) * scale}px, ${y + (cy - before[3]) * scale}px) `
+        + `scale(${scale})`;
+    } else {
+      start();
+    }
+    leaving.style.opacity = "0";
+    setTimeout(() => leaving.remove(), GLIDE);
+    if (focused) (here || treeFrame).focus({ preventScroll: true });
+    const pick = document.querySelector(".tree-pick select");
+    const picked = doc.querySelector(".tree-pick select");
+    if (pick && picked) {
+      pick.replaceChildren(...picked.childNodes);
+      pick.value = treeFrame.dataset.root;
+    }
+    const picture = document.querySelector("[data-tree-picture]");
+    const named = doc.querySelector("[data-tree-picture]");
+    if (picture && named) picture.dataset.file = named.dataset.file;
+    document.title = doc.title;
+  };
+  let waiting;  // the click waiting to be told from a double click
+  let asked = 0;  // which tree was asked for last: one that comes after it is left out
+  treeFrame.addEventListener("click", (e) => {
+    const card = e.target.closest("a.fcard[data-id]");
+    if (!card || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;  // a new tab or window, as usual
+    e.preventDefault();
+    clearTimeout(waiting);
+    if (e.detail >= 2 || card === marked) {
+      location.href = `/person/${card.dataset.id}`;
+      return;
+    }
+    const url = lineLink(card);
+    const ticket = ++asked;
+    const other = card.dataset.line !== treeFrame.dataset.root ? treeOf(url) : null;  // asked for now: here sooner
+    other?.catch(() => {});  // a double click leaves it unused
+    waiting = setTimeout(() => {
+      if (!other) {
+        still();
+        glide();
+        onto(card, Math.max(scale, READABLE));
+        mark(card);
+        treeFrame.dataset.person = card.dataset.id;
+        history.replaceState(history.state, "", url);
+        return;
+      }
+      treeFrame.classList.add("loading");
+      other.then((doc) => {
+        if (ticket !== asked) return;
+        arrive(doc, card);
+        history.pushState(null, "", url);
+      }).catch(() => ticket === asked && (location.href = url))
+        .finally(() => treeFrame.classList.remove("loading"));
+    }, DOUBLE);
+  });
+  addEventListener("popstate", () => {  // Back or Forward to another line's tree
+    if ((new URLSearchParams(location.search).get("root") ?? "") === treeFrame.dataset.root) return;
+    const ticket = ++asked;
+    treeOf(location.href).then((doc) => ticket === asked && arrive(doc, null)).catch(() => location.reload());
+  });
 
   const pointers = new Map();  // pointer id -> [x, y], last seen
   let from = null;      // where the first pointer went down
@@ -1825,6 +1961,7 @@ if (treeFrame) {
   };
   treeFrame.addEventListener("pointerdown", (e) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
+    still();
     pointers.set(e.pointerId, [e.clientX, e.clientY]);
     if (pointers.size === 1) {
       from = [e.clientX, e.clientY];
@@ -1888,6 +2025,7 @@ if (treeFrame) {
     if (!by || e.altKey || e.ctrlKey || e.metaKey) return;
     e.preventDefault();
     e.stopPropagation();
+    still();
     x += by[0];
     y += by[1];
     show();

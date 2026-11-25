@@ -6,6 +6,15 @@ copies it there when the version is tagged ([releases](docs/development.md#relea
 A **catalog update** adds to the catalog's tables. LineageBox copies the catalog before it updates it, and earlier
 versions can't open the updated one.
 
+## 1.12.1 (2026-11-25)
+
+### Updated
+
+- **Moving through the classic family tree.** A click on someone in **View in classic family tree style** glides the
+  tree onto them and marks them. Click someone who married in, and the tree changes to the family they come from,
+  from the top of their line, with them staying in view; **Back** returns to the tree before. A double click, or a
+  click on the one marked, opens their page.
+
 ## 1.12.0 (2026-11-24)
 
 ### New

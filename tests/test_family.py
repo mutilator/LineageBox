@@ -269,14 +269,14 @@ def test_family_pages_and_api(con, cfg, fam):
     assert 'class="step-tag">step</span>' in tree  # Ava, under Mike and Rosa
     assert 'class="fcard step' not in tree and 'class="fcard direct stepkid"' in tree  # .step is the viewer's arrows
     # the family line has bold frames; partners married in do not
-    assert f'class="fcard direct" href="/person/{fam["Mike"]}"' in tree
-    assert f'class="fcard" href="/person/{fam["Rosa"]}"' in tree
+    assert re.search(rf'class="fcard direct" href="[^"]*" data-id="{fam["Mike"]}"', tree)
+    assert re.search(rf'class="fcard" href="[^"]*" data-id="{fam["Rosa"]}"', tree)
     assert re.search(r'/static/app\.js\?v=[0-9a-f]{10}"', page)  # a new script is fetched after each update
     # Mike has had two wives: each is a branch with her own children under her
-    branches = {seg.split('href="/person/')[1].split('"')[0]: seg for seg in tree.split('<li class="union')[1:]}
-    assert f'/person/{fam["Kyle"]}"' in branches[str(fam["Diane"])] and "former partner" in branches[str(fam["Diane"])]
-    assert f'/person/{fam["Ava"]}"' in branches[str(fam["Rosa"])]
-    assert f'/person/{fam["Kyle"]}"' not in branches[str(fam["Rosa"])]
+    branches = {seg.split('data-id="')[1].split('"')[0]: seg for seg in tree.split('<li class="union')[1:]}
+    assert f'data-id="{fam["Kyle"]}"' in branches[str(fam["Diane"])] and "former partner" in branches[str(fam["Diane"])]
+    assert f'data-id="{fam["Ava"]}"' in branches[str(fam["Rosa"])]
+    assert f'data-id="{fam["Kyle"]}"' not in branches[str(fam["Rosa"])]
     stand_in = family.tree_root(family.load(con), fam["Ana"])
     assert "Parents of Ana and Katherine" in client.get(f"/family/tree?root={stand_in}").text
 

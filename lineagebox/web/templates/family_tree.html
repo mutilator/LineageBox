@@ -20,10 +20,12 @@
     data-file="{{ _('Family tree - %(root)s.png', root=top_names[root]) }}">{% trans %}Save as a picture (PNG){% endtrans %}</button>
   <span class="hint inline" data-tree-note>{% trans %}Drag to move around; scroll, pinch or + and − to zoom.{% endtrans %}</span>
 </div>
-<div class="tree-frame" tabindex="0" data-pan-zoom{% if person %} data-person="{{ person }}"{% endif %}
+<div class="tree-frame" tabindex="0" data-pan-zoom data-root="{{ root }}"{% if person %} data-person="{{ person }}"{% endif %}
   aria-label="{{ _('The family tree. Drag or use the arrow keys to move around it; scroll or use + and − to zoom.') }}">
   <div class="tree-sheet"><ul class="tree">{{ node(tree) }}</ul></div>
 </div>
+<p class="hint">{% trans %}Click someone to put them in the middle; for someone who married in, the tree changes to the family
+they come from. Double-click someone, or click the one marked, to open their page.{% endtrans %}</p>
 <p class="hint">{% trans %}Bold frame: the family line, down from the top; plain: married in. Someone with several partners has a
 branch for each, with that couple's children under the partner. Dashed: a former partner. A current partner's
 children from other relationships are marked step, adopted and foster children are marked so, and † marks someone

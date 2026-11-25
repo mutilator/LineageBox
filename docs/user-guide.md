@@ -174,6 +174,8 @@ step-family) relative to the person marked **This is me**. Those words work in s
   follows puts them back.
 - **View in classic family tree style** opens the whole line down from one ancestor on a page of its own: drag to
   move around the tree, scroll or pinch to zoom, and **Save as a picture** downloads the whole tree as one large PNG.
+  Click someone to put them in the middle; click someone who married in, and the tree changes to the family they come
+  from (Back returns to the one before). Double-click someone, or click the one marked, to open their page.
 - **Life events** (births, weddings, moves, graduations, adoption, bar and bat mitzvahs, censuses, probate and more,
   as GEDCOM 7 has them) are on each person's page, with dates as exact as you know them ("about 1950"). For a job, a
   religion, a title and the like, **What** says which.

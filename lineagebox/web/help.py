@@ -419,7 +419,10 @@ PAGES = {
         N_("Everyone descended from one ancestor, with their partners: pick whom it starts from at the top. A bold "
            "frame is the family line; a plain one married in; a dashed one a former partner."),
         N_("Drag the tree to move around it, or use the arrow keys once it is clicked. Scroll or pinch to zoom in and "
-           "out; Show it all fits the whole tree in the frame. Click someone to open their page."),
+           "out; Show it all fits the whole tree in the frame."),
+        N_("Click someone to put them in the middle, marked. Click someone who married in, and the tree changes to the "
+           "family they come from, from the top of their line; Back returns to the tree before. Double-click someone, "
+           "or click the one marked, to open their page."),
         N_("Save as a picture downloads the whole tree as one large PNG, however much of it shows.")), (
         ("← → ↑ ↓", N_("move around the tree (click it first)")),)),
     "family_names": Page(N_("Names to check"), (

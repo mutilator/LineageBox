@@ -387,7 +387,9 @@ def test_the_whole_line_is_a_page_to_move_around_and_save(con, cfg):
     page = client.get(f"/family/tree?root={ids['Grandpa']}&person={ids['Kid']}").text
     assert "<title>The whole line down from Grandpa" in page and "data-pan-zoom" in page
     assert f'data-person="{ids["Kid"]}"' in page and "data-tree-picture" in page and 'data-zoom="fit"' in page
-    assert f'class="fcard direct" href="/person/{ids["Kid"]}"' in page
+    # a click on someone shows their line (here, this one: app.js glides onto them), a double click opens their page
+    assert (f'class="fcard direct" href="/family/tree?root={ids["Grandpa"]}&amp;person={ids["Kid"]}" '
+            f'data-id="{ids["Kid"]}" data-line="{ids["Grandpa"]}" title="Put Kid in the middle; double-click') in page
     # someone not in the catalog is left out; with no root, the line goes from the top of whoever is asked for
     assert "data-person" not in client.get(f"/family/tree?root={ids['Grandpa']}&person=999999").text
     assert f'<option value="{ids["Grandpa"]}" selected>' in client.get(f"/family/tree?person={ids['Kid']}").text
@@ -396,6 +398,29 @@ def test_the_whole_line_is_a_page_to_move_around_and_save(con, cfg):
     assert old.status_code == 303 and old.headers["location"] == f"/family/tree?root={ids['Grandpa']}"
     person = client.get(f"/person/{ids['Kid']}").text
     assert f'href="/family/tree?root={ids["Grandpa"]}&amp;person={ids["Kid"]}"' in person
+
+
+def test_a_click_in_the_whole_line_leads_to_the_family_someone_comes_from(con, cfg):
+    """On the whole line's page, the top and those descended from it stay in its tree; someone who married in leads
+    to the top of the family they come from, unless none of their parents is entered (they are in this tree)."""
+    ids = {n: people.person_id(con, n) for n in ("Grandpa", "Grandma", "Dad", "Ana", "Partner", "InLaw", "Kid")}
+    for who, word, other in (("Dad", "father", "Grandpa"), ("Grandpa", "wife", "Grandma"), ("Ana", "father", "Dad"),
+                             ("Ana", "husband", "Partner"), ("Partner", "father", "InLaw"), ("Kid", "mother", "Ana"),
+                             ("Kid", "father", "Partner")):
+        family.link(con, ids[who], word, ids[other])
+    con.commit()
+    g = family.load(con)
+    top, other = ids["Grandpa"], ids["InLaw"]
+    lines = family.lines(g, family.tree(g, top))
+    assert lines == {ids["Grandpa"]: top, ids["Grandma"]: top, ids["Dad"]: top, ids["Ana"]: top, ids["Kid"]: top,
+                     ids["Partner"]: other}
+    # in the in-laws' tree, Ana married in: she leads back to her own family, and her son stays
+    assert family.lines(g, family.tree(g, other)) == {other: other, ids["Partner"]: other, ids["Kid"]: other,
+                                                       ids["Ana"]: top}
+    page = TestClient(webapp.create_app(cfg), client=LAN).get(f"/family/tree?root={top}").text
+    assert (f'href="/family/tree?root={other}&amp;person={ids["Partner"]}" data-id="{ids["Partner"]}" '
+            f'data-line="{other}" title="Show the family Partner comes from; double-click to open their page"') in page
+    assert f'data-root="{top}"' in page
 
 
 def test_only_admins_read_into_the_tree_from_the_family_page(site, cfg, con):

@@ -643,7 +643,9 @@ def family_tree_page(request: Request, root: int | None = None, person: int | No
         start = person if person in g.people else ego
         root = family.tree_root(g, start) if start is not None else tops[0][0] if tops else None
     top_names = {p: family.top_name(g, p) for p in [*(t[0] for t in tops), *([root] if root is not None else [])]}
+    tree = family.tree(g, root) if root is not None else None
+    # a click on someone shows their line: this one, or the family someone who married in comes from (app.js)
     return page(request, "family_tree.html", nav="family", g=g, ego=ego,
                 kin=family.relations_to(g, ego) if ego else {}, tops=tops, root=root, top_names=top_names,
-                tree=family.tree(g, root) if root is not None else None,
+                tree=tree, lines=family.lines(g, tree) if tree else {},
                 person=person if person in g.people else None, covers=cover_faces(catalog.people(c)))

@@ -14,7 +14,7 @@ import json
 import re
 import sqlite3
 import uuid
-from collections import defaultdict, deque
+from collections import Counter, defaultdict, deque
 from dataclasses import dataclass, field
 
 from lineagebox import errors, events
@@ -944,9 +944,33 @@ def top_name(g: Graph, top: int) -> str:
     return " & ".join([g.name(top), *(g.name(q) for q in partners[:1])])
 
 
-def tree_root(g: Graph, pid: int) -> int:
-    """The top of the tree pid is best seen in: their highest ancestor with the most descendants."""
+def tree_root(g: Graph, pid: int, below: Counter | None = None) -> int:
+    """The top of the tree pid is best seen in: their highest ancestor with the most descendants. below: how many
+    people each one is an ancestor of (themselves included), counted once for many calls."""
     up = g.ancestors.get(pid, {pid: 0})
     candidates = [a for a in up if not g.effective_parents.get(a)]
-    count = lambda a: sum(1 for ancestors in g.ancestors.values() if a in ancestors)
+    count = below.__getitem__ if below is not None else lambda a: sum(1 for ups in g.ancestors.values() if a in ups)
     return max(candidates, key=lambda a: (up[a], count(a), -a), default=pid)
+
+
+def lines(g: Graph, t: dict) -> dict[int, int]:
+    """Where a click on each person in a tree (as tree() makes it) leads on the whole line's page: the top of the line
+    they come from. Its top and those descended from it stay in this tree; someone who married in, or a stepchild,
+    leads to the top of the family they come from, unless that is in this tree already (none of their parents
+    entered)."""
+    shown, todo = set(), [t]
+    while todo:
+        n = todo.pop()
+        shown.add(n["id"])
+        for u in n["unions"]:
+            shown.add(u["partner"])
+            todo += [*u["children"], *u["step"]]
+    root = t["id"]
+    below = Counter(a for ups in g.ancestors.values() for a in ups)
+    out = {}
+    for p in shown:
+        if p is None or p not in g.people:  # no other parent entered; a stand-in for siblings' parents
+            continue
+        top = root if root in g.ancestors.get(p, ()) else tree_root(g, p, below)
+        out[p] = root if top in shown else top
+    return out

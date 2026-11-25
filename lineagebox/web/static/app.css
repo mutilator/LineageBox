@@ -714,6 +714,8 @@ details.glance.glancing > .family-cards { position: absolute; z-index: 20; top: 
 .tree-sheet { position: absolute; top: 0; left: 0; width: max-content; padding: 16px; transform-origin: 0 0; }
 .tree-frame.panning .tree-sheet { user-select: none; }
 .tree-sheet .fcard.here { outline: 3px solid var(--accent); outline-offset: 3px; }
+.tree-sheet.leaving { pointer-events: none; }  /* the tree before another line's, fading out */
+.tree-frame.loading, .tree-frame.loading a { cursor: progress; }
 
 /* tours */
 .tour-list { display: grid; gap: 8px; max-width: 900px; }
