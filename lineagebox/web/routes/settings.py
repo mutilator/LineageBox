@@ -10,12 +10,12 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from starlette.background import BackgroundTask
 
-from lineagebox import backup, db, export, https, llm, passkeys, serving, settings, speech, tours
+from lineagebox import address, backup, db, export, https, llm, passkeys, serving, settings, speech, tours
 from lineagebox import faces, imports, sidecars, writeback
 from lineagebox.llm import Ollama
 from lineagebox.storage import fmt_size
-from lineagebox.web.common import (ADMIN, PRIVATE, FolderBody, attachment, cert_name, from_app, host_allowed,
-                                   net_folders, photos_per_watched)
+from lineagebox.web.common import (ADMIN, PRIVATE, AddressBody, FolderBody, attachment, cert_name, from_app,
+                                   host_allowed, net_folders, photos_per_watched)
 from lineagebox.web.deps import con, page, site
 from lineagebox.web.site import Site
 
@@ -28,6 +28,14 @@ ACCESS = {
     "/api/https": ADMIN,
     "/api/https/upload": ADMIN,
     "/api/https/off": ADMIN,
+    "/api/address": ADMIN,
+    "/api/address/check": ADMIN,
+    "/api/address/main": ADMIN,
+    "/api/address/renew": ADMIN,
+    "/api/address/release": ADMIN,
+    "/api/address/way": ADMIN,
+    "/api/address/suggest": ADMIN,
+    "/api/address/change": ADMIN,
     "/api/folders/watch": ADMIN,
     "/api/folders/unwatch": ADMIN,
     "/api/ollama/check": ADMIN,
@@ -59,7 +67,19 @@ def settings_page(request: Request, browse: str = "", c=Depends(con), s: Site = 
                                         (passkeys.domain(now),)).fetchone()[0],
                 backups=backup.summary(c, now), default_backups=s.cfg.data_dir.joinpath(*backup.DEFAULT_FOLDER),
                 sidecar_counts=sidecars.summary(c), other_apps=imports.summary(c),
-                exiftool=writeback.exiftool() is not None, face_round=faces.round_progress(c))
+                exiftool=writeback.exiftool() is not None, face_round=faces.round_progress(c),
+                free=(free := address.view(c, now)), home_guess=_home_guess(request), way=address.way(c, now, free))
+
+
+def _home_guess(request: Request) -> str:
+    """This machine's home-network address, for a home-network-only free address: the one this page was opened by,
+    if it is one."""
+    import ipaddress
+    try:
+        a = ipaddress.ip_address(request.url.hostname or "")
+    except ValueError:
+        return ""
+    return str(a) if a.version == 4 and a.is_private and not a.is_loopback else ""
 
 
 @router.post("/api/settings", dependencies=[Depends(from_app)])
@@ -137,6 +157,104 @@ def upload_certificate(request: Request, body: dict, c=Depends(con), s: Site = D
 @router.post("/api/https/off", dependencies=[Depends(from_app)])
 def https_off(request: Request, c=Depends(con), s: Site = Depends(site)):
     return switch_https(s, request, c, False, lambda: ("", ""))
+
+
+def _https_now(request: Request, s: Site, c, url: str) -> dict:
+    """LineageBox switched to HTTPS with the free address's certificate: the web server starts again, and the page
+    follows to the name."""
+    serving.saved.set()
+    return {"go": f"{url}/settings#address", "wait": 4,
+            "message": f"HTTPS is on with the new certificate. Moving to {url} (if it doesn't open from here, the "
+                       "router's port forward isn't set yet: open this machine by its address with https://)…"}
+
+
+@router.post("/api/address", dependencies=[Depends(from_app)])
+def get_free_address(request: Request, body: AddressBody, c=Depends(con), s: Site = Depends(site)):
+    """A free address and its certificate (address.py): up to a minute, for Let's Encrypt's check."""
+    got = address.get(c, s.live(c), body.mode, body.home.strip(), body.port, body.name)
+    s.shared["at"] = -1e9
+    if got.get("pending"):
+        return {"message": f"{got['host']} is yours, but Let's Encrypt couldn't sign its certificate just now "
+                           f"({got['pending']}). LineageBox tries again by itself within ten minutes, or press Get the "
+                           "certificate.", "reload": True}
+    if got["serving"]:
+        return _https_now(request, s, c, address.url(got))
+    where = (f" Your reverse proxy serves HTTPS: point it at {got['cert']} and {got['key']}." if s.live(c).trusted_proxies
+             else "")
+    return {"message": f"{got['host']} is yours, with its certificate.{where}", "reload": True}
+
+
+@router.post("/api/address/suggest", dependencies=[Depends(from_app)])
+def suggest_free_names(c=Depends(con), s: Site = Depends(site)):
+    """A few names nobody has, as radio buttons for the Get (or Change) form: data-html puts them in the form."""
+    import html
+    import re
+    now = s.live(c)
+    domain = address.view(c, now)["service"]
+    names = [n for n in address.suggest(now) if re.fullmatch(r"[a-z]+-[a-z]+", n)]
+    if not names:
+        return {"html": '<span class="hint">No names came back. Try again in a moment.</span>'}
+    return {"html": "".join(
+        f'<label class="choice"><input type="radio" name="name" value="{html.escape(n)}"'
+        f'{" checked" if i == 0 else ""}> <b>{html.escape(n)}</b>.{html.escape(domain)}</label> '
+        for i, n in enumerate(names))}
+
+
+@router.post("/api/address/change", dependencies=[Depends(from_app)])
+def change_free_address(request: Request, body: dict, c=Depends(con), s: Site = Depends(site)):
+    """Another free name for this server, put in the old one's place everywhere; the old one is given up."""
+    got = address.change(c, s.live(c), str(body.get("name", "")).strip())
+    s.shared["at"] = -1e9
+    if got["serving"]:
+        return _https_now(request, s, c, address.url(got))
+    said = f"{got['host']} is this server's address now, and {got['was']} is given up."
+    if request.headers.get("host", "").split(":")[0].lower() == got["was"]:
+        return {"message": said + " Moving there (behind a reverse proxy it can take a minute to open)…",
+                "go": f"{address.url(got)}/settings#address", "wait": 5}
+    return {"message": said, "reload": True}
+
+
+@router.post("/api/address/way", dependencies=[Depends(from_app)])
+def choose_address_way(request: Request, body: dict, c=Depends(con), s: Site = Depends(site)):
+    """Address and HTTPS shows one way to a name: a free address, or a name of one's own. Choosing the free one with
+    no reverse proxy also has LineageBox serve its certificate (the page follows to the free address)."""
+    if address.choose(c, s.live(c), str(body.get("way", ""))):
+        s.shared["at"] = -1e9
+        return _https_now(request, s, c, address.url(address.state(c)))
+    return {"reload": True}
+
+
+@router.post("/api/address/check", dependencies=[Depends(from_app)])
+def check_free_address(c=Depends(con), s: Site = Depends(site)):
+    return {"message": address.check(c, s.live(c))["detail"]}
+
+
+@router.post("/api/address/main", dependencies=[Depends(from_app)])
+def make_free_address_main(request: Request, c=Depends(con), s: Site = Depends(site)):
+    """The free address as the address from outside (Google, passkeys, invites, frames away from home)."""
+    switched = address.make_main(c, s.live(c))
+    s.shared["at"] = -1e9
+    url = address.url(address.state(c))
+    if switched:
+        return _https_now(request, s, c, url)
+    return {"message": f"{url} is the address from outside now.", "reload": True}
+
+
+@router.post("/api/address/renew", dependencies=[Depends(from_app)])
+def renew_free_address(request: Request, c=Depends(con), s: Site = Depends(site)):
+    got = address.renew(c, s.live(c))
+    s.shared["at"] = -1e9
+    if got.get("serving"):
+        return _https_now(request, s, c, address.url(got))
+    return {"message": "A new certificate is in place.", "reload": True}
+
+
+@router.post("/api/address/release", dependencies=[Depends(from_app)])
+def release_free_address(c=Depends(con), s: Site = Depends(site)):
+    gone = address.release(c, s.live(c))
+    s.shared["at"] = -1e9
+    return {"message": f"{gone['host']} is given up: it no longer leads here, and nobody else will get it.",
+            "reload": True}
 
 
 @router.post("/api/folders/watch", dependencies=[Depends(from_app)])

@@ -60,7 +60,7 @@ def start(client, next_page="/people"):
     assert url.netloc == "accounts.google.com" and q["client_id"] == CLIENT_ID
     assert q["redirect_uri"] == "https://photos.example.com/auth/google/callback"
     assert q["code_challenge_method"] == "S256" and q["scope"] == "openid email profile"
-    assert "lineagebox_signin" in r.cookies
+    assert {"lineagebox_signin", "__Host-lineagebox_signin"} & set(r.cookies.keys())  # __Host- over HTTPS
     return q
 
 
@@ -76,7 +76,8 @@ def test_sign_in_with_google(setup, con):
     r = c.get(f"/auth/google/callback?code=abc&state={q['state']}")
     assert r.status_code == 303 and r.headers["location"] == "/people"
     cookie = r.headers["set-cookie"]
-    assert "lineagebox_session=" in cookie and "HttpOnly" in cookie and "Secure" in cookie and "samesite=lax" in cookie.lower()
+    assert "__Host-lineagebox_session=" in cookie and "HttpOnly" in cookie and "Secure" in cookie and "samesite=lax" in cookie.lower()
+    assert "Path=/" in cookie and "domain=" not in cookie.lower()  # what browsers ask of a __Host- cookie
     sent = setup["google"].seen[0]
     assert sent["code"] == ["abc"] and sent["client_secret"] == ["s3cret"] and len(sent["code_verifier"][0]) > 40
     page = c.get("/people")

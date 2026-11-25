@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}{% trans %}Signing in{% endtrans %}{% endblock %}
+{% block main %}
+{#- Back from Sign in with Google through ourplace.here (routes/signin.py): Google's token is after the # in this
+    page's address, which no server sees; app.js (data-google-relay) posts it here to be checked, then goes on #}
+<div class="signin" data-google-relay>
+  <h1>{% trans %}Signing you in…{% endtrans %}</h1>
+  <p class="note problem" role="alert" data-relay-problem hidden></p>
+  <p class="hint">{% trans %}Google has said who you are; LineageBox is checking it.{% endtrans %}</p>
+  <noscript><p class="note problem">{% trans %}This needs JavaScript, which is off in this browser.{% endtrans %}</p></noscript>
+  <p><a href="/signin">{% trans %}Back to signing in{% endtrans %}</a></p>
+</div>
+{% endblock %}

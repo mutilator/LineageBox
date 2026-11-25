@@ -5,9 +5,10 @@ from collections import defaultdict
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
-from lineagebox import accounts, passkeys, settings
+from lineagebox import accounts, address, passkeys, settings
 from lineagebox.web.common import (ADMIN, MEMBER, SEE_AS, AccountBody, AccountChange, CodeBody, MeBody, RuleBody,
-                                   SeeAsBody, from_app, person_named, recently_signed_in, redirect_uri, uploads_root)
+                                   SeeAsBody, delete_cookie, from_app, person_named, recently_signed_in, redirect_uri,
+                                   set_cookie, uploads_root)
 from lineagebox.web.deps import con, page, site
 from lineagebox.web.site import Site
 
@@ -25,6 +26,8 @@ ACCESS = {
     "/api/accounts/{account_id}/rules": ADMIN,
     "/api/accounts/{account_id}/rules/remove": ADMIN,
     "/api/settings/accounts": ADMIN,
+    "/api/accounts/google-relay": ADMIN,
+    "/api/accounts/google-check": ADMIN,
     "/api/see-as": ADMIN,
     "/api/see-as/stop": MEMBER,
 }
@@ -42,7 +45,26 @@ def accounts_page(request: Request, c=Depends(con), s: Site = Depends(site)):
                 redirect_uri=redirect_uri(request, now), you=getattr(request.state, "account", None),
                 uploads_root=uploads_root(now), keys=passkeys.by_account(c), links=passkeys.invites(c),
                 passkey_problem=passkeys.why_not(now), passkey_domain=passkeys.domain(now),
-                invite_days=passkeys.INVITE_DAYS, admin_hours=passkeys.ADMIN_INVITE_HOURS)
+                invite_days=passkeys.INVITE_DAYS, admin_hours=passkeys.ADMIN_INVITE_HOURS,
+                free=address.view(c, now), relay_client=(address.state(c) or {}).get("google_client"))
+
+
+@router.post("/api/accounts/google-relay", dependencies=[Depends(from_app)])
+def switch_google_relay(body: dict, c=Depends(con), s: Site = Depends(site)):
+    """Sign in with Google through the free address's service (no Google client of one's own), on or off."""
+    message = address.google_relay(c, s.live(c), settings.check("google_relay", body.get("on", False), s.live(c)))
+    s.shared["at"] = -1e9
+    return {"message": message, "reload": True}
+
+
+@router.post("/api/accounts/google-check", dependencies=[Depends(from_app)])
+def check_google_client(request: Request, c=Depends(con), s: Site = Depends(site)):
+    """Family accounts → With your own Google client → Test: whether Google knows the saved client and secret."""
+    now = s.live(c)
+    if not (now.google_client_id and now.google_client_secret):
+        raise settings.Invalid("Save the client's ID and secret first, then test.")
+    return {"message": accounts.google_check(now.google_client_id, now.google_client_secret,
+                                             redirect_uri(request, now), s.google_http)}
 
 
 @router.post("/api/accounts", dependencies=[Depends(from_app)])
@@ -154,8 +176,9 @@ def save_account_settings(body: dict, c=Depends(con), s: Site = Depends(site)):
     def save():
         now = s.live(c)
         turning_on = settings.check("accounts_enabled", changes.get("accounts_enabled", now.accounts_enabled), now)
-        google = (changes.get("google_client_id", now.google_client_id)
-                  and changes.get("google_client_secret", now.google_client_secret))
+        google = ((changes.get("google_client_id", now.google_client_id)
+                   and changes.get("google_client_secret", now.google_client_secret))
+                  or (now.google_relay and (address.state(c) or {}).get("google_client")))
         if turning_on and not now.accounts_enabled and not google and not passkeys.admin_has_one(c) and not c.execute(
                 "SELECT 1 FROM account WHERE role = 'admin' AND local_secret IS NOT NULL").fetchone():
             raise settings.Invalid("Set up Sign in with Google, an admin's passkey, or an admin's code for signing in "
@@ -178,13 +201,12 @@ def see_as(request: Request, body: SeeAsBody, c=Depends(con)):
     if other is None or other["role"] != "member":
         raise HTTPException(404, "No such member")
     response = JSONResponse({"go": "/"})
-    response.set_cookie(SEE_AS, str(body.account_id), httponly=True, samesite="lax",
-                        secure=request.url.scheme == "https")
+    set_cookie(request, response, SEE_AS, str(body.account_id), samesite="lax")
     return response
 
 
 @router.post("/api/see-as/stop", dependencies=[Depends(from_app)])
 def stop_seeing_as(request: Request):
     response = JSONResponse({"go": "/accounts"})
-    response.delete_cookie(SEE_AS)
+    delete_cookie(request, response, SEE_AS)
     return response

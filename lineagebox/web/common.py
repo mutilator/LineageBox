@@ -82,7 +82,30 @@ class Paging:
 SEE_AS = "lineagebox_see_as"      # cookie: the member an admin is seeing the site as
 SIGNING_IN = "lineagebox_signin"  # cookie: the Google sign-in this browser started
 PASSKEY_STARTED = "lineagebox_passkey"  # cookie: the passkey this browser was asked to make or use
+HOST_ONLY = "__Host-"             # those cookies' names start with it over HTTPS (cookie_name)
 PUBLIC, MEMBER, ADMIN = "public", "member", "admin"
+
+
+def cookie_name(request: Request, name: str) -> str:
+    """A sign-in cookie's name as this request carries it. Over HTTPS it starts __Host-, which a browser takes only
+    from this very host (Secure, path /, no Domain): another name under the same domain, such as another family's
+    free address under ourplace.here (which browsers count as the same site), can neither set it nor hide it behind
+    one of its own."""
+    return HOST_ONLY + name if request.url.scheme == "https" else name
+
+
+def set_cookie(request: Request, response, name: str, value: str, **options) -> None:
+    """Set a sign-in cookie by its cookie_name: httponly, and Secure over HTTPS."""
+    response.set_cookie(cookie_name(request, name), value, httponly=True, secure=request.url.scheme == "https",
+                        **options)
+
+
+def delete_cookie(request: Request, response, name: str) -> None:
+    """Forget a sign-in cookie, and the copy without __Host- that LineageBox 1.11 and before set over HTTPS."""
+    https = request.url.scheme == "https"
+    response.delete_cookie(cookie_name(request, name), secure=https, httponly=True)
+    if https:
+        response.delete_cookie(name, secure=True, httponly=True)
 
 _NOT_PAGES = ("/api/", "/t/", "/t2/", "/p/", "/frame/", "/face/", "/play/", "/original/", "/download/",
               "/status/live", "/tours/suggested")
@@ -717,6 +740,13 @@ class MeBody(BaseModel):
     person_id: int
 
 
+class RelayBody(BaseModel):
+    """What the free-address service handed back after a # (names/google.py), as /auth/google/relay's page sends it."""
+    id_token: str = Field("", max_length=8000)
+    state: str = Field("", max_length=100)
+    error: str = Field("", max_length=100)
+
+
 class LocalBody(BaseModel):
     email: str = Field(min_length=3, max_length=200)
     code: str = Field(min_length=6, max_length=12)
@@ -832,6 +862,15 @@ class CheckBody(BaseModel):
 
 class FolderBody(BaseModel):
     path: str = Field(min_length=1, max_length=1000)
+
+
+class AddressBody(BaseModel):
+    """Settings → Address and HTTPS → Free address: for outside the house or the home network only, this machine's
+    home-network address (for the latter), the port people use, and the name chosen from those offered ("" for any)."""
+    mode: str = Field("outside", pattern="^(outside|home)$")
+    home: str = Field("", max_length=45)
+    port: int = Field(443, ge=1, le=65535)
+    name: str = Field("", max_length=40, pattern="^[a-z-]*$")
 
 
 def moved_answer(result: cleanup.Moved) -> dict:

@@ -1534,6 +1534,8 @@ function showSettingsPart(e) {  // e: the # changed (a link in the menu); none: 
   const target = id ? document.getElementById(id) : null;
   const part = target?.closest("[data-part]") ?? settingsParts[0];
   settingsParts.forEach((p) => (p.hidden = p !== part));
+  // inside a folded part of a panel (Address and HTTPS: a free address, a name of your own): unfolded
+  for (let d = target?.closest("details"); d; d = d.parentElement?.closest("details")) d.open = true;
   document.querySelectorAll(".settings-nav a[href^='/settings#']").forEach((link) => {
     const its = document.getElementById(link.hash.slice(1))?.closest("[data-part]");
     if (its === part) link.setAttribute("aria-current", "page");
@@ -1547,6 +1549,21 @@ function showSettingsPart(e) {  // e: the # changed (a link in the menu); none: 
 }
 showSettingsPart();
 addEventListener("hashchange", showSettingsPart);
+
+// Back from Sign in with Google through ourplace.here (google_relay.html): Google's token is after the #, which no
+// server sees; it is taken off the address at once, and posted here to be checked (routes/signin.py)
+document.querySelectorAll("[data-google-relay]").forEach((box) => {
+  const got = new URLSearchParams(location.hash.slice(1));
+  history.replaceState(null, "", location.pathname);
+  post("/auth/google/relay", { id_token: got.get("id_token") ?? "", state: got.get("state") ?? "",
+                               error: got.get("error") ?? "" })
+    .then((result) => location.replace(result.go || "/"))
+    .catch((err) => {
+      const problem = box.querySelector("[data-relay-problem]");
+      problem.textContent = err.message;
+      problem.hidden = false;
+    });
+});
 
 // Pointing at a photo or a face for a moment (PEEK_AFTER ms: Settings → Browsing, on <body>) shows the whole photo
 // larger beside it: what is around a face tells who it is, without opening the photo. Once one shows, the next photo

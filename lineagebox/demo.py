@@ -45,7 +45,7 @@ FORCED = {"accounts_enabled": True, "google_client_id": "", "google_client_secre
           "update_check": False}
 # routes a visitor is told are off (app.route_gate): other ways in, sharing, and recordings of their own
 CLOSED = frozenset({
-    "/auth/google", "/auth/google/callback", "/auth/local",
+    "/auth/google", "/auth/google/callback", "/auth/google/relay", "/auth/local",
     "/auth/passkey/start", "/auth/passkey/finish", "/auth/invite", "/auth/invite/check", "/auth/invite/start",
     "/auth/invite/finish", "/passkeys", "/api/passkeys/start", "/api/passkeys/finish",
     "/api/passkeys/{passkey_id}/rename", "/api/passkeys/{passkey_id}/remove",
@@ -57,10 +57,13 @@ CLOSED = frozenset({
 LOCKED = frozenset({
     "/api/settings", "/api/settings/accounts", "/api/settings/address", "/api/settings/network-paths",
     "/api/accounts", "/api/accounts/{account_id}", "/api/accounts/{account_id}/delete",
+    "/api/accounts/google-relay", "/api/accounts/google-check",
     "/api/accounts/{account_id}/local-code", "/api/accounts/{account_id}/local-code/check",
     "/api/accounts/{account_id}/local-code/remove", "/api/accounts/{account_id}/rules",
     "/api/accounts/{account_id}/rules/remove", "/api/accounts/{account_id}/signout", "/api/see-as",
     "/api/https", "/api/https/off", "/api/https/upload", "/api/update", "/api/update/check", "/api/backup",
+    "/api/address", "/api/address/check", "/api/address/main", "/api/address/renew", "/api/address/release",
+    "/api/address/way", "/api/address/suggest", "/api/address/change",
     "/api/devices", "/api/devices/{device_id}/delete", "/api/devices/{device_id}/revoke",
     "/api/folders/watch", "/api/folders/unwatch", "/api/ollama/pull", "/api/ollama/check", "/api/whisper/check",
     "/api/family/read", "/api/faces/look-again-all",

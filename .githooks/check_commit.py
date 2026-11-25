@@ -149,6 +149,7 @@ MADE_UP_DOMAINS = ("example.com", "example.org", "example.net")
 MADE_UP_ENDINGS = {"example", "invalid", "test", "localhost", "local"}
 PUBLIC_EMAILS = {
     "scott@g-tech.dev",  # the project's contact (SECURITY.md, the GPL's written offer)
+    "abuse@lineagebox.com",  # the free addresses' abuse contact (names/server.py, ourplace.here, the terms)
     "recognition-oss-pack@insightface.ai",  # InsightFace's licensing contact (THIRD_PARTY_NOTICES.md)
     "noreply@anthropic.com", "noreply@github.com", "git@github.com",  # commit trailers and clone addresses
 }

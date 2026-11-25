@@ -164,6 +164,8 @@ def cmd_serve(con, cfg, args):
 
     con.close()
     app = create_app(cfg)
+    from lineagebox import address
+    address.start(cfg)  # a free address: kept pointed at the house, its certificate renewed (address.py)
     while True:
         tls, problem = serving.tls(cfg)  # None: plain HTTP (HTTPS off, or its certificate can't be loaded)
         print(f"LineageBox on {'https' if tls else 'http'}://{args.host}:{args.port}"
@@ -429,6 +431,14 @@ def main(argv=None):
     p.add_argument("--idle", type=int, default=60, help="minutes unused before it stops (0: never)")
     p.add_argument("--root", default="/host", help=argparse.SUPPRESS)        # the machine's root, read-only
     p.add_argument("--install", default="/install", help=argparse.SUPPRESS)  # where Save writes
+    p = sub.add_parser("names", help="the free-address service (ourplace.here) that LineageBox's project runs: serve "
+                                     "its API, list the names, or switch one off (docs/remote-access.md)")
+    p.add_argument("action", choices=["serve", "list", "disable", "enable"])
+    p.add_argument("name", nargs="?", default="", help="with disable or enable: the name")
+    p.add_argument("--why", default="", help="with disable: what its holder is told")
+    p.add_argument("--host", default="0.0.0.0")
+    p.add_argument("--port", type=int, default=8090)
+    p.add_argument("--data", default="/data", help="the folder that keeps names.db")
     args = parser.parse_args(argv)
     if args.command in ("worker", "copies", "updater") and not getattr(args, "once", False):
         _stop_on_sigterm()
@@ -437,6 +447,9 @@ def main(argv=None):
         return updater.main()
     if args.command == "backup" and args.check:  # nor this: the catalog may be what was lost
         return check_backup(args.check)
+    if args.command == "names":  # a service of its own, with no catalog: see names/server.py
+        from lineagebox.names import server as names
+        return names.main(args.action, args.host, args.port, args.data, args.name, args.why)
     if args.command == "setup":  # nor this: it comes before there is any
         from lineagebox.setup import server
         return server.serve(args.hosted, args.host, args.port, args.root, args.install,

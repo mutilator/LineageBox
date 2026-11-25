@@ -119,12 +119,15 @@ is then 5 June, and a folder named "Party 5.6.98" is from 5 June 1998 (unticked,
 | `[accounts] enabled` | false | Page | Everyone signs in. Refused until an admin account exists. |
 | `[accounts] google_client_id`, `google_client_secret` | none | Page | The Google OAuth client. |
 | `[accounts] public_url` | none | Page | `https://photos.example.com`: where Google sends people back to. |
+| `[accounts] google_relay` | false | Page | Sign in with Google through the [free-address service](remote-access.md#a-free-address-and-its-certificate)'s own Google client, for a server with a free address: no client of its own to set up. |
 | `[accounts] session_days` | 90 | Page | A session lasts this long after it was last used. |
 | `[accounts] uploads_folder` | `Family uploads` | Page | Members' uploads go to `<watched folder>/<this>/<person id>`. |
 | `[accounts] uploads_into` | the first watched folder | Page | The watched folder that holds it. |
 | `[accounts] upload_max_gb` | 4 | Page | The largest single uploaded file. |
 | `[updates] check` | true | Page | Ask GitHub once a day for the newest release's version, to show admins that an update is out. |
 | `[updates] repository` | `mutilator/LineageBox` | | Where releases are published (`owner/name` on GitHub), and where the help panel's About links for the source code. A fork's images name their own. |
+| `[address] service` | `https://ourplace.here` | | The [free-address service](remote-access.md#a-free-address-and-its-certificate) that Settings → Address and HTTPS gets a name from. `""` stops it being offered. |
+| `[address] acme_directory` | Let's Encrypt's | | Where the free address's certificate comes from (ACME). Let's Encrypt's staging, `https://acme-staging-v02.api.letsencrypt.org/directory`, is for trying it out: browsers don't trust its certificates. |
 
 Photo frames' device links are made and turned off on **Settings → Photo frames**, and kept in the catalog
 (`device_link`), not in a config file: each is a name, the one view it shows, how long each photo stays (8 to 60

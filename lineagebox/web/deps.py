@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Res
 from lineagebox import access, accounts, db, demo, outbox
 from lineagebox.config import Config
 from lineagebox.web import frames, tiles
-from lineagebox.web.common import PAGE_SIZES, SEE_AS, Paging
+from lineagebox.web.common import PAGE_SIZES, SEE_AS, Paging, cookie_name
 from lineagebox.web.site import Site
 
 NEWS_KEPT = 30  # seconds the count of what is new for someone is kept (at once anew after a change on the site)
@@ -30,7 +30,7 @@ def viewer(request: Request) -> access.Viewer:
         v = access.NOBODY if s.shared_cfg().accounts_enabled else access.EVERYONE
     elif account["role"] == "admin":
         v = access.admin(account)
-        see = request.cookies.get(SEE_AS, "")
+        see = request.cookies.get(cookie_name(request, SEE_AS), "")
         if see.isdecimal():
             with s.own_con() as c:
                 other = accounts.get(c, int(see))

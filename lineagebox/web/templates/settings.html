@@ -414,6 +414,8 @@ machines and networks are hidden.{% endtrans %}</p>
   <h2>{% trans %}Address and HTTPS{% endtrans %}</h2>
   <p class="hint">{% trans value=_("HTTPS") if request.url.scheme == "https" else _("plain HTTP") %}This page came over <b>{{ value }}</b> as{% endtrans %}
   <code>{{ host }}</code>{% if proxied %}{% trans %}, through a reverse proxy{% endtrans %}{% endif %}.</p>
+
+  {%- set hosts_form %}
   <form data-api="/api/settings/address" data-settings data-show="#address-saved">
     <p><label for="hosts">{% trans %}Host names{% endtrans %}</label>
       <textarea id="hosts" name="allowed_hosts" rows="3" placeholder="{{ _('photos.example.com') }}">{{ cfg.allowed_hosts|join("\n") }}</textarea>
@@ -427,22 +429,100 @@ machines and networks are hidden.{% endtrans %}</p>
       X-Forwarded-For and X-Forwarded-Proto.{% endtrans %}</span></p>
     <p><button type="submit" class="primary">{% trans %}Save{% endtrans %}</button> <span class="hint inline" id="address-saved"></span></p>
   </form>
-
-  <h3 id="passkeys">{% trans %}Passkeys{% endtrans %}</h3>
-  {%- if passkey_problem %}
-  <p class="state off">{% trans %}Passkeys can't be set up yet.{% endtrans %}</p>
-  <p class="note">{{ passkey_problem }}</p>
-  {%- else %}
-  <p class="state on">{% trans %}Ready, for {{ passkey_domain }}{% endtrans %}{% if passkey_count %}{% trans %}: {{ passkey_count }} made{% endtrans %}{% endif %}.</p>
+  {%- endset %}
+  {%- if free.offered or free.url %}
+  <p class="way-choice">{% trans %}People reach this server by{% endtrans %}
+    <button type="button" data-api="/api/address/way" data-body='{"way": "free"}' data-reload
+      aria-pressed="{{ 'true' if way == 'free' else 'false' }}"{% if way == "free" %} class="primary"{% endif %}>{% trans %}a free address{% endtrans %}</button>
+    <button type="button" data-api="/api/address/way" data-body='{"way": "own"}' data-reload
+      aria-pressed="{{ 'true' if way == 'own' else 'false' }}"{% if way == "own" %} class="primary"{% endif %}>{% trans %}a name of your own{% endtrans %}</button></p>
   {%- endif %}
-  <p class="hint">{% trans %}Family members without a Google account sign in with a passkey: the lock of their own phone or
-    computer. Browsers make and use passkeys only over <b>HTTPS</b>, with a certificate they trust (one from Let's
-    Encrypt or your NAS; not a self-signed one), and only on the <b>one name</b> each was made for: the Address from
-    outside on <a href="/accounts#passkeys">Family accounts</a>. So that name must be listed exactly under Host names
-    above, with no name with *, and HTTPS must be on: a certificate below, or a reverse proxy that does HTTPS (listed
-    under Reverse proxy). Admins make each person's first passkey link on Family accounts.{% endtrans %}</p>
 
-  <h3 id="https">{% trans %}HTTPS certificate{% endtrans %}</h3>
+  {%- if way == "free" %}
+  <div id="free-address">
+  <h3 id="https">{% if free.url %}{% trans host=free.host %}Free address: {{ host }}{% endtrans %}{% else %}{% trans %}A free address{% endtrans %}{% endif %}</h3>
+  {% if problems.https %}<p class="note problem">{{ problems.https.message }}</p>{% endif %}
+  {% if problems.address %}<p class="note problem">{{ problems.address.message }}</p>{% endif %}
+  {%- if free.url %}
+  <p class="state on">{% trans %}This server's address:{% endtrans %} <a href="{{ free.url }}"><b>{{ free.host }}</b></a>
+    {%- if free.mode == "home" %} {% trans address=free.address %}(the home network only, at {{ address }}){% endtrans %}
+    {%- else %} {% trans address=free.address %}(from outside the house too, at {{ address }}){% endtrans %}{% endif %}.</p>
+  {% if free.cert_until %}<p class="hint">{% trans until=free.cert_until|date(false) %}Its certificate is good until {{ until }}, and is renewed by itself.{% endtrans %}
+    {%- if free.staging %} <b>{% trans %}It is a test certificate (Let's Encrypt's staging), which browsers don't trust.{% endtrans %}</b>{% endif %}</p>
+  {% else %}<p class="note problem">{% trans %}It has no certificate yet: Get the certificate, below.{% endtrans %}</p>{% endif %}
+  {% if free.notice %}<p class="note">{{ free.notice }}</p>{% endif %}
+  {% if cfg.trusted_proxies and free.cert %}<p class="hint">{% trans %}Your reverse proxy does HTTPS, so it is the one that needs this certificate:{% endtrans %}
+    <code>{{ free.cert }}</code> {% trans %}and its key{% endtrans %} <code>{{ free.key }}</code>{% trans %}. Each renewal replaces those files.{% endtrans %}</p>{% endif %}
+  {% if free.mode == "outside" and cfg.public_url != free.url %}<p class="note">{% trans %}The address from outside is still{% endtrans %} <code>{{ cfg.public_url or _("not set") }}</code>.
+    {% trans %}Making this one the main address moves signing in to it. Passkeys belong to the name they were made on, so each
+    person makes a new one from an invite link (Family accounts). Sign in with Google needs this address added to the
+    Google client's authorized redirect URIs:{% endtrans %} <code>{{ free.url }}/auth/google/callback</code>.</p>{% endif %}
+  <p>
+    {%- if free.mode == "outside" %}<button type="button" data-api="/api/address/check" data-busy="{{ _('Checking…') }}" data-show="#free-saved">{% trans %}Check from the internet{% endtrans %}</button> {% endif %}
+    {%- if free.mode == "outside" and cfg.public_url != free.url %}<button type="button" data-api="/api/address/main" data-show="#free-saved"
+      data-confirm="{{ _('Make this the address from outside? Everyone signs in there from now on, with new passkeys.') }}">{% trans %}Make it the main address{% endtrans %}</button> {% endif %}
+    <button type="button" data-api="/api/address/renew" data-busy="{{ _('Getting the certificate: up to a minute…') }}" data-show="#free-saved">
+      {%- if free.cert_until %}{% trans %}Renew the certificate now{% endtrans %}{% else %}{% trans %}Get the certificate{% endtrans %}{% endif %}</button>
+    <button type="button" data-api="/api/address/release" data-show="#free-saved"
+      data-confirm="{{ _('Give this address up for good? It stops leading here, and nobody can have it again, you included.') }}">{% trans %}Give it up{% endtrans %}</button>
+    <span class="hint inline" id="free-saved"></span></p>
+  {%- if free.cert_until %}
+  <details class="way">
+  <summary><h4>{% trans %}Choose a different name{% endtrans %}</h4></summary>
+  <form data-api="/api/address/change" data-show="#change-saved"
+    data-confirm="{{ _('Change to the new name, and give the old one up for good?') }}">
+    <p class="hint">{% trans host=free.host %}The new name and its certificate come first; then it takes {{ host }}'s place in the
+      host names, as the address from outside and for signing in, and {{ host }} is given up for good.{% endtrans %}
+      {%- if cfg.public_url == free.url %} <b>{% trans %}It is the address from outside: passkeys made on it stop working, and each
+      person makes a new one from an invite link.{% endtrans %}</b>{% endif %}</p>
+    <p><span id="change-choices"><span class="hint">{% trans %}Any free name, at random, unless you choose one:{% endtrans %}</span></span>
+      <button type="button" data-api="/api/address/suggest" data-html="#change-choices" data-busy="{{ _('Asking…') }}">{% trans %}Show names to choose from{% endtrans %}</button></p>
+    <p><button type="submit" data-busy="{{ _('Changing: up to a minute…') }}">{% trans %}Change to the new name{% endtrans %}</button>
+      <span class="hint inline" id="change-saved"></span></p>
+  </form>
+  </details>
+  {%- endif %}
+  {%- elif free.offered %}
+  <p class="hint">{% trans service=free.service %}A web address of this server's own, such as <code>maple-river.{{ service }}</code>, with a
+    certificate browsers trust: passkeys, Sign in with Google and the phone app need both. {{ service }} (run by
+    LineageBox's project) gives the name and points it at your house; Let's Encrypt signs the certificate, whose key
+    stays on this machine. Nothing is asked of you, and no account is made.{% endtrans %}</p>
+  <form data-api="/api/address" data-show="#free-saved">
+    <p><label class="choice"><input type="radio" name="mode" value="outside" checked> {% trans %}From outside the house too{% endtrans %}</label>
+      <span class="hint">{% trans %}The name leads to your house's public address. Family accounts must be on, so everyone signs
+      in; then forward a port on your router to this machine (Check from the internet says whether it works).{% endtrans %}</span>
+      <label class="choice"><input type="radio" name="mode" value="home"> {% trans %}The home network only{% endtrans %}</label>
+      <span class="hint">{% trans %}The name leads to this machine's address at home, and nothing is opened to the internet: for
+      HTTPS and passkeys at home, or over a VPN.{% endtrans %}</span></p>
+    <p><label>{% trans %}This machine's home-network address{% endtrans %} <input name="home" value="{{ home_guess }}" placeholder="192.168.1.20"></label>
+      <span class="hint">{% trans %}Only for the home network only.{% endtrans %}</span></p>
+    <p><label>{% trans %}Port{% endtrans %} <input name="port" value="443" inputmode="numeric" size="6"></label>
+      <span class="hint">{% trans %}The port browsers use: 443 when your router forwards the usual HTTPS port here, which leaves it
+      out of the address. For the home network only, LineageBox's own port (8000, unless you changed it).{% endtrans %}</span></p>
+    <p><b>{% trans %}Name{% endtrans %}</b> <span id="name-choices"><span class="hint">{% trans %}any free one, at random, unless you choose one:{% endtrans %}</span></span>
+      <button type="button" data-api="/api/address/suggest" data-html="#name-choices" data-busy="{{ _('Asking…') }}">{% trans %}Show names to choose from{% endtrans %}</button></p>
+    <p class="hint">{% trans service=free.service %}By asking, you agree to the <a href="https://lineagebox.com/terms/">terms of {{ service }}</a>
+      and to Let's Encrypt's subscriber agreement. Each name is in public certificate logs from the start, so it is a
+      random one that says nothing about your family.{% endtrans %}</p>
+    <p><button type="submit" class="primary" data-busy="{{ _('Getting it: up to a minute…') }}">{% trans %}Get a free address{% endtrans %}</button>
+      <span class="hint inline" id="free-saved"></span></p>
+  </form>
+  {%- endif %}
+  <details class="way">
+  <summary><h4>{% trans %}Host names and reverse proxy{% endtrans %}</h4> <span class="hint inline">{% trans %}only for another name, or a reverse proxy in front{% endtrans %}</span></summary>
+  {{ hosts_form }}
+  </details>
+  </div>
+  {%- else %}
+
+  <div id="own-name">
+  <h3>{% trans %}A name of your own{% endtrans %}</h3>
+  <p class="hint">{% trans %}A name from your own domain, such as <code>photos.example.com</code>: point it at this machine (or
+    your house) in your domain's DNS, list it under Host names, and give LineageBox its certificate below, or let a
+    reverse proxy do HTTPS in front. The address from outside (Family accounts) is the one people sign in on.{% endtrans %}</p>
+  {{ hosts_form }}
+
+  <h4 id="https">{% trans %}HTTPS certificate{% endtrans %}</h4>
   {% if problems.https %}<p class="note problem">{{ problems.https.message }}</p>{% endif %}
   {% if cfg.tls_cert and cert %}
   <p class="state on">{% trans %}On: a certificate for{% endtrans %} <b>{{ cert.names|join(", ") or _("(no names)") }}</b>
@@ -485,6 +565,24 @@ machines and networks are hidden.{% endtrans %}</p>
   same address and port, with https://. While HTTPS is on, http:// links and bookmarks don't open. A certificate that
   stops loading puts the site back on plain HTTP, with the reason here. To turn HTTPS off without this page:
   <code>docker compose exec web python -m lineagebox https off</code>.{% endtrans %}</p>
+  </div>
+  {%- endif %}
+
+  <h3 id="passkeys">{% trans %}Passkeys{% endtrans %}</h3>
+  {%- if passkey_problem %}
+  <p class="state off">{% trans %}Passkeys can't be set up yet.{% endtrans %}</p>
+  <p class="note">{{ passkey_problem }}</p>
+  {%- else %}
+  <p class="state on">{% trans %}Ready, for {{ passkey_domain }}{% endtrans %}{% if passkey_count %}{% trans %}: {{ passkey_count }} made{% endtrans %}{% endif %}.</p>
+  {%- endif %}
+  <p class="hint">{% trans %}Family members without a Google account sign in with a passkey: the lock of their own phone or
+    computer. Browsers make and use passkeys only over <b>HTTPS</b>, with a certificate they trust (one from Let's
+    Encrypt or your NAS; not a self-signed one), and only on the <b>one name</b> each was made for: the Address from
+    outside on <a href="/accounts#passkeys">Family accounts</a>. So that name must be listed exactly under Host names,
+    with no name with *, and HTTPS must be on: a free address does both; with a name of your own, give its
+    certificate or list the reverse proxy that does HTTPS. Admins make each person's first passkey link on Family
+    accounts.{% endtrans %}</p>
+
 </section>
 </div>
 

@@ -1,13 +1,16 @@
 """Signing in and out: Google, the code for signing in at home, a demo's one button (demo.py), sessions. Passkeys:
 routes/passkeys.py."""
 import hmac
+import secrets
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 
-from lineagebox import accounts, activity, demo, passkeys
-from lineagebox.web.common import (MEMBER, PUBLIC, SEE_AS, SIGNING_IN, DemoBody, LocalBody, client_ip, from_app,
-                                   local_path, redirect_uri, tries_from)
+from lineagebox import accounts, activity, address, demo, passkeys
+from lineagebox.web.common import (MEMBER, PUBLIC, SEE_AS, SIGNING_IN, DemoBody, LocalBody, RelayBody, client_ip,
+                                   cookie_name, delete_cookie, from_app, local_path, redirect_uri, set_cookie,
+                                   tries_from)
 from lineagebox.web.deps import page, site
 from lineagebox.web.site import CODE_MISSES, Site
 
@@ -18,6 +21,7 @@ ACCESS = {
     "/signin": PUBLIC,
     "/auth/google": PUBLIC,
     "/auth/google/callback": PUBLIC,
+    "/auth/google/relay": PUBLIC,
     "/auth/local": PUBLIC,
     "/auth/demo": PUBLIC,
     "/demo-preview.jpg": PUBLIC,
@@ -32,9 +36,10 @@ def start_session(s: Site, request: Request, c, account_id: int, response: Respo
     now = s.shared_cfg()
     token = accounts.new_session(c, account_id, now.session_days, client_ip(request),
                                  request.headers.get("user-agent", ""), passkey_id)
-    response.set_cookie(accounts.COOKIE, token, max_age=now.session_days * 86400, httponly=True, samesite="lax",
-                        secure=request.url.scheme == "https")
-    response.delete_cookie(SIGNING_IN)
+    set_cookie(request, response, accounts.COOKIE, token, max_age=now.session_days * 86400, samesite="lax")
+    if request.url.scheme == "https":  # one 1.11 set without __Host- would otherwise outlive this one
+        response.delete_cookie(accounts.COOKIE, secure=True, httponly=True)
+    delete_cookie(request, response, SIGNING_IN)
     return response
 
 
@@ -52,34 +57,58 @@ def show_signin(s: Site, request: Request, next: str = "/", error: str = ""):
     with s.own_con() as c:
         offer = passkeys.any_for(c, now)  # once anyone has one: before that it would only puzzle Google's users
     return page(request, "signin.html", next=local_path(next), error=error,
-                google=bool(now.google_client_id and now.google_client_secret), at_home=request.state.at_home,
+                google=google_way(s, now) is not None, at_home=request.state.at_home,
                 passkeys=offer, passkey_here=passkeys.here(now, request.url.scheme, request.headers.get("host", "")),
                 passkey_origin=passkeys.origin(now))
 
 
+def google_way(s: Site, now) -> dict | None:
+    """How Sign in with Google goes here: {"own": True} with this server's own Google client; the free address (with
+    the client it pinned, google_client) through ourplace.here (Family accounts, names/google.py); or None, not set
+    up."""
+    if not now.accounts_enabled:
+        return None
+    if now.google_relay:
+        with s.own_con() as c:
+            free = address.state(c)
+        return free if free and free.get("google_client") and free.get("cert") else None
+    return {"own": True} if now.google_client_id and now.google_client_secret else None
+
+
 @router.get("/auth/google")
 def google_sign_in(request: Request, next: str = "/", s: Site = Depends(site)):
-    """Off to Google, which sends the browser back to /auth/google/callback."""
+    """Off to Google, which sends the browser back to /auth/google/callback (or, through ourplace.here, to
+    /auth/google/relay)."""
     now = s.shared_cfg()
-    if not (now.accounts_enabled and now.google_client_id and now.google_client_secret):
+    way = google_way(s, now)
+    if way is None:
         raise HTTPException(404)
+    next = local_path(next) if len(next) <= NEXT_MOST else "/"
+    here = request.headers.get("host", "").split(":")[0].lower()
+    if not way.get("own") and (here != way["host"] or request.url.scheme != "https"):
+        # through ourplace.here a sign-in comes back to the free address: so it starts there, where its cookie is
+        return RedirectResponse(f"{address.url(way)}/auth/google?{urlencode({'next': next})}", 303)
     if not s.sign_ins.allow(tries_from(request)):
         return show_signin(s, request, next, "Too many sign-ins from here just now. Wait a few minutes, then try "
                                           "again.")
-    url, keep = accounts.google_start(now.google_client_id, redirect_uri(request, now))
-    keep.update(kind="google", next=local_path(next) if len(next) <= NEXT_MOST else "/")
+    if way.get("own"):
+        url, keep = accounts.google_start(now.google_client_id, redirect_uri(request, now))
+        keep.update(kind="google", next=next)
+    else:
+        keep = {"kind": "relay", "r": secrets.token_urlsafe(32), "state": secrets.token_urlsafe(24), "next": next}
+        url = f"{way['service']}/v1/google/start?" + urlencode({"name": way["name"], "r": keep["r"],
+                                                               "state": keep["state"], "port": way.get("port", 443)})
     response = RedirectResponse(url, 303)
     # what Google's answer is checked against, in this browser's own cookie (Site.seal): only the browser that
     # started a sign-in can finish it, and nothing is kept here until then
-    response.set_cookie(SIGNING_IN, s.seal(keep), max_age=GOOGLE_SECONDS, httponly=True, samesite="lax",
-                        secure=request.url.scheme == "https")
+    set_cookie(request, response, SIGNING_IN, s.seal(keep), max_age=GOOGLE_SECONDS, samesite="lax")
     return response
 
 
 @router.get("/auth/google/callback")
 def google_back(request: Request, code: str = "", state: str = "", error: str = "", s: Site = Depends(site)):
     now = s.shared_cfg()
-    keep = s.unseal(request.cookies.get(SIGNING_IN), GOOGLE_SECONDS)
+    keep = s.unseal(request.cookies.get(cookie_name(request, SIGNING_IN)), GOOGLE_SECONDS)
     if (error or not code or not state or keep is None or keep.get("kind") != "google"
             or not hmac.compare_digest(keep["state"].encode(), state.encode())):
         return show_signin(s, request, "/", "That sign-in didn't finish. Try again.")
@@ -98,6 +127,44 @@ def google_back(request: Request, code: str = "", state: str = "", error: str = 
                                                       "looks after them to add it.")
         activity.log(c, f"{row['email']} signed in")
         return start_session(s, request, c, row["id"], RedirectResponse(keep["next"], 303))
+
+
+@router.get("/auth/google/relay", response_class=HTMLResponse)
+def google_relayed_page(request: Request):
+    """Where ourplace.here sends the browser back, with Google's token after a # (which no server sees): the page's
+    script (app.js, data-google-relay) posts it to the route below."""
+    return page(request, "google_relay.html")
+
+
+GOOGLE_SAID = {"access_denied": "The sign-in was stopped at Google.",
+               "google_refused": "Google didn't accept the sign-in. Try again from the start."}
+
+
+@router.post("/auth/google/relay", dependencies=[Depends(from_app)])
+def google_relayed(request: Request, body: RelayBody, s: Site = Depends(site)):
+    """Who Google says signed in, through ourplace.here: Google's signature, the client, the nonce and this browser's
+    own sign-in all checked (accounts.google_token), then signed in as /auth/google/callback does."""
+    way = google_way(s, s.shared_cfg())
+    keep = s.unseal(request.cookies.get(cookie_name(request, SIGNING_IN)), GOOGLE_SECONDS)
+    if (way is None or way.get("own") or keep is None or keep.get("kind") != "relay"
+            or not hmac.compare_digest(keep["state"].encode(), body.state.encode())):
+        raise HTTPException(400, "That sign-in didn't finish. Try again.")
+    if body.error or not body.id_token:
+        raise HTTPException(400, GOOGLE_SAID.get(body.error, "That sign-in didn't finish. Try again."))
+    with s.own_con() as c:
+        try:
+            email = accounts.google_token(body.id_token, way["google_client"],
+                                          accounts.relay_nonce(way["host"], keep["r"]), s.google_http)
+        except accounts.Problem as e:
+            activity.log(c, f"A sign-in with Google through ourplace.here was turned away: {e}"[:200])
+            raise HTTPException(400, str(e)) from None
+        row = accounts.by_email(c, email)
+        if row is None or row["disabled_at"]:
+            activity.log(c, f"Sign-in turned away: {email} has no account")
+            raise HTTPException(403, f"{email} hasn't been invited to these photos. Ask whoever looks after them to "
+                                     "add it.")
+        activity.log(c, f"{row['email']} signed in")
+        return start_session(s, request, c, row["id"], JSONResponse({"go": keep["next"]}))
 
 
 @router.post("/auth/local", dependencies=[Depends(from_app)])
@@ -154,11 +221,11 @@ def demo_preview(s: Site = Depends(site)):
     return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
 
 
-def signed_out(response: Response) -> Response:
+def signed_out(request: Request, response: Response) -> Response:
     """The browser forgets the session, and what it kept of the pages and photos seen with it: on a computer the
     family shares, Back then shows nobody's photos to whoever comes next."""
-    response.delete_cookie(accounts.COOKIE)
-    response.delete_cookie(SEE_AS)
+    delete_cookie(request, response, accounts.COOKIE)
+    delete_cookie(request, response, SEE_AS)
     response.headers["Clear-Site-Data"] = '"cache"'
     return response
 
@@ -166,8 +233,9 @@ def signed_out(response: Response) -> Response:
 @router.post("/auth/signout", dependencies=[Depends(from_app)])
 def sign_out(request: Request, s: Site = Depends(site)):
     with s.own_con() as c:
-        accounts.end_session(c, request.cookies.get(accounts.COOKIE))
-    return signed_out(JSONResponse({"go": "/signin"}))
+        accounts.end_session(c, request.cookies.get(cookie_name(request, accounts.COOKIE))
+                             or request.cookies.get(accounts.COOKIE))
+    return signed_out(request, JSONResponse({"go": "/signin"}))
 
 
 @router.post("/auth/signout-everywhere", dependencies=[Depends(from_app)])
@@ -177,4 +245,4 @@ def sign_out_everywhere(request: Request, s: Site = Depends(site)):
         raise HTTPException(400, "Nobody is signed in.")
     with s.own_con() as c:
         accounts.end_sessions(c, account["id"])
-    return signed_out(JSONResponse({"go": "/signin"}))
+    return signed_out(request, JSONResponse({"go": "/signin"}))

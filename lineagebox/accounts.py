@@ -264,6 +264,82 @@ def _b64(text: str) -> bytes:
     return base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
 
 
+# ---- Sign in with Google through the free-address service (names/google.py) -------------------------------------------
+
+GOOGLE_KEYS = "https://www.googleapis.com/oauth2/v3/certs"
+KEYS_KEPT = 3600  # seconds Google's signing keys are kept (they change every few days; an unknown one is fetched)
+_keys: dict = {"at": 0.0, "keys": {}}
+
+
+def relay_nonce(host: str, r: str) -> str:
+    """The nonce Google signs into a token made for this host and this one sign-in (as names/google.py makes it)."""
+    return base64.urlsafe_b64encode(hashlib.sha256(f"{host}\n{r}".encode()).digest()).decode().rstrip("=")
+
+
+def _google_key(kid: str, http: httpx.Client | None):
+    if kid not in _keys["keys"] or time.time() - _keys["at"] > KEYS_KEPT:
+        try:
+            r = (http or httpx.Client(timeout=20)).get(GOOGLE_KEYS)
+            r.raise_for_status()
+            _keys.update(at=time.time(), keys={k["kid"]: k for k in r.json().get("keys", []) if k.get("kty") == "RSA"})
+        except (httpx.HTTPError, ValueError, KeyError):
+            raise Problem("Google could not be reached to check the sign-in. Try again in a moment.") from None
+    jwk = _keys["keys"].get(kid)
+    if jwk is None:
+        raise Problem("That sign-in wasn't signed by Google.")
+    from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicNumbers
+    return RSAPublicNumbers(int.from_bytes(_b64(jwk["e"]), "big"), int.from_bytes(_b64(jwk["n"]), "big")).public_key()
+
+
+def google_token(token: str, client_id: str, nonce: str, http: httpx.Client | None = None) -> str:
+    """Who signed in, from an ID token that came through the free-address service rather than straight from Google:
+    so Google's own signature on it is checked here (RS256, against Google's published keys), and that it was made for
+    this client, now, with this server's nonce (relay_nonce). Returns the email, as Google has verified it."""
+    from cryptography.exceptions import InvalidSignature
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import padding
+    try:
+        head, body, signature = token.split(".")
+        header, claims = json.loads(_b64(head)), json.loads(_b64(body))
+    except ValueError:
+        raise Problem("Google's answer could not be read. Try again from the start.") from None
+    if header.get("alg") != "RS256" or not isinstance(header.get("kid"), str):
+        raise Problem("That sign-in wasn't signed by Google.")
+    try:
+        _google_key(header["kid"], http).verify(_b64(signature), f"{head}.{body}".encode(), padding.PKCS1v15(),
+                                                hashes.SHA256())
+    except (InvalidSignature, ValueError):
+        raise Problem("That sign-in wasn't signed by Google.") from None
+    if claims.get("iss") not in GOOGLE_ISSUERS or claims.get("aud") != client_id:
+        raise Problem("That sign-in was not meant for this site.")
+    if float(claims.get("exp", 0)) < time.time():
+        raise Problem("That sign-in took too long. Try again.")
+    if not hmac.compare_digest(str(claims.get("nonce", "")), nonce):
+        raise Problem("That sign-in was not the one started here. Try again from the start.")
+    if not claims.get("email") or claims.get("email_verified") not in (True, "true"):
+        raise Problem("Google has not verified that email address.")
+    return claims["email"]
+
+
+def google_check(client_id: str, client_secret: str, redirect_uri: str, http: httpx.Client | None = None) -> str:
+    """Whether Google knows this client and its secret, for Family accounts' Test: a made-up code is offered, which
+    Google turns down as a bad code (the client is right) or a bad client (the ID or the secret isn't)."""
+    try:
+        r = (http or httpx.Client(timeout=20)).post(GOOGLE_TOKEN, data={
+            "code": "lineagebox-test", "client_id": client_id, "client_secret": client_secret,
+            "redirect_uri": redirect_uri, "grant_type": "authorization_code"})
+        refused = str(r.json().get("error") or "")
+    except (httpx.HTTPError, ValueError) as e:
+        raise Problem(f"Google could not be reached ({type(e).__name__}).") from None
+    if refused == "invalid_client":
+        raise Problem("Google doesn't know this client ID and secret together: copy both again from its Clients page.")
+    if refused == "redirect_uri_mismatch":
+        raise Problem(f"Google knows the client, but it doesn't list {redirect_uri}: add it to the client's "
+                      "Authorized redirect URIs.")
+    return ("Google knows this client and its secret. Now try Sign in with Google from a private browser window: if "
+            "Google says redirect_uri_mismatch, add the address above to the client's redirect URIs.")
+
+
 # ---- local sign-in codes (TOTP) ------------------------------------------------------------------------------------
 
 STEP = 30

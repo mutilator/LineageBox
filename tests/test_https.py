@@ -123,6 +123,9 @@ def test_https_from_files_uploads_and_off(cfg, monkeypatch):
     ca = authority(cfg.data_dir / "made")
     cert, key, _ = make_cert(cfg.data_dir / "made", names=("photos.example.com",), issuer=ca)
     client = TestClient(webapp.create_app(cfg), client=LAN, base_url="http://192.168.7.1:8000")
+    # a certificate of one's own is under "a name of your own" (a new server is shown the free address first)
+    chosen = client.post("/api/address/way", json={"way": "own"}, headers={"X-Requested-With": "lineagebox"})
+    assert chosen.status_code == 200
     assert "Off: LineageBox is served over plain HTTP" in client.get("/settings").text
 
     r = client.post("/api/https", headers=APP, json={"tls_cert": str(cert), "tls_key": ""})

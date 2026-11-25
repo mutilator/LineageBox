@@ -93,6 +93,9 @@ class Config:
     accounts_enabled: bool = False
     google_client_id: str = ""                        # Sign in with Google: the OAuth client's ID and secret
     google_client_secret: str = ""
+    # Sign in with Google through the free-address service's own client (names/google.py), for a server with a free
+    # address: no Google client of its own to set up (Family accounts)
+    google_relay: bool = False
     public_url: str = ""                              # https://photos.example.com: where Google sends people back to
     session_days: int = 90                            # signed in for this long since they last came
     uploads_folder: str = "Family uploads"            # members' uploads: <watched folder>/<this>/<person id>
@@ -105,6 +108,11 @@ class Config:
     # Updates (updates.py): once a day the newest release's version number is asked of GitHub, for admins to see
     update_check: bool = True
     update_repository: str = "mutilator/LineageBox"   # owner/name on GitHub; a fork's Docker image names its own
+    # Free addresses (address.py): the service that gives a home server a name like maple-river.ourplace.here,
+    # keeps it pointed at the house and publishes its certificate's DNS check; "" for none. Let's Encrypt signs the
+    # certificate (acme.py): its staging directory, for trying it out, gives certificates browsers don't trust.
+    address_service: str = "https://ourplace.here"
+    acme_directory: str = "https://acme-v02.api.letsencrypt.org/directory"
     # Backups (backup.py): a checked copy of the catalog once a day, kept for weeks
     backup_enabled: bool = True
     backup_folder: str = ""                           # "" for the data folder's backups/nightly
@@ -221,9 +229,11 @@ KEYS = {
     ("library", "about"): "library_about",
     ("accounts", "enabled"): "accounts_enabled", ("accounts", "google_client_id"): "google_client_id",
     ("accounts", "google_client_secret"): "google_client_secret", ("accounts", "public_url"): "public_url",
+    ("accounts", "google_relay"): "google_relay",
     ("accounts", "session_days"): "session_days", ("accounts", "uploads_folder"): "uploads_folder",
     ("accounts", "uploads_into"): "uploads_into", ("accounts", "upload_max_gb"): "upload_max_gb",
     ("updates", "check"): "update_check", ("updates", "repository"): "update_repository",
+    ("address", "service"): "address_service", ("address", "acme_directory"): "acme_directory",
     ("backups", "enabled"): "backup_enabled", ("backups", "folder"): "backup_folder",
     ("backups", "keep_daily"): "backup_keep_daily", ("backups", "keep_weekly"): "backup_keep_weekly",
     ("demo", "enabled"): "demo_enabled", ("demo", "person"): "demo_person", ("demo", "uploads"): "demo_uploads",

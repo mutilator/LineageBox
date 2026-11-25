@@ -4,7 +4,45 @@ Out of the box LineageBox is a home-network service at `http://<address>:8000`, 
 it a name, serving it over HTTPS, and reaching it from outside the house.
 
 Everything here can be set on the **Settings** page, under **Address and HTTPS**. The `.env` settings only give the
-starting values.
+starting values. The quickest way is a free address (below). A name from a domain of your own works too, with a
+certificate you give LineageBox or a reverse proxy in front: the rest of this page.
+
+## A free address and its certificate
+
+**Settings → Address and HTTPS → Get a free address** gives this LineageBox a name of its own, such as
+`maple-river.ourplace.here`, and a certificate browsers trust. Passkeys, Sign in with Google and the phone app
+need both. There is nothing to sign up for and no account:
+
+- ourplace.here, run by LineageBox's project, gives the name and points it at your house. Let's Encrypt signs the
+  certificate after checking a record that ourplace.here publishes for it. The certificate's key is made on this
+  machine and never leaves it (`data/certs/<name>.crt` and `.key`). Your photos never go through ourplace.here.
+- **From outside the house too:** the name leads to your house's public address. Family accounts must be on, so that
+  everyone signs in. Then forward a port on your router to this machine (443 to LineageBox's port, usually 8000), and
+  press **Check from the internet**. LineageBox tells ourplace.here when the house's address changes (it looks every
+  5 minutes) and renews the certificate by itself.
+- **The home network only:** the name leads to this machine's address at home, and nothing is opened to the
+  internet. Some routers drop DNS answers that hold a home-network address ("DNS rebinding protection", on by default
+  in OpenWrt and Fritz!Box): allow `ourplace.here` there.
+- If Let's Encrypt is busy, LineageBox waits and asks again. If it still can't sign, the name is kept, and LineageBox
+  tries again by itself within ten minutes (or press **Get the certificate**).
+- With no certificate set and no reverse proxy, LineageBox serves HTTPS with the new certificate at once. Behind a
+  reverse proxy, point the proxy at the two files instead; each renewal replaces them.
+- The name becomes the address from outside if none is set. **Make it the main address** moves signing in to it from
+  another name. Passkeys belong to the name they were made on, so each person makes a new one from an invite link.
+  Sign in with Google needs `https://<name>/auth/google/callback` added to the Google client's redirect URIs.
+- **Show names to choose from** offers a few free names to pick; otherwise one is given at random. Names are two
+  plain words, easy to say on the phone. **Choose a different name** later gets the new name and its certificate
+  first, then puts it in the old one's place (host names, the address from outside, HTTPS, Google sign-in) and
+  gives the old one up. If the old one was the address from outside, passkeys must be made again.
+- The page shows one way at a time: **a free address** or **a name of your own** (with its certificate and
+  reverse proxy). Choosing the free address with no reverse proxy has LineageBox serve its certificate.
+- Names are random words, because every certificate is in public logs. A name is never given to anyone else. One whose
+  server hasn't checked in for 90 days stops working until it does. **Give it up** ends it for good. The
+  [terms](https://lineagebox.com/terms/) and [privacy](https://lineagebox.com/privacy/) pages say what ourplace.here
+  keeps.
+- The name, its key and the Let's Encrypt account are kept in the catalog, so its backups bring them back. Keep
+  backups as private as the photos.
+- `[address] service` in the config names another such service (a fork's), or `""` to not offer one.
 
 ## Who LineageBox answers
 

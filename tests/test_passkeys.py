@@ -23,6 +23,7 @@ from tests.conftest import LAN
 APP = {"X-Requested-With": "lineagebox"}
 OUTSIDE = ("203.0.113.9", 50000)
 DOMAIN = "photos.example.com"
+SESSION = "__Host-" + accounts.COOKIE  # the session cookie over HTTPS (web/common.cookie_name)
 ORIGIN = f"https://{DOMAIN}"
 CHROME = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36"
 READY = {"public_url": ORIGIN, "allowed_hosts": [DOMAIN], "trusted_proxies": "172.18.0.0/16"}
@@ -144,7 +145,7 @@ def test_a_link_makes_a_passkey_that_signs_in(setup, con):
     assert options["attestation"] == "none" and options["excludeCredentials"] == []
     assert b"katherine" not in unb64(options["user"]["id"]) and len(unb64(options["user"]["id"])) == 32
     r = c.post("/auth/invite/finish", json={"credential": phone.create(options)}, headers=APP)
-    assert r.status_code == 200 and r.json()["go"] == "/passkeys?made=1" and accounts.COOKIE in r.cookies
+    assert r.status_code == 200 and r.json()["go"] == "/passkeys?made=1" and SESSION in r.cookies
     assert c.post("/auth/invite/check", json={"token": token}, headers=APP).status_code == 404  # used up
     page = c.get("/passkeys?made=1").text
     assert "Your passkey is made" in page and "Chrome on Windows" in page and "kept in a password manager" in page
@@ -153,7 +154,7 @@ def test_a_link_makes_a_passkey_that_signs_in(setup, con):
     # another day, on the same phone: no email typed, the passkey says who it is
     later = browser(setup)
     r = sign_in(later, phone)
-    assert r.status_code == 200 and r.json()["go"] == "/people" and accounts.COOKIE in r.cookies
+    assert r.status_code == 200 and r.json()["go"] == "/people" and SESSION in r.cookies
     assert later.get("/people").status_code == 200
     row = con.execute("SELECT * FROM passkey").fetchone()
     assert row["last_used_at"] and row["synced"] == 1 and row["rp_id"] == DOMAIN
@@ -169,7 +170,7 @@ def test_what_a_passkey_sign_in_turns_away(setup, con):
     def refused(answer_from: Phone, why: str = passkeys.NOT_CHECKED):
         r = sign_in(c, answer_from)
         assert r.status_code == 400 and why in r.json()["detail"], r.text
-        assert accounts.COOKIE not in r.cookies
+        assert SESSION not in r.cookies and accounts.COOKIE not in r.cookies
 
     elsewhere = Phone(origin="https://photos.example.net")  # another site's page asked for it
     elsewhere.keys = phone.keys
@@ -257,7 +258,7 @@ def test_adding_a_passkey_soon_after_signing_in(setup, con):
     def session_made(c, ago: timedelta):
         con.execute("UPDATE session SET created_at = ? WHERE token_hash = ?",
                     ((datetime.now() - ago).isoformat(timespec="seconds"),
-                     hashlib.sha256(c.cookies[accounts.COOKIE].encode()).hexdigest()))
+                     hashlib.sha256((c.cookies.get(SESSION) or c.cookies[accounts.COOKIE]).encode()).hexdigest()))
         con.commit()
 
     first = signed_in(setup, con, setup["member"])  # her first sign-in ever
@@ -294,7 +295,7 @@ def test_other_lasting_ways_in_need_a_recent_sign_in_too(setup, con):
     admin = signed_in(setup, con, setup["admin"])
     con.execute("UPDATE session SET created_at = ? WHERE token_hash = ?",
                 ((datetime.now() - timedelta(minutes=20)).isoformat(timespec="seconds"),
-                 hashlib.sha256(admin.cookies[accounts.COOKIE].encode()).hexdigest()))
+                 hashlib.sha256((admin.cookies.get(SESSION) or admin.cookies[accounts.COOKIE]).encode()).hexdigest()))
     con.commit()
     other_admin = accounts.add(con, "rosa.baker@example.com", None, "admin")
     con.commit()

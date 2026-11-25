@@ -141,6 +141,10 @@ def create_app(cfg: Config, google_http: httpx.Client | None = None) -> FastAPI:
         framed = request.state.device is not None  # a photo frame may be shown in a dashboard's frame: it changes nothing
         if not framed:
             response.headers.setdefault("X-Frame-Options", "DENY")
+            # no other site's page may load what this one answers (a photo as its <img>, a page's size by its timing):
+            # browsers send the session along to a neighboring name under a shared domain (another family's address
+            # under ourplace.here is "same site"), so SameSite cookies alone wouldn't keep such a page out
+            response.headers.setdefault("Cross-Origin-Resource-Policy", "same-origin")
         response.headers.setdefault("Content-Security-Policy", content_policy(now.map_tiles, framed))
         if now.accounts_enabled and request.url.scheme == "https":
             response.headers.setdefault("Strict-Transport-Security", "max-age=31536000")

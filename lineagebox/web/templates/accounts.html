@@ -25,14 +25,59 @@ Nothing here can be changed.{% endtrans %}</p>
       {% trans %}Family accounts on{% endtrans %}</label>
       <span class="hint">{% trans %}On: everyone signs in, at home too, and the site can be opened from outside. Off: only the
       home network, with no sign-in, as before.{% endtrans %}</span></p>
+    <p><label>{% trans %}Address from outside{% endtrans %} <input name="public_url" value="{{ cfg.public_url }}" placeholder="{{ _('https://photos.example.com') }}"></label>
+      <span class="hint">{% trans %}The address people sign in on, and the one invite links and photo frames away from home use.
+      Passkeys are made for this name: change it later, and everyone's passkeys stop working until they make new
+      ones.{% endtrans %}{% if free.url and free.url != cfg.public_url %} {% trans url=free.url %}Your free address is {{ url }}.{% endtrans %}{% endif %}</span></p>
+
+    <h3 id="google">{% trans %}Sign in with Google{% endtrans %} <span class="hint inline">{% trans %}(you don't need it){% endtrans %}</span></h3>
+    <p class="hint">{% trans %}Everyone can sign in with a passkey from an invite link (below), with nothing to set up. Google
+      sign-in is for those who would rather use their Google account. Choose one way:{% endtrans %}</p>
+    {%- set relay_ready = free.url and free.cert_until %}
+    {%- if free.offered or cfg.google_relay %}
+    <details class="way" id="google-relay"{% if cfg.google_relay or (relay_ready and not cfg.google_client_id) %} open{% endif %}>
+    <summary><h4>{% trans service=free.service %}Through {{ service }}{% endtrans %}</h4> <span class="hint inline">{% trans %}nothing to set up{% endtrans %}</span></summary>
+    {%- if cfg.google_relay and relay_client %}
+    <p class="state on">{% trans host=free.host %}On: people sign in with Google at {{ host }}.{% endtrans %}</p>
+    <p><button type="button" data-api="/api/accounts/google-relay" data-body='{"on": false}' data-show="#relay-saved">{% trans %}Turn it off{% endtrans %}</button>
+      <span class="hint inline" id="relay-saved"></span></p>
+    {%- elif relay_ready %}
+    <p class="hint">{% trans service=free.service, host=free.host %}{{ service }}, run by LineageBox's project, has one Google sign-in
+      for every family's server. Google tells it who signed in, and it passes that on to {{ host }} only, which checks
+      Google's own signature itself. It never sees your photos, and keeps nothing about who signs in.{% endtrans %}</p>
+    <p><button type="button" class="primary" data-api="/api/accounts/google-relay" data-body='{"on": true}' data-show="#relay-saved">{% trans %}Turn it on{% endtrans %}</button>
+      <span class="hint inline" id="relay-saved"></span></p>
+    {%- else %}
+    <p class="note">{% trans %}It goes by this server's free address, which it doesn't have yet: get one first, on{% endtrans %}
+      <a href="/settings#address">{% trans %}Address and HTTPS{% endtrans %}</a>.</p>
+    {%- endif %}
+    </details>
+    {%- endif %}
+
+    <details class="way" id="google-own"{% if cfg.google_client_id or not (free.offered or cfg.google_relay) or (not relay_ready and not cfg.google_relay) %} open{% endif %}>
+    <summary><h4>{% trans %}With your own Google client{% endtrans %}</h4> <span class="hint inline">{% trans %}about ten minutes at Google, once{% endtrans %}</span></summary>
+    <ol class="steps">
+      <li>{% trans %}Sign in to Google Cloud and make a project for it, named LineageBox, say:{% endtrans %}
+        <a href="https://console.cloud.google.com/projectcreate" target="_blank" rel="noopener">{% trans %}New project{% endtrans %}</a>.</li>
+      <li>{% trans %}In that project's{% endtrans %} <a href="https://console.cloud.google.com/auth/branding" target="_blank" rel="noopener">{% trans %}Branding{% endtrans %}</a>{% trans %}: an
+        app name your family will recognize, and your email. Under Authorized domains, add the end of your address from
+        outside (example.com for photos.example.com).{% endtrans %}</li>
+      <li>{% trans %}In{% endtrans %} <a href="https://console.cloud.google.com/auth/audience" target="_blank" rel="noopener">{% trans %}Audience{% endtrans %}</a>{% trans %}: External, then
+        Publish app. (It asks only for names and email addresses, so Google needs no review.){% endtrans %}</li>
+      <li>{% trans %}In{% endtrans %} <a href="https://console.cloud.google.com/auth/clients/create" target="_blank" rel="noopener">{% trans %}Clients → Create client{% endtrans %}</a>{% trans %}: Web
+        application, with this as its Authorized redirect URI:{% endtrans %}
+        <code>{{ redirect_uri }}</code> <button type="button" class="small" data-copy="{{ redirect_uri }}">{% trans %}Copy{% endtrans %}</button></li>
+      <li>{% trans %}Copy the client's ID and secret here, Save, then Test.{% endtrans %}</li>
+    </ol>
     <p><label>{% trans %}Google client ID{% endtrans %} <input name="google_client_id" value="{{ cfg.google_client_id }}" size="60"
       placeholder="{{ _('….apps.googleusercontent.com') }}"></label></p>
     <p><label>{% trans %}Client secret{% endtrans %} <input name="google_client_secret" type="password" autocomplete="new-password"
-      placeholder="{{ _('kept; type a new one to change it') if cfg.google_client_secret else _('from Google Cloud') }}"></label></p>
-    <p><label>{% trans %}Address from outside{% endtrans %} <input name="public_url" value="{{ cfg.public_url }}" placeholder="{{ _('https://photos.example.com') }}"></label>
-      <span class="hint">{% trans %}In Google Cloud → APIs &amp; Services → Credentials, the client's authorized redirect URI is
-      <code>{{ redirect_uri }}</code>. Passkeys are made for this name too: change it later, and everyone's passkeys
-      stop working until they make new ones.{% endtrans %}</span></p>
+      placeholder="{{ _('kept; type a new one to change it') if cfg.google_client_secret else _('from Google Cloud') }}"></label>
+      {% if cfg.google_client_id and cfg.google_client_secret %}<button type="button" data-api="/api/accounts/google-check" data-busy="{{ _('Asking Google…') }}" data-show="#google-tested">{% trans %}Test{% endtrans %}</button>
+      <span class="hint inline" id="google-tested"></span>{% endif %}</p>
+    {%- if cfg.google_relay %}<p class="hint">{% trans %}Sign-in goes through your free address while that is on; turn it off to use this client.{% endtrans %}</p>{% endif %}
+    </details>
+
     <p><label>{% trans %}Stay signed in for{% endtrans %} <input name="session_days" type="number" min="1" max="365" value="{{ cfg.session_days }}"> {% trans %}days{% endtrans %}</label></p>
     <h3 id="passkeys">{% trans %}Passkeys{% endtrans %}</h3>
     {%- if passkey_problem %}

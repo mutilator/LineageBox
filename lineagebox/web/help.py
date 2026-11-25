@@ -117,6 +117,10 @@ PAGES = {
            "fingerprint or PIN). On a computer without your passkey, choose your phone in the window that opens. Your "
            "first passkey comes from a link an admin sends you."),
         N_("At home, when the internet is down, an admin can sign in with the code from their authenticator app."))),
+    "google_relay": Page(N_("Signing in"), (  # back from Google through ourplace.here (routes/signin.py)
+        N_("Google has said who you are, and this page is checking it. It moves on by itself in a moment."),
+        N_("If it says the sign-in didn't finish, go back to signing in and try again: a sign-in has to be finished "
+           "within ten minutes, in the browser that started it."))),
     "signin_demo": Page(N_("Trying the demo"), (  # the sign-in page of a demo (demo.py)
         N_("Sign in to demo makes an account just for you, as someone in this made-up family, and signs you in. Nothing "
            "else is needed."),

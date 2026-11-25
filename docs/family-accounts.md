@@ -68,20 +68,30 @@ Sign-in pages follow the browser. What the family wrote (names, captions, commen
    Put the key it prints into an authenticator app (Google Authenticator and others: *Enter a setup key*, time based).
    Once you're signed in, **Settings → Codes for signing in at home** can do the same with a QR code.
 
-2. **Create a Google sign-in client** at [console.cloud.google.com](https://console.cloud.google.com):
-   1. Create a project.
-   2. Set up its **OAuth consent screen**: External, then publish it. It only asks for `openid`, `email` and `profile`,
-      so Google doesn't need to review those. **Leave out the app logo**, though: on an External app that is
-      published, a logo on the consent screen needs Google's
-      [brand verification](https://developers.google.com/identity/protocols/oauth2/production-readiness/brand-verification)
-      first, and that needs a public home page, a privacy policy on the same domain, and the domain verified in Google
-      Search Console. A family install does without.
-   3. Create an **OAuth client** of type *Web application*, with the authorized redirect URI
-      `https://<your name for LineageBox>/auth/google/callback`. The Family accounts page shows the exact address to
-      paste.
+2. **Sign in with Google, if you want it.** Everyone can sign in with a passkey instead, with nothing to set up
+   ([below](#passkeys-signing-in-without-google)). For Google, choose one way on **Settings → Family accounts → Sign
+   in with Google**:
+   - **Through ourplace.here**, for a server with a
+     [free address](remote-access.md#a-free-address-and-its-certificate): **Turn it on**, and that is all. ourplace.here
+     has one Google client for every family's server. Google tells it who signed in; it passes that on to your
+     server's name only, and your server checks Google's own signature itself. ourplace.here never sees your photos
+     and keeps nothing about who signs in ([privacy](https://lineagebox.com/privacy/)). A sign-in started on another
+     of your names moves to the free address.
+   - **With your own Google client**, at [console.cloud.google.com](https://console.cloud.google.com). The page lists
+     these steps, with links and the address to copy, and a **Test** button for the result:
+     1. Create a project.
+     2. In **Branding**, give an app name and your email, and add your domain under Authorized domains. **Leave out
+        the app logo**: on an External app that is published, a logo needs Google's
+        [brand verification](https://developers.google.com/identity/protocols/oauth2/production-readiness/brand-verification)
+        first, which needs a public home page, a privacy policy on the same domain, and the domain verified in Google
+        Search Console. A family install does without.
+     3. In **Audience**, choose External, then publish it. It only asks for `openid`, `email` and `profile`, so Google
+        doesn't need to review it.
+     4. In **Clients**, create a client of type *Web application*, with the authorized redirect URI
+        `https://<your name for LineageBox>/auth/google/callback`.
 
 3. **On Settings → Family accounts:**
-   - paste the client's ID and secret. The secret is never shown again;
+   - for your own Google client, paste its ID and secret. The secret is never shown again;
    - set **Address from outside** to `https://<your name for LineageBox>`;
    - add your relatives' email addresses, each tied to their person in the tree, as members (or admins);
    - tick **Family accounts on** and save.

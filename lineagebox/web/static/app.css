@@ -1795,3 +1795,12 @@ dialog.player::backdrop { background: #000; }
 .journey-photos .more { color: var(--muted); font-size: .9rem; }
 @media (prefers-reduced-motion: reduce) { .journey-flow { animation: none; } }
 @media (pointer: coarse) { .journey-near .chip { min-height: 44px; display: inline-flex; align-items: center; } }
+
+/* Settings → Address and HTTPS: the two ways to a name (a free address, a name of one's own), each a fold-out */
+details.way { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin: 14px 0; }
+details.way > summary { cursor: pointer; }
+details.way > summary h3, details.way > summary h4 { display: inline; margin: 0; }
+ol.steps { padding-left: 1.4em; }
+ol.steps li + li { margin-top: 6px; }
+details.way[open] > summary { margin-bottom: 10px; }
+details.way h4 { margin: 18px 0 6px; }

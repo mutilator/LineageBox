@@ -16,7 +16,8 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 from lineagebox import access, accounts, activity, passkeys
 from lineagebox.web.common import (ADMIN, MEMBER, PASSKEY_STARTED, PUBLIC, InviteBody, PasskeyBody, PasskeyName,
-                                   PasskeyStart, from_app, local_path, recently_signed_in, tries_from)
+                                   PasskeyStart, cookie_name, delete_cookie, from_app, local_path, recently_signed_in,
+                                   set_cookie, tries_from)
 from lineagebox.web.deps import page, site, viewer
 from lineagebox.web.routes.signin import start_session
 from lineagebox.web.site import Site
@@ -46,14 +47,13 @@ GONE = ("This link doesn't work any more: it was used, it ran out, or a newer on
 def _keep(s: Site, request: Request, keep: dict, answer: dict) -> JSONResponse:
     keep = {**keep, "challenge": base64.urlsafe_b64encode(keep["challenge"]).decode()}
     response = JSONResponse(answer)
-    response.set_cookie(PASSKEY_STARTED, s.seal(keep), max_age=KEPT, httponly=True, samesite="strict",
-                        secure=request.url.scheme == "https")
+    set_cookie(request, response, PASSKEY_STARTED, s.seal(keep), max_age=KEPT, samesite="strict")
     return response
 
 
 def _kept(s: Site, request: Request, kind: str) -> dict:
     """What the start kept, from this browser's cookie; the cookie goes with the answer (_used)."""
-    keep = s.unseal(request.cookies.get(PASSKEY_STARTED), KEPT)
+    keep = s.unseal(request.cookies.get(cookie_name(request, PASSKEY_STARTED)), KEPT)
     if keep is None or keep.get("kind") != kind:
         raise HTTPException(400, "That took too long, or was started on another page. Try again.")
     return {**keep, "challenge": base64.urlsafe_b64decode(keep["challenge"])}
@@ -119,7 +119,7 @@ def sign_in_finish(request: Request, body: PasskeyBody, s: Site = Depends(site))
             raise HTTPException(400, "That took too long, or was started on another page. Try again.")
         activity.log(c, f"{accounts.get(c, account_id)['email']} signed in with a passkey")
         response = start_session(s, request, c, account_id, JSONResponse({"go": keep["next"]}), passkey_id)
-        response.delete_cookie(PASSKEY_STARTED)
+        delete_cookie(request, response, PASSKEY_STARTED)
         return response
 
 

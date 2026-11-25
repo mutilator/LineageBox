@@ -25,8 +25,8 @@ from lineagebox import __version__, access, accounts, activity, cleanup, db, eve
 from lineagebox.config import Config
 from lineagebox.web import help as page_help
 from lineagebox.web import tiles
-from lineagebox.web.common import (DATE_SOURCE_LABEL, HERE, PAGE_SIZES, ZIP_MOST, fmt_duration, locate, media_path,
-                                   on_network)
+from lineagebox.web.common import (DATE_SOURCE_LABEL, HERE, PAGE_SIZES, ZIP_MOST, cookie_name, fmt_duration, locate,
+                                   media_path, on_network)
 
 
 SIGNED_IN_FOR = 10  # seconds a session's account is kept: a page asks for dozens of thumbnails, each signed in
@@ -150,7 +150,9 @@ class Site:
         """The account whose session the request's cookie is, if any. Looked up again after SIGNED_IN_FOR seconds,
         and straight away after any change made through the web app (signing out, an account switched off): a page's
         thumbnails don't each open the catalog to ask."""
-        token = request.cookies.get(accounts.COOKIE)
+        # over HTTPS the cookie is __Host- (cookie_name); one set without it by 1.11 and before still counts until it
+        # runs out (session_days after signing in), so the change signs nobody out
+        token = request.cookies.get(cookie_name(request, accounts.COOKIE)) or request.cookies.get(accounts.COOKIE)
         if not token or len(token) > 100:
             return None
         key = ("signed in", hashlib.sha256(token.encode()).hexdigest(), now.session_days)

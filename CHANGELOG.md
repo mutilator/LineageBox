@@ -6,6 +6,30 @@ copies it there when the version is tagged ([releases](docs/development.md#relea
 A **catalog update** adds to the catalog's tables. LineageBox copies the catalog before it updates it, and earlier
 versions can't open the updated one.
 
+## 1.12.0 (2026-11-24)
+
+### New
+
+- **A free address, with its certificate.** **Settings → Address and HTTPS → Get a free address** gives LineageBox a
+  name of its own, such as `maple-river.ourplace.here`, and a certificate from Let's Encrypt, with no account to
+  make: passkeys, Sign in with Google and the phone app then work without a domain of your own. It can lead to the
+  house from outside (with family accounts on) or to this machine on the home network only. LineageBox keeps it
+  pointed at the house and renews the certificate by itself. A name from your own domain still works as before.
+  ([Remote access](docs/remote-access.md#a-free-address-and-its-certificate))
+- **Sign in with Google, with nothing to set up at Google.** A server with a free address can let the family sign in
+  with Google through ourplace.here: **Family accounts → Sign in with Google → Through ourplace.here → Turn it on**.
+  Your server checks Google's own signature on each sign-in, and ourplace.here keeps nothing about who signs in.
+  ([Family accounts](docs/family-accounts.md#setting-it-up))
+
+### Updated
+
+- **Your own Google client is set up step by step.** Family accounts lists what to do at Google, with a link to each
+  page and the address to copy, and **Test** says whether Google knows the client. Passkeys come first: they need
+  nothing set up.
+- **Sign-in cookies are kept to their own site.** Over HTTPS they are `__Host-` cookies, which no other name under the
+  same domain can set or hide, and pages and photos tell browsers no other site may load them. Nobody is signed out
+  by the change.
+
 ## 1.11.2 (2026-11-24)
 
 ### Updated

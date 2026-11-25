@@ -29,6 +29,7 @@ EDITABLE += ("sidecars_enabled", "import_enabled")  # Settings → Other program
 EDITABLE += ("whisper_language",)  # Settings → Speech (speech.py)
 EDITABLE += ("partners_share",)  # Settings → Family accounts: couples share what they add (access.py)
 EDITABLE += ("memories_keep", "memories_unit")  # Settings → Browsing: how long Home's memories are kept (home.py)
+EDITABLE += ("google_relay",)  # Family accounts: Sign in with Google through ourplace.here (address.py)
 SCHEDULES =("always", "hours", "paused")
 TURN_LEVELS = ("sure", "more", "off")  # Cleanup → Turned photos, see orientation.py
 AGAIN_EVERY = (6, 12, 0)  # Settings → Faces: months between looking again at every photo (faces.py); 0: when asked
@@ -262,6 +263,7 @@ PROBLEM_SERVICES = {"ollama": "Ollama", "whisper": "Whisper", "https": "HTTPS", 
                     "places": "OpenStreetMap", "faces": "Faces", "backup": "Backup"}
 PROBLEM_SERVICES["meaning"] = "Search by meaning"  # its model missing from Ollama (embeddings.py)
 PROBLEM_SERVICES["sidecars"] = "Sidecars"  # photo folders it can't write in (sidecars.py); its panel's id
+PROBLEM_SERVICES["address"] = "Free address"  # the free address's service or its certificate (address.py)
 
 
 def set_problem(con: sqlite3.Connection, service: str, message: str | None) -> bool:
@@ -416,6 +418,12 @@ def _network_paths(value, cfg: Config) -> tuple[tuple[str, str], ...]:
     return tuple(sorted(out.items()))
 
 
+def shared_domain(cfg: Config) -> str:
+    """The domain whose names the free-address service gives out (ourplace.here), each to another family."""
+    host = re.sub(r"^[a-z]+://", "", (cfg.address_service or "").strip().lower()).split("/")[0].split(":")[0]
+    return host
+
+
 def host_names(value, cfg: Config | None = None) -> tuple[str, ...]:
     """Names for the web UI to answer to, one per line or comma-separated. Left out: https://, ports and paths, and
     addresses (they always work)."""
@@ -442,6 +450,9 @@ def host_names(value, cfg: Config | None = None) -> tuple[str, ...]:
         if not _HOST.match(name):
             raise Invalid(f"{name} is not a host name like photos.example.com, or *.example.com for every name "
                           "under it.")
+        if name.startswith("*.") and cfg is not None and name[2:] == shared_domain(cfg):
+            raise Invalid(f"{name} is every family's free address, not only yours: other people's servers would be "
+                          f"let in to read your photos through your browser. List your own address itself.")
         if name.startswith("*.") and name.count(".") < 2:
             raise Invalid(f"{name} is every name under a whole top-level domain, which would let other websites "
                           "read your photos through your browser. Give your own domain, like *.example.com.")
@@ -629,6 +640,7 @@ _CHECKS["ollama_embed_model"] = _embed_model
 _CHECKS.update(sidecars_enabled=_switch, import_enabled=_switch)
 _CHECKS["whisper_language"] = _whisper_language
 _CHECKS.update(memories_keep=_ranged("memories_keep", "How long memories are kept"), memories_unit=_memories_unit)
+_CHECKS["google_relay"] = _switch
 
 
 def check(key: str, value, cfg: Config):
