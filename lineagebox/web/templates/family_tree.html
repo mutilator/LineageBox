@@ -1,35 +1,84 @@
 {% extends "base.html" %}
-{% block title %}{{ _("The whole line down from %(name)s", name=top_names[root]) if tree else _("The whole line down from one ancestor") }}{% endblock %}
+{#- mode: line (one line down from its top, family.tree), roots (one person's roots and descendants, family.roots) or
+    everyone (every family linked to one, family.chart) -#}
+{% block title %}{% if mode == "roots" %}{{ _("Roots of %(name)s", name=top_names[root]) }}{% elif mode == "everyone" %}{{ _("Everyone connected to %(name)s", name=top_names[root]) }}{% elif tree %}{{ _("The whole line down from %(name)s", name=top_names[root]) }}{% else %}{{ _("The whole line down from one ancestor") }}{% endif %}{% endblock %}
 {% block main %}
-{% from "_family_macros.html" import node with context %}
-<nav class="crumbs"><a href="/family">{% trans %}Family{% endtrans %}</a><span class="sep">/</span><h1>{% trans %}The whole line down from one ancestor{% endtrans %}</h1></nav>
-{% if tree %}
+{% from "_family_macros.html" import node, card with context %}
+<nav class="crumbs"><a href="/family">{% trans %}Family{% endtrans %}</a><span class="sep">/</span><h1>{% if mode == "roots" %}{{ _("Roots of %(name)s", name=top_names[root]) }}{% elif mode == "everyone" %}{{ _("Everyone connected") }}{% else %}{{ _("The whole line down from one ancestor") }}{% endif %}</h1></nav>
+{% if tree or chart %}
+{%- set here = "?root=%s"|format(line_root) ~ ("&person=%s"|format(person) if person else "") %}
+<nav class="tree-mode" aria-label="{{ _('What the tree shows') }}">
+  <a href="/family/tree{{ here }}"{% if mode == "line" %} aria-current="page"{% endif %} title="{{ _('Everyone descended from one ancestor, with their partners') }}">{% trans %}One line{% endtrans %}</a>
+  <a href="/family/tree{{ here }}&amp;roots=1"{% if mode == "roots" %} aria-current="page"{% endif %} title="{{ _("One person's roots: every family on their generation and above, and their descendants, without the families of those who married in below them") }}">{% trans %}Roots{% endtrans %}</a>
+  <a href="/family/tree{{ here }}&amp;everyone=1"{% if mode == "everyone" %} aria-current="page"{% endif %} title="{{ _('Every family linked to this one by parents, children and partners, each with its own line, on one chart') }}">{% trans %}Everyone connected{% endtrans %}</a>
+</nav>
+{%- if mode != "roots" %}
 <form class="tree-pick" action="/family/tree" data-autosubmit>
+  {%- if mode == "everyone" %}
+  <input type="hidden" name="everyone" value="1">
+  <label>{% trans %}Family{% endtrans %}
+    <select name="root">
+      {%- for p, name, n in charts %}<option value="{{ p }}"{% if p == root %} selected{% endif %}>{% trans name=name, n=n|number %}{{ name }} · {{ n }} people{% endtrans %}</option>{% endfor %}
+    </select></label>
+  {%- else %}
   <label>{% trans %}Starting from{% endtrans %}
     <select name="root">
       {%- if root not in tops|map(attribute=0) %}<option value="{{ root }}" selected>{{ top_names[root] }}</option>{% endif %}
       {%- for p, n in tops %}<option value="{{ p }}"{% if p == root %} selected{% endif %}>{% trans p=top_names[p] %}{{ p }} · {{ n }} below{% endtrans %}</option>{% endfor %}
     </select></label>
+  {%- endif %}
   <noscript><button type="submit">{% trans %}Show{% endtrans %}</button></noscript>
 </form>
+{%- endif %}
 <div class="tree-tools" role="toolbar" aria-label="{{ _('Moving around the tree') }}">
   <button type="button" data-zoom="out" data-key="-" data-key-label="{{ _('Zoom out') }}" aria-label="{{ _('Zoom out') }}">−</button>
   <button type="button" data-zoom="in" data-key="+" data-key-label="{{ _('Zoom in') }}" aria-label="{{ _('Zoom in') }}">+</button>
   <button type="button" data-zoom="fit" data-key="0" data-key-label="{{ _('Show the whole tree') }}">{% trans %}Show it all{% endtrans %}</button>
   <button type="button" data-tree-picture data-key="p" data-key-label="{{ _('Save the tree as a picture') }}"
-    data-file="{{ _('Family tree - %(root)s.png', root=top_names[root]) }}">{% trans %}Save as a picture (PNG){% endtrans %}</button>
+    data-file="{% if mode == "roots" %}{{ _('Family tree - roots of %(root)s.png', root=top_names[root]) }}{% elif mode == "everyone" %}{{ _('Family tree - everyone connected to %(root)s.png', root=top_names[root]) }}{% else %}{{ _('Family tree - %(root)s.png', root=top_names[root]) }}{% endif %}">{% trans %}Save as a picture (PNG){% endtrans %}</button>
   <span class="hint inline" data-tree-note>{% trans %}Drag to move around; scroll, pinch or + and − to zoom.{% endtrans %}</span>
 </div>
-<div class="tree-frame" tabindex="0" data-pan-zoom data-root="{{ root }}"{% if person %} data-person="{{ person }}"{% endif %}
+<div class="tree-frame" tabindex="0" data-pan-zoom data-root="{{ root }}"{% if person %} data-person="{{ person }}"{% endif %}{% if mode != "line" %} data-mode="{{ mode }}"{% endif %}
   aria-label="{{ _('The family tree. Drag or use the arrow keys to move around it; scroll or use + and − to zoom.') }}">
+  {%- if chart %}
+  {#- laid out by family.chart: each card and each line at its place, in px #}
+  <div class="tree-sheet all" style="width: {{ chart.width }}px; height: {{ chart.height }}px">
+    {%- for l in chart.lines %}<span class="ln{{ ' across' if l.h == 0 else ' down' }}{{ ' dashed' if l.dashed }}{{ ' faint' if l.faint }}" style="left: {{ l.x }}px; top: {{ l.y }}px; {{ 'width: %spx'|format(l.w) if l.h == 0 else 'height: %spx'|format(l.h) }}"></span>{% endfor %}
+    {%- for n in chart.nodes %}<div class="spot" style="left: {{ n.x }}px; top: {{ n.y }}px">{{ card(n.id, direct=n.direct, how=n.how) }}</div>{% endfor %}
+  </div>
+  {%- else %}
   <div class="tree-sheet"><ul class="tree">{{ node(tree) }}</ul></div>
+  {%- endif %}
 </div>
+<div data-tree-hints>
+{%- if mode == "roots" %}
+<p class="hint">{% trans n=chart.people|number, name=top_names[root] %}{{ n }} people: every family on {{ name }}'s generation and
+above, with their descendants. Below {{ name }}'s generation, those who married in are shown without their own
+parents and families. Click someone to see the tree from their roots instead; double-click someone, or click the one
+marked, to open their page.{% endtrans %}</p>
+{%- elif mode == "everyone" %}
+<p class="hint">{% trans n=chart.people|number %}{{ n }} people: every family linked to this one by parents, children and
+partners, each with its own line, a row for each generation. Click someone to bring them to the middle; double-click
+someone, or click the one marked, to open their page.{% endtrans %}</p>
+{%- else %}
 <p class="hint">{% trans %}Click someone to put them in the middle; for someone who married in, the tree changes to the family
 they come from. Double-click someone, or click the one marked, to open their page.{% endtrans %}</p>
+{%- endif %}
+{%- if mode == "roots" %}
+<p class="hint">{% trans name=top_names[root] %}Bold frame: {{ name }}'s own family by blood; plain: married in. A line joins
+partners, dashed for a former partner, and runs down from them to their children. Adopted and foster children are
+marked so, and † marks someone who has died.{% endtrans %}</p>
+{%- elif chart %}
+<p class="hint">{% trans %}Bold frame: your own family by blood (or, if you aren't in it, the family of whom it starts from);
+plain: married in, and the families they come from. A line joins partners, dashed for a former partner, and runs
+down from them to their children. Adopted and foster children are marked so, and † marks someone who has died.{% endtrans %}</p>
+{%- else %}
 <p class="hint">{% trans %}Bold frame: the family line, down from the top; plain: married in. Someone with several partners has a
 branch for each, with that couple's children under the partner. Dashed: a former partner. A current partner's
 children from other relationships are marked step, adopted and foster children are marked so, and † marks someone
 who has died.{% endtrans %}</p>
+{%- endif %}
+</div>
 {% else %}
 <p class="note">{% trans %}No family is entered yet. Start on your own page (under <a href="/people">People</a>): press
 <b>This is me</b>, then add your parents, partner and children there.{% endtrans %}</p>

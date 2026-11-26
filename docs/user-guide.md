@@ -190,6 +190,14 @@ step-family) relative to the person marked **This is me**. Those words work in s
   move around the tree, scroll or pinch to zoom, and **Save as a picture** downloads the whole tree as one large PNG.
   Click someone to put them in the middle; click someone who married in, and the tree changes to the family they come
   from (Back returns to the one before). Double-click someone, or click the one marked, to open their page.
+  **Everyone connected**, beside **One line** at its top, shows instead every family linked to this one by parents,
+  children and partners on one chart, each person once: those who married in with their own parents and lines, a row
+  for each generation. Your own family by blood has the bold frame, and the lines of the families others married in
+  from are lighter. A large family makes a wide chart: zoom out, or save it as a picture. **Roots**, between the two,
+  is the same chart trimmed to one person's history: every family on their generation and above (their partner's
+  too), with all their descendants, but below their generation those who married in come without their own parents
+  and families. From a grandfather's roots, his daughter's husband is there; the husband's parents aren't. It starts
+  with you; click someone to see the tree from their roots instead.
 
   ![The classic tree: a click on a grandfather who married in brings his own family's tree, and a click on a grandson brings him to the middle](screenshots/family-tree-clicks.webp)
 - **Life events** (births, weddings, moves, graduations, adoption, bar and bat mitzvahs, censuses, probate and more,

@@ -1897,7 +1897,9 @@ if (treeFrame) {
     show();
   };
   let marked = null;  // the card marked: a click on it opens their page
-  const lineLink = (card) => `/family/tree?root=${card.dataset.line}&person=${card.dataset.id}`;
+  // on one person's roots (a click: theirs) or everyone on one chart, the tree stays so
+  const lineLink = (card) => `/family/tree?root=${card.dataset.line}&person=${card.dataset.id}`
+    + (treeFrame.dataset.mode ? `&${treeFrame.dataset.mode}=1` : "");
   const mark = (card) => {
     if (marked?.isConnected) {
       marked.classList.remove("here");
@@ -1946,6 +1948,14 @@ if (treeFrame) {
     leaving.inert = true;
     sheet.before(leaving);
     sheet.replaceChildren(...came.childNodes);
+    sheet.className = came.className;  // a chart is laid out to a size of its own (family.chart)
+    sheet.style.width = came.style.width;
+    sheet.style.height = came.style.height;
+    for (const part of ["nav.crumbs h1", ".tree-mode", "[data-tree-hints]"]) {  // whose roots, and what is shown
+      const was = document.querySelector(part);
+      const now = doc.querySelector(part);
+      if (was && now) was.replaceWith(document.importNode(now, true));
+    }
     treeFrame.dataset.root = frame.dataset.root;
     if (frame.dataset.person) treeFrame.dataset.person = frame.dataset.person;
     else delete treeFrame.dataset.person;
@@ -2006,6 +2016,11 @@ if (treeFrame) {
         mark(card);
         treeFrame.dataset.person = card.dataset.id;
         history.replaceState(history.state, "", url);
+        document.querySelectorAll(".tree-mode a").forEach((a) => {  // One line, Everyone connected: around them too
+          const to = new URL(a.href);
+          to.searchParams.set("person", card.dataset.id);
+          a.href = to.pathname + to.search;
+        });
         return;
       }
       treeFrame.classList.add("loading");

@@ -974,3 +974,311 @@ def lines(g: Graph, t: dict) -> dict[int, int]:
         top = root if root in g.ancestors.get(p, ()) else tree_root(g, p, below)
         out[p] = root if top in shown else top
     return out
+
+
+# ---- everyone connected, on one chart (the whole line's page, "Everyone connected") ---------------------------------
+# Every family linked to one person by parents, children and partners, each person once: a row for each generation,
+# partners side by side, and lines from each couple down to their children. Laid out here, in px, for the page to
+# place as it is (family_tree.html, app.css .tree-sheet.all): the cards have one size there.
+
+CARD_W, CARD_H = 104, 140  # a card
+PARTNER_GAP = 14           # between partners side by side
+GAP = 30                   # between anyone else in a row
+ROW = 220                  # from one generation's row to the next
+COUPLE_Y = 40              # down a card, where the line between partners runs (across their faces)
+LANE = 8                   # between the bars of two families over one row, where they would run into each other
+EDGE = 24                  # around the chart
+SWEEPS = 16                # passes ordering the rows (fewer lines crossing)
+SETTLE = 40                # passes placing them (each under its parents, over its children)
+BLOOD_WEIGHT = 3           # how much more a tie of focus's own blood counts in placing them than one married in
+
+
+def connected(g: Graph, start: int) -> set[int]:
+    """Everyone linked to start by parents, children and partners, the stand-in parents of siblings included."""
+    seen, todo = {start}, [start]
+    while todo:
+        p = todo.pop()
+        for q in (*g.effective_parents.get(p, ()), *g.effective_children.get(p, ()), *g.partners.get(p, {})):
+            if q not in seen and (q in g.people or q < 0):
+                seen.add(q)
+                todo.append(q)
+    return seen
+
+
+def charts(g: Graph) -> list[tuple[int, str, int]]:
+    """The families that aren't linked to one another, each a chart: (its top with the most below, how it is named,
+    how many people), the largest first. The choice on the page."""
+    out, seen = [], set()
+    for top, _ in tops(g):
+        if top in seen:
+            continue
+        people = connected(g, top)
+        seen |= people
+        out.append((top, top_name(g, top), sum(1 for p in people if p > 0)))
+    return sorted(out, key=lambda c: -c[2])
+
+
+def roots(g: Graph, focus: int) -> set[int]:
+    """Who is on focus's Roots chart, a trimmed Everyone connected: everyone linked to focus on their generation and
+    above (their ancestors and their partner's, and every branch of those families), the descendants of all of those,
+    and below focus's generation the partners of those descendants, but not the partners' own parents and families.
+    From Russell's roots, his daughter's husband is there; the husband's parents and their line aren't."""
+    full = connected(g, focus)
+    gen = _generations(g, full, focus)
+    upper, todo = {focus}, [focus]
+    while todo:  # linked through focus's generation and those above it only
+        p = todo.pop()
+        for q in (*g.effective_parents.get(p, ()), *g.effective_children.get(p, ()), *g.partners.get(p, {})):
+            if q in full and q not in upper and gen[q] <= gen[focus]:
+                upper.add(q)
+                todo.append(q)
+    keep, todo = set(upper), list(upper)
+    while todo:  # and their descendants: children born to them, not a partner's from elsewhere
+        p = todo.pop()
+        for k in g.effective_children.get(p, ()):
+            if k in full and k not in keep:
+                keep.add(k)
+                todo.append(k)
+    for p in keep - upper:  # the partners of those below, on their own
+        keep |= {q for q in g.partners.get(p, {}) if q in full}
+    return keep
+
+
+def chart(g: Graph, start: int, focus: int | None = None, among: set[int] | None = None) -> dict:
+    """Everyone connected to start (or only those among, as roots() picks them), laid out: {"nodes": [{"id", "x", "y",
+    "direct", "how"}], "lines": [{"x", "y", "w", "h", "dashed", "faint"}], "width", "height", "people"}. x and y are a
+    card's top left corner, in px; a line is a box of one side, across (h 0) or down (w 0). direct: focus's own blood
+    (someone sharing an ancestor with them, or descended from them), drawn bold as the line is on the one line's chart;
+    focus is start when not given."""
+    people = connected(g, start) if among is None else among
+    gen = _generations(g, people, start)
+    blood = _blood(g, people, focus if focus in people else start)
+    birth = lambda p: (g.people[p]["birth_date"] or "9999", g.name(p)) if p in g.people else ("9999", "")
+    parents = {p: sorted(q for q in g.effective_parents.get(p, ()) if q in people) for p in people}
+    families = defaultdict(list)  # the parents in the chart -> their children, eldest first
+    for p in sorted(people, key=birth):
+        if parents[p]:
+            families[tuple(parents[p])].append(p)
+
+    # a row's units: people side by side, a person with their partners and with whoever they had children with
+    beside = defaultdict(set)
+    for p in people:
+        beside[p] |= {q for q in g.partners.get(p, {}) if q in people and gen[q] == gen[p]}
+    for ps in families:
+        for a in ps:
+            beside[a] |= {b for b in ps if b != a and gen[b] == gen[a]}
+    units, unit_of = [], {}
+    for p in sorted(people, key=lambda p: (gen[p], birth(p))):
+        if p in unit_of:
+            continue
+        group, todo = set(), [p]
+        while todo:
+            q = todo.pop()
+            if q not in group:
+                group.add(q)
+                todo += beside[q] - group
+        row = _side_by_side(g, group, beside)
+        for q in row:
+            unit_of[q] = len(units)
+        units.append(row)
+    rows = defaultdict(list)
+    for u, row in enumerate(units):
+        rows[gen[row[0]]].append(u)
+    width = [len(row) * CARD_W + (len(row) - 1) * PARTNER_GAP for row in units]
+    offset = {p: i * (CARD_W + PARTNER_GAP) for row in units for i, p in enumerate(row)}  # within its unit
+    above = {u: {q for p in units[u] for q in parents[p]} for u in range(len(units))}
+    below = {u: {k for ps, kids in families.items() if set(ps) & set(units[u]) for k in kids} for u in range(len(units))}
+
+    # the order in each row: families together, from the top down, then fewer crossings (barycenters, both ways)
+    order, done = {r: [] for r in rows}, set()
+
+    def visit(u: int) -> None:
+        done.add(u)
+        order[gen[units[u][0]]].append(u)
+        for k in sorted(below[u], key=birth):
+            if unit_of[k] not in done:
+                visit(unit_of[k])
+
+    for r in sorted(rows):
+        for u in rows[r]:
+            if u not in done:
+                visit(u)
+    x = {}
+
+    def pack(r: int) -> None:
+        at = 0
+        for u in order[r]:
+            x[u] = at
+            at += width[u] + GAP
+
+    center = lambda p: x[unit_of[p]] + offset[p] + CARD_W / 2
+    for r in order:
+        pack(r)
+    # brothers and sisters stay together, eldest first, as a block under their parents; one who married into another
+    # family on the chart stands at the end of the block nearer that family. A couple who both have parents on it goes
+    # with focus's own blood: their family stays whole, and the line of the family the other married in from reaches
+    # over to them. Going down, a row's blocks follow their parents; going up, whole blocks follow their children.
+    home, pull = {}, {}
+    for u, row in enumerate(units):
+        theirs = [tuple(parents[p]) for p in sorted(row, key=lambda p: p not in blood) if parents[p]]
+        home[u] = theirs[0] if theirs else ("alone", u)
+        pull[u] = [q for f in theirs[1:] for q in f]
+    mean = lambda xs: sum(xs) / len(xs)
+    rank = {}  # each one's place along their row, 0 to 1: rows of any length compared alike
+
+    def ranks(r: int) -> None:
+        n = max(1, len(order[r]) - 1)
+        for i, u in enumerate(order[r]):
+            for j, p in enumerate(units[u]):
+                rank[p] = (i + j / (len(units[u]) + 1)) / n
+
+    for r in order:
+        ranks(r)
+    for sweep in range(SWEEPS):
+        for r in sorted(order, reverse=sweep % 2 == 1):
+            if sweep % 2 == 0:
+                spot = {u: mean([rank[q] for q in home[u]]) if home[u][0] != "alone" else rank[units[u][0]]
+                        for u in order[r]}
+                lean = {u: mean([rank[q] for q in pull[u]]) - spot[u] if pull[u] else 0 for u in order[r]}
+                order[r].sort(key=lambda u: (spot[u], str(home[u]), (lean[u] > 0) - (lean[u] < 0), lean[u],
+                                             min(birth(p) for p in units[u])))
+            else:
+                blocks = defaultdict(list)
+                for u in order[r]:
+                    blocks[home[u]].append(u)
+                kids = lambda us: [rank[k] for u in us for k in below[u]]
+                order[r] = [u for us in sorted(blocks.values(), key=lambda us: mean(kids(us)) if kids(us)
+                                               else mean([rank[p] for u in us for p in units[u]])) for u in us]
+            ranks(r)
+    for r in order:
+        pack(r)
+
+    # where each goes in its row: as near as the row allows to under its parents and over its children
+    for sweep in range(SETTLE):
+        for r in sorted(order, reverse=sweep % 2 == 1):
+            wanted = []
+            for u in order[r]:  # (where it wants to be, how much): the ties of focus's blood count most
+                wants = [(sum(center(q) for q in parents[p]) / len(parents[p]) - offset[p] - CARD_W / 2,
+                          BLOOD_WEIGHT if p in blood else 1) for p in units[u] if parents[p]]
+                for ps, kids in families.items():
+                    mine = [p for p in ps if unit_of[p] == u]
+                    if mine:
+                        middle = sum(offset[p] for p in mine) / len(mine) + CARD_W / 2
+                        wants.append((sum(center(k) for k in kids) / len(kids) - middle,
+                                      BLOOD_WEIGHT if any(k in blood for k in kids) else 1))
+                wanted.append(sum(a * w for a, w in wants) / sum(w for _, w in wants) if wants else x[u])
+            for u, left in zip(order[r], _in_order(wanted, [width[u] for u in order[r]])):
+                x[u] = left
+    least = min(x.values(), default=0)
+    top = min(order, default=0)
+    place = {p: (x[unit_of[p]] + offset[p] - least + EDGE, (gen[p] - top) * ROW + EDGE) for p in people}
+
+    lines = []  # faint: the lines of families focus's blood isn't in (they reach across the chart to where their
+    # children married in), drawn lighter so focus's own family stands out
+    across = lambda x1, x2, y, dashed=False, faint=False: lines.append(
+        {"x": round(min(x1, x2)), "y": round(y), "w": round(abs(x2 - x1)), "h": 0, "dashed": dashed, "faint": faint})
+    down = lambda x0, y1, y2, faint=False: lines.append(
+        {"x": round(x0), "y": round(min(y1, y2)), "w": 0, "h": round(abs(y2 - y1)), "dashed": False, "faint": faint})
+    couples = {tuple(sorted((a, b))) for a in people for b in g.partners.get(a, {}) if b in people}
+    couples |= {ps for ps in families if len(ps) == 2}
+    for a, b in sorted(couples):
+        (ax, ay), (bx, by) = place[a], place[b]
+        if ay == by:  # side by side: from one card's edge to the other's, across their faces
+            current = g.partners.get(a, {}).get(b, (False,))[0]
+            across(min(ax, bx) + CARD_W, max(ax, bx), ay + COUPLE_Y, dashed=not current,
+                   faint=a not in blood and b not in blood)
+    bars = defaultdict(list)  # a row's families' bars, to keep apart: [(left, right)] in each lane
+    for ps, kids in sorted(families.items(), key=lambda f: min(place[k][0] for k in f[1])):
+        tops_ = [place[p] for p in ps]
+        lowest = max(y for _, y in tops_)
+        if len(ps) == 2 and tops_[0][1] == tops_[1][1]:  # from the middle of the line between them
+            fx = (min(t[0] for t in tops_) + CARD_W + max(t[0] for t in tops_)) / 2
+            fy = lowest + COUPLE_Y
+        else:  # from under the one parent (or the lower of two)
+            fx = sum(t[0] for t in tops_) / len(tops_) + CARD_W / 2
+            fy = lowest + CARD_H
+        faint = not any(k in blood for k in kids)
+        for row_y in sorted({place[k][1] for k in kids}):
+            these = [place[k][0] + CARD_W / 2 for k in kids if place[k][1] == row_y]
+            left, right = min(these + [fx]), max(these + [fx])
+            lanes = bars[row_y]
+            lane = next((i for i, spans in enumerate(lanes) if all(right < a - 6 or left > b + 6 for a, b in spans)),
+                        len(lanes))
+            if lane == len(lanes):
+                lanes.append([])
+            lanes[lane].append((left, right))
+            bar = row_y - 14 - LANE * min(lane, (ROW - CARD_H - 24) // LANE)
+            down(fx, fy, bar, faint)
+            if right > left:
+                across(left, right, bar, faint=faint)
+            for cx in these:
+                down(cx, bar, row_y, faint)
+    nodes = [{"id": p, "x": round(place[p][0]), "y": round(place[p][1]), "direct": p in blood,
+              "how": next((g.how(p, q) for q in parents[p] if g.how(p, q) != "birth"), "birth")}
+             for p in sorted(people, key=lambda p: place[p])]
+    return {"nodes": nodes, "lines": lines, "people": sum(1 for p in people if p > 0),
+            "width": round(max((place[p][0] for p in people), default=0) + CARD_W + EDGE),
+            "height": round(max((place[p][1] for p in people), default=0) + CARD_H + EDGE)}
+
+
+def _generations(g: Graph, people: set[int], start: int) -> dict[int, int]:
+    """Each one's row, 0 the top: a parent's is above their child's, a partner's the same; reached from start, partners
+    first (a step that doesn't change the row goes to the front), so a couple stays on one row where the family allows."""
+    gen, todo = {start: 0}, deque([start])
+    while todo:
+        p = todo.popleft()
+        steps = ([(q, 0) for q in g.partners.get(p, {})] + [(q, -1) for q in g.effective_parents.get(p, ())]
+                 + [(q, 1) for q in g.effective_children.get(p, ())])
+        for q, d in steps:
+            if q in people and q not in gen:
+                gen[q] = gen[p] + d
+                (todo.appendleft if d == 0 else todo.append)(q)
+    low = min(gen.values())
+    return {p: v - low for p, v in gen.items()}
+
+
+def _side_by_side(g: Graph, group: set[int], beside: dict[int, set[int]]) -> list[int]:
+    """The order people side by side stand in, each next to their partner: along the line they make, or around the one
+    with the most partners, the former ones on the left and the current one on the right."""
+    if len(group) == 1:
+        return list(group)
+    near = {p: beside[p] & group for p in group}
+    ends = sorted(p for p in group if len(near[p]) == 1)
+    if ends and all(len(n) <= 2 for n in near.values()):  # a line: one partner after another
+        out, prev, p = [], None, ends[0]
+        while p is not None:
+            out.append(p)
+            nxt = sorted(near[p] - {prev} - set(out))
+            prev, p = p, (nxt[0] if nxt else None)
+        if len(out) == len(group):
+            return out
+    hub = max(group, key=lambda p: (len(near[p]), -p))
+    others = sorted(group - {hub}, key=lambda q: (g.partners.get(hub, {}).get(q, (False,))[0], q))
+    half = len(others) // 2
+    return [*others[:half], hub, *others[half:]]
+
+
+def _in_order(wanted: list[float], widths: list[int]) -> list[float]:
+    """Left edges as near as can be to wanted (least squares), keeping the order and GAP between: pool adjacent
+    violators, on the edges less the room the ones before take up."""
+    room, at = [], 0.0
+    for w in widths:
+        room.append(at)
+        at += w + GAP
+    blocks: list[list[float]] = []  # [sum, count]
+    for want, r in zip(wanted, room):
+        blocks.append([want - r, 1])
+        while len(blocks) > 1 and blocks[-2][0] / blocks[-2][1] > blocks[-1][0] / blocks[-1][1]:
+            s, n = blocks.pop()
+            blocks[-1][0] += s
+            blocks[-1][1] += n
+    out = []
+    for s, n in blocks:
+        out += [s / n] * int(n)
+    return [v + r for v, r in zip(out, room)]
+
+
+def _blood(g: Graph, people: set[int], focus: int) -> set[int]:
+    """focus's own blood among people: those sharing an ancestor with them (their descendants share focus)."""
+    theirs = set(g.ancestors.get(focus, {focus: 0}))
+    return {p for p in people if theirs & set(g.ancestors.get(p, {p: 0}))}

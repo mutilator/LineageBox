@@ -632,10 +632,14 @@ def _unplaced(c, named, linked: set) -> list[dict]:
 
 
 @router.get("/family/tree", response_class=HTMLResponse)
-def family_tree_page(request: Request, root: int | None = None, person: int | None = None, c=Depends(con)):
+def family_tree_page(request: Request, root: int | None = None, person: int | None = None, everyone: bool = False,
+                     roots: bool = False, c=Depends(con)):
     """The whole line down from one ancestor, on a page of its own: to move around and zoom in a large family, and to
     save as one picture. person: shown first (from the Family page, the one in the middle; from a person's page,
-    them)."""
+    them). everyone: instead, everyone the line is linked to by parents, children and partners, each family they
+    married into with its own line, on one chart (family.chart). roots: person's (or yours, or the top's) roots on
+    one chart: every family on their generation and above with its descendants, but not the families of those who
+    married in below them (family.roots)."""
     g = family.load(c)
     ego = family.me(c)
     tops = family.tops(g)
@@ -643,9 +647,31 @@ def family_tree_page(request: Request, root: int | None = None, person: int | No
         start = person if person in g.people else ego
         root = family.tree_root(g, start) if start is not None else tops[0][0] if tops else None
     top_names = {p: family.top_name(g, p) for p in [*(t[0] for t in tops), *([root] if root is not None else [])]}
-    tree = family.tree(g, root) if root is not None else None
-    # a click on someone shows their line: this one, or the family someone who married in comes from (app.js)
+    person = person if person in g.people else None
+    chart = charts = None
+    mode = "line"
+    focus = person if person is not None else ego if ego in g.people else root if root in g.people else None
+    if roots and focus is not None:
+        mode, root = "roots", focus
+        chart = family.chart(g, focus, focus, family.roots(g, focus))
+        top_names[root] = g.name(root)  # one person's, not a line's top couple
+        tree, lines = None, {n["id"]: n["id"] for n in chart["nodes"] if n["id"] > 0}  # a click: their own roots
+    elif everyone and root is not None:
+        mode = "everyone"
+        linked = family.connected(g, root)
+        chart = family.chart(g, root, person if person in linked else ego)
+        charts = family.charts(g)
+        # the chart is named by its largest line's top, as the choice of charts names it
+        root = next((top for top, _, _ in charts if top in linked), root)
+        top_names.setdefault(root, family.top_name(g, root))
+        tree, lines = None, {n["id"]: root for n in chart["nodes"] if n["id"] > 0}  # a click glides onto them
+    else:
+        tree = family.tree(g, root) if root is not None else None
+        # a click on someone shows their line: this one, or the family someone who married in comes from (app.js)
+        lines = family.lines(g, tree) if tree else {}
     return page(request, "family_tree.html", nav="family", g=g, ego=ego,
                 kin=family.relations_to(g, ego) if ego else {}, tops=tops, root=root, top_names=top_names,
-                tree=tree, lines=family.lines(g, tree) if tree else {},
-                person=person if person in g.people else None, covers=cover_faces(catalog.people(c)))
+                tree=tree, chart=chart, charts=charts, mode=mode, lines=lines,
+                person=focus if mode == "roots" else person,
+                line_root=family.tree_root(g, focus) if mode == "roots" else root,  # One line, from there
+                covers=cover_faces(catalog.people(c)))

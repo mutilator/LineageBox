@@ -420,6 +420,12 @@ PAGES = {
     "family_tree": Page(N_("The whole line down from one ancestor"), (
         N_("Everyone descended from one ancestor, with their partners: pick whom it starts from at the top. A bold "
            "frame is the family line; a plain one married in; a dashed one a former partner."),
+        N_("Everyone connected, beside One line, shows every family linked to this one by parents, children and "
+           "partners on one chart instead: those who married in with their own parents and lines, a row for each "
+           "generation. Bold is your own family by blood."),
+        N_("Roots, between the two, trims that to one person's history: every family on their generation and above, "
+           "with all their descendants, but below them those who married in come without their own parents and "
+           "families. It starts with you; click someone to see the tree from their roots instead."),
         N_("Drag the tree to move around it, or use the arrow keys once it is clicked. Scroll or pinch to zoom in and "
            "out; Show it all fits the whole tree in the frame."),
         N_("Click someone to put them in the middle, marked. Click someone who married in, and the tree changes to the "

@@ -624,7 +624,8 @@ button.x { padding: 0 5px; border: 0; background: none; color: var(--muted); fon
 button.x:hover { color: var(--danger); }
 button.small { padding: 0 6px; font-size: .78rem; }
 .tree-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 8px; }
-.tree-pick select { font: inherit; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--text); }
+.tree-pick label { max-width: 100%; }
+.tree-pick select { max-width: 100%; font: inherit; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--text); }
 .tree, .tree ul { display: flex; justify-content: center; margin: 0; padding: 0; }
 .tree { width: max-content; min-width: 100%; }
 .tree ul { position: relative; padding-top: 18px; }
@@ -724,6 +725,23 @@ details.glance.glancing > .family-cards { position: absolute; z-index: 20; top: 
 .tree-frame.panning .tree-sheet { user-select: none; }
 .tree-sheet .fcard.here { outline: 3px solid var(--accent); outline-offset: 3px; }
 .tree-sheet.leaving { pointer-events: none; }  /* the tree before another line's, fading out */
+/* One line, or everyone connected: two halves of one button */
+.tree-mode { display: inline-flex; margin: 0 0 8px; border: 1px solid var(--edge); border-radius: 8px; overflow: hidden; }
+.tree-mode a { padding: 5px 12px; color: var(--text); }
+.tree-mode a + a { border-left: 1px solid var(--edge); }
+.tree-mode a:hover { text-decoration: none; background: var(--tile); }
+.tree-mode a[aria-current] { background: var(--accent); color: var(--on-accent); font-weight: 600; }
+/* everyone connected (family.chart): every card and line at the place worked out for it, the cards of one size
+   (family.CARD_W, CARD_H), each line a box of one border, so the picture (treePicture) draws them as boxes */
+.tree-sheet.all { padding: 0; width: auto; }
+.tree-sheet.all .spot { position: absolute; }
+.tree-sheet.all .fcard { width: 104px; height: 140px; overflow: hidden; }
+.tree-sheet.all .fcard .name, .tree-sheet.all .fcard .kin { line-height: 1.2; max-height: 2.4em; overflow: hidden; }
+.tree-sheet.all .ln { position: absolute; border: 0 solid var(--edge); }
+.tree-sheet.all .ln.across { height: 0; margin-top: -1px; border-top-width: 2px; }
+.tree-sheet.all .ln.down { width: 0; margin-left: -1px; border-left-width: 2px; }
+.tree-sheet.all .ln.dashed { border-style: dashed; }
+.tree-sheet.all .ln.faint { opacity: .45; }  /* families your blood isn't in: lighter */
 .tree-frame.loading, .tree-frame.loading a { cursor: progress; }
 
 /* tours */

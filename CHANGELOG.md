@@ -16,6 +16,9 @@ versions can't open the updated one.
   ([User guide](docs/user-guide.md#the-family-tree))
 - **Picking a suggested name uses it at once.** A click or a tap names the face or adds the person, with no Enter
   after it; Enter alone, or **Or someone new**, adds the name as typed. ([User guide](docs/user-guide.md#naming-faces))
+- **Everyone connected, and Roots, in the classic family tree.** Beside **One line**, one chart of every family linked
+  by parents, children and partners, each person once, a row for each generation; **Roots** trims it to one person's
+  history, without the families of those who married in below them. ([User guide](docs/user-guide.md#the-family-tree))
 - **Pictures in the guides**, with short clips where a page moves.
 
 ### Fixed

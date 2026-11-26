@@ -236,6 +236,85 @@ def test_tree_groups_children_by_their_parents(con, fam):
         fam["Katherine"], fam["Ana"]}
 
 
+def test_everyone_connected_on_one_chart(con, fam):
+    """The classic tree can show everyone linked by parents, children and partners at once, each person once: a row a
+    generation, partners side by side, children a row under their parents, no card over another, a line between
+    partners (dashed for a former one) and down from them to each child."""
+    g = family.load(con)
+    c = family.chart(g, fam["Daniel"])
+    at = {n["id"]: (n["x"], n["y"]) for n in c["nodes"]}
+    # all but the friend: the married-in wife's sister and her son too, through their parents (not entered)
+    assert {g.name(p) for p in at if p > 0} == set(fam) - {"Jake"} and c["people"] == len(fam) - 1
+    assert sum(1 for p in at if p < 0) == 1
+    row = lambda name: at[fam[name]][1]
+    assert row("Daniel") == row("Katherine") == row("Ana") == row("Mike") == row("Diane") == row("Rosa")
+    assert row("Grandpa") == row("Grandma") == row("Daniel") - family.ROW
+    assert row("Owen") == row("Nora") == row("Leo") == row("Daniel") + family.ROW == row("Finn") - family.ROW
+    beside = family.CARD_W + family.PARTNER_GAP
+    assert abs(at[fam["Daniel"]][0] - at[fam["Katherine"]][0]) == beside
+    assert abs(at[fam["Mike"]][0] - at[fam["Diane"]][0]) == beside == abs(at[fam["Mike"]][0] - at[fam["Rosa"]][0])
+    for a, (ax, ay) in at.items():
+        for b, (bx, by) in at.items():
+            assert a == b or ay != by or abs(ax - bx) >= family.CARD_W + family.PARTNER_GAP, (g.name(a), g.name(b))
+    lines = c["lines"]
+    couple = lambda a, b, dashed: {"x": min(at[fam[a]][0], at[fam[b]][0]) + family.CARD_W,
+                                   "y": at[fam[a]][1] + family.COUPLE_Y, "w": family.PARTNER_GAP, "h": 0,
+                                   "dashed": dashed, "faint": False}  # Mike is Daniel's blood
+    assert couple("Mike", "Diane", True) in lines and couple("Mike", "Rosa", False) in lines
+    for p, (x, y) in at.items():  # a line comes down to every child, to the middle of the top of its card
+        if any(q in at for q in g.effective_parents.get(p, ())):
+            assert any(l["w"] == 0 and l["x"] == round(x + family.CARD_W / 2) and l["y"] + l["h"] == y for l in lines)
+    # from anyone in it, the same chart; one for the whole family, the friend apart (no family of his own)
+    assert {n["id"] for n in family.chart(g, fam["Finn"])["nodes"]} == set(at)
+    assert [n for _, _, n in family.charts(g)] == [len(fam) - 1]
+    # bold: Daniel's own blood; those who married in, and the in-laws' side, plain
+    direct = {g.name(n["id"]) for n in c["nodes"] if n["direct"] and n["id"] > 0}
+    assert {"Grandpa", "Daniel", "Linda", "Emma", "Finn", "Kyle", "Owen"} <= direct
+    assert not direct & {"Katherine", "Ana", "Leo", "Diane", "Rosa", "Nora"}
+    # the lines of a family his blood isn't in (Katherine's sister Ana and her son) are drawn lighter
+    leo = at[fam["Leo"]]
+    assert any(l["faint"] and l["w"] == 0 and l["x"] == round(leo[0] + family.CARD_W / 2) and l["y"] + l["h"] == leo[1]
+               for l in lines)
+
+
+def test_the_everyone_connected_page(con, cfg, fam):
+    client = TestClient(webapp.create_app(cfg), client=LAN)
+    one = client.get(f"/family/tree?person={fam['Owen']}").text
+    assert '<a href="/family/tree?root=' in one and 'aria-current="page" title="Everyone descended' in one
+    page = client.get(f"/family/tree?person={fam['Owen']}&everyone=1").text
+    assert 'class="tree-sheet all"' in page and 'aria-current="page" title="Every family' in page
+    root = re.search(r'data-root="(-?\d+)"', page)[1]
+    for name, pid in fam.items():  # a card for each, its click gliding onto them in this chart
+        assert (f'href="/family/tree?root={root}&amp;person={pid}&amp;everyone=1" data-id="{pid}" '
+                f'data-line="{root}"' in page) == (name != "Jake"), name
+    assert f'data-person="{fam["Owen"]}" data-mode="everyone"' in page and "17 people" in page
+    assert '<input type="hidden" name="everyone" value="1">' in page and "· 17 people</option>" in page
+
+
+def test_roots(con, cfg, fam):
+    """A trimmed Everyone connected from one person: every family on their generation and above (their wife's too)
+    with all its descendants, but below them those who married in come without their own families: Daniel's roots
+    have his son's wife, not her father. From the son's roots, his wife's father is there."""
+    ned = people.person_id(con, "Ned")
+    family.link(con, fam["Nora"], "father", ned)
+    con.commit()
+    g = family.load(con)
+    names = lambda ids: {g.name(p) for p in ids if p > 0}
+    assert names(family.roots(g, fam["Daniel"])) == set(fam) - {"Jake"}  # all of Everyone connected but Ned
+    assert ned in family.connected(g, fam["Daniel"])
+    assert ned in family.roots(g, fam["Owen"]) and names(family.roots(g, fam["Owen"])) == set(fam) - {"Jake"} | {"Ned"}
+    client = TestClient(webapp.create_app(cfg), client=LAN)
+    page = client.get(f"/family/tree?person={fam['Daniel']}&roots=1").text
+    assert "<h1>Roots of Daniel</h1>" in page and f'data-root="{fam["Daniel"]}"' in page and 'data-mode="roots"' in page
+    assert f'data-id="{ned}"' not in page
+    for name in ("Katherine", "Leo", "Nora", "Ava"):  # a click shows their own roots
+        pid = fam[name]
+        assert f'href="/family/tree?root={pid}&amp;person={pid}&amp;roots=1" data-id="{pid}" data-line="{pid}"' in page
+    assert f'data-id="{ned}"' in client.get(f"/family/tree?person={fam['Daniel']}&everyone=1").text
+    # one person's roots are theirs alone, whoever their partner is
+    assert "<h1>Roots of Owen</h1>" in client.get(f"/family/tree?root={fam['Owen']}&person={fam['Owen']}&roots=1").text
+
+
 def test_family_pages_and_api(con, cfg, fam):
     client = TestClient(webapp.create_app(cfg), client=LAN)
     app = {"X-Requested-With": "lineagebox"}
