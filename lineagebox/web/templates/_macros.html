@@ -34,7 +34,7 @@
 <div class="faces review">
   {%- for f in faces %}
   <span class="face" id="f{{ f.id }}">
-    <a href="/image/{{ f.image_id }}"><img src="/face/{{ f.id }}" alt="" loading="lazy" width="80" height="80"></a>
+    <a href="/image/{{ f.image_id }}"><img src="/face/{{ f.id }}" alt="{{ _('Open the photo of this face') }}" loading="lazy" width="80" height="80"></a>
     <button type="button" data-api="/api/faces/{{ f.id }}/{{ action }}" data-remove="#f{{ f.id }}" title="{{ title }}" aria-label="{{ title }}">×</button>
   </span>
   {%- endfor %}

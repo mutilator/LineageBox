@@ -321,7 +321,11 @@ def test_dates_and_places_as_the_tree_keeps_them():
     assert fr.tidy_place("Lima, OH") == "Lima, Ohio, USA"
     assert fr.tidy_place("Lima OH") == "Lima, Ohio, USA"
     assert fr.tidy_place("Lima, Mich.") == "Lima, Michigan, USA"
-    assert fr.tidy_place("Lakeview", "Ohio") == "Lakeview, Ohio, USA"
+    assert fr.tidy_place("Lakeview", "Ohio") == "Lakeview, Ohio, USA"  # too small for the list of towns
+    assert fr.tidy_place("Zanesville", "Ohio") == "Zanesville, Ohio, USA"
+    # a big city named alone in an obituary from another state is that city; one in two other states, left alone
+    assert fr.tidy_place("Pittsburgh", "Ohio") == "Pittsburgh, Pennsylvania, USA"
+    assert fr.tidy_place("Columbus", "Pennsylvania") == "Columbus"
     assert fr.tidy_place("Toronto, Ontario, Canada") == "Toronto, Ontario, Canada"
     assert fr.tidy_place("unknown") is None
     # a building given as the place of death is told from the town, whichever way it is spelled

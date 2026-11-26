@@ -51,6 +51,8 @@ in, with Sign out, and how the site looks (below). The LineageBox logo always go
 page never flashes the other colors first. The map's popups and boxes follow it too; a picture of the family tree is
 always drawn on white.
 
+![The round button at the top right opened: Colors (Automatic, Light, Dark) and Photo tiles (Squares or Whole photos; Small, Medium, Large)](screenshots/colors-and-tiles.png)
+
 **Photo tiles**, under Colors, sets how lists of photos look, Home's photos by the day too, in each browser the
 same way:
 
@@ -92,6 +94,11 @@ from every face you name, so each answer helps it find the rest.
   know them, as it is Don't know on one face.
 - A face nobody looks enough like has a box to type who it is, with the names suggested as you type. **Don't know**
   stops asking you about it; **Ask the family** puts it on everyone's Home under **Who is this?**.
+- **Every box for a name works the same way.** As you type, the people whose names fit are listed under it (over it,
+  when a phone's keyboard leaves no room below). Click or tap the right one and it is used at once: the face is named,
+  or the person added. Where there is more to fill in (adding a relative: what they are to them), it moves on to that.
+  Pressing Enter without picking anyone, or **Or someone new** at the foot of the list, adds the name as you typed it:
+  someone new, unless it is exactly the name of someone here. So when the person is in the list, pick them from it.
 - The faces come in this order: those someone in the family asked about; those in photos with people already named
   that look like someone else (nobody is in a photo twice, so each face is matched to the closest person not yet
   named in that photo); those recognized automatically that nobody has checked, the least sure first; and last,
@@ -170,6 +177,9 @@ step-family) relative to the person marked **This is me**. Those words work in s
   Below it, folded away, are everyone by relationship (point at a group to see who is in it, or click it to keep it
   open), friends and pets, groups, and the people not placed yet. Each person's page lists their whole family from
   their own point of view.
+
+  ![The Family page: 1 Read into the family tree, 2 click anyone to put them in the middle, 3 the classic tree, 4 a book of this family, 5 everyone by relationship, 6 family tree programs, to export or bring in a tree](screenshots/family-page.webp)
+
 - **Not placed yet**, at the foot of the Family page, is everyone with no relationship and no group entered, those
   with no photos first. Open one to say how they're related or to put them in a group. An admin tidying up can take
   someone out of the catalog for good with the **×** on their card; it is offered only for those with no photos at
@@ -253,6 +263,9 @@ step-family) relative to the person marked **This is me**. Those words work in s
   only what changed, and someone added by mistake can be removed from the tree right there; reading it again lists
   what you left unticked once more. It needs the AI (Ollama) on; it takes a minute or two (the page shows an
   hourglass meanwhile), and a long obituary is read in two halves.
+
+  ![An obituary read into the tree: 1 who each person named is in the tree, 2 the changes for them, ticked, to untick any that are wrong, 3 Make the ticked changes](screenshots/read-into-tree.png)
+
 - **Remove** (at the bottom of a person's page, for admins) takes someone out of the catalog: added by mistake, or a
   name you don't want any more. Every face named as them loses the name and goes back to the unnamed faces
   (Cleanup → Confirm faces), where it can be grouped, recognized or named as whoever it is; their family links, life
@@ -432,6 +445,9 @@ else, finds only the photos they can see, and suggests only the people, places a
   its name was read as (a place, an occasion, a date, names) and corrects it: every photo in it and below takes that
   on, so one misread folder name can be put right for all of them at once. A correction is never read again by the AI
   (**Read the name again** gives it back), and Recent changes can undo it.
+
+  ![What this folder means, open on a folder's page: its place, occasion, date and names as its name was read, each a box to put right](screenshots/folder-meaning.png)
+
 - **Timeline** shows every year with photos, each with its events: its biggest days of photos, named by what they
   were (a wedding, a birthday, the event a folder is named for) or by their dates. The two latest years show theirs;
   point at another, or press **Events** beside it, to see its events, and click one to see its photos. Its bars show January to December, so busy
@@ -672,6 +688,8 @@ of its folder or file (ScannedPhotos, CamScanner, Scan_0001). Under each, what c
 **Date it** gives it that date, as if you had typed it on its page; or type the date as you know it. Either can be
 undone on Recent changes, and the scan leaves the list. **Its date is right** leaves it as it is and takes it off.
 
+![A scan on Suggested dates: 1 the likeliest date, from the scans beside it, 2 what who is in it allows, 3 a box for the date as you know it, 4 Its date is right](screenshots/suggested-dates.webp)
+
 ## Working on many photos at once
 
 **Select photos**, on a folder, a year, a tag, a search, a tour, a person's page (above their life by age) or a Status
@@ -699,6 +717,9 @@ photos: with more ticked, the bar says so, and nothing is done to only some of t
 
 - Kinds of tour are set up on **Settings → Photo tours**: who, when, which words, how many photos, photos or videos.
 - Whatever a kind leaves open, a wizard asks for. Tours are saved with a name made from the answers.
+
+  ![A new tour: Birthdays asks whose, the name fills itself in, Make the tour, then Play: the title card, and each photo with who is in it](screenshots/tour-new.webp)
+
 - Photos are picked afresh each time a tour opens: one per group of similar shots, never blurry, with the clearest
   faces, from different days.
 - **Suggested tours** come from what the library holds, such as days that come back year after year.
@@ -728,6 +749,9 @@ it. They are listed on **Albums** (under Tours).
   and Esc puts it back. Press ★ on the one to be its cover, type a caption under a photo and press Enter, and press ×
   to take a photo out (it stays in your photos; **Undo** puts it back). **Rename** also takes a few words about the
   album.
+
+  ![An album: a photo dragged to the front, made the cover with the star, and given a caption, then Enter](screenshots/album-arrange.webp)
+
 - An album's caption for a photo is the album's own ("Grandma, who flew in from Ohio"). Where it has none, the photo's
   own caption shows, in gray, so nothing has to be written twice.
 - **Put in date order**, in your own album, puts its photos in the order they were taken, the earliest first — the
@@ -945,6 +969,9 @@ The menu at the side shows one part at a time (on a phone, it is above the setti
   page shows how far it is, and the worker doesn't look through the folders meanwhile. **Put back** undoes the latest
   one that moved files, but for files moved or removed since (junk deleted stays deleted). Other programs and backups that know the photos by where they
   are will find them moved.
+
+  ![Reorganize folders: 1 See where everything goes, 2 the new layout, with how many files move and a few examples, 3 Reorganize now](screenshots/reorganize-folders.png)
+
 - **Schedule:** how often to look for new photos, and when the AI may describe: any time, certain hours and days, or
   paused.
 - **AI, speech and faces:** **AI (Ollama)** and **Speech in videos, recordings and stories (Whisper)**: on or off, the
@@ -980,6 +1007,8 @@ The menu at the side shows one part at a time (on a phone, it is above the setti
 
 - `?` shows the page's help and keys.
 - `/` searches.
+- In a box for a name, `↓` `↑` go through the people suggested and Enter uses the one picked; Enter with none picked
+  adds the name as typed.
 - `g` then a letter goes to a page (the help lists them).
 - On a photo, `←` `→` step through photos and `Esc` goes back; `h` gives it your heart, or takes it off.
 - On a tour, an album or Your favorites, `p` plays the slideshow. The slideshow holds the keyboard while it plays:

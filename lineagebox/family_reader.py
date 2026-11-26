@@ -476,8 +476,26 @@ def _state(word: str) -> str | None:
     return _STATE.get(word.strip().rstrip(".").lower())
 
 
+BIG_CITY = 100  # thousand people: a city named without its state ("his son, of Pittsburgh") is that one
+
+
+def _state_for(town: str, default: str) -> str | None:
+    """The state of a town named alone in a text from default (an obituary from Ohio): that one, unless the list of
+    towns (towns.py) has no town of the name there but a big city of it elsewhere: "his sister, of Pittsburgh" is
+    Pittsburgh, Pennsylvania. A small town of the name elsewhere doesn't count: the text's own state may have one too
+    small for the list (Lakeview, Ohio). Big cities of the name in two other states: no state rather than a wrong one."""
+    from lineagebox import towns
+
+    found = towns.regions_of(town)
+    if not found or default in found:
+        return default
+    big = [region for region, people in found.items() if people >= BIG_CITY]
+    return big[0] if len(big) == 1 else None if big else default
+
+
 def tidy_place(text: str | None, default_state: str | None = None) -> str | None:
-    """'Lima, OH' -> 'Lima, Ohio, USA', 'Lima OH' too; 'Lima' with default_state Ohio as well. Others as written."""
+    """'Lima, OH' -> 'Lima, Ohio, USA', 'Lima OH' too; 'Lima' with default_state Ohio as well, but 'Pittsburgh' with it
+    is Pittsburgh, Pennsylvania (_state_for). Others as written."""
     parts = [p.strip() for p in str(text or "").split(",") if p.strip()]
     if parts and parts[-1].lower() in _USA:
         parts.pop()
@@ -490,8 +508,8 @@ def tidy_place(text: str | None, default_state: str | None = None) -> str | None
         parts[-1:] = [m[1], state := _state(m[2])]  # "Lima OH", "Lima Mich."
     elif len(parts) == 1 and parts[0].lower() in _STATE and (parts[0].isupper() or len(parts[0]) > 4):
         state = parts[0] = _state(parts[0])  # a state alone
-    elif len(parts) == 1 and default_state:
-        parts.append(state := default_state)
+    elif len(parts) == 1 and default_state and (state := _state_for(parts[0], default_state)):
+        parts.append(state)
     return ", ".join(parts + (["USA"] if state else []))[:200]
 
 

@@ -165,7 +165,7 @@ Nothing here can be changed.{% endtrans %}</p>
       <div id="link{{ a.id }}"></div>
     </div>
     <form class="inline-facts" data-api="/api/accounts/{{ a.id }}">
-      <input name="name" data-names autocomplete="off" maxlength="80" value="{{ a.person_name or '' }}" aria-label="{{ _('Who they are in the family tree') }}" placeholder="{{ _('who they are') }}">
+      <input name="name" data-names data-names-go autocomplete="off" maxlength="80" value="{{ a.person_name or '' }}" aria-label="{{ _('Who they are in the family tree') }}" placeholder="{{ _('who they are') }}">
       <select name="role" aria-label="{{ _('Role') }}">{% for r in roles %}<option{% if r == a.role %} selected{% endif %}>{{ r }}</option>{% endfor %}</select>
       <button type="submit">{% trans %}Save{% endtrans %}</button>
     </form>

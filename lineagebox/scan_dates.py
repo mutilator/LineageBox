@@ -370,10 +370,12 @@ def suggestions(con: sqlite3.Connection, item: dict, south: bool = False, day_fi
     None for a bound only; "label": what to show; "why": the reason}], each date once."""
     out: list[dict] = []
     seen = set()
+    spans: dict[str, dates.Span] = {}
 
     def add(span: dates.Span | None, why: str, label: str | None = None) -> None:
         if span is not None and span.text not in seen:
             seen.add(span.text)
+            spans[span.text] = span
             out.append({"text": span.text, "label": label or span.text, "why": why})
 
     if row := con.execute("SELECT dates FROM scan_reading WHERE image_id = ?", (item["id"],)).fetchone():
@@ -416,6 +418,14 @@ def suggestions(con: sqlite3.Connection, item: dict, south: bool = False, day_fi
                 add(dates.photo_date(said, south, day_first), reason)
             except dates.Problem:
                 pass
+    # a date written on it, or the tree's, from before someone in it was born (a family record's births) or after
+    # someone in it died: offered after those that fit, saying why, so the first isn't against what is said under it
+    early = lambda x: lower is not None and spans[x["text"]].last.year < lower
+    late = lambda x: upper is not None and spans[x["text"]].first.year > upper
+    against = [x for x in out if early(x) or late(x)]
+    for x in against:
+        x["why"] += (f" Too early for who is in it: {why[0]}" if early(x) else f" Too late for who is in it: {why[-1]}")
+    out[:] = [x for x in out if x not in against] + against
     if lower is not None and upper is not None and upper - lower <= PEOPLE_SPAN:
         add(dates.photo_date(str(lower) if lower == upper else f"between {lower} and {upper}", south), " ".join(why))
     elif lower is not None and f"not before {lower}" not in seen:

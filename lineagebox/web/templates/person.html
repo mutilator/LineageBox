@@ -26,7 +26,7 @@
 </form>
 {%- if others and viewer.admin %}
 <form class="name-form" data-api="/api/people/{{ person.id }}/merge" data-go="/person/"
-  data-confirm="{{ _("Merge %(name)s into {into}? %(name)s's faces, details, family and tours move to {into}, and %(name)s is removed. This can't be undone.", name=person.name) }}">
+  data-confirm="{{ _("Merge %(name)s into {into}? %(name)s's faces, details, family and tours move to {into}, and %(name)s is removed. Cleanup → Recent changes can undo it.", name=person.name) }}">
   <label>{% trans %}Merge into{% endtrans %} <select name="into" required aria-label="{{ _('Merge into') }}">
     <option value="" selected disabled>{% trans %}pick someone{% endtrans %}</option>
     {%- for o in others %}<option value="{{ o.id }}">{{ o.name }}</option>{% endfor %}
@@ -145,7 +145,7 @@
     {%- set by_birth = fam.parents|selectattr("how", "equalto", "birth")|list %}
     {%- if by_birth|length < 2 and not fam.parents|rejectattr("entered")|list %}<dt>{{ _("Another parent") if by_birth else _("Parents") }}</dt><dd>
       <form class="name-form compact" data-api="/api/people/{{ person.id }}/link" data-reload>
-        <input name="name" data-names autocomplete="off" required maxlength="80" placeholder="{{ _("a parent's name") }}" aria-label="{{ _('Add a parent of %(name)s', name=person.name) }}" title="{{ _('Someone already in the catalog, or a new name; press Enter') }}">
+        <input name="name" data-names data-names-go autocomplete="off" required maxlength="80" placeholder="{{ _("a parent's name") }}" aria-label="{{ _('Add a parent of %(name)s', name=person.name) }}" title="{{ _('Pick them from the list as you type, or type a new name and press Enter') }}">
         <select name="word" aria-label="{{ _('Which parent') }}"><option value="mother">{% trans %}mother{% endtrans %}</option><option value="father">{% trans %}father{% endtrans %}</option><option value="parent" selected>{% trans %}parent{% endtrans %}</option></select>
       </form></dd>{% endif %}
     {%- for o in fam.others %}<dt>{{ o.label }}</dt><dd>
@@ -348,7 +348,7 @@
   <button type="button" class="danger" data-api="/api/people/{{ person.id }}/remove" data-then="/people"
     data-confirm="{{ _('Remove %(name)s?', name=person.name) }}
     {%- if photo_count %} {{ ngettext('Their name comes off %(n)s photo', 'Their name comes off %(n)s photos', photo_count, n=photo_count|number) }}
-    {%- if faces %}{{ ngettext(': the %(n)s face named %(name)s will be unnamed again', ': the %(n)s faces named %(name)s will be unnamed again', faces, n=faces|number, name=person.name) }}{% endif %}.{% endif %} {{ _("Their family links, life events and other names go with them. This can't be undone.") }}">{% trans name=person.name %}Remove {{ name }}…{% endtrans %}</button>
+    {%- if faces %}{{ ngettext(': the %(n)s face named %(name)s will be unnamed again', ': the %(n)s faces named %(name)s will be unnamed again', faces, n=faces|number, name=person.name) }}{% endif %}.{% endif %} {{ _("Their family links, life events and other names go with them. Undo, or Cleanup → Recent changes, brings them back.") }}">{% trans name=person.name %}Remove {{ name }}…{% endtrans %}</button>
   <span class="hint inline">{% trans name=person.name %}For someone added by mistake, or a name you don't want any more. Faces named
   {{ name }} lose the name and go back to the unnamed faces (Cleanup → Confirm faces), to be named as whoever
   they are. If {{ name }} is someone already here under another name, use Merge instead.{% endtrans %}</span>

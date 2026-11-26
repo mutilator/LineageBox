@@ -25,8 +25,8 @@ GO = (("h", "/home", N_("Home")), ("f", "/", N_("Folders")), ("t", "/timeline", 
 EVERYWHERE = (("?", N_("open or close this help")), ("/", N_("search")),
               ("Esc", N_("leave the box you are typing in, so keys work again; close this help")),
               ("Tab", N_("move to the next box or button; Shift+Tab goes back")),
-              ("↓ ↑", N_("in a box for someone's name: pick one of the people it suggests as you type; Enter or Tab "
-                         "takes them")),
+              ("↓ ↑", N_("in a box for someone's name: pick one of the people it suggests as you type, and Enter uses "
+                         "them, as a click or a tap on one does; Enter with nobody picked adds the name as typed")),
               ("Enter", N_("save the box you are in (each box saves on its own)")))
 
 # one line on each page of the menu (_side_menu.html), in its order, for the help's "Every page" list: Add photos, Home,
@@ -282,7 +282,9 @@ PAGES = {
         N_("One face at a time, the whole photo beside it with the face outlined. “Is this …?”: Yes names the face as "
            "them; Not them says it isn't them, and then who else it may be is asked, or who it is; Skip leaves it for "
            "later. A face nobody looks enough like has a box to type who it is in, and Don't know, after which you "
-           "aren't asked about it again. Recognition learns from every face you name."),
+           "aren't asked about it again. Pick them from the names listed as you type: a click or a tap names the "
+           "face at once (Enter alone adds the name as typed, as someone new). Recognition learns from every face you "
+           "name."),
         N_("The faces come in this order: those someone in the family asked about (Who is this?, on Home), then those "
            "in photos with people already named that look like someone else, then those recognized automatically that "
            "nobody has checked, the least sure first, and last the groups of faces that look like one person, to "

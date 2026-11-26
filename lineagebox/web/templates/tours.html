@@ -37,7 +37,7 @@
 <div class="cards">
 {%- for t in types %}
   <a class="card" href="/tours/new?type={{ t.id }}"><b>{{ t.name }}</b>
-    <span>{% if t.asks %}{% trans asks=t.asks|join(", ")|replace("range", _("dates")) %}asks for {{ asks }}{% endtrans %}{% else %}{% trans %}nothing to choose{% endtrans %}{% endif %} · {% trans title=t.spec.title %}makes “{{ title }}”{% endtrans %}</span></a>
+    <span>{% if t.asks %}{% trans asks=t.asks|join(", ")|replace("range", _("dates")) %}asks for {{ asks }}{% endtrans %}{% else %}{% trans %}nothing to choose{% endtrans %}{% endif %} · {% trans title=t.spec.title|fill_ins %}makes “{{ title }}”{% endtrans %}</span></a>
 {%- endfor %}
 </div>
 {% if viewer.admin %}<p class="hint">{% trans %}The kinds of tour are set up under <a href="/settings#tours">Settings</a>.{% endtrans %}</p>{% endif %}

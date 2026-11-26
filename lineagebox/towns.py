@@ -146,6 +146,21 @@ def label(lat: float | None, lon: float | None) -> str | None:
     return f"{km:,.0f} km from {town.full}"
 
 
+def regions_of(name: str, country: str = "United States") -> dict[str, int]:
+    """The regions (states) of one country that have a town of this name in the list, with how many thousand people
+    live in the biggest of them: {} for a name the list doesn't have (a town of under 5,000 people)."""
+    towns = _towns()
+    if towns is None:
+        return {}
+    key = " ".join(name.split()).casefold()
+    out: dict[str, int] = {}
+    for i, n in enumerate(towns.names):
+        t = towns.towns[i]
+        if n == key and t.country == country and t.region:
+            out[t.region] = max(out.get(t.region, 0), t.people)
+    return out
+
+
 def search(text: str, limit: int = 8) -> list[dict]:
     """Towns to jump to on the map while placing a photo by hand."""
     towns = _towns()

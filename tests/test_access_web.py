@@ -348,6 +348,7 @@ def test_pages_run_only_the_sites_own_scripts(site, cfg, con):
     """A Content-Security-Policy that allows no inline script, which only works while no page has one."""
     policy = signed_in(cfg, con, site["who"]["Cora"]).get("/map").headers["content-security-policy"]
     assert "script-src 'self';" in policy and "https://tile.openstreetmap.org" in policy
+    assert "media-src 'self' blob:;" in policy  # a story just recorded, listened to before it is kept
     inline = re.compile(r"<script(?![^>]*\b(src|type=\"application/json\"))[^>]*>|\son[a-z]+=|javascript:", re.I)
     for template in (webapp.HERE / "templates").glob("*.html"):
         assert not inline.search(template.read_text(encoding="utf-8")), template.name

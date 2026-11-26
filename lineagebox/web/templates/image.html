@@ -253,7 +253,7 @@
       </div>
       {%- endfor %}
       <form class="name-form compact" data-api="/api/images/{{ img.id }}/people" data-reload data-refocus="p">
-        <input name="name" data-names autocomplete="off" required maxlength="80" data-key="p" data-key-label="{{ _("Add someone whose face wasn't found") }}" placeholder="{{ _('Someone else here?') if faces or linked else (_('Whose voices are these?') if is_audio else _('Who is in this photo?')) }}" aria-label="{{ _('Add a person') }}" title="{{ _("For someone whose face wasn't found: type their name and press Enter") }}">
+        <input name="name" data-names autocomplete="off" required maxlength="80" data-key="p" data-key-label="{{ _("Add someone whose face wasn't found") }}" placeholder="{{ _('Someone else here?') if faces or linked else (_('Whose voices are these?') if is_audio else _('Who is in this photo?')) }}" aria-label="{{ _('Add a person') }}" title="{{ _("For someone whose face wasn't found: pick them from the list as you type, or type a new name and press Enter") }}">
       </form>
     </section>
 

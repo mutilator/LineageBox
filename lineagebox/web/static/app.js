@@ -113,8 +113,21 @@ function confirmText(el) {
   });
 }
 
+// What is being sent now, with what its form held then. Sent again meanwhile, it waits: Enter in an album's caption both
+// submits its form and, through data-submit, changes it, and the second would go without the fields the first has
+// switched off. Once the first is done, a form is sent again only if it holds something else by then (another pick on
+// a reading's page, made while the first was on its way).
+const sending = new Map(), resend = new WeakSet();
+const formState = (form) => JSON.stringify([...form.elements].filter((e) => e.name)
+  .map((e) => [e.name, /^(checkbox|radio)$/.test(e.type) ? e.checked : e.value]));
+
 async function run(el, url, body) {
+  if (sending.has(el)) {
+    if (el.matches("form")) resend.add(el);
+    return;
+  }
   if (el.dataset.confirm && !confirm(confirmText(el))) return;
+  sending.set(el, el.matches("form") ? formState(el) : "");
   const controls = el.matches("form") ? el.querySelectorAll("button, input") : [el];
   // what says it is busy: the button, or a form's submit button with data-busy ("Making the changes…")
   const busy = el.matches("form") ? el.querySelector('button[type="submit"][data-busy]') : el.dataset.busy && el;
@@ -169,9 +182,12 @@ async function run(el, url, body) {
   } catch (err) {
     notice(t("That didn't work: {why}", { why: err.message }), { error: true });
   } finally {
+    const sent = sending.get(el);
+    sending.delete(el);
     controls.forEach((c) => (c.disabled = false));
     if (busy) busy.textContent = label;
     if (el.matches("form") && el.querySelector("[data-needs]")) followNeeds(el); // those switched off stay off
+    if (resend.delete(el) && formState(el) !== sent) el.requestSubmit();
   }
 }
 
@@ -594,8 +610,10 @@ document.addEventListener("focusin", async (e) => {
 });
 
 // Boxes names are typed in (data-names) suggest people as they are typed: by any part of their name or other names,
-// with their face, years and photos, so that two people of the same name can be told apart. ↓ ↑ pick one; Enter takes
-// it and then does what Enter does there (names the faces, adds the person); Tab takes it and moves on; Esc closes.
+// with their face, years and photos, so that two people of the same name can be told apart. A click or a tap on one
+// uses it at once (useName), and so does Enter on one picked with ↓ ↑; Tab takes it and moves on; Esc closes. Enter
+// with none picked, or "Or someone new" at the foot of the list, uses the name as typed: someone new, unless it is
+// someone's whole name. The list stays in sight on a phone, over its box when the keyboard leaves no room under it.
 const fold = (text) => text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const nameBox = { input: null, box: null, found: [], on: -1 };
 let everyone = null; // fetched when a name box is first used, and again after any change
@@ -648,19 +666,69 @@ async function suggestNames(input) {
     who.append(Object.assign(document.createElement("b"), { textContent: p.name }),
                Object.assign(document.createElement("small"), { textContent: about.filter(Boolean).join(" · ") }));
     li.append(who);
-    li.addEventListener("click", () => takeName(input, p));
+    li.addEventListener("click", () => {
+      takeName(input, p);
+      useName(input);
+    });
     box.append(li);
   });
   if (text && !found.some((p) => fold(p.name) === fold(text))) {
-    box.append(Object.assign(document.createElement("li"), {
-      className: "new", textContent: `${found.length ? "Or someone new" : "Someone new"}: “${text}”` }));
+    const added = Object.assign(document.createElement("li"), {
+      className: "new", textContent: `${found.length ? t("Or someone new") : t("Someone new")}: “${text}”` });
+    added.addEventListener("click", () => {
+      closeNames();
+      useName(input);
+    });
+    box.append(added);
   }
   box.addEventListener("mousedown", (e) => e.preventDefault()); // clicking a name leaves the typing where it is
-  const r = input.getBoundingClientRect();
-  Object.assign(box.style, { left: `${r.left + scrollX}px`, top: `${r.bottom + scrollY}px`, minWidth: `${r.width}px` });
-  document.body.append(box);
+  box.style.minWidth = `${input.getBoundingClientRect().width}px`;
+  (input.closest("dialog[open]") || document.body).append(box);
   input.setAttribute("aria-expanded", "true");
   Object.assign(nameBox, { input, box, found, on: -1 });
+  placeNames();
+}
+
+// The list goes under its box, or over it when there is more room there, within what shows of the page: on a phone
+// the keyboard covers the foot of the screen (the visual viewport is the rest), and the list of a box low on the
+// screen would be behind it. It is fixed to the screen, and follows its box as the page or a panel (a photo's details
+// on a phone) scrolls, and as the keyboard comes up and the browser brings the box into sight.
+function placeNames() {
+  const { input, box } = nameBox;
+  if (!box) return;
+  const r = input.getBoundingClientRect();
+  const v = window.visualViewport;
+  const top = v ? v.offsetTop : 0, bottom = top + (v ? v.height : innerHeight);
+  const left = v ? v.offsetLeft : 0, right = left + (v ? v.width : innerWidth);
+  const below = bottom - r.bottom - 8, above = r.top - top - 8;
+  const up = below < Math.min(box.scrollHeight, 200) && above > below;
+  box.style.maxHeight = `${Math.max(80, Math.min(up ? above : below, innerHeight / 2))}px`;
+  box.style.top = `${up ? Math.max(top + 4, r.top - 2 - box.offsetHeight) : r.bottom + 2}px`;
+  box.style.left = `${Math.max(left + 4, Math.min(r.left, right - box.offsetWidth - 4))}px`;
+}
+addEventListener("resize", placeNames);
+window.visualViewport?.addEventListener("resize", placeNames);
+window.visualViewport?.addEventListener("scroll", placeNames);
+document.addEventListener("scroll", placeNames, { capture: true, passive: true });
+
+// A name picked from the list (or "Or someone new") is used at once: a box that is all its form asks for sends it
+// (names the face, adds the person); data-enter presses that button (the tick-photos bar's Add); data-names-go sends
+// the form whatever else is in it (Who someone is on a reading's page, the choices beside it already made), and
+// data-names-stay only fills the box (one row of a form sent at the end). Otherwise the form asks for more (what
+// someone is to them, an account's role): the next thing to fill is focused.
+function useName(input) {
+  const button = input.dataset.enter && document.querySelector(input.dataset.enter);
+  if (button) {
+    if (!button.disabled) button.click();
+    return;
+  }
+  const form = input.form;
+  if (!form || "namesStay" in input.dataset) return;
+  const others = [...form.elements].filter((e) => e !== input && !e.disabled && !e.closest("[hidden]")
+    && e.matches('input:not([type="hidden"]):not([type="submit"]):not([type="button"]), select, textarea'));
+  if ("namesGo" in input.dataset || !others.length) return form.requestSubmit();
+  const after = (e) => input.compareDocumentPosition(e) & Node.DOCUMENT_POSITION_FOLLOWING;
+  (others.find((e) => e.required && !e.value) || others.find(after) || form.querySelector('[type="submit"]'))?.focus();
 }
 
 // Two people may have the same name: the one picked is remembered, and sent as "<box's name>_id" with the form while
@@ -703,6 +771,12 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault();
     e.stopPropagation();
     closeNames();
+  } else if (e.key === "Enter" && nameBox.on >= 0) {  // as a click on it: used at once (useName)
+    e.preventDefault();
+    e.stopPropagation();
+    const input = nameBox.input;
+    takeName(input, nameBox.found[nameBox.on]);
+    useName(input);
   } else if (e.key === "Enter" || e.key === "Tab") {
     if (nameBox.on >= 0) takeName(nameBox.input, nameBox.found[nameBox.on]);
     else closeNames();
@@ -723,7 +797,6 @@ document.addEventListener("focusin", (e) => {
 document.addEventListener("focusout", (e) => {
   if (e.target === nameBox.input) closeNames();
 });
-addEventListener("resize", closeNames);
 
 // Forms: parts marked data-show-if="field=a,b" show only while that field is a or b (tour types, adding a child).
 function updateShown(form) {
@@ -1669,6 +1742,7 @@ if (PEEK_AFTER > 0) {
   };
   if (fine) {
     document.addEventListener("mouseover", (e) => {
+      if (e.buttons) return;  // a button held: dragging (an album's photo into place, a pin), not looking
       const t = pointedAt(e.target);
       if (!t || t.holder === at?.holder) return;
       clearTimeout(timer);

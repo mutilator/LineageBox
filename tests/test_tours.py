@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-from lineagebox import (access, events, family, favorites, memories, people, settings, slideshow,
+from lineagebox import (access, events, family, favorites, memories, people, settings, slideshow, tagging,
                         tour_suggestions, tours, video)
 from lineagebox.ingest import ingest
 from lineagebox.scan import scan
@@ -202,6 +202,19 @@ def test_suggested_tours_on_the_tours_page(con, cfg, tlib, monkeypatch):
 
 def _image(con, name):
     return con.execute("SELECT image_id FROM file WHERE path = ?", (rel("Tours", name),)).fetchone()[0]
+
+
+def test_people_added_by_hand_are_in_the_photo_too(con, tlib):
+    """Someone added to a photo by hand (no face of theirs was found on it) is named on its slide, after those whose
+    faces are, and the photo counts as theirs for a tour of people together."""
+    tagging.add_person(con, [_image(con, "jun24.jpg")], "Daniel", pid=tlib["Daniel"])
+    con.commit()
+    together = tours.answer(kind(con, "Together")["spec"], {"people": [tlib["Lucas"], tlib["Daniel"]]})
+    chosen = tours.photos(con, together)
+    assert names(con, chosen) == ["jun24.jpg"]
+    assert tours.slides(con, chosen)[0]["people"] == "Lucas, Daniel"
+    # an album's photos (picked by hand) the same way
+    assert tours.slides(con, tours.picked(con, [_image(con, "jun24.jpg")]))[0]["people"] == "Lucas, Daniel"
 
 
 def test_dates_on_slides_are_as_exact_as_they_are_known(con, tlib):

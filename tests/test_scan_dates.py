@@ -119,6 +119,35 @@ def test_what_tells_a_scans_date(con):
     assert scan_dates.suggestions(con, print_item)[0]["text"] == "between 1975 and 1977"
 
 
+def test_dates_against_who_is_in_it_come_last(con):
+    """The dates written on a scan that are from before someone named on it was born (the births a family record
+    lists), or after someone on it died, are offered after those that fit, saying why: the first one offered is never
+    against what is said under it."""
+    ids = library(con)
+    ruth, tom = people.person_id(con, "Ruth Baker"), people.person_id(con, "Tom Baker")
+    born(con, ruth, "1921-03-03")
+    born(con, tom, "1885-02-18")
+    con.execute("INSERT INTO event(person_id, tag, date, sort_date) VALUES (?, 'DEAT', '8 APR 1952', '1952-04-08')",
+                (tom,))
+    for pid in (ruth, tom):
+        con.execute("INSERT INTO image_person(image_id, person_id, added_at) VALUES (?, ?, '')", (ids["letter"], pid))
+    con.execute("INSERT INTO scan_reading(image_id, model, version, read_at, dates) VALUES (?, 'm', 1, '', ?)",
+                (ids["letter"], json.dumps([{"written": "Feb. 18, 1885", "what": "date of birth of Tom Baker"},
+                                            {"written": "March 3, 1921", "what": "date of birth of Ruth Baker"},
+                                            {"written": "April 8, 1952", "what": "date of death of Tom Baker"},
+                                            {"written": "May 1960", "what": "a note"}])))
+    con.commit()
+    item = next(d for d in scan_dates.scans(con)["documents"] if d["id"] == ids["letter"])
+    got = scan_dates.suggestions(con, item)
+    assert [s["text"] for s in got] == ["Mar 3, 1921", "Apr 8, 1952", "Jun 3, 1952", "Feb 18, 1885", "May 1960",
+                                        None]
+    assert got[3]["why"] == ("It says “Feb. 18, 1885” (date of birth of Tom Baker). Too early for who is in it: "
+                             "Ruth Baker, in it, was born in 1921.")
+    assert got[4]["why"] == "It says “May 1960” (a note). Too late for who is in it: Tom Baker, in it, died in 1952."
+    assert got[5] == {"text": None, "label": "Not before 1921",
+                      "why": "Ruth Baker, in it, was born in 1921. Tom Baker, in it, died in 1952."}
+
+
 class FakeOllama:
     model = "vision-model"
 

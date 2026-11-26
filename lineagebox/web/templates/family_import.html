@@ -126,7 +126,7 @@ choose the file's below.{% endtrans %}</p>
             <option value="new"{% if not r.choice %} selected{% endif %}>{% trans %}add as new{% endtrans %}</option>
             {%- for c in r.candidates %}<option value="{{ c.id }}"{% if r.choice == c.id %} selected{% endif %}>{{ c.name }}{% if c.born %}{% trans born=c.born %}, born {{ born }}{% endtrans %}{% endif %}{% if c.score %} ({{ (c.score * 100)|round|int }}%){% endif %}</option>{% endfor %}
           </select>
-          <input name="name:{{ r.xref }}" data-names autocomplete="off" placeholder="{{ _('or someone else') }}" aria-label="{{ _('Someone else') }}">
+          <input name="name:{{ r.xref }}" data-names data-names-stay autocomplete="off" placeholder="{{ _('or someone else') }}" aria-label="{{ _('Someone else') }}">
         </td>
         <td><span class="how">{{ r.how }}</span> {{ r.why }}
           {%- if r.ai %}<br><span class="hint">{% trans %}AI:{% endtrans %} {% if r.ai.error %}{% trans error=r.ai.error %}could not ask ({{ error }}){% endtrans %}{% else %}{{ _("same person") if r.ai.same else _("not the same") }} ({{ (r.ai.confidence * 100)|round|int }}%): {{ r.ai.reason }}{% endif %}</span>{% endif %}</td>

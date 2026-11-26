@@ -41,7 +41,7 @@
     {%- for pid in added %}
     <li>{% if pid in names %}<a href="/person/{{ pid }}">{{ names[pid] }}</a>
       {%- if pid in removable %} <button type="button" class="quiet" data-api="/api/people/{{ pid }}/remove" data-reload
-        data-confirm="{{ _("Remove %(pid)s from the family tree? Their family links, life events and other names go with them. This can't be undone.", pid=names[pid]) }}">{% trans %}Remove from the tree{% endtrans %}</button>{% endif %}
+        data-confirm="{{ _("Remove %(pid)s from the family tree? Their family links, life events and other names go with them. Undo, or Cleanup → Recent changes, brings them back.", pid=names[pid]) }}">{% trans %}Remove from the tree{% endtrans %}</button>{% endif %}
       {%- else %}{% trans name=gone.get(pid, _("Someone")) %}{{ name }} <span class="hint inline">removed from the tree since</span>{% endtrans %}{% endif %}</li>
     {%- endfor %}
   </ul>
@@ -103,7 +103,7 @@ is unticked, with what the tree has. A change for someone new is made only with 
         {%- endfor %}
         <option value="skip">{% trans %}leave them out{% endtrans %}</option>
       </select>
-      <input name="name:{{ row.id }}" form="who" data-names autocomplete="off" placeholder="{{ _('or someone else') }}"
+      <input name="name:{{ row.id }}" form="who" data-names data-names-go autocomplete="off" placeholder="{{ _('or someone else') }}"
         aria-label="{{ _('Someone else in the tree') }}">
       {%- if m.choice %} <a href="/person/{{ m.choice }}">{% trans %}their page{% endtrans %}</a>{% endif %}
       <span class="hint inline"><span class="how">{{ how_words.get(m.how, m.how) }}</span> {{ m.why }}</span>

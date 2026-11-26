@@ -12,6 +12,8 @@ import sqlite3
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
+from markupsafe import Markup, escape
+
 from lineagebox import comments, dates, errors, events, family, favorites, settings
 from lineagebox.catalog import VISIBLE
 
@@ -28,6 +30,13 @@ MEDIA = {"photos": "Photos", "videos": "Videos", "both": "Photos and videos"}
 GROUP_NAMES = {"family": "Family", "inlaw": "In-laws", "step": "Step-family", "former": "Former family",
                "relative": "Relatives", "extended": "Extended family", "sibling": "Siblings", "child": "Children",
                "parent": "Parents", "grandchild": "Grandchildren", "grandparent": "Grandparents", "cousin": "Cousins"}
+
+
+def fill_ins(title: str) -> Markup:
+    """A kind of tour's title for people choosing one (the Tours page): "{person}'s birthdays" as "person's birthdays"
+    with the words the wizard asks for in italics, not in braces."""
+    return Markup(re.sub(r"\{(\w+)\}", lambda m: f"<i>{'dates' if m[1] == 'range' else m[1]}</i>", str(escape(title))))
+
 
 DEFAULT_TYPES = [
     {"name": "Birthdays", "title": "{person}'s birthdays", "who": {"mode": "person"},
@@ -303,6 +312,7 @@ def photos(con: sqlite3.Connection, spec: dict, blurry_below: float | None = Non
                                        "faces": {}})
         if r["person_id"]:
             p["faces"][r["person_id"]] = max(p["faces"].get(r["person_id"], 0), r["quality"] or 0)
+    _hand_added(con, found)
     if spec["who"]["together"] and targets:
         found = {k: p for k, p in found.items() if targets <= p["faces"].keys()}
     if spec["when"]["mode"] == "birthday":
@@ -509,7 +519,17 @@ def picked(con: sqlite3.Connection, image_ids: list[int]) -> list[dict]:
                                        "sharpness": r["sharpness"] or 0, "faces": {}, "score": 0})
         if r["person_id"]:
             p["faces"][r["person_id"]] = max(p["faces"].get(r["person_id"], 0), r["quality"] or 0)
+    _hand_added(con, found)
     return [found[i] for i in image_ids if i in found]
+
+
+def _hand_added(con: sqlite3.Connection, found: dict[int, dict]) -> None:
+    """The people added to these photos by hand (no face of theirs found on them) are in them too: on the slides, after
+    those whose faces are, and for a tour of people together. Their faces count for nothing in picking the best."""
+    for image_id, person_id in con.execute("""SELECT image_id, person_id FROM image_person
+                                              WHERE image_id IN (SELECT value FROM json_each(?))""",
+                                           (json.dumps(list(found)),)):
+        found[image_id]["faces"].setdefault(person_id, 0)
 
 
 # ---- stored types and tours ----------------------------------------------------------------------------------------

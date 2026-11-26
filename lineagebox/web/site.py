@@ -21,7 +21,8 @@ import httpx
 from fastapi import Request
 from fastapi.templating import Jinja2Templates
 
-from lineagebox import __version__, access, accounts, activity, cleanup, db, events, i18n, settings, speech, updates
+from lineagebox import (__version__, access, accounts, activity, cleanup, db, events, i18n, settings, speech, tours,
+                        updates)
 from lineagebox.config import Config
 from lineagebox.web import help as page_help
 from lineagebox.web import tiles
@@ -260,6 +261,7 @@ class Site:
         i18n.install(templates.env)
         templates.env.filters["duration"] = fmt_duration
         templates.env.filters["gdate"] = events.show_date
+        templates.env.filters["fill_ins"] = tours.fill_ins
         g = templates.env.globals
         g["date_source_label"] = DATE_SOURCE_LABEL
         g["tile_alts"] = tiles.tile_alts  # the grids' alt text: who is in each photo (tiles.py)

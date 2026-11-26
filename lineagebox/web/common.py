@@ -193,13 +193,14 @@ def redirect_uri(request: Request, now: Config) -> str:
 def content_policy(tiles: str, framed: bool = False) -> str:
     """Scripts only from this site's own files (pages have no inline scripts), pictures from it and the map's tile
     server, no plugins, frames or forms elsewhere: a name or caption that ever slipped through escaping could not run
-    as script with an admin's session. The service worker (routes/phone.py) and the web manifest are this site's own
+    as script with an admin's session. Sound and video from it, and from blob: (a story just recorded, played back in
+    the page before it is kept; app.js). The service worker (routes/phone.py) and the web manifest are this site's own
     files too. framed: a photo frame's device link (web/frames.py), which another page (a Home Assistant dashboard) may
     show inside it: it changes nothing, and has no buttons that could be clicked through a page laid over it."""
     ancestors = "*" if framed else "'none'"
     return ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
-            f"img-src 'self' data: {_tile_source(tiles)}; connect-src 'self'; object-src 'none'; base-uri 'none'; "
-            f"form-action 'self'; frame-ancestors {ancestors}")
+            f"img-src 'self' data: {_tile_source(tiles)}; media-src 'self' blob:; connect-src 'self'; "
+            f"object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors {ancestors}")
 
 
 def _tile_source(tiles: str) -> str:
