@@ -244,7 +244,7 @@ h2[id] { scroll-margin-top: calc(var(--header-h) + 56px); }
 .stage-bar .count { font-size: .88rem; font-variant-numeric: tabular-nums; text-shadow: 0 1px 2px #000; }
 .stage-button { display: inline-flex; align-items: center; justify-content: center; min-width: 40px; min-height: 40px;
                 padding: 4px 12px; border: 0; border-radius: 8px; background: rgb(0 0 0 / .45); color: #fff;
-                font-size: 1rem; }
+                font-size: 1rem; gap: .3em; }  /* the gap: a flex item drops its leading space ("←Back") */
 .stage-button:hover { text-decoration: none; background: rgb(0 0 0 / .7); }
 .stage-button[aria-pressed="false"] { opacity: .65; }
 /* the faces found on the photo: one clicked or tapped is named in the details */
@@ -505,6 +505,8 @@ ul.downloads .meter { margin: 6px 0 4px; }
 .settings textarea { display: block; width: 100%; margin: 6px 0; }
 .settings #address input.wide { width: min(100%, 30em); }
 .settings input[type=file] { border: 0; padding: 0; background: none; max-width: 100%; }
+/* a file box stays beside its words: "private key" was left at the end of one line, its box on the next */
+.settings label:has(> input[type=file]) { display: inline-block; white-space: nowrap; max-width: 100%; margin-right: 1em; }
 .settings .note { margin: 8px 0; }
 .settings input[type=radio], .settings input[type=checkbox] { padding: 0; }
 .settings fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px 10px; margin: 0; }
@@ -730,7 +732,8 @@ details.glance.glancing > .family-cards { position: absolute; z-index: 20; top: 
 .share-list.wide { max-width: 900px; }
 .share-list .share-photo img { display: block; width: 48px; height: 48px; object-fit: cover; border-radius: 4px; }
 .share-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; }
-.share-form select { max-width: 100%; }
+.share-form select { max-width: 100%; font: inherit; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--edge);
+                     background: var(--surface); color: var(--text); }  /* was the browser's own small box */
 .folder-card .from { padding-top: 0; color: var(--muted); font-size: .82rem; }
 .shared-home { margin: 8px 0 28px; padding-left: 14px; border-left: 4px solid var(--accent); }
 .shared-home h2 { margin-top: 0; }
@@ -818,6 +821,18 @@ div#map { height: 65vh; min-height: 320px; border-radius: 8px; border: 1px solid
 .import-review td .hint { display: block; }
 .import-review .how { font-size: .8rem; text-transform: uppercase; color: var(--muted); }
 .import-review tr.how-unsure { background: color-mix(in srgb, var(--danger) 8%, transparent); }
+.import-review tr.flag-stop td:first-child { box-shadow: inset 4px 0 var(--danger); }
+.import-checks .checks { list-style: none; padding: 0; margin: 0 0 1.5em; }
+.import-checks .check { border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 6px;
+  padding: 8px 12px; margin: 8px 0; }
+.import-checks .check p { margin: 2px 0; }
+.import-checks .check.stop { border-left-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 6%, transparent); }
+.import-checks .check.confirmed { border-left-color: var(--keep); }
+.import-checks .check-suggest, .import-checks .check-pick { border-left-color: var(--accent); }
+.import-checks .buttons { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; }
+.import-checks form.clash { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+.import-checks form.clash label { display: flex; gap: 6px; align-items: baseline; }
 .import-review input { width: 12em; }
 .net-paths { display: grid; grid-template-columns: max-content 1fr; gap: 6px 12px; align-items: center; }
 .net-paths dd { margin: 0; }
@@ -1285,9 +1300,9 @@ fieldset.demo-locked { border: 0; margin: 0; padding: 0; min-width: 0; }  /* a d
 .placing-find { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .placing-towns { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 8px; }
 .placing-towns button { text-align: left; }
-.leaflet-marker-icon.map-pin { border-radius: 50% 50% 50% 0; transform-origin: center; background: #b35c00;
-                               border: 3px solid #fff; box-shadow: 0 1px 4px rgb(0 0 0 / .5); rotate: -45deg;
-                               cursor: grab; }
+.leaflet-marker-icon.map-pin { cursor: grab; }
+.map-pin > span { display: block; width: 100%; height: 100%; box-sizing: border-box; border-radius: 50% 50% 50% 0;
+                  background: #b35c00; border: 3px solid #fff; box-shadow: 0 1px 4px rgb(0 0 0 / .5); rotate: -45deg; }
 dl.other-apps { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 8px 0; }
 dl.other-apps dd { margin: 0; }
 .people-added { columns: 14rem; margin: 6px 0; padding-left: 18px; }

@@ -78,6 +78,9 @@ it is done), then on the **Settings** page:
 1. **Watched folders → Watch another folder:** open `local`, go to your photos and press **Watch**.
 2. **AI (Ollama):** press **Check the connection**. It should find the PC and say the model can look at pictures. If
    the model is missing, press **Download ministral-3 to Ollama**.
+
+   ![Settings, AI (Ollama): where Ollama is, the model, Check the connection and Download](../screenshots/settings-ai.png)
+
 3. **Speech in videos (Whisper):** **Check the connection**, if you set it up.
 4. **Schedule → When the AI may describe:** if the PC is used for other things, limit describing to hours when it is
    free, such as nights.

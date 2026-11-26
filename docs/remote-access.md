@@ -9,6 +9,8 @@ certificate you give LineageBox or a reverse proxy in front: the rest of this pa
 
 ## A free address and its certificate
 
+![Settings, Address and HTTPS: 1 a free address, 2 from outside the house too or the home network only, 3 Get a free address](screenshots/free-address.png)
+
 **Settings → Address and HTTPS → Get a free address** gives this LineageBox a name of its own, such as
 `maple-river.ourplace.here`, and a certificate browsers trust. Passkeys, Sign in with Google and the phone app
 need both. There is nothing to sign up for and no account:

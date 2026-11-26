@@ -445,7 +445,15 @@ PAGES = {
            "also lists what wasn't ticked once more."))),
     "family_import": Page(N_("Bringing in a family tree"), (
         N_("Who in the file is who here: the unsure matches come first. Pick the person they are, or “add as new”. "
-           "Nothing changes until you apply it, and what is already here is kept where the file disagrees."),)),
+           "Nothing changes until you apply it, and what is already here is kept where the file disagrees, unless "
+           "you choose the file's."),
+        N_("To check lists what may be wrong. A match on a first name alone, or one whose parents, ages or photos say "
+           "otherwise, isn't made by itself; one marked ⚠ comes in only once you say it is the same person, or choose "
+           "someone else. Not the same adds them as new, and that person isn't suggested again."),
+        N_("People the names missed are found through their families (a mother under her married name) and asked "
+           "about. Where the file and the tree disagree, pick what to keep: a date, a name, their sex, or a second "
+           "mother or father, who can take the place of the one here, be the same person, or be added as adoptive or "
+           "foster."))),
     "tours": Page(N_("Tours"), (
         N_("Slideshows made by rules. A tour picks its photos again each time it is opened, so new photos join it."),
         N_("Suggested tours are picked from your own photos: the people in the most of them, the two most often "

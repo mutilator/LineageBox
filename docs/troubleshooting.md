@@ -41,6 +41,10 @@ docker compose exec worker python -m lineagebox status
 
 ## Descriptions or transcripts don't happen
 
+**Check the connection**, on **Settings → AI, speech and faces**, says what is wrong:
+
+![Check the connection: Ollama answers, but has no models yet](screenshots/ai-check.png)
+
 - **Status says Ollama is not answering:** the machine is asleep or off, the address is wrong, `OLLAMA_HOST` isn't
   set to `0.0.0.0` on it, or a firewall is in the way. The worker checks again every 5 minutes.
 - **"Ollama has no model named …"**: press **Download … to Ollama** on the Settings page.

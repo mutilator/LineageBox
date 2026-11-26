@@ -96,6 +96,11 @@ Sign-in pages follow the browser. What the family wrote (names, captions, commen
    - add your relatives' email addresses, each tied to their person in the tree, as members (or admins);
    - tick **Family accounts on** and save.
 
+   ![Settings, Family accounts](screenshots/accounts-sign-in.png)
+
+   *1. The address from outside. 2. Sign in with Google, either way, if you want it. 3. Your relatives' accounts.
+   4. Family accounts on.*
+
 4. **Check before you tell anyone:** **See as** on the same page shows the site exactly as a member will see it,
    read-only, until you stop.
 
@@ -188,6 +193,8 @@ Anyone who sees a video or a recording can also correct a line of what Whisper w
 A member shares what is theirs: a folder of their uploads, one photo they uploaded, or a tour or album they made. An
 admin can share any folder, photo, tour or album. Each is shared with one member's account (a member picks among the people in their
 part of the family) or with everyone who has an account.
+
+![A folder's Sharing and removing panel: share it with one relative's account, or with everyone who has one](screenshots/sharing.png)
 
 - **A folder:** they see every photo in it and in the folders below it, including those added later. They can open the
   folder on their own **Folders** page.

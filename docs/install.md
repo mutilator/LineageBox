@@ -48,6 +48,11 @@ one `compose.yaml` with everything written into it. A NAS's own Docker app (Cont
 Portainer, TrueNAS's Install via YAML) takes that file pasted as it is. Then the wizard lists what to do next on that
 machine: the folders to make, how to start LineageBox, and where to open it.
 
+![The setup wizard's first step](screenshots/setup-wizard.webp)
+
+*1. The steps, one after another. 2. The NAS or computer it runs on. 3. On that machine itself, the wizard looks for
+you. 4. The compose.yaml it writes, as you answer. 5. On to the next step.*
+
 ### On the machine LineageBox will run on
 
 There, the wizard looks around for you. It finds which NAS it is, its users and groups, its folders and who owns each

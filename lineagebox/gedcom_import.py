@@ -284,7 +284,7 @@ def norm(text: str) -> str:
     return " ".join(re.sub(r"[^\w\s]", " ", text.lower()).split())
 
 
-def _birth_year(evts) -> int | None:
+def birth_year(evts) -> int | None:
     for e in evts:
         if e.get("tag") == "BIRT" and e.get("sort"):
             return int(e["sort"][:4])
@@ -310,12 +310,19 @@ def people_here(con: sqlite3.Connection) -> dict[int, dict]:
 
 def name_score(theirs: dict, ours: dict) -> tuple[float, str]:
     """How alike two people's names are, 0 to 1: first names and surnames apart (a shared surname alone makes no
-    match: Ruth and Walter Miller), over every name either has (maiden names, nicknames)."""
-    if {norm(n["full"]) for n in theirs["names"]} & ours["variants"]:
-        return 1.0, f"same name ({ours['name']})"
+    match: Ruth and Walter Miller), over every name either has (maiden names, nicknames). The same one-word name alone
+    is no more than unsure: "Edna" in a file is not, by that, Edna Baker (whom the family calls Edna). A nickname
+    goes with the surname: Robert Edward "Ted" Miller is a Ted Miller."""
     best, why = 0.0, ""
+    if same := {norm(n["full"]) for n in theirs["names"]} & ours["variants"]:
+        if any(len(s.split()) > 1 for s in same):
+            return 1.0, f"same name ({ours['name']})"
+        best, why = UNSURE, f"only the one name {sorted(same)[0]!r} is the same as {ours['name']!r}"
+    main_surname = norm(theirs["names"][0].get("surname") or "") if theirs["names"] else ""
     for n in theirs["names"]:
         first, surname = norm(n["given"] or "").split()[:1], norm(n["surname"] or "")
+        if n.get("type") == "nickname" and not surname:
+            surname = main_surname
         for our_first, our_surname in ours["parts"]:
             if not first or not our_first:
                 continue
@@ -340,15 +347,27 @@ def name_score(theirs: dict, ours: dict) -> tuple[float, str]:
     return best, why
 
 
+def _first_names_meet(p: dict, others: list[dict]) -> bool:
+    """Whether someone in the file has the first name (or a short form of it) of one of these people here."""
+    mine = {w for n in p["names"] for w in norm(n["given"] or "").split()[:1]}
+    return any(first and (first[0] in mine or mine & SAME_NAME.get(first[0], set()))
+               for o in others for first, _ in o["parts"])
+
+
 def match(con: sqlite3.Connection, data: dict) -> dict:
-    """GEDCOM id -> {'choice': person id or None (a new person), 'how': uid|sure|likely|unsure|new, 'why',
-    'candidates': [[person id, score, why]], 'ai': None}."""
+    """GEDCOM id -> {'choice': person id or None (a new person), 'how': uid|sure|likely|family|unsure|new, 'why',
+    'candidates': [[person id, score, why]], 'ai': None}. By names and birth years, made likelier by relatives who
+    match too, or whose first names are the same; two in the file who fit one person here as well as each other are
+    left unsure, both. Then gedcom_checks.settle: a match with a doubt is unmade, and people the names missed are
+    found through their families."""
+    from lineagebox import gedcom_checks  # it reads this module's names and relatives
+
     ours = people_here(con)
     by_uid = {o["uid"]: pid for pid, o in ours.items() if o["uid"]}
     by_uid.update(dict(con.execute("SELECT uid, person_id FROM external_id")))
     g = family.load(con)
     theirs = data["people"]
-    rel = _their_relatives(data)
+    rel = their_relatives(data)
     scores: dict[str, dict[int, tuple[float, str]]] = {}
     out = {}
     for x, p in theirs.items():
@@ -356,7 +375,7 @@ def match(con: sqlite3.Connection, data: dict) -> dict:
             out[x] = {"choice": by_uid[p["uid"]], "how": "uid", "why": "the same person (same UID)",
                       "candidates": [[by_uid[p["uid"]], 1.0, "same UID"]], "ai": None}
             continue
-        born = _birth_year(p["events"])
+        born = birth_year(p["events"])
         cands = {}
         for pid, o in ours.items():
             if p["sex"] and o["sex"] and p["sex"] != o["sex"]:
@@ -370,19 +389,40 @@ def match(con: sqlite3.Connection, data: dict) -> dict:
                 cands[pid] = (score, why)
         scores[x] = cands
     names_only = {x: dict(c) for x, c in scores.items()}
+    raw: dict[tuple[str, int], float] = {}  # the scores before they are capped at 1, to tell two good ones apart
     for _ in range(2):  # relatives that match each other make a match likelier, and the other way round
         chosen = {x: m["choice"] for x, m in out.items()}
         chosen.update({x: max(c, key=lambda pid: c[pid][0]) for x, c in scores.items() if c})
         for x, cands in names_only.items():
             for pid, (score, why) in cands.items():
-                agree = sorted({kind for kind, other in rel[x] if chosen.get(other) in _our_relatives(g, pid, kind)})
-                scores[x][pid] = (min(1.0, score + 0.1 * len(agree)),
-                                  why + (f", and {' and '.join(agree)} match" if agree else ""))
+                ours_rel = {kind: our_relatives(g, pid, kind) for kind in ("parents", "children", "partners")}
+                agree = sorted({kind for kind, other in rel[x] if chosen.get(other) in ours_rel[kind]})
+                soft = sorted({kind for kind, other in rel[x] if kind not in agree and _first_names_meet(
+                    theirs[other], [ours[q] for q in ours_rel[kind] if q in ours])})
+                raw[(x, pid)] = score + 0.1 * len(agree) + 0.05 * len(soft)
+                scores[x][pid] = (min(1.0, raw[(x, pid)]),
+                                  why + (f", and {' and '.join(agree)} match" if agree else "")
+                                  + (f", and {' and '.join(soft)} have the same first names" if soft else ""))
+    # two in the file whose best is the same person here, as good as each other and good enough to be made: neither
+    # is made by itself (weaker likenesses, William and Liam, aren't made anyway)
+    rivals: dict[int, list[tuple[float, str]]] = defaultdict(list)
+    for x, cands in scores.items():
+        if cands:
+            pid = max(cands, key=lambda q: raw.get((x, q), cands[q][0]))
+            if raw.get((x, pid), cands[pid][0]) >= LIKELY:
+                rivals[pid].append((raw.get((x, pid), cands[pid][0]), x))
+    contested: dict[str, list[str]] = {}
+    for xs in rivals.values():
+        xs.sort(reverse=True)
+        close = [x for s, x in xs if xs[0][0] - s < 0.05]
+        for x in close if len(close) > 1 else ():
+            contested[x] = [y for y in close if y != x]
+    held = {pid for pid, xs in rivals.items() if any(x in contested for _, x in xs)}  # given to nobody by itself
     taken = {m["choice"] for m in out.values()}
     for x in sorted(scores, key=lambda x: -max((s for s, _ in scores[x].values()), default=0)):
         ranked = sorted(scores[x].items(), key=lambda kv: -kv[1][0])
         cands = [[pid, round(s, 3), why] for pid, (s, why) in ranked[:5]]
-        free = [c for c in cands if c[0] not in taken]
+        free = [c for c in cands if c[0] not in taken and (c[0] not in held or x in contested)]
         best = free[0] if free else None
         second = free[1][1] if len(free) > 1 else 0.0
         if best and best[1] >= SURE and best[1] - second >= 0.1:
@@ -393,14 +433,23 @@ def match(con: sqlite3.Connection, data: dict) -> dict:
             how = "unsure"
         else:
             how, best = "new", None
+        why = best[2] if best else "nobody here like them"
+        if best is None and cands and cands[0][0] in held and x not in contested and cands[0][1] >= UNSURE:
+            how, why = "unsure", f"{cands[0][2]}; but two others in the file fit them as well"  # theirs to pick
+        if x in contested and how in ("sure", "likely"):
+            how = "unsure"
+            why += f"; {' and '.join(theirs[y]['names'][0]['full'] for y in contested[x])} in the file fit as well"
         if best and how in ("sure", "likely"):
             taken.add(best[0])
         out[x] = {"choice": best[0] if best and how in ("sure", "likely") else None, "how": how,
-                  "why": best[2] if best else "nobody here like them", "candidates": cands, "ai": None}
+                  "why": why, "candidates": cands, "ai": None}
+        if x in contested:  # for the page: who here they compete for, and with whom (gedcom_checks' "pick")
+            out[x]["rivals"] = contested[x]
+    gedcom_checks.settle(con, data, out)
     return out
 
 
-def _their_relatives(data: dict) -> dict[str, list[tuple[str, str]]]:
+def their_relatives(data: dict) -> dict[str, list[tuple[str, str]]]:
     """GEDCOM person -> [(kind, other GEDCOM person)]: their parents, partners and children."""
     out = defaultdict(list)
     for fam in data["families"].values():
@@ -411,7 +460,7 @@ def _their_relatives(data: dict) -> dict[str, list[tuple[str, str]]]:
     return out
 
 
-def _our_relatives(g: family.Graph, pid: int, kind: str) -> set[int]:
+def our_relatives(g: family.Graph, pid: int, kind: str) -> set[int]:
     if kind == "parents":
         return set(g.parents.get(pid, ()))
     if kind == "children":
@@ -488,7 +537,7 @@ def review_rows(con: sqlite3.Connection, data: dict, matches: dict) -> list[dict
                                     WHERE tag = 'BIRT' AND sort_date IS NOT NULL GROUP BY person_id"""))
     fams = data["families"]
     their = lambda y: data["people"].get(y, {}).get("names", [{"full": "?"}])[0]["full"]
-    order = {"unsure": 0, "new": 1, "likely": 2, "ai": 3, "chosen": 4, "sure": 5, "uid": 6}
+    order = {"unsure": 0, "new": 1, "family": 2, "likely": 2, "ai": 3, "chosen": 4, "sure": 5, "uid": 6}
     rows = []
     for x, p in data["people"].items():
         m = matches[x]
@@ -530,11 +579,26 @@ def save_matches(con: sqlite3.Connection, import_id: int, matches: dict) -> None
 
 
 def set_choices(con: sqlite3.Connection, import_id: int, choices: dict[str, str]) -> None:
-    """The person's choices from the import page: GEDCOM id -> 'new', a person id, or a person's name. A name must be
-    one person's (namesakes are told apart by picking from the suggestions, which sends the id): raises Problem,
-    saving nothing, for a name that is nobody's or several people's, or someone merged or removed since."""
+    """The person's choices from the import page, all saved or, with a Problem, none:
+    - GEDCOM id -> 'new', a person id, or a person's name. A name must be one person's (namesakes are told apart by
+      picking from the suggestions, which sends the id): a name that is nobody's or several people's, or someone
+      merged or removed since, is refused.
+    - 'confirm:<GEDCOM id>' -> the person here: a match with doubts (gedcom_checks) said to be right. It stays
+      confirmed while they are matched to that person.
+    - 'not:<GEDCOM id>' -> a person here they are not: that match is undone (they are added as new), and the person
+      isn't suggested for them again.
+    - 'resolve:<GEDCOM id>:<what>' -> how a clash about them is settled (gedcom_checks.CLASH_CHOICES); for a parent,
+      'same:<person id>' says the file's parent is that parent here, and 'replace:<person id>' puts the file's in
+      their place."""
+    from lineagebox import gedcom_checks
+
     _, _, matches = load(con, import_id)
+    later = []
     for x, value in choices.items():
+        kind, colon, rest = x.partition(":")
+        if colon:
+            later.append((kind, rest, str(value).strip()))
+            continue
         if x not in matches or not value:
             continue
         value = str(value).strip()
@@ -547,6 +611,31 @@ def set_choices(con: sqlite3.Connection, import_id: int, choices: dict[str, str]
                 raise Problem(str(e)) from None
             if matches[x]["choice"] != pid:
                 matches[x]["choice"], matches[x]["how"] = pid, "chosen"
+    for kind, rest, value in later:  # after the choices, so that one sent with its confirmation is the one confirmed
+        x, _, what = rest.partition(":") if kind == "resolve" else (rest, "", "")
+        if x not in matches or not value:
+            continue
+        m = matches[x]
+        if kind == "confirm":
+            if not value.isdigit() or int(value) != m["choice"]:
+                raise Problem("Who they are matched to has changed since: look at them again.")
+            m["confirmed"] = int(value)
+        elif kind == "not" and value.isdigit():
+            m["not"] = sorted(set(m.get("not", [])) | {int(value)})
+            if m["choice"] == int(value):
+                m["choice"], m["how"], m["why"] = None, "new", "you said they are someone else"
+        elif kind == "resolve":
+            code = what.split(":", 1)[0]
+            if code == "parent" and value.startswith("same:") and value[5:].isdigit():
+                parent = what.split(":", 1)[1]
+                if parent in matches:  # the file's parent is that parent here: matched, and taken as confirmed
+                    matches[parent].update(choice=int(value[5:]), how="chosen", confirmed=int(value[5:]))
+                m.setdefault("resolve", {}).pop(what, None)
+            elif value in gedcom_checks.CLASH_CHOICES.get("couple" if code == "fam" else code, ()) or (
+                    code == "parent" and value.startswith("replace:") and value[8:].isdigit()):
+                m.setdefault("resolve", {})[what] = value
+            else:
+                raise Problem("That isn't one of the choices.")
     save_matches(con, import_id, matches)
 
 
@@ -563,22 +652,37 @@ def apply(con: sqlite3.Connection, import_id: int) -> dict:
     if gone:  # merged into someone else, or removed, while the import was being looked over
         raise Problem(f"{', '.join(gone[:5])}{' and others' if len(gone) > 5 else ''}: matched to someone merged or "
                       f"removed since. Pick again, save, then bring it in.")
+    from lineagebox import gedcom_checks
+
+    items = gedcom_checks.check(con, data, matches)
+    if stops := [i for i in items if i.stop]:
+        names = ", ".join(f"{i.their} as {i.ours}" for i in stops[:5])
+        raise Problem(f"Check {len(stops)} match{'' if len(stops) == 1 else 'es'} first: say each is the same person, "
+                      f"or choose someone else ({names}{' and others' if len(stops) > 5 else ''}).")
+    # each clash as the page shows it: the choice made, or else what is here kept
+    resolve: dict[str, dict] = defaultdict(dict)
+    for x, m in matches.items():
+        resolve[x].update(m.get("resolve", {}))
+    for i in items:
+        if i.kind == "clash":
+            resolve[i.owner].setdefault(i.key, i.chosen)
     report = {"new": 0, "matched": 0, "names": 0, "events": 0, "links": 0, "sources": 0, "citations": 0,
-              "photos_found": 0, "files_kept": 0, "places": 0, "conflicts": [], "skipped": []}
+              "photos_found": 0, "files_kept": 0, "places": 0, "conflicts": [], "skipped": [], "replaced": [],
+              "renamed": [], "kept": []}
     found = _Sources(con, data, _Library(con), report)
     pid_of: dict[str, int] = {}
     for x, p in data["people"].items():
         chosen = matches.get(x, {}).get("choice")
         pid_of[x] = chosen if chosen else _new_person(con, p)
         report["matched" if chosen else "new"] += 1
-        _merge_person(con, pid_of[x], p, report, matched=bool(chosen), found=found)
+        _merge_person(con, pid_of[x], p, report, matched=bool(chosen), found=found, resolve=resolve[x])
     for x, p in data["people"].items():
         for other, word in p["asso"]:
             if other in pid_of and pid_of[other] != pid_of[x]:
                 con.execute("INSERT OR IGNORE INTO relation(person_id, of_id, kind) VALUES (?, ?, ?)",
                             (pid_of[other], pid_of[x], word))
-    for fam in data["families"].values():
-        _merge_family(con, fam, pid_of, data, report, found)
+    for fx, fam in data["families"].items():
+        _merge_family(con, fam, pid_of, data, report, found, resolve=resolve, fx=fx)
     con.execute("UPDATE gedcom_import SET applied_at = ?, report = ? WHERE id = ?",
                 (clock.now(), json.dumps(report), import_id))
     con.commit()
@@ -590,15 +694,21 @@ def apply(con: sqlite3.Connection, import_id: int) -> dict:
     return report
 
 
+def _free_name(con, name: str, born: int | None, pid: int | None = None) -> str:
+    """The name, or, when someone else here has it, the name told apart by the birth year (renamable later)."""
+    taken = lambda n: con.execute("SELECT 1 FROM person WHERE lower(name) = lower(?) AND id IS NOT ?",
+                                  (n, pid)).fetchone()
+    if not taken(name):
+        return name
+    told, n = f"{name} ({born or 'imported'})", 2
+    while taken(told):
+        told, n = f"{name} ({born or 'imported'} {n})", n + 1
+    return told
+
+
 def _new_person(con, p: dict) -> int:
     first = p["names"][0]
-    name = first["full"] or "?"
-    born = _birth_year(p["events"])
-    if con.execute("SELECT 1 FROM person WHERE lower(name) = lower(?)", (name,)).fetchone():
-        name = f"{name} ({born or 'imported'})"  # someone else here has the name: told apart, renamable later
-        n = 2
-        while con.execute("SELECT 1 FROM person WHERE lower(name) = lower(?)", (name,)).fetchone():
-            name, n = f"{first['full']} ({born or 'imported'} {n})", n + 1
+    name = _free_name(con, first["full"] or "?", birth_year(p["events"]))
     uid = p["uid"] if p["uid"] and not con.execute("SELECT 1 FROM person WHERE uid = ?", (p["uid"],)).fetchone() else None
     return con.execute("""INSERT INTO person(name, uid, given_name, surname, name_type, names_checked, sex)
                           VALUES (?, ?, ?, ?, ?, 1, ?)""",
@@ -606,12 +716,25 @@ def _new_person(con, p: dict) -> int:
                         first["type"] if first["type"] in ("birth", "married", "aka") else "birth", p["sex"])).lastrowid
 
 
-def _merge_person(con, pid: int, p: dict, report: dict, matched: bool, found: "_Sources | None" = None) -> None:
+def _merge_person(con, pid: int, p: dict, report: dict, matched: bool, found: "_Sources | None" = None,
+                  resolve: dict | None = None) -> None:
+    """What the file has of someone, added to them. resolve: how the clashes about them were settled on the import
+    page (gedcom_checks): the file's name, sex, birth, death, burial or cremation taken instead of what is here."""
+    resolve = resolve or {}
     here = con.execute("SELECT * FROM person WHERE id = ?", (pid,)).fetchone()
     if matched and p["uid"] and p["uid"] != here["uid"]:
         con.execute("INSERT OR IGNORE INTO external_id(uid, person_id) VALUES (?, ?)", (p["uid"], pid))
     first = p["names"][0]
-    if matched and not here["names_checked"] and first["given"]:
+    if matched and resolve.get("name") == "theirs" and first["full"] and norm(first["full"]) != norm(here["name"]):
+        old = here["name"]  # renamed as in the file; the name they had here is kept as another name
+        new = _free_name(con, first["full"], birth_year(p["events"]), pid)
+        people.rename(con, pid, new, merge_same=False)
+        con.execute("UPDATE person SET given_name = ?, surname = ?, names_checked = 1 WHERE id = ?",
+                    (first["given"] or None, first["surname"], pid))
+        events.add_name(con, pid, old, "aka")
+        report["renamed"].append(f"{old} → {new}")
+        here = con.execute("SELECT * FROM person WHERE id = ?", (pid,)).fetchone()
+    elif matched and not here["names_checked"] and first["given"]:
         con.execute("UPDATE person SET given_name = ?, surname = ? WHERE id = ?", (first["given"], first["surname"], pid))
     for n in p["names"] if matched else p["names"][1:]:
         if n["full"] and norm(n["full"]) != norm(here["name"]):
@@ -619,12 +742,16 @@ def _merge_person(con, pid: int, p: dict, report: dict, matched: bool, found: "_
             if con.execute("INSERT OR IGNORE INTO person_name(person_id, name, given_name, surname, type) "
                            "VALUES (?, ?, ?, ?, ?)", (pid, n["full"], n["given"], n["surname"], kind)).rowcount:
                 report["names"] += 1
-    if p["sex"] and here["sex"] and p["sex"] != here["sex"]:
+    if p["sex"] and here["sex"] and p["sex"] != here["sex"] and resolve.get("sex") == "theirs":
+        con.execute("UPDATE person SET sex = ? WHERE id = ?", (p["sex"], pid))
+        report["replaced"].append(f"{here['name']}: {p['sex']}, as in the file (was {here['sex']})")
+    elif p["sex"] and here["sex"] and p["sex"] != here["sex"]:
         report["conflicts"].append(f"{here['name']}: the file says {p['sex']}, here {here['sex']} (kept)")
     elif p["sex"] and not here["sex"]:
         con.execute("UPDATE person SET sex = ? WHERE id = ?", (p["sex"], pid))
     for e in p["events"]:
-        if (eid := _merge_event(con, e, report, here["name"], person_id=pid)) and found:
+        theirs = resolve.get(f"event:{e['tag']}") == "theirs"
+        if (eid := _merge_event(con, e, report, here["name"], person_id=pid, theirs=theirs)) and found:
             found.cite(f"e:{eid}", e.get("sources", ()))
     if p["note"] and not here["notes"]:
         con.execute("UPDATE person SET notes = ? WHERE id = ?", (p["note"], pid))
@@ -640,21 +767,32 @@ def _merge_person(con, pid: int, p: dict, report: dict, matched: bool, found: "_
 
 
 def _merge_event(con, e: dict, report: dict, who: str, person_id: int | None = None,
-                 couple: tuple[int, int] | None = None) -> int | None:
-    """The event added, or the one here it is (filled in), or None when the two disagree (what is here stays)."""
+                 couple: tuple[int, int] | None = None, theirs: bool = False) -> int | None:
+    """The event added, or the one here it is (filled in), or None when the two disagree (what is here stays, unless
+    theirs: the file's date and place were chosen on the import page)."""
     _place(con, e, report)
     where = "person_id = ?" if person_id is not None else "couple_a = ? AND couple_b = ?"
     key = (person_id,) if person_id is not None else (min(couple), max(couple))
     same = con.execute(f"SELECT * FROM event WHERE {where} AND tag = ? AND coalesce(type, '') = ?",
                        (*key, e["tag"], e["type"] or "")).fetchall()
     target = next((r for r in same if r["date"] == e["date"]), None)
+    label = (events.PERSON_EVENTS if person_id is not None else events.COUPLE_EVENTS).get(e["tag"], e["tag"])
     if target is None and same and (e["tag"] in events.ONE_EACH or e["tag"] in ("MARR", "DIV")):
         target = same[0]  # one of these per person or couple
+        if e["date"] and target["date"] and theirs:
+            con.execute("UPDATE event SET date = ?, sort_date = ?, place = coalesce(?, place) WHERE id = ?",
+                        (e["date"], e["sort"], e["place"], target["id"]))
+            report["replaced"].append(f"{who}: {label.lower()} {events.show_date(e['date'])}, as in the file (was "
+                                      f"{events.show_date(target['date'])})")
+            return target["id"]
         if e["date"] and target["date"]:
-            label = (events.PERSON_EVENTS if person_id is not None else events.COUPLE_EVENTS).get(e["tag"], e["tag"])
             report["conflicts"].append(f"{who}: {label.lower()} {events.show_date(e['date'])} in the file, "
                                        f"{events.show_date(target['date'])} here (kept)")
             return None
+    if target is not None and theirs and e["place"] and target["place"] and norm(e["place"]) != norm(target["place"]):
+        con.execute("UPDATE event SET place = ? WHERE id = ?", (e["place"], target["id"]))
+        report["replaced"].append(f"{who}: {label.lower()} in {e['place']}, as in the file (was {target['place']})")
+        return target["id"]
     if target is not None:  # already here: fill in what it lacks
         if (e["date"] and not target["date"]) or (e["place"] and not target["place"]):
             con.execute("UPDATE event SET date = coalesce(date, ?), sort_date = coalesce(sort_date, ?), "
@@ -680,7 +818,13 @@ def _place(con, e: dict, report: dict) -> None:
         (e["place"].strip(), e["lat"], e["lon"], clock.now())).rowcount
 
 
-def _merge_family(con, fam: dict, pid_of: dict, data: dict, report: dict, found: "_Sources | None" = None) -> None:
+def _merge_family(con, fam: dict, pid_of: dict, data: dict, report: dict, found: "_Sources | None" = None,
+                  resolve: dict | None = None, fx: str = "") -> None:
+    """A family's couple, their wedding and divorce, and their children's links to them. resolve: the clashes as the
+    import page settled them (gedcom_checks), by GEDCOM id: the file's wedding date taken (on the first partner's,
+    'fam:<id>:MARR'), and a parent the child already has another of here ('parent:<id>' on the child's) kept out
+    ('keep'), put in place of that one here ('replace:<person id>'), or linked as adoptive or foster."""
+    resolve = resolve or {}
     partners = [pid_of[x] for x in fam["partners"] if x in pid_of]
     kids = [x for x in fam["children"] if x in pid_of]
     names = lambda ids: " and ".join(con.execute("SELECT name FROM person WHERE id = ?", (i,)).fetchone()[0] for i in ids)
@@ -703,17 +847,30 @@ def _merge_family(con, fam: dict, pid_of: dict, data: dict, report: dict, found:
         for e in fam["events"]:
             if e["tag"] in ("MARR", "DIV") and not (e["date"] or e["place"] or e["note"] or e.get("sources")):
                 continue  # "they married", "they divorced": what the couple's married and former already say
-            if (eid := _merge_event(con, e, report, names((a, b)), couple=(a, b))) and found:
+            theirs = resolve.get(fam["partners"][0], {}).get(f"fam:{fx}:{e['tag']}") == "theirs"
+            if (eid := _merge_event(con, e, report, names((a, b)), couple=(a, b), theirs=theirs)) and found:
                 found.cite(f"e:{eid}", e.get("sources", ()))
     for x in kids:
         child = pid_of[x]
         pedi = next((how for f, how in data["people"][x]["famc"] if data["families"].get(f) is fam), "birth")
-        for parent in partners:
-            if parent == child or con.execute("SELECT 1 FROM parent WHERE child_id = ? AND parent_id = ?",
-                                              (child, parent)).fetchone():
+        for px in fam["partners"]:
+            parent = pid_of.get(px)
+            if parent is None or parent == child or con.execute(
+                    "SELECT 1 FROM parent WHERE child_id = ? AND parent_id = ?", (child, parent)).fetchone():
                 continue  # how a link entered here belongs (birth, adopted) stays as it is
+            how, kind = resolve.get(x, {}).get(f"parent:{px}"), pedi if pedi in family.PEDI else "birth"
+            if how == "keep":
+                report["kept"].append(f"{names((child,))}: {names((parent,))} not linked as a parent, as chosen")
+                continue
+            if how and how.startswith("replace:") and how[8:].isdigit():  # in place of that parent here
+                other = int(how[8:])
+                if con.execute("DELETE FROM parent WHERE child_id = ? AND parent_id = ?", (child, other)).rowcount:
+                    report["replaced"].append(f"{names((child,))}: {names((parent,))} as a parent in place of "
+                                              f"{names((other,))}, as chosen")
+            elif how in ("adopted", "foster"):
+                kind = how
             try:
-                family.add_parent(con, child, parent, pedi=pedi if pedi in family.PEDI else "birth")
+                family.add_parent(con, child, parent, pedi=kind)
                 report["links"] += 1
             except family.Problem as e:
                 report["skipped"].append(str(e))

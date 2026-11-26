@@ -25,7 +25,7 @@ Nothing here can be changed.{% endtrans %}</p>
       {% trans %}Family accounts on{% endtrans %}</label>
       <span class="hint">{% trans %}On: everyone signs in, at home too, and the site can be opened from outside. Off: only the
       home network, with no sign-in, as before.{% endtrans %}</span></p>
-    <p><label>{% trans %}Address from outside{% endtrans %} <input name="public_url" value="{{ cfg.public_url }}" placeholder="{{ _('https://photos.example.com') }}"></label>
+    <p><label>{% trans %}Address from outside{% endtrans %} <input name="public_url" value="{{ cfg.public_url }}" class="wide" placeholder="{{ _('https://photos.example.com') }}"></label>
       <span class="hint">{% trans %}The address people sign in on, and the one invite links and photo frames away from home use.
       Passkeys are made for this name: change it later, and everyone's passkeys stop working until they make new
       ones.{% endtrans %}{% if free.url and free.url != cfg.public_url %} {% trans url=free.url %}Your free address is {{ url }}.{% endtrans %}{% endif %}</span></p>

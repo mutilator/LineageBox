@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
-from lineagebox import events, family, gedcom, gedcom_import, people, uploads
+from lineagebox import events, family, gedcom, gedcom_checks, gedcom_import, people, uploads
 from lineagebox.web.common import ADMIN, MEMBER, PRIVATE, attachment, from_app
 from lineagebox.web.deps import con, page, site, viewer
 from lineagebox.web.site import Site
@@ -50,9 +50,15 @@ def import_page(request: Request, import_id: int, c=Depends(con), s: Site = Depe
     counts: dict[str, int] = {}
     for r in rows:
         counts[r["how"]] = counts.get(r["how"], 0) + 1
+    checks = [] if row["applied_at"] else gedcom_checks.check(c, data, matches)
+    flagged: dict[str, list] = {}
+    for i in checks:
+        flagged.setdefault(i.xref, []).append(i)
+    rows.sort(key=lambda r: not any(i.stop for i in flagged.get(r["xref"], ())))  # those to confirm first
     return page(request, "family_import.html", nav="family", imp=row, rows=rows, counts=counts,
                 families=len(data["families"]), report=json.loads(row["report"]) if row["report"] else None,
-                ai_on=s.live(c).describe_enabled)
+                ai_on=s.live(c).describe_enabled, checks=checks, flagged=flagged,
+                stops=sum(1 for i in checks if i.stop))
 
 
 @router.post("/api/family/import/{import_id}/choices", dependencies=[Depends(from_app)])

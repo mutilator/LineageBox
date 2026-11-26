@@ -296,13 +296,20 @@ document.addEventListener("DOMContentLoaded", () => {
     const picture = target.sha ? `/t/${target.sha}` : target.thumb;
     if (picture) { thumb.src = picture; thumb.hidden = false; }
     panel.hidden = false;
+    // The years don't matter to placing, and between the box and the map they pushed the map below the fold on a
+    // laptop: the pin landed out of sight
+    for (const el of [document.getElementById("years"), document.querySelector(".year-pick")]) {
+      if (el) el.style.display = "none";
+    }
     clear.hidden = !target.by_hand;
     if (target.lat != null) {
       const place = target.label || t("here");
       where.textContent = target.by_hand ? t("Now {place}, placed by hand: drag the pin to move it.", { place })
         : t("Now {place}: drag the pin to move it.", { place });
     }
-    const icon = L.divIcon({ className: "map-pin", iconSize: [28, 28], iconAnchor: [14, 28] });
+    // The drop is turned inside the marker: turned itself (CSS rotate), the marker's place on the map, which Leaflet
+    // gives as a transform, was turned with it, and the pin landed far from the spot. Its point is 34 px down.
+    const icon = L.divIcon({ className: "map-pin", html: "<span></span>", iconSize: [28, 28], iconAnchor: [14, 34] });
     const put = (latlng, go) => {
       if (!pin) {
         pin = L.marker(latlng, { draggable: true, icon, title: t("Drag to where it was taken"), autoPan: true }).addTo(map);

@@ -129,6 +129,10 @@ Tick it again to carry on where it stopped.
 
 ## When something is wrong
 
+**Check the connection**, under the AI's settings, says what it found:
+
+![Check the connection: Ollama answers, but has no models yet](screenshots/ai-check.png)
+
 The Status page shows a red note starting with **Ollama:**. The same note is on the Settings page. What the notes mean:
 
 | The note says | What to do |

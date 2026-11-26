@@ -95,7 +95,10 @@ class Ollama:
         except (httpx.HTTPError, ValueError) as e:
             return f"Not answering ({type(e).__name__}). Is the machine on and Ollama running?"
         if not any(n == self.model or n.split(":")[0] == self.model for n in names):
-            return (f"Ollama {version} answers, but has no model named {self.model}. It has: {', '.join(names) or 'none'}."
+            if not names:  # "pick one of those" with none to pick read oddly on a new Ollama
+                return (f"Ollama {version} answers, but has no models yet. Download {self.model} with the button"
+                        " below.")
+            return (f"Ollama {version} answers, but has no model named {self.model}. It has: {', '.join(names)}."
                     " Download it with the button below, or pick one of those.")
         if problem := self.model_problem():
             return f"Ollama {version} answers and has {self.model}, but: {problem.message}"

@@ -495,7 +495,7 @@ machines and networks are hidden.{% endtrans %}</p>
       <span class="hint">{% trans %}The name leads to this machine's address at home, and nothing is opened to the internet: for
       HTTPS and passkeys at home, or over a VPN.{% endtrans %}</span></p>
     <p><label>{% trans %}This machine's home-network address{% endtrans %} <input name="home" value="{{ home_guess }}" placeholder="192.168.1.20"></label>
-      <span class="hint">{% trans %}Only for the home network only.{% endtrans %}</span></p>
+      <span class="hint">{% trans %}Needed only when the name is for the home network.{% endtrans %}</span></p>
     <p><label>{% trans %}Port{% endtrans %} <input name="port" value="443" inputmode="numeric" size="6"></label>
       <span class="hint">{% trans %}The port browsers use: 443 when your router forwards the usual HTTPS port here, which leaves it
       out of the address. For the home network only, LineageBox's own port (8000, unless you changed it).{% endtrans %}</span></p>

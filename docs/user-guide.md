@@ -42,6 +42,8 @@ press it again for the words. On a phone the menu is hidden: **☰** opens it ov
 shows. At the top are the search box, the bell (**New for you**), **?** for help, and the round button: who is signed
 in, with Sign out, and how the site looks (below). The LineageBox logo always goes to Home.
 
+![The menu at the side, with Add photos at its top and Show icons only at its foot; along the top, the search box, New for you, help and the round button](screenshots/menu.webp)
+
 ### Light or dark
 
 **Colors**, under the round button at the top right: **Automatic** follows the computer or phone (light, or dark when it is set to dark),
@@ -78,6 +80,8 @@ photo here shows: people in the family tree whose photos aren't in the library, 
 and names typed by mistake. They can be opened and edited like anyone else. **Name faces** at its top asks about the
 faces still to name, one at a time: the face large, with the whole photo beside it (above it on a phone) and the face outlined. Recognition learns
 from every face you name, so each answer helps it find the rest.
+
+![Name faces: a face recognized as someone, asking whether it is them, with Yes, Not them and Skip, and the face outlined on its photo](screenshots/name-faces.webp)
 
 - **Is this …?** shows who the face most likely is. **Yes** names it as them; **Not them** says it isn't them, and the
   same face comes back with who else it may be, or a box to type who it is; **Skip** leaves it for later. The keys are
@@ -176,6 +180,8 @@ step-family) relative to the person marked **This is me**. Those words work in s
   move around the tree, scroll or pinch to zoom, and **Save as a picture** downloads the whole tree as one large PNG.
   Click someone to put them in the middle; click someone who married in, and the tree changes to the family they come
   from (Back returns to the one before). Double-click someone, or click the one marked, to open their page.
+
+  ![The classic tree: a click on a grandfather who married in brings his own family's tree, and a click on a grandson brings him to the middle](screenshots/family-tree-clicks.webp)
 - **Life events** (births, weddings, moves, graduations, adoption, bar and bat mitzvahs, censuses, probate and more,
   as GEDCOM 7 has them) are on each person's page, with dates as exact as you know them ("about 1950"). For a job, a
   religion, a title and the like, **What** says which.
@@ -213,7 +219,25 @@ step-family) relative to the person marked **This is me**. Those words work in s
   adopted, sources with where in them, and the places you put on the map with their coordinates.
 - **Import** brings in a family tree: it reads a GEDCOM file and matches its people with yours, by ID, names, birth
   years and relatives, with the AI's opinion on the unsure ones. You check every match before anything is added, and
-  nothing you entered is overwritten. A file saved as UTF-8 or as Unicode (UTF-16) reads as it was written; one in
+  nothing you entered is overwritten unless you choose the file's.
+  **To check**, at the top of the import page, lists what may be wrong, with what you can do about each:
+
+  ![To check on the import page: a match to confirm or add as new, one found through the family, and a parent the file and the catalog disagree on](screenshots/import-checks.png)
+
+  - A match that may be someone else: only a first name is the same; their parents, or their children's parents,
+    are other people here; the ages can't be (born after their own child, for one); they are in photos named by hand
+    from after the file says they died; the import would make someone their own ancestor, or a couple of a brother
+    and sister; or one person here is chosen for two in the file. Such a match isn't made by itself. One that is made
+    (by you, or found through the family) is marked ⚠ and comes in only once you press **The same person**;
+    **Not the same: add as new** undoes it, and that person isn't suggested again. Two in the file who fit one person
+    here equally well are both left for you to pick.
+  - People the names missed but their families point to: a mother under her married name, a husband known by his
+    middle name, matched "through the family" for you to confirm; and the only father someone has here, under
+    another name, suggested with **The same person as …**.
+  - Where the file and the catalog disagree about someone matched: a birth, death, burial or cremation, a wedding or
+    divorce, their sex or their name. Keep what is here, or use the file's (a name changed this way keeps the old one
+    as another name). A child who would get another mother or father: keep the one here, put the file's in their
+    place, say the two are the same person, or add the file's as an adoptive or foster parent. A file saved as UTF-8 or as Unicode (UTF-16) reads as it was written; one in
   the old ANSEL characters of some 5.5 programs loses its accents, so save it again as UTF-8 if you can. A date in a
   year no calendar has (0000, or 9999 for "not known") is kept as the file wrote it, but gives no ages. Its sources come in cited where the tree cited them, and its places' coordinates
   put them on the map. Its photos are looked for in your photo folders by file name: one found has the person added
@@ -331,6 +355,8 @@ keyboard) shows the next photo at once, to look through them all before you shar
   frame and the photos on it, nothing else of the site, and never shows a photo hidden from family members. **Turn
   off** stops it at once; the list says when each was last used and from where.
 
+  ![A new photo frame link, shown once, with its QR code](screenshots/photo-frame-link.png)
+
 ## Finding photos
 
 ### Search
@@ -360,6 +386,8 @@ while it is off, search finds words alone, as it always did, and nothing waits f
 As you type, a list under the box offers the people, family words ("cousins"), places, tags and years that fit. Pick
 one with a click or a tap (or ↓ ↑ and Enter): a tag or a family word goes into the search, and a person, a place or a
 year is added as a filter. Pick two people to find the photos they are in together, with no words at all.
+
+![Typing a name in the search box, picking the person from the list, then a second person: the photos of the two together](screenshots/search-suggest.webp)
 
 On the results:
 
@@ -447,6 +475,8 @@ opens the photo, and ↗ still opens it in a new tab. On a phone or tablet, hold
 
 ### A photo's page
 
+![A photo's page: Back, the faces named on the photo, Faces, the heart, only the photo, and ‹ › to the photos before and after it](screenshots/photo-page.webp)
+
 - **← and →** (or ‹ › on the photo) step through the folder, year, search or list you opened it from, and **Back**
   or **Esc** goes back to that list, where you were on it.
 - On a phone, swipe to step, tap the photo to see only it (tap again for the rest), and pinch or double-tap to zoom;
@@ -516,6 +546,8 @@ Recent changes keeps it. Anyone who can see a photo can place it; admins can als
 on the map** at the top of the folder's page: its photos, and those of the folders in it, without a place of their
 own, are then shown there. From the keyboard, move the map with the arrow keys (+ and − zoom) and press **Pin the
 middle of the map**.
+
+![Putting a photo on the map: finding a town, dragging the pin to the spot, and Save this place](screenshots/put-on-map.webp)
 
 A trip from place to place is a **journey**: put its photos in an album, in the order you traveled, and the album
 draws the way you went on a map of its own, stop by stop ([journeys](#journeys)). **Journeys**, in the box at the
@@ -604,6 +636,8 @@ time, with the time its clock gave each; ⚠ marks a photo with someone named in
    A clock that was right at first and drifted later: date its first photo as it is (leave its day and time as they
    are) and a later one as it really was.
 
+![A camera whose clock was wrong: its first photo dated wrong, every photo after it, then one dated as it really was, and all of them move](screenshots/camera-clock.webp)
+
 The panel of a photo put right also starts or ends the wrong dates at it, forgets a date you gave, or puts them all
 back. Photos of that camera read later are moved the same way, dates set by hand stay, and **Recent changes** can undo
 each change (photos of the camera read since go back too).
@@ -653,6 +687,8 @@ ticks the whole list, also the photos further down. Then, all at once:
 - have the AI describe them again (an admin may name the model in the box beside it);
 - move them to Removed. On a folder's page that takes only their files in that folder; copies elsewhere stay;
 - download their originals as one zip (**Download**).
+
+![Select photos: a click ticks one, Shift and a click ticks those between, and the bar at the foot dates them all at once](screenshots/select-photos.webp)
 
 At most 5,000 photos are changed in one go, an album holds up to 2,000 photos, and one download holds at most 2,000
 photos: with more ticked, the bar says so, and nothing is done to only some of them.
@@ -715,6 +751,8 @@ an album whose photos are in the order you traveled. **🗺 See the journey**, a
 draws it on a map of its own. It draws itself when the page opens, the way a travel film does: the first place, then
 a dashed arc out to the next, a place again, and on to the end. Each leg keeps an arrow showing which way it went,
 and once the whole way is there, dots run along it.
+
+![An album's journey drawing itself on the map, then Follow the journey running along it](screenshots/journey.webp)
 
 Nothing new has to be made or kept up to date. The journey is read from the album every time it is shown, so putting
 its photos in another order, or on the map, changes it at once.

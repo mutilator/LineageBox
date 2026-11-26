@@ -59,6 +59,17 @@ def test_what_the_model_can_do(cfg):
     assert "no model named qwen2.5vl" in mock_ollama(missing, show()).check()  # the list of models doesn't have it
 
 
+def test_a_new_ollama_with_no_models(cfg):
+    """A new Ollama has nothing to pick from: the check says to download the model, not to pick one of none."""
+    def handler(request):
+        if request.url.path == "/api/version":
+            return httpx.Response(200, json={"version": "0.40.11"})
+        return httpx.Response(200, json={"models": []})
+
+    said = mock_ollama(dataclasses.replace(cfg, ollama_model="ministral-3"), handler).check()
+    assert said == "Ollama 0.40.11 answers, but has no models yet. Download ministral-3 with the button below."
+
+
 def test_a_model_that_thinks_is_asked_not_to(cfg):
     """A thinking model (qwen3, deepseek-r1) would spend the answer's tokens thinking: it is told not to. One that
     doesn't think is asked as before, without the word, which an older Ollama doesn't know."""

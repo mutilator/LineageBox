@@ -14,6 +14,18 @@ here; {{ names }} names, {{ events }} events and {{ links }} family links added.
 <p class="meta">{% trans %}What is here was kept. Change it on the person's page if the file is right.{% endtrans %}</p>
 <ul>{% for c in report.conflicts %}<li>{{ c }}</li>{% endfor %}</ul>
 {% endif %}
+{% if report.renamed %}
+<h2>{% trans %}Renamed as in the file, as you chose{% endtrans %} <small>{{ report.renamed|length }}</small></h2>
+<ul>{% for c in report.renamed %}<li>{{ c }}</li>{% endfor %}</ul>
+{% endif %}
+{% if report.replaced %}
+<h2>{% trans %}Taken from the file, as you chose{% endtrans %} <small>{{ report.replaced|length }}</small></h2>
+<ul>{% for c in report.replaced %}<li>{{ c }}</li>{% endfor %}</ul>
+{% endif %}
+{% if report.kept %}
+<h2>{% trans %}Left as they were, as you chose{% endtrans %} <small>{{ report.kept|length }}</small></h2>
+<ul>{% for c in report.kept %}<li>{{ c }}</li>{% endfor %}</ul>
+{% endif %}
 {% if report.skipped %}
 <h2>{% trans %}Left out{% endtrans %} <small>{{ report.skipped|length }}</small></h2>
 <ul>{% for c in report.skipped %}<li>{{ c }}</li>{% endfor %}</ul>
@@ -21,10 +33,75 @@ here; {{ names }} names, {{ events }} events and {{ links }} family links added.
 <p>{% trans %}<a href="/family">Back to the family</a> · <a href="/family/names">Names to check</a>{% endtrans %}</p>
 {% else %}
 <p class="meta">{% trans rows=rows|length %}{{ rows }} people and {{ families }} families in the file.{% endtrans %}
-  {%- for how, label in (("uid", _("the same person as before")), ("sure", _("sure matches")), ("likely", _("likely matches")), ("ai", _("matched by the AI")), ("chosen", _("chosen by you")), ("unsure", _("unsure")), ("new", _("new"))) %}
-  {%- if counts.get(how) %} · {{ counts[how] }} {{ label }}{% endif %}{% endfor %}</p>
+  {%- for how, label in (("uid", _("the same person as before")), ("sure", _("sure matches")), ("likely", _("likely matches")), ("family", _("found through the family")), ("ai", _("matched by the AI")), ("chosen", _("chosen by you")), ("unsure", _("unsure")), ("new", _("new"))) %}
+  {%- if counts.get(how) %} · {{ counts[how] }} {{ label }}{% endif %}{% endfor %}
+  {%- if checks %} · <a href="#to-check">{% trans n=checks|length %}{{ n }} to check{% endtrans %}</a>{% endif %}</p>
 <p class="meta">{% trans %}Check who is who: the unsure come first. Pick the person they are here, or "add as new". Nothing
-changes until you press Bring it in, and then only what the catalog lacks is added; nothing here is overwritten.{% endtrans %}</p>
+changes until you press Bring it in, and then only what the catalog lacks is added; what is here is kept unless you
+choose the file's below.{% endtrans %}</p>
+{% if checks %}
+{%- set api = "/api/family/import/" ~ imp.id ~ "/choices" %}
+{%- set titles = {"event": _("a life event"), "sex": _("their sex"), "name": _("their name"), "parent": _("a parent"), "couple": _("a wedding or divorce")} %}
+{%- set sexes = {"male": _("male"), "female": _("female")} %}
+<section class="import-checks" id="to-check">
+  <h2>{% trans %}To check{% endtrans %} <small>{{ checks|length }}</small></h2>
+  <p class="meta">{% trans %}What may be wrong with a match, people the names missed but their families point to, and
+  where the file and the catalog disagree. A match marked ⚠ is brought in only once you say it is the same person, or
+  choose someone else.{% endtrans %}</p>
+  <ul class="checks">
+    {%- for i in checks %}
+    <li class="check check-{{ i.kind }}{% if i.stop %} stop{% endif %}{% if i.confirmed %} confirmed{% endif %}">
+      {%- if i.kind == "pick" %}
+      <p><a href="/person/{{ i.pid }}"><b>{{ i.ours }}</b></a> {% trans %}here is which of them in the file?{% endtrans %}</p>
+      {%- else %}
+      <p><b>{% if i.stop %}⚠ {% elif i.confirmed %}✓ {% endif %}{{ i.their }}</b>
+        {%- if i.kind == "suggest" %} <span class="hint inline">{% trans %}(to be added as new){% endtrans %}</span> → <a href="/person/{{ i.pid }}">{{ i.ours }}</a>?
+        {%- elif i.pid %} → <a href="/person/{{ i.pid }}">{{ i.ours }}</a>{% endif %}
+        {%- if i.kind == "clash" %} <span class="hint inline">· {{ titles[i.code] }}</span>{% endif %}</p>
+      {%- endif %}
+      {%- for line in i.lines %}
+      <p class="hint">{{ line }}</p>
+      {%- endfor %}
+      {%- if i.kind == "doubt" and not i.confirmed %}
+      <p class="buttons">
+        <button type="button" data-api="{{ api }}" data-body='{{ {"confirm:" ~ i.xref: i.pid}|tojson }}' data-reload>{% trans %}The same person{% endtrans %}</button>
+        <button type="button" data-api="{{ api }}" data-body='{{ {"not:" ~ i.xref: i.pid}|tojson }}' data-reload>{% trans %}Not the same: add as new{% endtrans %}</button>
+        <a href="#row-{{ i.xref }}">{% trans %}someone else…{% endtrans %}</a></p>
+      {%- elif i.kind == "doubt" %}
+      <p class="buttons"><span class="hint inline">{% trans %}You said they are the same person.{% endtrans %}</span>
+        <button type="button" data-api="{{ api }}" data-body='{{ {"not:" ~ i.xref: i.pid}|tojson }}' data-reload>{% trans %}Not the same after all{% endtrans %}</button></p>
+      {%- elif i.kind == "suggest" %}
+      <p class="buttons">
+        <button type="button" data-api="{{ api }}" data-body='{{ {i.xref: i.pid|string, "confirm:" ~ i.xref: i.pid}|tojson }}' data-reload>{% trans name=i.ours %}The same person as {{ name }}{% endtrans %}</button>
+        <button type="button" data-api="{{ api }}" data-body='{{ {"not:" ~ i.xref: i.pid}|tojson }}' data-reload>{% trans %}Different people{% endtrans %}</button></p>
+      {%- elif i.kind == "pick" %}
+      <p class="buttons">
+        {%- for x, name in i.rivals %}
+        <button type="button" data-api="{{ api }}" data-body='{{ {x: i.pid|string, "confirm:" ~ x: i.pid}|tojson }}' data-reload>{{ name }}</button>
+        {%- endfor %}
+        {%- set nobody = {} %}{% for x, _name in i.rivals %}{% set _ = nobody.update({"not:" ~ x: i.pid}) %}{% endfor %}
+        <button type="button" data-api="{{ api }}" data-body='{{ nobody|tojson }}' data-reload>{% trans %}None of them{% endtrans %}</button></p>
+      {%- elif i.kind == "clash" %}
+      {%- if i.code == "name" %}
+      {%- set options = [("keep", _("Keep the name %(here)s; the file's is added as another name", here=i.here)), ("theirs", _("Rename them %(there)s; the name here is kept as another name", there=i.there))] %}
+      {%- elif i.code == "parent" %}
+      {%- set options = [("keep", _("Keep %(here)s; %(there)s isn't linked as a parent", here=i.here, there=i.there)), ("replace:" ~ i.same_pid, _("%(there)s instead of %(here)s", here=i.here, there=i.there)), ("same:" ~ i.same_pid, _("%(there)s and %(here)s are the same person", here=i.here, there=i.there)), ("adopted", _("%(there)s as an adoptive parent too", there=i.there)), ("foster", _("%(there)s as a foster parent too", there=i.there))] %}
+      {%- elif i.code == "sex" %}
+      {%- set options = [("keep", _("Keep what is here: %(here)s", here=sexes.get(i.here, i.here))), ("theirs", _("Use the file's: %(there)s", there=sexes.get(i.there, i.there)))] %}
+      {%- else %}
+      {%- set options = [("keep", _("Keep what is here: %(here)s", here=i.here)), ("theirs", _("Use the file's: %(there)s", there=i.there))] %}
+      {%- endif %}
+      <form class="clash" data-api="{{ api }}" data-settings data-reload>
+        {%- for value, label in options %}
+        <label><input type="radio" name="resolve:{{ i.owner }}:{{ i.key }}" value="{{ value }}" data-submit{% if value == i.chosen %} checked{% endif %}> {{ label }}</label>
+        {%- endfor %}
+      </form>
+      {%- endif %}
+    </li>
+    {%- endfor %}
+  </ul>
+</section>
+{% endif %}
 <p>
   {%- if counts.get("unsure") %}
   <button type="button" data-api="/api/family/import/{{ imp.id }}/ai" data-busy="{{ _('The AI is comparing them…') }}" data-reload
@@ -37,8 +114,10 @@ changes until you press Bring it in, and then only what the catalog lacks is add
     <thead><tr><th>{% trans %}In the file{% endtrans %}</th><th>{% trans %}Here{% endtrans %}</th><th>{% trans %}Why{% endtrans %}</th></tr></thead>
     <tbody>
       {%- for r in rows %}
-      <tr class="how-{{ r.how }}">
-        <td><b>{{ r.name }}</b>{% if r.pet %} <span class="hint inline">{% trans %}pet{% endtrans %}</span>{% endif %}
+      {%- set mine = flagged.get(r.xref, []) %}
+      <tr class="how-{{ r.how }}{% if mine|selectattr('stop')|list %} flag-stop{% endif %}" id="row-{{ r.xref }}">
+        <td><b>{% if mine|selectattr('stop')|list %}⚠ {% endif %}{{ r.name }}</b>{% if r.pet %} <span class="hint inline">{% trans %}pet{% endtrans %}</span>{% endif %}
+          {%- if mine %} <a class="hint inline" href="#to-check">{% trans %}to check{% endtrans %}</a>{% endif %}
           <span class="hint">{% if r.born %}{% trans born=r.born %}born {{ born }}{% endtrans %}{% endif %}{% if r.died %}{% trans value=" · " if r.born, died_on=r.died_on %}{{ value }}died {{ died_on }}{% endtrans %}{% endif %}
           {%- if r.parents %}{% trans value=" · " if r.born or r.died, parents=r.parents|join(" and ") %}{{ value }}child of {{ parents }}{% endtrans %}{% endif %}
           {%- if r.other_names %} · {% trans other_names=r.other_names|join(", ") %}also {{ other_names }}{% endtrans %}{% endif %}</span></td>
@@ -58,8 +137,13 @@ changes until you press Bring it in, and then only what the catalog lacks is add
   <p><button type="submit">{% trans %}Save these choices{% endtrans %}</button> <span class="hint inline" id="choices-saved"></span></p>
 </form>
 <p><button type="button" class="primary" data-api="/api/family/import/{{ imp.id }}/apply" data-busy="{{ _('Bringing it in…') }}"
-  data-confirm="{{ _('Bring in %(rows)s people as matched? Save your choices first.', rows=rows|length) }}">{% trans %}Bring it in{% endtrans %}</button>
+  data-confirm="{{ _('Bring in %(rows)s people as matched? Save your choices first.', rows=rows|length) }}"
+  {%- if stops %} disabled{% endif %}>{% trans %}Bring it in{% endtrans %}</button>
+  {%- if stops %}
+  <span class="hint inline">{% trans count=stops %}First check the match marked ⚠ under To check: say it is the same person, or choose someone else.{% pluralize %}First check the {{ count }} matches marked ⚠ under To check: say each is the same person, or choose someone else.{% endtrans %}</span>
+  {%- else %}
   <span class="hint inline">{% trans %}Adds the new people, and to those matched: other names, life events, families and
-  relationships they lack.{% endtrans %}</span></p>
+  relationships they lack.{% endtrans %}</span>
+  {%- endif %}</p>
 {% endif %}
 {% endblock %}

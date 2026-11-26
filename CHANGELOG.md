@@ -6,6 +6,32 @@ copies it there when the version is tagged ([releases](docs/development.md#relea
 A **catalog update** adds to the catalog's tables. LineageBox copies the catalog before it updates it, and earlier
 versions can't open the updated one.
 
+## 1.12.2 (2026-11-26)
+
+### Updated
+
+- **A family tree is checked before it comes in.** The import page lists **To check**: matches that may be someone
+  else (only a first name the same, parents or ages that say otherwise, photos named by hand from after the file says
+  they died, someone who would become their own ancestor, a couple who are brother and sister here, one person chosen
+  for two), people the names missed whom their families point to (a mother under her married name, a husband known
+  by his middle name), and where the file and the tree disagree. A doubtful match isn't made by itself; one marked ⚠
+  comes in only once you press **The same person**, and **Not the same** keeps that person from being suggested
+  again. Two in the file who fit one person here equally well are left for you to pick. For each disagreement, keep
+  what is here or take the file's birth, death, wedding, sex or name; a second mother or father can take the place of
+  the one here, be the same person, or be added as adoptive or foster.
+  ([User guide](docs/user-guide.md#the-family-tree))
+- **Pictures in the guides.** The user guide, the quick starts, installation, family accounts and remote access show
+  the pages they describe where a page takes some finding your way, with short clips where it moves: the classic
+  family tree, search as you type, ticking photos, putting one on the map, a camera's clock, a journey.
+
+### Fixed
+
+- **Putting a photo on the map puts the pin where you click.** The pin landed far from the spot clicked or the town
+  found, often out of sight. While a photo is being placed, the years no longer stand between its box and the map.
+- **Smaller things:** a space in the photo page's **← Back** and **☺ Faces**; the address from outside shown whole
+  under Family accounts; a certificate's file box beside its words; the sharing panel's list of whom to share with
+  drawn like the other boxes; and **Check the connection** on an Ollama with no models yet says to download one.
+
 ## 1.12.1 (2026-11-25)
 
 ### Updated
