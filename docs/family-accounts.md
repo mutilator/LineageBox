@@ -29,6 +29,12 @@ Of the photos and videos, they see:
 A photo with nobody in it is seen only by whoever uploaded it, and by the admins. Everything already in the library
 belongs to the admins. Admins can also hide a photo, or a whole folder, from every member.
 
+An admin sets an account's exceptions on **Settings → Family accounts**: open the account, pick **Also show** (someone
+from outside their part of the family) or **Don't show** (someone in it), type who, tick **with their family** for
+that person's whole side, and press **Add**. Each exception shows above, with × to take it off.
+
+![An account's exceptions: one person taken out of what the member sees, and the line to add another](screenshots/account-exceptions.png)
+
 On a photo, faces of people outside the member's tree show a name with no link. Paths on the share and network paths
 are never shown to members. They get a **Download** button instead. What thumbnails say to a screen reader (who is in
 each photo) names only the people the member sees.

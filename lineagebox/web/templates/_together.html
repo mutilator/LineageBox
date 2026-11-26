@@ -26,7 +26,7 @@ never suggested or recognized as them again (they can still be named on their ph
     {%- endfor %}
   </div>
   <p class="name-form">
-    <button type="submit" data-label="{{ _('These {n} are %(name)s', name=name) }}">{% trans shown=shown|length %}These {{ shown }} are {{ name }}{% endtrans %}</button>
+    <button type="submit" data-label="{{ _('These {n} are %(name)s', name=name) }}" data-label-one="{{ _('This one is %(name)s', name=name) }}">{% trans count=shown|length, shown=shown|length %}This one is {{ name }}{% pluralize %}These {{ shown }} are {{ name }}{% endtrans %}</button>
     <button type="submit" class="quiet" data-none>{% trans %}None of these are {{ name }}{% endtrans %}</button>
     {%- if g.faces|length > shown|length %}
     <span class="hint inline">{% trans faces=(g.faces|length - shown|length)|number %}{{ faces }} more after these, each less alike{% endtrans %}</span>

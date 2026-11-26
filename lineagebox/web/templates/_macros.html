@@ -121,7 +121,7 @@
     <button type="submit" id="bulk-person" data-api="/api/selection/person" data-keep data-label="{{ _('Add to {n}') }}" disabled title="{{ _("Say this person is in the ticked photos, for photos where their face wasn't found") }}">{% trans %}Add to 0{% endtrans %}</button>
   </span>
   <span class="bulk-field">
-    <input name="date" maxlength="80" placeholder="{{ _('a date, like summer 1987') }}" aria-label="{{ _('When they were taken') }}" data-enter="#bulk-date" data-key="w" data-key-label="{{ _('Date the ticked photos') }}" title="{{ _('When the ticked photos were taken, as exactly as you know it: 1987-08-14, June 1987, summer 1987, 1987, the 1980s, about 1987, between 1986 and 1988') }}">
+    <input name="date" maxlength="80" placeholder="{{ _('a date, like summer 1987') }}" aria-label="{{ _('When they were taken') }}" data-enter="#bulk-date" data-key="w" data-key-label="{{ _('Date the ticked photos') }}" title="{{ _('When the ticked photos were taken, as exactly as you know it: 1987-08-14, June 1987, summer 1987, Christmas 1987, 1987, the 1980s, about 1987, between 1986 and 1988') }}">
     <button type="submit" id="bulk-date" data-api="/api/selection/date" data-keep data-label="{{ _('Date {n}') }}" disabled title="{{ _('Give the ticked photos this date') }}">{% trans %}Date 0{% endtrans %}</button>
   </span>
   {#- Albums (albums.py): an album of the viewer's by its name, or a new one of that name #}

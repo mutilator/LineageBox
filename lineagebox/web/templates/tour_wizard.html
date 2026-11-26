@@ -51,6 +51,9 @@
       <option value="">{% trans %}Pick a year{% endtrans %}</option>
       {%- for y in years %}<option value="{{ y }}"{% if y == spec.when.year %} selected{% endif %}>{{ y }}</option>{% endfor %}
     </select>
+    {%- if years_found is not none %}
+    <span class="hint">{% if years_found %}{% trans %}The years with photos for this kind of tour.{% endtrans %}{% else %}{% trans %}No photos fit this kind of tour yet.{% endtrans %}{% endif %}</span>
+    {%- endif %}
   </fieldset>
   {%- endif %}
   {%- if "range" in asked %}

@@ -107,8 +107,8 @@ Nothing here can be changed.{% endtrans %}</p>
     <p><label><input type="checkbox" name="partners_share"{% if cfg.partners_share %} checked{% endif %}>
       {% trans %}Partners see what each other adds{% endtrans %}</label>
       <span class="hint">{% trans %}On: the albums, tours, journeys and photos one of a couple adds are seen by the other,
-      without either of them having to share anything. It follows the family tree -- whoever is marked as someone's
-      current partner, married or not -- so it starts and stops with the couple. Off: they share with each other like
+      without either of them having to share anything. It follows the family tree (whoever is marked as someone's
+      current partner, married or not), so it starts and stops with the couple. Off: they share with each other like
       anyone else.{% endtrans %}</span></p>
     <p><button type="submit" class="primary">{% trans %}Save{% endtrans %}</button> <span class="hint inline" id="accounts-saved"></span></p>
   </form>
@@ -191,6 +191,9 @@ Nothing here can be changed.{% endtrans %}</p>
         <label><input type="checkbox" name="branch"> {% trans %}with their family{% endtrans %}</label>
         <button type="submit">{% trans %}Add{% endtrans %}</button>
       </form>
+      <p class="hint">{% trans %}Exceptions to the part of the family this member sees: <b>Also show</b> someone from outside it,
+        or <b>Don't show</b> someone in it. <b>With their family</b>: their whole side too (their ancestors, blood
+        relatives and those relatives' partners).{% endtrans %}</p>
     </div>
     {%- endif %}
     </div>

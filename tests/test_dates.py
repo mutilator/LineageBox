@@ -53,6 +53,14 @@ def test_from_filename(name, expected):
     ("early 1987", "early 1987", "1987-01-01", "1987-04-30"),
     ("about 1987", "about 1987", "1986-01-01", "1988-12-31"),
     ("c. summer 1987", "about summer 1987", "1987-03-01", "1987-11-30"),
+    ("Christmas 1999", "Christmas 1999", "1999-12-25", "1999-12-25"),
+    ("new years eve, 1999", "New Year's Eve 1999", "1999-12-31", "1999-12-31"),
+    ("Easter of 1962", "Easter 1962", "1962-04-22", "1962-04-22"),
+    ("Thanksgiving 1987", "Thanksgiving 1987", "1987-11-26", "1987-11-26"),  # the fourth Thursday
+    ("Fourth of July 1976", "Fourth of July 1976", "1976-07-04", "1976-07-04"),
+    ("about Christmas 1999", "about Christmas 1999", "1999-12-18", "2000-01-01"),
+    ("Christmas 1999 to New Year’s Day 2000", "between Christmas 1999 and New Year's Day 2000",
+     "1999-12-25", "2000-01-01"),
 ])
 def test_photo_dates(text, shown, first, last):
     span = dates.photo_date(text)

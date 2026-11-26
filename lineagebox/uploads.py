@@ -6,9 +6,10 @@ finds the files like any others. A file comes as the body of one request and is 
 extensions, so a half-written file is never read. Names are cleaned part by part (no folders above, no characters
 Windows can't have, nothing hidden, no folder the scan skips), only photo and video types the catalog reads are
 taken, their first bytes must look like that type (an .html file named .jpg is refused), and a name already there gets
-" (2)".
+" (2)", unless it is the same file sent again (already_there): then it is kept once.
 """
 import asyncio
+import hashlib
 import os
 import re
 import shutil
@@ -129,6 +130,32 @@ def free_name(target: Path) -> Path:
         n += 1
         found = target.with_name(f"{target.stem} ({n}){target.suffix}")
     return found
+
+
+_COPY_NUMBER = re.compile(r"^(.*) \((\d+)\)$")
+
+
+def already_there(target: Path) -> Path | None:
+    """The file target's name was taken by (free_name's "beach.jpg" for "beach (2).jpg", or a lower number), when it
+    holds the same bytes: the same photo sent again, shared twice from a phone's gallery or picked again after a
+    dropped connection. None when there is none: then it is another photo of the same name."""
+    m = _COPY_NUMBER.match(target.stem)
+    if not m:
+        return None
+    size = target.stat().st_size
+    for n in range(1, int(m[2])):
+        other = target.with_name(f"{m[1]}{target.suffix}" if n == 1 else f"{m[1]} ({n}){target.suffix}")
+        if other.is_file() and other.stat().st_size == size and _digest(other) == _digest(target):
+            return other
+    return None
+
+
+def _digest(path: Path) -> bytes:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        while block := f.read(CHUNK):
+            h.update(block)
+    return h.digest()
 
 
 def looks_like(name: str, head: bytes) -> bool:

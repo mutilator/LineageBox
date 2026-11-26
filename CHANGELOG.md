@@ -19,12 +19,19 @@ versions can't open the updated one.
 - **Everyone connected, and Roots, in the classic family tree.** Beside **One line**, one chart of every family linked
   by parents, children and partners, each person once, a row for each generation; **Roots** trims it to one person's
   history, without the families of those who married in below them. ([User guide](docs/user-guide.md#the-family-tree))
+- **Holidays as dates:** type `Christmas 1987`, `Easter 1962` or `Thanksgiving 1987` under **Taken**.
+  ([User guide](docs/user-guide.md#dates))
 - **Pictures in the guides**, with short clips where a page moves.
 
 ### Fixed
 
+- **A family tree exported without living people's details** no longer puts their portraits, or the documents
+  only they are cited on, in the zip.
+- **A photo uploaded again is kept once**, not as a second copy ("beach (2).jpg").
+- **A kind of tour that asks only for the year** offers the years it has photos in, not every year.
 - **Placing a photo on the map:** the pin lands where you click, and the years no longer push the map down.
 - **On a phone, suggested names show above the keyboard** instead of behind it.
+- **On a phone, a photo's details slide up and down with a swipe**, not only a tap.
 - **Slideshows name the people added to a photo by hand**, and tours of people together count those photos.
 - **A story just recorded plays back** before you keep it.
 - **Suggested dates offer first the dates that fit** who is in the scan.
@@ -34,7 +41,8 @@ versions can't open the updated one.
 - **Dragging a photo in an album** no longer pops up the larger views of the photos it passes.
 - **Removing or merging someone** no longer says it can't be undone.
 - **Smaller things:** boxes and buttons drawn alike everywhere; spacing on the photo page, Upload, Stories and Family
-  accounts; tour kinds without "{person}" braces; **Check the connection** says to download a model when Ollama has
+  accounts; Home's family buttons two a row on a phone; counts that read right for one ("1 is fine as it is");
+  tour kinds without "{person}" braces; **Check the connection** says to download a model when Ollama has
   none; and Check faces' faces named for screen readers.
 
 ## 1.12.1 (2026-11-25)

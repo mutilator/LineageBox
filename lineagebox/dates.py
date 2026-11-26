@@ -64,7 +64,44 @@ SEASONS = ("winter", "spring", "summer", "fall")
 _SEASON_START = {"spring": 3, "summer": 6, "fall": 9, "autumn": 9, "winter": 12}
 _THIRDS = {"early": 0, "mid": 1, "middle": 1, "late": 2}
 _ABOUT = {"about", "around", "circa", "ca", "c", "abt", "approximately", "approx", "~"}
-_SAY = "Write it like 1987-08-14, June 1987, summer 1987, 1987, the 1980s, about 1987 or between 1986 and 1988."
+_SAY = ("Write it like 1987-08-14, June 1987, summer 1987, Christmas 1987, 1987, the 1980s, about 1987 or between 1986 "
+        "and 1988.")
+
+
+def _easter(y: int) -> date:
+    """Western Easter Sunday (the Gregorian computus)."""
+    a, b, c = y % 19, y // 100, y % 100
+    h = (19 * a + b - b // 4 - (b - (b + 8) // 25 + 1) // 3 + 15) % 30
+    i = (32 + 2 * (b % 4) + 2 * (c // 4) - h - c % 4) % 7
+    m = (h + i - 7 * ((a + 11 * h + 22 * i) // 451) + 114)
+    return date(y, m // 31, m % 31 + 1)
+
+
+def _thanksgiving(y: int) -> date:
+    """The fourth Thursday of November (the American Thanksgiving, as this app's words are American)."""
+    first = date(y, 11, 1)
+    return first + timedelta(days=(3 - first.weekday()) % 7 + 21)
+
+
+# Holidays people date family photos by ("Christmas 1999"), as typed without apostrophes, and the day each falls on
+_HOLIDAYS = {
+    "christmas": ("Christmas", lambda y: date(y, 12, 25)),
+    "christmas day": ("Christmas", lambda y: date(y, 12, 25)),
+    "xmas": ("Christmas", lambda y: date(y, 12, 25)),
+    "christmas eve": ("Christmas Eve", lambda y: date(y, 12, 24)),
+    "new years eve": ("New Year's Eve", lambda y: date(y, 12, 31)),
+    "new years": ("New Year's Day", lambda y: date(y, 1, 1)),
+    "new years day": ("New Year's Day", lambda y: date(y, 1, 1)),
+    "easter": ("Easter", _easter),
+    "easter sunday": ("Easter", _easter),
+    "thanksgiving": ("Thanksgiving", _thanksgiving),
+    "halloween": ("Halloween", lambda y: date(y, 10, 31)),
+    "valentines day": ("Valentine's Day", lambda y: date(y, 2, 14)),
+    "valentines": ("Valentine's Day", lambda y: date(y, 2, 14)),
+    "fourth july": ("Fourth of July", lambda y: date(y, 7, 4)),
+    "4th july": ("Fourth of July", lambda y: date(y, 7, 4)),
+    "independence day": ("Fourth of July", lambda y: date(y, 7, 4)),
+}
 
 
 @dataclass(frozen=True)
@@ -111,9 +148,9 @@ def season_of(month: int, year: int, south: bool = False) -> tuple[str, int]:
 
 
 def photo_date(text: str, south: bool = False, day_first: bool = False) -> Span | None:
-    """A photo's date as people know it: a day ("1987-08-14", "Aug 14, 1987", "8/14/1987"), a month ("June 1987"), a
-    season ("summer of 1987"), a year, a decade ("the 1980s"), early, mid or late in a year or decade ("late 1980s"),
-    "about" any of these, or two of them as a range ("between summer 1987 and summer 1988", "1986-1988",
+    """A photo's date as people know it: a day ("1987-08-14", "Aug 14, 1987", "8/14/1987", "Christmas 1987"), a month
+    ("June 1987"), a season ("summer of 1987"), a year, a decade ("the 1980s"), early, mid or late in a year or decade
+    ("late 1980s"), "about" any of these, or two of them as a range ("between summer 1987 and summer 1988", "1986-1988",
     "summer/fall 1987"). None for an empty one. Raises Problem for one it can't read, or one before 1800 or to come.
     south: seasons are the southern hemisphere's; day_first: 5/6/1990 is 5 June."""
     t = re.sub(r"\b(?:of|the)\b", " ", str(text or "").lower().replace(",", " ").replace("mid-", "mid "))
@@ -172,6 +209,10 @@ def _span(t: str, south: bool = False, day_first: bool = False) -> Span:
         return Span(f"{y}s", date(y, 1, 1), date(y + 9, 12, 31))
     if (m := re.fullmatch(r"([a-z]+)\s+(\d{4})", t)) and m[1] in _SEASON_START:
         return Span(f"{'fall' if m[1] == 'autumn' else m[1]} {m[2]}", *season_span(m[1], int(m[2]), south))
+    if (m := re.fullmatch(r"([a-z4' ’]+?)\s+(\d{4})", t)) and (day := _HOLIDAYS.get(re.sub(r"['’]", "", m[1]))):
+        name, when = day
+        d = when(int(m[2]))
+        return Span(f"{name} {m[2]}", d, d)
     try:
         sort = exact_date(t, day_first).sort  # "1987-08-14", "1987-08" or "1987"
     except Problem:

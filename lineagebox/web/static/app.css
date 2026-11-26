@@ -557,7 +557,8 @@ ul.downloads .meter { margin: 6px 0 4px; }
   .viewer.sheet-open .info { transform: none; overflow-y: auto; }
   .sheet-handle { position: sticky; top: 0; z-index: 1; display: grid; justify-items: center; gap: 6px; width: calc(100% + 32px);
                   margin: 0 -16px 8px; padding: 8px 16px 10px; border: 0; border-radius: 16px 16px 0 0;
-                  background: var(--surface); color: var(--text); text-align: center; min-height: 64px; }
+                  background: var(--surface); color: var(--text); text-align: center; min-height: 64px;
+                  touch-action: none; }  /* a swipe on it is the sheet's, not a scroll the browser cancels it for */
   .sheet-handle .grip { width: 44px; height: 5px; border-radius: 3px; background: var(--edge); }
   .sheet-peek { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .95rem; }
   .viewer.sheet-open .sheet-peek { visibility: hidden; }
@@ -963,6 +964,8 @@ fieldset.demo-locked { border: 0; margin: 0; padding: 0; min-width: 0; }  /* a d
 .account-row > summary b { font-weight: 600; }
 .account-row[open] > summary { margin-bottom: 6px; }
 .account-body { padding: 0 0 4px 18px; }
+.account-body .rules { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }  /* the exceptions in a row, */
+.account-body .rules > form, .account-body .rules > .hint { flex-basis: 100%; }  /* then a line to add one */
 .account-find { margin: 14px 0 6px; }
 .account-find input { font: inherit; width: min(100%, 26em); padding: 4px 8px; border-radius: 6px;
                       border: 1px solid var(--line); background: var(--bg); color: var(--text); }
@@ -1057,6 +1060,13 @@ fieldset.demo-locked { border: 0; margin: 0; padding: 0; min-width: 0; }  /* a d
 .kin-choice .ph { font-size: 1.4rem; color: var(--muted); }
 .kin-button b { font-size: 1.05rem; font-weight: 600; }
 .kin-button small { font-size: .8rem; opacity: .8; }
+/* on a phone, two a row: one a row pushed the photos a screen down */
+@media (max-width: 560px) {
+  .kin-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .kin-button { min-width: 0; gap: 8px; padding: 4px 10px 4px 4px; }
+  .kin-button img, .kin-button .ph { width: 40px; height: 40px; }
+  .kin-button b { font-size: .95rem; overflow-wrap: anywhere; }
+}
 /* a day's photos, as Photo tiles says (the round button): squares aimed at their faces, each row but the last
    stretched to the edge as a list's are; or Whole photos, in rows of their own shapes */
 .day-tiles { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px; touch-action: pan-x pan-y; }

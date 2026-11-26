@@ -19,9 +19,9 @@ original folder path. Restore a whole cleanup step here, or a single photo from 
 {% if total %}
 <p class="danger-zone">
   <button type="button" class="danger" data-api="/api/removed/empty" data-reload data-busy="{{ _('Deleting…') }}"
-          data-confirm="{{ _('Permanently delete all %(total)s removed files (%(total_bytes)s)? This cannot be undone.', total=total|number, total_bytes=total_bytes|size) }}">
+          data-confirm="{{ ngettext('Permanently delete the removed file (%(total_bytes)s)? This cannot be undone.', 'Permanently delete all %(total)s removed files (%(total_bytes)s)? This cannot be undone.', total, total=total|number, total_bytes=total_bytes|size) }}">
     {% trans %}Empty the Removed folder…{% endtrans %}</button>
-  <span class="hint inline">{% trans total=total|number, total_bytes=total_bytes|size %}Deletes these {{ total }} files for good, which gives back {{ total_bytes }}.{% endtrans %}</span>
+  <span class="hint inline">{% trans count=total, total=total|number, total_bytes=total_bytes|size %}Deletes it for good, which gives back {{ total_bytes }}.{% pluralize %}Deletes these {{ total }} files for good, which gives back {{ total_bytes }}.{% endtrans %}</span>
 </p>
 {% else %}
 <p class="note">{% trans %}Nothing has been removed.{% endtrans %}</p>

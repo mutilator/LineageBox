@@ -27,7 +27,7 @@ its photo. Or untick any you aren't sure of and say yes to the rest at once; the
     {%- endfor %}
   </div>
   <p class="name-form">
-    <button type="submit" class="primary" data-label="{{ _('Yes, the {n} ticked are %(name)s', name=person.name) }}">{% trans auto_faces=auto_faces|length, name=person.name %}Yes, the {{ auto_faces }} ticked are {{ name }}{% endtrans %}</button>
+    <button type="submit" class="primary" data-label="{{ _('Yes, the {n} ticked are %(name)s', name=person.name) }}" data-label-one="{{ _('Yes, the one ticked is %(name)s', name=person.name) }}">{% trans count=auto_faces|length, auto_faces=auto_faces|length, name=person.name %}Yes, the one ticked is {{ name }}{% pluralize %}Yes, the {{ auto_faces }} ticked are {{ name }}{% endtrans %}</button>
     <button type="button" class="quiet" data-tick="all">{% trans %}Tick all{% endtrans %}</button>
     <button type="button" class="quiet" data-tick="none">{% trans %}Untick all{% endtrans %}</button>
   </p>

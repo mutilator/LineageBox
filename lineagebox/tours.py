@@ -336,6 +336,18 @@ def photos(con: sqlite3.Connection, spec: dict, blurry_below: float | None = Non
     return chosen
 
 
+def years_found(con: sqlite3.Connection, spec: dict) -> list[int] | None:
+    """The years a kind of tour that asks only for the year has photos in, newest first: one about "christmas" or of
+    set people leaves most years empty, and a year picked from all of them made an empty tour. None when the kind
+    picks from every photo (any year with photos will do)."""
+    if questions(spec) != ["year"] or (spec["who"]["mode"] == "anyone" and not spec["words"]):
+        return None
+    every = json.loads(json.dumps(spec))
+    every["when"] = {**every["when"], "mode": "range", "from": "1800-01-01", "to": date.today().isoformat()}
+    every["pick"] = {"mode": "per_year", "count": 1, "max": 2000}  # one a year: every year with any
+    return sorted({int(p["taken"][:4]) for p in photos(con, every)}, reverse=True)
+
+
 def word_list(words: str) -> list[str]:
     """What a tour's photos may be about: each word, or "a phrase in quotes", is one thing."""
     found = (phrase or word for phrase, word in re.findall(r'"([^"]*)"|(\S+)', words or ""))

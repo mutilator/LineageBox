@@ -59,6 +59,11 @@ def test_uploads_go_into_their_own_folder(site, cfg, con, library):
     assert settings.get(con, "run_requested")  # the worker is asked to come
     again = upload(cora, "Trip/beach.jpg", jpeg("blue"), folder="Summer 2025")
     assert again.json()["saved"].endswith("Trip/beach (2).jpg")  # never over another
+    for sent_again, kept in ((jpeg(), "beach.jpg"), (jpeg("blue"), "beach (2).jpg")):  # shared again: kept once
+        same = upload(cora, "Trip/beach.jpg", sent_again, folder="Summer 2025").json()
+        assert same == {"saved": f"{folder}/Summer 2025/Trip/{kept}", "already": True}
+    assert sorted(p.name for p in (cfg.share_root / folder / "Summer 2025" / "Trip").iterdir()) == [
+        "beach (2).jpg", "beach.jpg"]
     assert "Uploaded so far" not in cora.get("/upload").text  # nothing read yet: the worker hasn't come
     scan(con, cfg)
     ingest(con, cfg)

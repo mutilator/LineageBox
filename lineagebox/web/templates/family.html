@@ -71,7 +71,7 @@ from who is whose parent, sibling or partner.{% endtrans %}</p>
     <div class="branch"><span class="branch-label">{% trans %}older brothers and sisters{% endtrans %}</span>
       <div class="couple">{% for p in view.older %}{{ vcard(p) }}{% endfor %}</div></div>
     {%- endif %}
-    <div class="branch"><span class="branch-label">{{ _("partners") if view.partners|length > 1 else _("and partner") if view.partners else "" }}</span>
+    <div class="branch"><span class="branch-label">{% if view.partners|length > 1 %}{% trans name=g.name(view.center) %}{{ name }} and partners{% endtrans %}{% elif view.partners %}{% trans name=g.name(view.center) %}{{ name }} and partner{% endtrans %}{% endif %}</span>
       <div class="couple">{{ vcard(view.center) }}{% for p, current in view.partners %}{{ vcard(p, former=current == false) }}{% endfor %}</div></div>
     {%- if view.younger %}
     <div class="branch"><span class="branch-label">{% trans %}younger brothers and sisters{% endtrans %}</span>

@@ -130,7 +130,7 @@ def name_face(face_id: int, body: NameBody, v=Depends(viewer), c=Depends(con), w
     face_to_change(c, v, face_id)
     with changes.tracking(w, v, "faces", f"Named a face {body.name}", faces_spec(v, [face_id])) as kept:
         pid = people.name_faces(w, [face_id], body.name, body.name_id, seen_people(v), added_by(v))
-    return {"person_id": pid, "undo": kept.id}
+    return {"person_id": pid, "message": f"Named {catalog.person(w, pid)['name']}.", "undo": kept.id}
 
 
 @router.post("/api/faces/{face_id}/not", dependencies=[Depends(from_app)])

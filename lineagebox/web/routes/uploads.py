@@ -102,6 +102,9 @@ async def upload_file(request: Request, path: str = Query(min_length=1, max_leng
         if size > most:
             raise uploads.TooBig(f"{target.name} is over {uploads.size_text(most)}, the most one upload may be.")
         await uploads.receive(request.stream(), target, most, size)
+        if (same := await run_in_threadpool(uploads.already_there, target)) is not None:
+            await run_in_threadpool(target.unlink, True)  # sent again: kept once, and (in a demo) not counted
+            return {"saved": f"{rel.rpartition('/')[0]}/{same.name}", "already": True}
         counted = ""  # taken: it counts
     except uploads.TooBig as e:
         raise HTTPException(413, str(e)) from None

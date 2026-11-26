@@ -471,8 +471,8 @@ PAGES = {
            "changed or added in Settings."),
         N_("Shared with you: tours others in the family made and shared with you. You see each as it shows its photos "
            "to whoever made it."),
-        N_("A tour of yours is marked shared while someone else can see it -- including your partner, who sees what "
-           "you add while an admin has couples sharing."),
+        N_("A tour of yours is marked shared while someone else can see it, your partner too: they see what you add "
+           "while an admin has couples sharing."),
         N_("Albums, below your tours: photos picked by hand instead of by rules. All albums opens Albums."))),
     "tour": Page(N_("A tour"), (
         N_("Its photos, best of each group of similar shots; your favorites (♡ on a photo) come before others like "
@@ -599,8 +599,8 @@ PAGES = {
            "small faces in group photos; the new faces are recognized where they clearly match, and faces marked not a "
            "face come back."),
         N_("Taken: a date that is wrong (a scan dated by its folder, a camera with its clock wrong) can be put right "
-           "as exactly as you know it: 1987-08-14, June 1987, summer 1987, 1987, the 1980s, about 1987, between summer "
-           "1987 and summer 1988. Winter 1988 means December 1988 to February 1989 (south of the equator, set on "
+           "as exactly as you know it: 1987-08-14, June 1987, summer 1987, Christmas 1987, 1987, the 1980s, about 1987, "
+           "between summer 1987 and summer 1988. Winter 1988 means December 1988 to February 1989 (south of the equator, set on "
            "Settings, that is summer 1988). The automatic date is kept, and “use the automatic date” goes back to it."),
         N_("A photo dated only by its file's time or its folder may show “Probably …” under Taken: the photos beside "
            "it in its folder, or who is in it, say when it was taken (Why? says how). Use it dates the photo that way, "

@@ -231,6 +231,32 @@ def test_export_with_portraits(fam, cfg):
         assert _records(z.read("gedcom.ged"))[2].keys() == indi.keys()
 
 
+def test_a_private_export_leaves_out_the_photos_of_living_people(fam, cfg):
+    """Leaving out living people's details leaves their portraits out of the zip, not only out of the file, and the
+    documents only they cite (a living person's certificate)."""
+    con, ids = fam
+    shas = {"ab" * 32: None, "cd" * 32: "Daniel Miller", "ef" * 32: "Walter Baker"}  # a portrait; two documents
+    for sha, cited_by in shas.items():
+        path = cfg.preview_path(sha)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        Image.new("RGB", (400, 300), "white").save(path, "JPEG")
+        if cited_by:
+            image = con.execute("INSERT INTO image(sha256, format, width, height, stage) VALUES (?, 'jpeg', 4, 3, 1)",
+                                (sha,)).lastrowid
+            con.execute("INSERT INTO document(image_id, kind, title, created_at) VALUES (?, 'Letter', ?, '2026')",
+                        (image, f"A letter of {cited_by}"))
+            con.execute("INSERT INTO citation(image_id, person_id) VALUES (?, ?)", (image, ids[cited_by]))
+    con.commit()
+    whole, _ = gedcom.export(con, cfg, photos=True)
+    with zipfile.ZipFile(io.BytesIO(whole)) as z:
+        assert sorted(z.namelist()) == ["gedcom.ged", *sorted(f"media/{s}.jpg" for s in shas)]
+    private, _ = gedcom.export(con, cfg, photos=True, private_living=True)
+    with zipfile.ZipFile(io.BytesIO(private)) as z:  # Daniel is living: his portrait and his letter stay out
+        assert sorted(z.namelist()) == ["gedcom.ged", f"media/{'ef' * 32}.jpg"]
+        text = z.read("gedcom.ged").decode("utf-8-sig")
+    assert "A letter of Walter Baker" in text and "Daniel" not in text and "ab" * 32 not in text
+
+
 def test_events_and_names_on_the_pages(fam, cfg):
     con, ids = fam
     daniel, katherine = ids["Daniel Miller"], ids["Katherine Miller"]

@@ -268,7 +268,8 @@ def test_errors_are_said_as_pages_and_as_messages(client):
     page = client.get("/image/99999")
     assert page.status_code == 404 and page.headers["content-type"].startswith("text/html")
     assert "No such image" in page.text and 'href="/"' in page.text
-    assert client.get("/no/such/page").status_code == 404 and "Not here" in client.get("/no/such/page").text
+    nowhere = client.get("/no/such/page")
+    assert nowhere.status_code == 404 and "Not here" in nowhere.text and "No such page" in nowhere.text
     bad = client.get("/image/abc")
     assert bad.status_code == 400 and "Image id should be a number." in bad.text
     api = client.get("/image/99999", headers={"X-Requested-With": "lineagebox"})

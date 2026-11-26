@@ -161,7 +161,9 @@ def create_app(cfg: Config, google_http: httpx.Client | None = None) -> FastAPI:
 
     @app.exception_handler(StarletteHTTPException)  # FastAPI's are these too, and so is a page that isn't there
     async def refused(request: Request, exc: StarletteHTTPException):
-        return answer(request, exc.status_code, str(exc.detail))
+        # an address with no page: Starlette's "Not Found" said as the site's other pages say it
+        said = "No such page" if exc.status_code == 404 and exc.detail == "Not Found" else str(exc.detail)
+        return answer(request, exc.status_code, said)
 
     @app.exception_handler(RequestValidationError)
     async def does_not_fit(request: Request, exc: RequestValidationError):

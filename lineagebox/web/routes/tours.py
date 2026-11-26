@@ -150,10 +150,12 @@ def with_title(c, name: str, chosen: list[dict], about: str = "") -> list[dict]:
 def wizard(request: Request, c, tour_type: dict | None, tour: dict | None):
     spec = tour["spec"] if tour else tour_type["spec"]
     named = catalog.people(c)
+    found = tours.years_found(c, tour_type["spec"]) if tour_type and not tour else None
     return page(request, "tour_wizard.html", nav="tours", type=tour_type, tour=tour, spec=spec,
                 asked=tours.questions(tour_type["spec"]) if tour_type else [],
                 people=named, covers=cover_faces(named), relations=tours.relation_choices(c),
-                years=sorted(catalog.timeline(c), reverse=True), seasons=tours.SEASONS, south=dates.south(c))
+                years=sorted(catalog.timeline(c), reverse=True) if found is None else found, years_found=found,
+                seasons=tours.SEASONS, south=dates.south(c))
 
 
 @router.get("/tours/new", response_class=HTMLResponse)

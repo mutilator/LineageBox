@@ -137,6 +137,22 @@ def test_tour_types_on_the_settings_page(con, cfg, tlib):
     assert bad.status_code == 400 and "Seconds" in bad.json()["detail"]
 
 
+def test_a_kind_asking_only_the_year_offers_the_years_it_has_photos_in(con, cfg, tlib):
+    tag(con, {"xmas23.jpg": "christmas tree"})
+    client = TestClient(webapp.create_app(cfg), client=LAN)
+    form = {"name": "Christmas mornings", "title": "Christmas {year}", "who": "anyone", "when": "year", "year": "",
+            "words": "christmas", "pick": "all", "max": "300", "count": "2", "media": "photos", "order": "date",
+            "seconds": "5"}
+    client.post("/api/tour-types", json=form, headers=APP)
+    made = kind(con, "Christmas mornings")
+    assert tours.years_found(con, made["spec"]) == [2023]
+    wizard = client.get(f"/tours/new?type={made['id']}").text
+    assert '<option value="2023">' in wizard and '<option value="2022">' not in wizard
+    assert "The years with photos for this kind of tour." in wizard
+    assert tours.years_found(con, kind(con, "Year in review")["spec"]) is None  # every photo: every year will do
+    assert '<option value="2022">' in client.get(f"/tours/new?type={kind(con, 'Year in review')['id']}").text
+
+
 def tag(con, tags: dict[str, str]):
     """Give the test photos tags, in the search too: {file: "tag, tag"}."""
     for name, given in tags.items():

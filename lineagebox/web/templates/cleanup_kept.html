@@ -4,9 +4,13 @@
 {% block title %}{% trans %}Kept{% endtrans %}{% endblock %}
 {% block main %}
 <nav class="crumbs"><a href="/cleanup">{% trans %}Cleanup{% endtrans %}</a><span class="sep">/</span><h1>{% trans %}Kept{% endtrans %}</h1></nav>
-<p class="meta">{% trans count=images|length, n=images|length|number %}{{ n }} photo{% pluralize %}{{ n }} photos{% endtrans %} {% trans count=pairs|length %}and {{ count }} folder
-pair you chose to keep.{% pluralize %}and {{ count }} folder pairs you chose to keep.{% endtrans %} {% trans %}Cleanup does not suggest them. Tick photos and put them
-back on the cleanup lists if you change your mind.{% endtrans %}</p>
+{%- set photos_kept = ngettext('%(num)s photo', '%(num)s photos', images|length, num=images|length|number) %}
+{%- set pairs_kept = ngettext('%(num)s folder pair', '%(num)s folder pairs', pairs|length, num=pairs|length|number) %}
+<p class="meta">{% if images and pairs %}{{ _('%(photos)s and %(pairs)s you chose to keep.', photos=photos_kept, pairs=pairs_kept) }}
+{%- elif images or pairs %}{{ _('%(kept)s you chose to keep.', kept=photos_kept if images else pairs_kept) }}
+{%- else %}{{ _('Nothing kept yet: photos you keep on a cleanup list come here.') }}{% endif %}
+{% if images or pairs %}{% trans %}Cleanup does not suggest them. Tick photos and put them back on the cleanup lists if you change
+your mind.{% endtrans %}{% endif %}</p>
 
 {% if images %}
 <form class="select-form" data-select-api="/api/images/unkeep" data-reason="kept">

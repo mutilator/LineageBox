@@ -37,7 +37,7 @@ picture), so every program shows them the right way up. Mark the rest fine, and 
     <button type="button" data-select="all" data-key="a">{% trans %}Select all{% endtrans %}</button>
     <button type="button" data-select="none" data-key="n">{% trans %}Select none{% endtrans %}</button>
     <button type="submit" class="primary" data-label="{{ _('Turn {n} the right way up') }}" disabled>{% trans %}Turn 0 the right way up{% endtrans %}</button>
-    <button type="submit" data-api="/api/images/turn-ok" data-label="{{ _('{n} are fine as they are') }}" disabled>{% trans %}0 are fine as they are{% endtrans %}</button>
+    <button type="submit" data-api="/api/images/turn-ok" data-label="{{ _('{n} are fine as they are') }}" data-label-one="{{ _('{n} is fine as it is') }}" disabled>{% trans %}0 are fine as they are{% endtrans %}</button>
   </div>
 </form>
 {% else %}

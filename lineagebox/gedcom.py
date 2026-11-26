@@ -97,6 +97,7 @@ class _Writer:
         self.con, self.cfg, self.v7 = con, cfg, version == "7.0"
         self.photos, self.private_living, self.media = photos, private_living, media
         self.lines: list[str] = []
+        self.cited: set[int] = set()  # the documents (image ids) a record written so far cites
 
     def put(self, level: int, tag: str, payload: str | None = None) -> None:
         """One structure, with a multi-line payload continued in CONT lines (and long 5.5.1 lines in CONC)."""
@@ -188,7 +189,7 @@ class _Writer:
             for c in fam["children"]:
                 how = fam["how"].get(c)
                 famc[c].append((fam_ids[key], None if how is None else PEDI[how] if self.v7 else how))
-        covers = self._covers() if self.photos else {}
+        covers = self._covers(living if self.private_living else set()) if self.photos else {}
 
         self._head()
         for pid, r in people.items():
@@ -197,14 +198,14 @@ class _Writer:
         for key, fam in sorted(fams.items(), key=lambda kv: fam_ids[kv[0]]):
             self._fam(fam_ids[key], fam, people, evts, living)
         for pid, cover in sorted(covers.items()):
-            if pid in living and self.private_living:
-                continue
             self.put(0, f"@O{pid}@", "OBJE")
             self.put(1, "FILE", cover["path"])
             self.put(2, "FORM", "image/jpeg" if self.v7 else "jpg")
             if not self.v7:
                 self.put(3, "TYPE", "photo")
             self.put(2, "TITL", cover["title"])
+        if self.private_living:  # a living person's certificate goes with them: only what someone shown cites
+            docs = [d for d in docs if d["image_id"] in self.cited]
         for d in docs:
             self.put(0, f"@S{d['image_id']}@", "SOUR")
             self.put(1, "TITL", d["title"])
@@ -386,6 +387,7 @@ class _Writer:
         """The citations of a person or an event: documents, then written sources with where in them."""
         for image_id in self.cites.get(key, ()):
             self.put(level, "SOUR", f"@S{image_id}@")
+            self.cited.add(image_id)
         for sid, page in self.text_cites.get(key, ()):
             self.put(level, "SOUR", f"@T{sid}@")
             if page:
@@ -415,9 +417,10 @@ class _Writer:
         born = next((e["sort_date"] for e in evts if e["tag"] == "BIRT" and e["sort_date"]), None)
         return born is None or int(born[:4]) > datetime.now().year - LIVING_YEARS
 
-    def _covers(self) -> dict[int, dict]:
+    def _covers(self, leave_out: set[int]) -> dict[int, dict]:
         """Each person's portrait: the preview of the photo with the face chosen for them, else their clearest
-        hand-named face, cropped around it."""
+        hand-named face, cropped around it. Not of those in leave_out (living people, when their details are left
+        out): their photos stay out of the zip too."""
         out = {}
         for r in self.con.execute("""
                 SELECT f.person_id, f.x1, f.y1, f.x2, f.y2, i.sha256, i.taken_at, p.name FROM face f
@@ -425,6 +428,8 @@ class _Writer:
                 WHERE f.id = (SELECT c.id FROM face c WHERE c.person_id = f.person_id
                               ORDER BY c.id IS (SELECT o.cover_face_id FROM person o WHERE o.id = c.person_id) DESC,
                                        c.assigned_by = 'user' DESC, c.quality DESC LIMIT 1)"""):
+            if r["person_id"] in leave_out:
+                continue
             path = self.cfg.preview_path(r["sha256"])
             try:
                 with Image.open(path) as im:

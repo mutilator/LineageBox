@@ -269,7 +269,7 @@
         {%- endif %}
         <form class="name-form compact date-form" data-api="/api/images/{{ img.id }}/date" data-reload>
           <input name="date" required maxlength="80" placeholder="{{ _('Change the date') if img.taken_at_source == 'user' else _('Wrong? Type when it was taken') }}" aria-label="{{ _('When it was taken') }}" aria-describedby="date-examples" data-key="w" data-key-label="{{ _('Change when it was taken') }}">
-          <span class="hint" id="date-examples">{% trans %}As exactly as you know it, then Enter: 1987-08-14, June 1987, summer 1987, the 1980s, about 1987.{% endtrans %}</span>
+          <span class="hint" id="date-examples">{% trans %}As exactly as you know it, then Enter: 1987-08-14, June 1987, summer 1987, Christmas 1987, the 1980s, about 1987.{% endtrans %}</span>
           {%- if img.taken_at_source == "user" %}
           <button type="button" class="quiet" data-api="/api/images/{{ img.id }}/date" data-body='{"date": ""}' data-reload>{% trans %}use the automatic date{% endtrans %}</button>
           {%- endif %}

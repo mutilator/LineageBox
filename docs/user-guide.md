@@ -354,8 +354,8 @@ and icons are kept on the phone. Pages and photos are always fetched from Lineag
 switched off, works as it always has; with no connection, a page says LineageBox can't be reached.
 
 On Android, once installed, LineageBox is in the gallery's **Share** menu: pick photos or videos, share them to
-LineageBox, and Upload opens and sends them into your uploads folder. Over plain http at home nothing of this is
-offered, and every page works as before.
+LineageBox, and Upload opens and sends them into your uploads folder. A photo shared again is kept once (Upload
+says it is already here). Over plain http at home nothing of this is offered, and every page works as before.
 
 ### Photo frames and TVs
 
@@ -632,6 +632,8 @@ To fix a wrong date (a scan dated by its folder, a camera with its clock wrong),
 page, as exactly as you know it:
 
 - `1987-08-14`, `June 1987`, `summer 1987`;
+- `Christmas 1987`, `Easter 1987`, `Thanksgiving 1987` (and Christmas Eve, New Year's Eve and Day,
+  Halloween, Valentine's Day, the Fourth of July);
 - `the 1980s`, `about 1987`;
 - `between summer 1987 and summer 1988`.
 

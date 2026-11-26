@@ -164,7 +164,11 @@ async function run(el, url, body) {
       say(result.message || t("Done."), { undo: result.undo });
     }
     if (el.dataset.followUpdate) followUpdate(el);
-    if (el.dataset.html && result.html) document.querySelector(el.dataset.html).innerHTML = result.html;
+    if (el.dataset.html && result.html) {
+      const into = document.querySelector(el.dataset.html);
+      into.innerHTML = result.html;
+      shownIn(into);
+    }
     if (el.dataset.refocus) try { sessionStorage.setItem("lineagebox-refocus", el.dataset.refocus); } catch {}
     if (result.go) setTimeout(() => (location.href = result.go), (result.wait ?? 0) * 1000);
     else if (el.dataset.remove) {
@@ -216,13 +220,17 @@ function followUpdate(el) {
 
 // Cleanup lists: tick photos (clicking a photo ticks it), then move the ticked ones to the Removed folder. Faces
 // suggested as someone (data-faces forms) are ticked the same way.
+// A count button's words for n ticked: data-label-one for one ("1 is fine as it is"), else data-label; {n} the number.
+const countLabel = (button, n) => (n === 1 && button.dataset.labelOne ? button.dataset.labelOne : button.dataset.label)
+  .replace("{n}", num(n));
+
 function updateSelection(form) {
   // a list whose ticks are kept (ticksKept, at the end): also those further down or on its other pages
   const kept = ticksKept(form);
   const n = kept?.size ?? form.querySelectorAll('input[name="image"]:checked, input[name="face"]:checked').length;
   if (kept) sayTicked(form, n);
   form.querySelectorAll("button[data-label]").forEach((submit) => {
-    submit.textContent = submit.dataset.label.replace("{n}", num(n));
+    submit.textContent = countLabel(submit, n);
     submit.disabled = n === 0;
   });
 }
@@ -515,7 +523,10 @@ document.querySelectorAll("[data-later]").forEach(async (el) => {
   for (let tries = 1; ; tries++) {
     try {
       const r = await fetch(el.dataset.later);
-      if (r.ok) return void (el.innerHTML = await r.text());
+      if (r.ok) {
+        el.innerHTML = await r.text();
+        return void shownIn(el);
+      }
       if (r.status !== 503 || tries === 4) break;
     } catch {
       break;
@@ -805,7 +816,10 @@ function updateShown(form) {
     el.hidden = !values.split(",").includes(form.elements[name]?.value.trim().toLowerCase());
   });
 }
-document.querySelectorAll("form").forEach(updateShown);
+function shownIn(root) {  // the page's forms, and those of a part put in later (data-later, data-html)
+  root.querySelectorAll("form").forEach(updateShown);
+}
+shownIn(document);
 document.addEventListener("input", (e) => e.target.form && updateShown(e.target.form));
 document.addEventListener("change", (e) => {
   if (e.target.form) updateShown(e.target.form);
@@ -1271,19 +1285,19 @@ document.querySelectorAll("[data-viewer]").forEach((viewer) => {
     handle?.setAttribute("aria-label", open ? t("Hide the details") : t("Show the details"));
     if (!open && sheet) sheet.scrollTop = 0;
   };
-  let grabbed = null;
+  let grabbed = null, swipedAt = 0;
   handle?.addEventListener("pointerdown", (e) => (grabbed = e.clientY));
   handle?.addEventListener("pointerup", (e) => {
     const dy = grabbed === null ? 0 : e.clientY - grabbed;
     grabbed = null;
     if (Math.abs(dy) > 30) {
       openSheet(dy < 0);
-      handle.dataset.swiped = "";
+      swipedAt = performance.now();
     }
   });
   handle?.addEventListener("click", () => {
-    if ("swiped" in handle.dataset) delete handle.dataset.swiped;
-    else openSheet(!viewer.classList.contains("sheet-open"));
+    // a mouse's drag ends in a click, which is the swipe's; a finger's swipe sends none, so the next tap is a tap
+    if (performance.now() - swipedAt > 400) openSheet(!viewer.classList.contains("sheet-open"));
   });
   sheet?.addEventListener("focusin", (e) => e.target !== handle && openSheet(true));  // a key that types in it
 
@@ -1491,13 +1505,14 @@ document.querySelectorAll("[data-upload]").forEach((zone) => {
   const status = zone.querySelector("[data-upload-status]");
   const folder = zone.querySelector('input[name="folder"]');
   const queue = [];
-  let running = 0, left = 0, done = 0, failed = 0;
+  let running = 0, left = 0, done = 0, failed = 0, there = 0;
 
   const show = () => {
+    const more = (there ? t(", {n} already here", { n: there }) : "")
+      + (failed ? t(", {n} not taken", { n: failed }) : "");
     status.textContent = left
-      ? t("{done} uploaded, {left} to go", { done, left }) + (failed ? t(", {n} not taken", { n: failed }) : "") + "…"
-      : t("{done} uploaded", { done }) + (failed ? t(", {n} not taken", { n: failed }) : "")
-        + t(". They show here once the worker has read them.");
+      ? t("{done} uploaded, {left} to go", { done, left }) + more + "…"
+      : t("{done} uploaded", { done }) + more + (done ? t(". They show here once the worker has read them.") : ".");
   };
   const send = ({ file, path, item }) => {
     running++;
@@ -1509,9 +1524,15 @@ document.querySelectorAll("[data-upload]").forEach((zone) => {
     item.classList.remove("failed");
     item.querySelector("button")?.remove();
     xhr.onload = () => {
-      let detail = "";
-      try { detail = JSON.parse(xhr.responseText).detail ?? ""; } catch {}
-      if (xhr.status === 200) { done++; item.classList.add("ok"); bar.value = 1; }
+      let answer = {};
+      try { answer = JSON.parse(xhr.responseText); } catch {}
+      const detail = answer.detail ?? "";
+      if (xhr.status === 200 && answer.already) {  // the same file sent before: kept once
+        there++;
+        item.classList.add("ok");
+        bar.value = 1;
+        item.querySelector("small").textContent = t("already here");
+      } else if (xhr.status === 200) { done++; item.classList.add("ok"); bar.value = 1; }
       else fail(item, detail || t("didn't work ({status})", { status: xhr.status }), xhr.status >= 500 || [408, 429].includes(xhr.status));
     };
     xhr.onerror = () => fail(item, t("the connection dropped"), true);
@@ -2730,7 +2751,7 @@ document.addEventListener("keydown", (e) => {
 function yesFacesCount(form) {
   const n = form.querySelectorAll('input[name="face"]:checked').length;
   form.querySelectorAll('button[type="submit"][data-label]').forEach((button) => {
-    const text = button.dataset.label.replace("{n}", num(n));
+    const text = countLabel(button, n);
     if (button.textContent !== text) button.textContent = text;  // else the observer below would see it change again
     button.disabled = n === 0;
   });
