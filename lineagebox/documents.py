@@ -17,8 +17,13 @@ from lineagebox import errors, events
 
 SOURCE_LIMITS = {"title": 200, "author": 120, "publication": 200, "note": 4000, "page": 300}
 
+# Kinds of document, for choosing one (the photo page, the Historical page) and for the AI's reading of a paper
+# (paper_reading.py). The first ones were all there were until 2026-11-26, and GEDCOM files keep them as notes.
 KINDS = ("Birth certificate", "Death certificate", "Marriage certificate", "Obituary", "Newspaper clipping", "Letter",
-         "Census record", "Military record", "Diploma", "Passport or ID", "Photo record", "Other")
+         "Census record", "Military record", "Diploma", "Passport or ID", "Photo record",
+         "Card or note", "Email", "Diary or journal", "Award or certificate", "School record", "Church record",
+         "Property record", "Will or legal paper", "Money or tax paper", "Work record", "Medical record",
+         "Family record", "Recipe", "Program or ticket", "Book or booklet", "Map or drawing", "Notes", "Other")
 
 
 class Problem(errors.Problem):

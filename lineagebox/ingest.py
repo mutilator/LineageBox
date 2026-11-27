@@ -10,6 +10,11 @@ like a video, with a picture of its sound wave as its preview and thumbnail, and
 stages to look at (their bits are set at once). One tagged as a song from an album (video.SONG_TAGS) is music, not a
 family recording: it is recorded as an image with an error starting "song:", so it is never read again and never
 shown, and it is left off the list of files that could not be read (catalog.undecodable).
+
+A paper that is a file of its own (a PDF, a Word or text file, an email: papers.py) is hashed like a video and read for
+its words and a picture of its first page; it becomes a document (media 'document') with its pages (paper_page), and
+nothing for the faces and describing stages. A text file or web page with too few words to be a paper is left out the
+way a song is ("not a paper:").
 """
 import hashlib
 import os
@@ -23,7 +28,7 @@ from typing import Callable
 from PIL import Image
 from tqdm import tqdm
 
-from lineagebox import camera_clock, dates, live, media, quality, retry, video
+from lineagebox import camera_clock, dates, live, media, papers, quality, retry, video
 from lineagebox.catalog import ON_SHARE, under
 from lineagebox.config import Config
 
@@ -61,6 +66,7 @@ class _Result:
     sha256: str | None = None
     image: dict | None = None  # columns for a new image row; None when the content is already known
     frames: list[tuple[int, float]] = field(default_factory=list)  # a new video's frames: (idx, seconds)
+    paper: papers.Read | None = None  # a new paper's words and what it says of itself (papers.py)
     read_error: str | None = None
     later: bool = False  # the read_error may pass (ffmpeg took too long): tried again after a while (retry.py)
 
@@ -92,6 +98,7 @@ def ingest(con: sqlite3.Connection, cfg: Config, limit: int | None = None, retry
                            ORDER BY f.path""", (under(folder),) if folder else ()).fetchall()
     left = 0
     timed = {*cfg.video_extensions, *cfg.audio_extensions}  # videos and recordings: read through ffmpeg
+    paper_files = set(cfg.document_extensions) - set(cfg.image_extensions)  # papers.py
     if not video.available():  # each video would be read whole for nothing: they wait until ffmpeg is installed
         kept = [r for r in rows if os.path.splitext(r["path"])[1].lower() not in timed]
         rows, left = kept, len(rows) - len(kept)
@@ -120,8 +127,11 @@ def ingest(con: sqlite3.Connection, cfg: Config, limit: int | None = None, retry
                 if not stats.stopped and stop is not None and stop():
                     stats.stopped = True
                 while not stats.stopped and len(running) < window and (row := next(todo, None)) is not None:
-                    if os.path.splitext(row["path"])[1].lower() in timed:
+                    ext = os.path.splitext(row["path"])[1].lower()
+                    if ext in timed:
                         running.add(videos.submit(_process_video, cfg, claimed, lock, row))
+                    elif ext in paper_files:  # a long PDF takes a while: beside the videos, not the photos
+                        running.add(videos.submit(_process_paper, cfg, claimed, lock, row))
                     else:
                         running.add(pool.submit(_process, cfg, claimed, lock, row))
                 if not running:
@@ -252,6 +262,66 @@ def _process_video(cfg: Config, claimed: set[str], lock: threading.Lock, row) ->
     }, frames)
 
 
+def _hash_file(path) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        while chunk := f.read(4 << 20):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _process_paper(cfg: Config, claimed: set[str], lock: threading.Lock, row) -> _Result:
+    """A paper that is a file of its own (papers.py). Runs in a worker thread: no database access."""
+    path = cfg.source_path(row["path"])
+    try:
+        sha = _hash_file(path)
+    except OSError as e:
+        return _Result(row["id"], read_error=f"{type(e).__name__}: {e}")
+    with lock:
+        if sha in claimed:
+            return _Result(row["id"], sha)
+        claimed.add(sha)
+    ext = os.path.splitext(row["path"])[1].lower()
+    fmt = papers.format_of(ext) or ext.lstrip(".")
+    try:
+        read = papers.read_file(path, ext)
+    except OSError as e:  # unreadable just now (a share hiccup): read again on the next pass
+        with lock:
+            claimed.discard(sha)
+        return _Result(row["id"], read_error=f"{type(e).__name__}: {e}")
+    except papers.Damaged as e:  # recorded on it, as a photo that can't be decoded is
+        return _Result(row["id"], sha, {"format": fmt, "media": "document", "error": f"paper: {e}"})
+    except Exception as e:  # something in the file this code doesn't expect: recorded on it, never stopping a pass
+        return _Result(row["id"], sha, {"format": fmt, "media": "document",
+                                        "error": f"paper: {type(e).__name__}: {e}"})
+    if read.not_a_paper:
+        return _Result(row["id"], sha, {"format": fmt, "media": "document", "error": papers.NOT_A_PAPER})
+    taken_at, source = dates.from_filename(os.path.basename(row["path"])), "filename"
+    if not taken_at:
+        taken_at, source = dates.from_mtime(row["mtime"]), "mtime"
+    width = height = None
+    if read.picture is not None:
+        picture = read.picture
+        picture.thumbnail((cfg.preview_size, cfg.preview_size), Image.Resampling.LANCZOS)
+        media.save_derivatives(picture, cfg.preview_path(sha), cfg.thumb_path(sha), cfg.thumb_size)
+        width, height = picture.size
+    read.picture = None  # saved: not kept in memory with the batch
+    # no fingerprint (phash): printed pages look alike, and near-duplicate groups would put different papers together
+    return _Result(row["id"], sha, {
+        "format": fmt, "media": "document", "width": width, "height": height,
+        "taken_at": taken_at, "taken_at_source": source, "stage": STAGE_INGEST | NOTHING_TO_SEE,
+    }, paper=read)
+
+
+def remake_paper(cfg: Config, sha: str, path) -> None:
+    """A paper file's preview and thumbnail made again from it, as ingest made them. Raises what reading it raises."""
+    read = papers.read_file(path, os.path.splitext(str(path))[1].lower())
+    if read.picture is None:
+        raise papers.Damaged("it has no picture to show")
+    read.picture.thumbnail((cfg.preview_size, cfg.preview_size), Image.Resampling.LANCZOS)
+    media.save_derivatives(read.picture, cfg.preview_path(sha), cfg.thumb_path(sha), cfg.thumb_size)
+
+
 def _sound(cfg: Config, row, sha: str, ext: str, path, p: video.Probe, head: bytes) -> _Result:
     """A recording: its sound wave as its picture, its length and dates. Runs in a worker thread."""
     if p.song:
@@ -329,6 +399,8 @@ def _rebuild(con: sqlite3.Connection, cfg: Config, stop: Callable[[], bool] | No
             if r["media"] == "audio":
                 path.stat()  # gone for now (a share hiccup): not drawn as a blank, which would be kept
                 _sound_picture(cfg, path, r["sha256"])
+            elif r["media"] == "document":
+                remake_paper(cfg, r["sha256"], path)
             elif r["media"] == "video":
                 p = video.probe(path)
                 poster = None
@@ -393,6 +465,9 @@ def _record(con: sqlite3.Connection, r: _Result, waiting: dict[str, list[int]], 
                 :gps_lat, :gps_lon, :duration, :codecs, :playable, :stage, :error)""", row).lastrowid
     con.executemany("INSERT INTO video_frame(image_id, idx, at) VALUES (?, ?, ?)",
                     ((image_id, idx, at) for idx, at in r.frames))
+    if r.paper is not None and row["error"] is None:
+        from lineagebox import historical  # it needs more of LineageBox than ingest does
+        historical.add_file_paper(con, image_id, r.paper)
     camera_clock.apply_new(con, image_id, row["camera"])  # a camera's clock put right before: this photo too
     stats.new_images += 1
     stats.decode_errors += row["error"] is not None

@@ -169,6 +169,10 @@ machines and networks are hidden.{% endtrans %}</p>
       <span class="hint">{% trans %}A small model that reads the descriptions, so that a search finds what its words mean, not only
       the words themselves: “kids sledding” finds children on a snowy hill. Empty: search finds words only. Whenever
       Ollama is away, search finds words only too.{% endtrans %}</span></p>
+    <p><label>{% trans %}Model for reading documents{% endtrans %} <input name="ollama_read_model" value="{{ cfg.ollama_read_model }}" placeholder="{{ cfg.ollama_model }}"></label>
+      <span class="hint">{% trans %}The model that copies out the words of letters, certificates and other papers on the
+      Historical page. It needs to look at pictures; a larger one reads handwriting and small print better. Empty: the
+      model above. Changing it doesn't read again what is read already.{% endtrans %}</span></p>
     <p><label>{% trans %}Photos at a time{% endtrans %} <input type="number" name="llm_workers" min="1" max="8" value="{{ cfg.llm_workers }}" class="num"></label>
       <span class="hint">{% trans %}One more than Ollama's parallel slots (OLLAMA_NUM_PARALLEL) keeps it busy. If something
       else uses the same Ollama, this still leaves it a turn.{% endtrans %}</span></p>
@@ -405,6 +409,23 @@ machines and networks are hidden.{% endtrans %}</p>
     has new photos to see (at most once an hour), and are there the next time they open Home. Days and weeks go by
     the calendar: 1 day means new memories each day, from the first visit.{% endtrans %}</p>
     <p><button type="submit" class="primary">{% trans %}Save{% endtrans %}</button> <span class="hint inline" id="memories-saved"></span></p>
+  </form>
+</section>
+
+<section class="panel" id="introductions">
+  <h2>{% trans %}From the family's history{% endtrans %}</h2>
+  <form data-api="/api/settings" data-settings data-show="#introductions-saved">
+    <p><label>{% trans %}Mark Historical in the menu when a document is waiting to be seen{% endtrans %}
+      <select name="introduce_every">
+        {%- for value, word in (("day", _("once a day")), ("week", _("once a week")), ("never", _("never"))) %}
+        <option value="{{ value }}"{% if cfg.introduce_every == value %} selected{% endif %}>{{ word }}</option>
+        {%- endfor %}
+      </select></label></p>
+    <p class="hint">{% trans %}The Historical page shows each person one document from their own family's history at a time,
+    their ancestors' first, until they open it or ask for another; once opened, it isn't shown to them again. The mark
+    in the menu says one is waiting, at most this often, so a family with hundreds of papers isn't reminded of them
+    all the time.{% endtrans %}</p>
+    <p><button type="submit" class="primary">{% trans %}Save{% endtrans %}</button> <span class="hint inline" id="introductions-saved"></span></p>
   </form>
 </section>
 </div>

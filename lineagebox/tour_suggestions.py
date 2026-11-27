@@ -15,7 +15,7 @@ from datetime import date, timedelta
 from itertools import combinations
 
 from lineagebox import dates, family, tours
-from lineagebox.catalog import VISIBLE
+from lineagebox.catalog import NOT_PAPER, VISIBLE
 
 LEAST = 12  # photos a suggested tour needs: fewer is hardly a slideshow
 SOON = 45   # days ahead that a birthday, anniversary or occasion counts as coming up
@@ -53,7 +53,7 @@ def suggest(con, blurry_below: float | None = None, today: date | None = None, m
     show, and the body that makes it (POST /api/tours)."""
     least = least or LEAST
     day = dict(con.execute(f"""SELECT i.id, substr(i.taken_at, 1, 10) FROM image i
-                               WHERE i.taken_at IS NOT NULL AND i.taken_at_source != 'mtime' AND {VISIBLE}"""))
+                               WHERE i.taken_at IS NOT NULL AND i.taken_at_source != 'mtime' AND {VISIBLE} AND {NOT_PAPER}"""))
     photos_of = defaultdict(set)
     for pid, image_id in con.execute("""SELECT person_id, image_id FROM face
                                         WHERE person_id IS NOT NULL AND assigned_by IN ('user', 'auto')

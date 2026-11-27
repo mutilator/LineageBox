@@ -198,7 +198,8 @@ def test_the_search_page(con, cfg, lib):
 def test_nothing_found_says_what_to_try(con, cfg, lib):
     client = TestClient(webapp.create_app(cfg), client=LAN)
     page = client.get("/search?q=brithday").text
-    assert "Nothing found" in page and "“birthday” instead of “brithday”" in page
+    # "No photos": the papers a search finds are in a part of their own, loaded after the page (routes/historical.py)
+    assert "No photos found" in page and "“birthday” instead of “brithday”" in page
     assert 'href="/search?q=birthday"' in page
     page = client.get("/search?q=giraffe+zebra").text
     assert "Without “zebra”" in page and 'href="/search?q=giraffe"' in page

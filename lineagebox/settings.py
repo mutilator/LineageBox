@@ -25,6 +25,8 @@ EDITABLE = ("folders", "ignore_dirs", "ingest_threads", "worker_interval_minutes
             "uploads_folder", "uploads_into", "upload_max_gb", "update_check", "hover_preview_ms",
             "backup_enabled", "backup_folder", "backup_keep_daily", "backup_keep_weekly")
 EDITABLE += ("ollama_embed_model",)  # search by meaning (embeddings.py)
+EDITABLE += ("ollama_read_model",)  # copying out the words of papers (paper_reading.py)
+EDITABLE += ("introduce_every",)  # Settings → Browsing: how often the menu marks a paper to meet (introductions.py)
 EDITABLE += ("sidecars_enabled", "import_enabled")  # Settings → Other programs (sidecars.py, imports.py)
 EDITABLE += ("whisper_language",)  # Settings → Speech (speech.py)
 EDITABLE += ("partners_share",)  # Settings → Family accounts: couples share what they add (access.py)
@@ -610,6 +612,21 @@ def _embed_model(value, cfg: Config) -> str:
     return value
 
 
+def _introduce_every(value, cfg: Config) -> str:
+    value = str(value).strip()
+    if value not in config.INTRODUCE_EVERY:
+        raise Invalid("Pick each day, each week or never.")
+    return value
+
+
+def _read_model(value, cfg: Config) -> str:
+    """The model that copies out the words of papers (paper_reading.py); "" for the one that describes photos."""
+    value = str(value).strip()
+    if len(value) > 100 or any(c.isspace() for c in value):
+        raise Invalid("Give the model's name as Ollama lists it, e.g. gemma3:12b, or leave it empty.")
+    return value
+
+
 def _ranged(field: str, what: str):
     return _whole(*config.RANGES[field], what)
 
@@ -637,6 +654,8 @@ _CHECKS = {
     "backup_keep_weekly": _ranged("backup_keep_weekly", "Weeks of weekly copies"),
 }
 _CHECKS["ollama_embed_model"] = _embed_model
+_CHECKS["ollama_read_model"] = _read_model
+_CHECKS["introduce_every"] = _introduce_every
 _CHECKS.update(sidecars_enabled=_switch, import_enabled=_switch)
 _CHECKS["whisper_language"] = _whisper_language
 _CHECKS.update(memories_keep=_ranged("memories_keep", "How long memories are kept"), memories_unit=_memories_unit)

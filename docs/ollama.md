@@ -32,6 +32,13 @@ too, a memory limit on Ollama's container (`mem_limit` in a compose override) ke
 
 Each model comes with its own license, which applies to how you use it. The model's page on [ollama.com](https://ollama.com/library) names it.
 
+**Reading documents.** The words of historical papers (letters, certificates, deeds: the user guide's
+[Historical papers](user-guide.md#historical-papers)) are copied out page by page by the same model, or by another
+one set as **Model for reading documents** on the same panel. Tried on real scanned family papers: `ministral-3` read
+typed pages right in a few seconds each, but misread a handwritten date, which it marked as a line it wasn't sure
+of; `qwen3.8:27b` read the date right, at about a minute a page. For a box of handwritten letters, a larger model is
+worth the wait; it only reads what isn't read yet.
+
 You set the model on the Settings page (**AI (Ollama)**, **Model**). Changing it describes every photo again with the new one. Descriptions are kept per model, so going back to the old model doesn't redo them. A photo someone had described again with another model (below) keeps that description.
 
 ## Describing again

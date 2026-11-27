@@ -1918,7 +1918,7 @@ if (treeFrame) {
     show();
   };
   let marked = null;  // the card marked: a click on it opens their page
-  // on one person's roots (a click: theirs) or everyone on one chart, the tree stays so
+  // on one person's bloodline (a click: theirs) or everyone on one chart, the tree stays so
   const lineLink = (card) => `/family/tree?root=${card.dataset.line}&person=${card.dataset.id}`
     + (treeFrame.dataset.mode ? `&${treeFrame.dataset.mode}=1` : "");
   const mark = (card) => {
@@ -1972,7 +1972,7 @@ if (treeFrame) {
     sheet.className = came.className;  // a chart is laid out to a size of its own (family.chart)
     sheet.style.width = came.style.width;
     sheet.style.height = came.style.height;
-    for (const part of ["nav.crumbs h1", ".tree-mode", "[data-tree-hints]"]) {  // whose roots, and what is shown
+    for (const part of ["nav.crumbs h1", ".tree-mode", "[data-tree-hints]"]) {  // whose bloodline, and what is shown
       const was = document.querySelector(part);
       const now = doc.querySelector(part);
       if (was && now) was.replaceWith(document.importNode(now, true));

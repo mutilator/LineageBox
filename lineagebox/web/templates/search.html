@@ -69,6 +69,8 @@
 </div>
 {% if results %}<h2>{% trans %}Photos{% endtrans %} <small>{{ total|number }}{% if total >= limit %}+{% endif %}</small></h2>{% endif %}
 {% endif %}
+{#- the papers whose words match (routes/historical.py): loaded after the page, between its people and its photos #}
+{% if q %}<div class="search-papers-part" data-later="/search/papers?{{ here_query|urlencode }}"></div>{% endif %}
 {% if asked and results %}
 <p class="meta">
   {%- if not (q and people_found) %}{{ total|number }}{% if total >= limit %}+{% endif %} {% trans count=total %}photo{% pluralize %}photos{% endtrans %}{% endif %}
@@ -90,7 +92,7 @@
 {% include "_pager.html" %}
 {% elif asked %}
 <div class="search-none">
-  <p><strong>{% trans %}Nothing found{% endtrans %}</strong>{% if q %} {% trans %}for “{{ q }}”{% endtrans %}{% endif %}{% if chips %} {% trans count=chips|length %}with this filter{% pluralize %}with these filters{% endtrans %}{% endif %}.</p>
+  <p><strong>{% if q %}{% trans %}No photos found{% endtrans %}{% else %}{% trans %}Nothing found{% endtrans %}{% endif %}</strong>{% if q %} {% trans %}for “{{ q }}”{% endtrans %}{% endif %}{% if chips %} {% trans count=chips|length %}with this filter{% pluralize %}with these filters{% endtrans %}{% endif %}.</p>
   {%- if ideas %}
   <p>{% trans %}Perhaps:{% endtrans %}</p>
   <ul class="search-ideas">

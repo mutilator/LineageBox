@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}{{ paper.title }}{% endblock %}
+{% block main %}
+<p class="crumbs"><a href="/historical">{% trans %}Historical{% endtrans %}</a>
+  {%- if collection %} › <a href="/historical?folder={{ collection.id }}">{{ collection.name or collection.path or "/" }}</a>{% endif %}</p>
+<h1>{{ paper.title }}</h1>
+<p class="meta">{{ paper.kind }}
+  {%- if paper.written %} · {% trans when=paper.written %}written {{ when }}{% endtrans %}{% endif %}
+  {%- if paper.sender %} · {% trans who=paper.sender %}from {{ who }}{% endtrans %}{% endif %}
+  {%- if paper.recipient %} · {% trans who=paper.recipient %}to {{ who }}{% endtrans %}{% endif %}
+  {%- if paper.language and paper.language != "English" %} · {% trans language=paper.language %}in {{ language }}{% endtrans %}{% endif %}
+  · {% trans count=pages|length %}{{ count }} page{% pluralize %}{{ count }} pages{% endtrans %}</p>
+<p class="paper-links">
+  {%- if download %}<a class="button" href="/original/{{ download }}" download>{% trans %}Download the original{% endtrans %}</a>{% endif %}
+  <a class="button quiet" href="/image/{{ paper.image_id }}" title="{{ _('Faces, tags, comments and sharing, as for a photo') }}">{% trans %}Open as a photo{% endtrans %}</a>
+</p>
+{% if paper.unreadable %}<p class="note">{% trans why=paper.unreadable %}This is {{ why }}{% endtrans %}</p>{% endif %}
+{% if paper.summary %}<p class="paper-summary">{{ paper.summary }}{% if paper.source == "auto" %} <span class="hint">{% trans %}(the AI's summary){% endtrans %}</span>{% endif %}</p>{% endif %}
+
+<section class="paper-people" aria-labelledby="paper-people-h">
+  <h2 id="paper-people-h" class="vh">{% trans %}Who is in it{% endtrans %}</h2>
+  {%- if in_it or added %}
+  <p>{% trans %}In it:{% endtrans %}
+    {%- for x in in_it %} <span class="chip"><a href="/person/{{ x.person_id }}">{{ x.name }}</a>
+      {%- if x.role == "wrote" %} <span class="meta">{% trans %}wrote it{% endtrans %}</span>{% elif x.role == "received" %} <span class="meta">{% trans %}received it{% endtrans %}</span>{% elif x.role == "about" %} <span class="meta">{% trans %}about them{% endtrans %}</span>{% endif %}
+      <button type="button" class="x" title="{{ _('Not them') }}" aria-label="{% trans name=x.name %}{{ name }} isn't in it{% endtrans %}" data-api="/api/historical/{{ paper.image_id }}/people/{{ x.person_id }}" data-body='{"yes": false}' data-reload>×</button></span>
+    {%- endfor %}
+    {%- for x in added %} <span class="chip"><a href="/person/{{ x.person_id }}">{{ x.name }}</a>
+      <button type="button" class="x" title="{{ _('Not in it') }}" aria-label="{% trans name=x.name %}{{ name }} isn't in it{% endtrans %}" data-api="/api/images/{{ paper.image_id }}/people/{{ x.person_id }}/remove" data-reload>×</button></span>
+    {%- endfor %}</p>
+  {%- endif %}
+  {%- for x in suggested %}
+  <p class="paper-suggested">{% trans written=x.as_written or x.name, name=x.name %}Is “{{ written }}” {{ name }}?{% endtrans %}{% if x.years %} <span class="meta">({{ x.years }})</span>{% endif %}
+    <button type="button" data-api="/api/historical/{{ paper.image_id }}/people/{{ x.person_id }}" data-body='{"yes": true}' data-reload>{% trans %}Yes{% endtrans %}</button>
+    <button type="button" class="quiet" data-api="/api/historical/{{ paper.image_id }}/people/{{ x.person_id }}" data-body='{"yes": false}' data-reload>{% trans %}No{% endtrans %}</button></p>
+  {%- endfor %}
+  <form class="name-form compact" data-api="/api/images/{{ paper.image_id }}/people" data-reload>
+    <input name="name" data-names autocomplete="off" required maxlength="80" placeholder="{{ _('Someone it is about or names?') }}" aria-label="{{ _('Add someone it is about or names') }}" title="{{ _('Pick them from the list as you type, or type a new name and press Enter') }}">
+  </form>
+  {%- if places %}<p class="hint">{% trans %}Places it names:{% endtrans %} {{ places|join(" · ") }}</p>{% endif %}
+</section>
+{% if related %}
+<p class="paper-related">{% trans %}Between the same two people:{% endtrans %}
+  {%- for r in related %} <a href="/historical/{{ r.id }}">{{ r.title }}{% if r.written %} ({{ r.written }}){% endif %}</a>{% if not loop.last %} ·{% endif %}{% endfor %}</p>
+{% endif %}
+{% if citations %}
+<p class="hint">{% trans %}A record of:{% endtrans %}
+  {%- for cit in citations %} <a href="/person/{{ cit.person_id }}">{{ cit.label }}</a>{% if not loop.last %},{% endif %}{% endfor %}</p>
+{% endif %}
+
+<details class="panel paper-details">
+  <summary><h2>{% trans %}What it is{% endtrans %}</h2></summary>
+  <form class="inline-facts paper-form" data-api="/api/historical/{{ paper.image_id }}/details" data-settings data-reload>
+    <label>{% trans %}Kind{% endtrans %} <select name="kind">
+      {%- for k in kinds %}<option{% if paper.kind == k %} selected{% endif %}>{{ k }}</option>{% endfor %}
+    </select></label>
+    <label>{% trans %}Title{% endtrans %} <input name="title" value="{{ paper.title }}" maxlength="200" class="wide"></label>
+    <label>{% trans %}Written{% endtrans %} <input name="written" value="{{ paper.written or '' }}" maxlength="120" placeholder="{{ _('June 3, 1931, or about 1930') }}"></label>
+    <label>{% trans %}From{% endtrans %} <input name="sender" value="{{ paper.sender or '' }}" maxlength="200" placeholder="{{ _('who wrote it') }}"></label>
+    <label>{% trans %}To{% endtrans %} <input name="recipient" value="{{ paper.recipient or '' }}" maxlength="200" placeholder="{{ _('whom it was written to') }}"></label>
+    <label class="paper-summary-box">{% trans %}What it says{% endtrans %} <textarea name="summary" rows="2" maxlength="1000" placeholder="{{ _('A sentence or two for someone who has not read it') }}">{{ paper.summary or '' }}</textarea></label>
+    <button type="submit">{% trans %}Save{% endtrans %}</button>
+  </form>
+  <p class="hint">{% if paper.source == "auto" %}{% trans %}The AI said what it is from its first page. What is saved here is
+  kept as it is.{% endtrans %}{% else %}{% trans %}Said by someone of the family: the AI leaves it as it is.{% endtrans %}{% endif %}</p>
+</details>
+
+<div class="paper-pages">
+  {%- for p in pages %}
+  <section class="paper-page" id="page-{{ p.n }}" aria-labelledby="page-{{ p.n }}-h">
+    <h2 id="page-{{ p.n }}-h">{% trans n=p.n %}Page {{ n }}{% endtrans %}
+      {%- if can_regroup and p.n > 1 %}
+      <span class="page-tools">
+        {%- if p.n > 2 %}<button type="button" class="quiet" data-api="/api/historical/{{ paper.image_id }}/pages/{{ p.n }}/move" data-body='{"to": {{ p.n - 1 }}}' data-reload title="{{ _('Move it before the page above') }}" aria-label="{{ _('Move up') }}">↑</button>{% endif %}
+        {%- if not loop.last %}<button type="button" class="quiet" data-api="/api/historical/{{ paper.image_id }}/pages/{{ p.n }}/move" data-body='{"to": {{ p.n + 1 }}}' data-reload title="{{ _('Move it after the page below') }}" aria-label="{{ _('Move down') }}">↓</button>{% endif %}
+        <button type="button" class="quiet" data-api="/api/historical/{{ paper.image_id }}/pages/{{ p.n }}/take-out" data-reload title="{{ _('It is a document of its own, or none') }}">{% trans %}Take this page out{% endtrans %}</button>
+      </span>
+      {%- endif %}</h2>
+    {%- if p.picture %}
+    <a class="page-picture" href="{{ p.picture }}" target="_blank" rel="noopener"><img src="{{ p.picture }}" alt="{% trans n=p.n, title=paper.title %}Page {{ n }} of {{ title }}{% endtrans %}" loading="lazy"></a>
+    {%- endif %}
+    <div class="page-words">
+      {%- if p.blank %}
+      <p class="hint">{% trans %}Nothing is written on this page.{% endtrans %}</p>
+      {%- elif p.text is none %}
+      <p class="hint">{% if paper.unreadable %}{% trans %}Its words can't be read here.{% endtrans %}{% else %}{% trans %}Not read yet: the AI
+      copies out its words on one of the worker's next passes. You can type them below instead.{% endtrans %}{% endif %}</p>
+      {%- else %}
+      {%- if p.unsure %}<p class="hint unsure-note">{% trans count=p.unsure|length %}The AI wasn't sure it read the marked line right: check it against the page.{% pluralize %}The AI wasn't sure it read the {{ count }} marked lines right: check them against the page.{% endtrans %}</p>{% endif %}
+      <div class="words" lang="{{ 'en' if not paper.language or paper.language == 'English' else '' }}">
+        {%- for line in p.lines %}<p class="{% if loop.index0 in p.unsure %}unsure{% endif %}{% if not line %} gap{% endif %}">{{ line }}</p>{% endfor %}
+      </div>
+      <p class="hint">{% if p.text_source == "file" %}{% trans %}The file's own words.{% endtrans %}
+        {%- elif p.text_source == "user" %}{% trans %}Typed or corrected by someone of the family.{% endtrans %}
+        {%- else %}{% trans %}Copied out by the AI: names, dates and numbers may be misread.{% endtrans %}{% endif %}</p>
+      {%- endif %}
+      {%- if not paper.unreadable and p.text_source != "file" %}
+      <details class="page-correct">
+        <summary>{% if p.text is none or p.blank %}{% trans %}Type its words{% endtrans %}{% else %}{% trans %}Correct the words{% endtrans %}{% endif %}</summary>
+        <form data-api="/api/historical/{{ paper.image_id }}/pages/{{ p.n }}/text" data-settings data-reload>
+          <textarea name="text" rows="{{ [8, (p.lines|length) + 2]|max if p.lines else 8 }}" aria-label="{% trans n=p.n %}The words of page {{ n }}{% endtrans %}">{{ p.text or "" }}</textarea>
+          <p><button type="submit">{% trans %}Save{% endtrans %}</button>
+            {%- if p.text_source == "ai" %} <button type="button" class="quiet" data-api="/api/historical/{{ paper.image_id }}/pages/{{ p.n }}/read-again" data-reload>{% trans %}Let the AI read it again{% endtrans %}</button>{% endif %}</p>
+        </form>
+      </details>
+      {%- endif %}
+    </div>
+  </section>
+  {%- endfor %}
+</div>
+
+{% if can_regroup and beside %}
+<details class="panel paper-add">
+  <summary><h2>{% trans %}Add pages{% endtrans %}</h2></summary>
+  <p class="hint">{% trans %}Scanned one page at a time? Tick the scans that follow, in order, to put them after its last page.
+  A scan read as a document of its own brings its words along.{% endtrans %}</p>
+  <form data-api="/api/historical/{{ paper.image_id }}/pages" data-settings data-reload>
+    <div class="paper-beside">
+      {%- for b in beside %}
+      <label class="beside-scan"><input type="checkbox" name="images[]" value="{{ b.id }}">
+        <img src="/t/{{ b.sha256 }}" alt="" loading="lazy" width="80" height="104">
+        <span class="meta">{{ b.path.rpartition("/")[2] }}</span></label>
+      {%- endfor %}
+    </div>
+    <p><button type="submit">{% trans %}Add the ticked pages{% endtrans %}</button></p>
+  </form>
+</details>
+{% endif %}
+{% endblock %}

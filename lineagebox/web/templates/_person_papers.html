@@ -1,0 +1,26 @@
+{#- A person's page's Papers part (routes/historical.py person_papers): the papers about them, by them, to them, or
+    naming them, oldest written first. Nothing when there are none. #}
+{%- if papers %}
+<section class="panel person-papers" aria-labelledby="person-papers-h">
+  <h2 id="person-papers-h">{% trans %}Papers{% endtrans %} <small>{{ papers|length }}</small></h2>
+  <ul class="papers">
+    {%- for p in papers %}
+    <li>
+      <a class="paper-card" href="/historical/{{ p.id }}">
+        <img src="/t/{{ p.sha256 }}" alt="" loading="lazy" width="80" height="104">
+        <span class="paper-what">
+          <span class="paper-title">{{ p.title }}</span>
+          <span class="meta">{{ p.kind }}{% if p.written %} · {{ p.written }}{% endif %}
+            {%- if p.how == "wrote" %} · {% trans %}written by them{% endtrans %}
+            {%- elif p.how == "received" %} · {% trans %}written to them{% endtrans %}
+            {%- elif p.how == "about" or p.how == "record" %} · {% trans %}about them{% endtrans %}
+            {%- elif p.how == "shown" %} · {% trans %}they are in it{% endtrans %}
+            {%- else %} · {% trans %}names them{% endtrans %}{% endif %}</span>
+          {%- if p.summary %}<span class="hint">{{ p.summary }}</span>{% endif %}
+        </span>
+      </a>
+    </li>
+    {%- endfor %}
+  </ul>
+</section>
+{%- endif %}

@@ -5,11 +5,15 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 
 # An image is browsable once decoded and while at least one of its files is still on the share, unless it is the clip
-# of a Live Photo (live.py): that is shown, played and worked on with its still. ON_SHARE counts clips too, for what
-# is done to every video (720p copies) and file.
+# of a Live Photo (live.py), shown, played and worked on with its still, or a later page of a paper scanned page by
+# page (historical.py), shown with its first. ON_SHARE counts those too, for what is done to every video (720p
+# copies) and file.
 _PRESENT = "EXISTS (SELECT 1 FROM file v WHERE v.image_id = i.id AND NOT v.missing)"
 ON_SHARE = f"i.error IS NULL AND {_PRESENT}"
-VISIBLE = f"i.error IS NULL AND i.live_of IS NULL AND {_PRESENT}"
+VISIBLE = f"i.error IS NULL AND i.live_of IS NULL AND i.page_of IS NULL AND {_PRESENT}"
+# Not a historical paper (a letter, a certificate: historical.py): what Home, memories, the Timeline, year pages, the
+# map, photo frames and tours show. Papers have the Historical page; one put in an album or tour by hand is shown there.
+NOT_PAPER = "NOT EXISTS (SELECT 1 FROM document p WHERE p.image_id = i.id)"
 # The folder a file (as f) came from: where it is, or, once a reorganization moved it into a year and month folder
 # (reorganize.py), the folder it was in before. What that folder's name says and what was given it by hand go for the
 # file still: its dates, events, places, people, the photos beside it, hiding and sharing.
@@ -84,7 +88,7 @@ def folder_images(con: sqlite3.Connection, folder_id: int) -> list[sqlite3.Row]:
     return con.execute("""
         SELECT i.id, i.sha256, i.taken_at, i.taken_at_source, i.media, i.duration, min(f.path) AS path
         FROM file f JOIN image i ON i.id = f.image_id
-        WHERE f.folder_id = ? AND NOT f.missing AND i.error IS NULL AND i.live_of IS NULL
+        WHERE f.folder_id = ? AND NOT f.missing AND i.error IS NULL AND i.live_of IS NULL AND i.page_of IS NULL
         GROUP BY i.id ORDER BY i.taken_at, path""", (folder_id,)).fetchall()
 
 
@@ -93,7 +97,7 @@ def timeline(con: sqlite3.Connection) -> dict[int, dict[int, int]]:
     out: dict[int, dict[int, int]] = defaultdict(dict)
     for y, m, n in con.execute(f"""
             SELECT CAST(substr(i.taken_at, 1, 4) AS INTEGER), CAST(substr(i.taken_at, 6, 2) AS INTEGER), count(*)
-            FROM image i WHERE i.taken_at IS NOT NULL AND {VISIBLE} GROUP BY 1, 2 ORDER BY 1, 2"""):
+            FROM image i WHERE i.taken_at IS NOT NULL AND {VISIBLE} AND {NOT_PAPER} GROUP BY 1, 2 ORDER BY 1, 2"""):
         out[y][m] = n
     return dict(out)
 
@@ -101,7 +105,7 @@ def timeline(con: sqlite3.Connection) -> dict[int, dict[int, int]]:
 def year_images(con: sqlite3.Connection, year: int) -> list[sqlite3.Row]:
     return con.execute(f"""
         SELECT i.id, i.sha256, i.taken_at, i.taken_at_source, i.media, i.duration FROM image i
-        WHERE i.taken_at >= ? AND i.taken_at < ? AND {VISIBLE}
+        WHERE i.taken_at >= ? AND i.taken_at < ? AND {VISIBLE} AND {NOT_PAPER}
         ORDER BY i.taken_at, i.id""", (f"{year:04d}", f"{year + 1:04d}")).fetchall()
 
 
@@ -275,6 +279,7 @@ CATEGORIES = {
     "gps": ("Photos with GPS", "i.gps_lat IS NOT NULL"),
     "videos": ("Videos", "i.media = 'video'"),
     "recordings": ("Sound recordings", "i.media = 'audio'"),
+    "documents": ("Document files", "i.media = 'document'"),
     "format": ("{} files", "i.format = ?"),
     "dates": ("Dated by {}", "i.taken_at_source = ?"),
 }
@@ -316,11 +321,12 @@ def category_images(con: sqlite3.Connection, value: str) -> list[sqlite3.Row]:
 
 
 def undecodable(con: sqlite3.Connection) -> list[sqlite3.Row]:
-    """Images on the share that could not be read, with a file of each and why. Songs, left out on purpose
-    (ingest.SONG), are not among them."""
+    """Images on the share that could not be read, with a file of each and why. Songs and text files too short to be
+    papers, left out on purpose (ingest.SONG, papers.NOT_A_PAPER), are not among them."""
     return con.execute("""
         SELECT i.id, i.format, i.error, min(f.path) AS path FROM image i JOIN file f ON f.image_id = i.id AND NOT f.missing
-        WHERE i.error IS NOT NULL AND i.error NOT LIKE 'song:%' GROUP BY i.id ORDER BY path""").fetchall()
+        WHERE i.error IS NOT NULL AND i.error NOT LIKE 'song:%' AND i.error NOT LIKE 'not a paper:%'
+        GROUP BY i.id ORDER BY path""").fetchall()
 
 
 def stats(con: sqlite3.Connection, watched: tuple[str, ...] = ()) -> dict:

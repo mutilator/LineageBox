@@ -106,6 +106,8 @@ def build(con, cfg, library) -> dict:
     con.execute("INSERT INTO image_tag(image_id, tag_id, source) VALUES (?, last_insert_rowid(), 'user')", (zed,))
     con.execute("INSERT INTO document(image_id, kind, title, created_at) VALUES (?, 'Letter', ?, '2026-01-01')",
                 (zed, f"{SECRET} letter"))
+    con.execute("""INSERT INTO paper_page(paper_id, n, image_id, text, text_source, unsure)
+                   VALUES (?, 1, ?, ?, 'ai', '[0]')""", (zed, zed, f"Dear {SECRET}, the farm is sold."))
     con.execute("UPDATE folder SET event = ? WHERE path LIKE '%ZedSecret'", (f"{SECRET} party",))
     con.commit()
     search.rebuild(con)

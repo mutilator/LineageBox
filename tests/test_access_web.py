@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from lineagebox import access, accounts, catalog, devices, memories, outbox, settings, sharing, tours
-from lineagebox import albums, cleanup, comments, documents, face_ages, favorites, life, places, stories
+from lineagebox import albums, cleanup, comments, documents, face_ages, favorites, historical, life, places, stories
 from lineagebox.web import app as webapp
 from lineagebox.web import common
 from lineagebox.web import site as site_module
@@ -198,6 +198,7 @@ def _urls(app, con, site):
     """Every GET route with every id of the catalog in it, and query strings that name things."""
     ids = {
         "image_id": [r[0] for r in con.execute("SELECT id FROM image")],
+        "paper_id": [r[0] for r in con.execute("SELECT id FROM image")],
         "person_id": list(site["people"].values()) + [99999],
         "face_id": [r[0] for r in con.execute("SELECT id FROM face")],
         "file_id": [r[0] for r in con.execute("SELECT id FROM file")],
@@ -225,6 +226,8 @@ def _urls(app, con, site):
         for value in ids[first]:
             out.append(template.format(**{first: value, **{k: 0 for k in rest}}))
     queries = [f"/search?q={n}" for n in fx.PEOPLE + [fx.SECRET, "party"]]
+    # the words of Zed's letter (family_fixture: "Dear <SECRET>, the farm is sold."), never shown to her
+    queries += ["/search/papers?q=farm", "/historical?q=farm", "/historical?q=sold", "/search?q=farm"]
     queries += [f"/family?center={i}" for i in site["people"].values()]
     queries += [f"/family/tree?root={i}" for i in site["people"].values()]
     queries += [f"/family/tree?person={i}" for i in site["people"].values()]
@@ -369,9 +372,10 @@ def _snapshot(con):
               "event", "person_name", "person_group", "document", "citation", "tour", "account", "access_rule",
               "face_question", "face_not_person", "file", "share", "album", "album_photo", "favourite",
               "slideshow_video", "comment", "story", "source", "source_citation", "image_place", "folder_place",
-              "describe_request", "device_link", "outbox", "tag_alias", "camera_clock", "scan_reading")
+              "describe_request", "device_link", "outbox", "tag_alias", "camera_clock", "scan_reading",
+              "paper_page", "paper_check")
     out = {t: con.execute(f"SELECT * FROM {t} ORDER BY 1, 2").fetchall() for t in tables}
-    out["image"] = con.execute("SELECT id, taken_at, taken_at_source, hidden, faces_again FROM image "
+    out["image"] = con.execute("SELECT id, taken_at, taken_at_source, hidden, faces_again, page_of FROM image "
                                "ORDER BY id").fetchall()
     out["ages_ok"] = con.execute("SELECT key, value FROM settings WHERE key IN (?, 'scan_dates_ok')",
                                  (face_ages.OK_KEY,)).fetchall()
@@ -397,6 +401,8 @@ def test_the_write_sweep(swept, cfg, con):
     admins_share = con.execute("SELECT id FROM share").fetchone()[0]
     t, st = site["tours"], site["stories"]
     zed_words = con.execute("SELECT id FROM comment WHERE image_id = ?", (zed,)).fetchone()[0]
+    historical.make(con, ph["cora_bart.jpg"], "Letter", "Cora's letter")  # a paper of hers, to put Zed's photo in
+    con.commit()
     sam = signed_in(cfg, con, site["who"]["Sam"])  # an admin's change Cora's Undo mustn't take back
     sams_change = sam.post(f"/api/images/{ph['rex.jpg']}/caption", json={"text": "Grandpa"}, headers=APP).json()["undo"]
     attempts = [
@@ -416,6 +422,12 @@ def test_the_write_sweep(swept, cfg, con):
         (f"/api/people/{zp}/link", {"word": "son", "name": "New Kid"}),
         (f"/api/people/{cora}/link", {"word": "son", "name": "New Kid", "with_parent": str(zp)}),
         (f"/api/images/{zed}/document", {"kind": "Letter", "title": "x"}),
+        (f"/api/historical/{zed}/details", {"kind": "Letter", "title": "x"}),
+        (f"/api/historical/{zed}/pages/1/text", {"text": "x"}),
+        (f"/api/historical/{zed}/pages/1/read-again", None),
+        (f"/api/historical/{zed}/pages", {"images": [ph["cora_bart.jpg"]]}),
+        (f"/api/historical/{zed}/pages/2/take-out", None), (f"/api/historical/{zed}/pages/2/move", {"to": 3}),
+        (f"/api/historical/{ph['cora_bart.jpg']}/pages", {"images": [zed]}),
         (f"/api/images/{zed}/document/remove", None),
         (f"/api/images/{zed}/citations", {"target": f"p:{cora}"}),
         (f"/api/citations/{citation}/delete", None),
@@ -766,5 +778,7 @@ def test_new_for_you_shows_a_member_only_what_she_sees(site, cfg, con):
                and con.execute(f"SELECT 1 FROM image i WHERE id = ? AND {catalog.VISIBLE}", (i,)).fetchone()]
     assert f"{len(visible)} new photos of your family" in page
     admin = signed_in(cfg, con, site["who"]["Sam"]).get("/news").text
-    assert "3 files found damaged" in admin and f"{len(site['photos'])} new photos" in admin
+    papers = {r[0] for r in con.execute("SELECT image_id FROM document")}  # told of as new documents instead
+    shown = [i for i in site["photos"].values() if i not in papers]
+    assert "3 files found damaged" in admin and f"{len(shown)} new photos" in admin
     assert "Sam asked who this is" not in admin  # his own question is no news to him

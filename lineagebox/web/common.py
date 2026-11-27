@@ -436,7 +436,11 @@ def merge_spec(w, v: access.Viewer, *person_ids):
 
 
 def document_spec(image_id: int):
-    return lambda new: [("document", "image_id = ?", (image_id,)), ("citation", "image_id = ?", (image_id,))]
+    """What marking a photo as a document, or saying it isn't one, may touch: the paper, its pages (historical.py),
+    the photos that are its later pages, and what it is a record of."""
+    return lambda new: [("document", "image_id = ?", (image_id,)), ("citation", "image_id = ?", (image_id,)),
+                        ("paper_page", "paper_id = ?", (image_id,)), ("paper_check", "image_id = ?", (image_id,)),
+                        ("image", "id = ? OR page_of = ?", (image_id, image_id))]
 
 
 def cert_name(cert, allowed_hosts, host: str) -> str:

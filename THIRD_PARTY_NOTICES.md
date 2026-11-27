@@ -64,7 +64,7 @@ lists the exact set. Each package's license files are in its `*.dist-info` folde
 | BSD-2-Clause | ImageHash, imageio, pyasn1, pyasn1-modules |
 | Apache-2.0 | flatbuffers, ml_dtypes, onnx, opencv-python-headless, opentelemetry-api, pyOpenSSL, requests |
 | Apache-2.0 or BSD-2-Clause | packaging |
-| Apache-2.0 or BSD-3-Clause | cryptography |
+| Apache-2.0 or BSD-3-Clause | cryptography, pypdfium2 (its own code; PDFium, in its wheel, is listed below) |
 | MPL-2.0 | certifi; tqdm (MPL-2.0 and MIT) |
 | PSF-2.0 | typing_extensions |
 | MIT-CMU | Pillow |
@@ -89,6 +89,11 @@ or inside the package:
 - **numpy and scipy:** OpenBLAS with LAPACK (BSD-3-Clause), the GCC Fortran runtime (GPL-3.0-or-later with the GCC
   Runtime Library Exception) and libquadmath (**LGPL-2.1-or-later**). Their texts are in each one's `LICENSE.txt`.
 - **scikit-learn:** GCC's OpenMP runtime (GPL-3.0-or-later with the GCC Runtime Library Exception).
+- **pypdfium2** (PDFs among the historical papers): PDFium (BSD-3-Clause), Google's PDF library from Chromium,
+  with the libraries it is built with: FreeType, HarfBuzz, libjpeg-turbo, OpenJPEG, Little CMS, libpng, libtiff,
+  zlib, ICU (Unicode License), Abseil, Highway, fast_float, simdutf, Dragonbox, AGG 2.3 and LLVM's libc (Apache-2.0
+  with LLVM exception). Their texts are in `pypdfium2-*.dist-info/licenses/BUILD_LICENSES/`, pypdfium2's own in
+  `licenses/LICENSES/`.
 - **cryptography** (for passkeys): OpenSSL 4 (Apache-2.0) compiled in, and the Rust crates it is built from (most MIT
   or Apache-2.0). Their texts are in `cryptography-*.dist-info/licenses/`.
 - **onnxruntime and ml_dtypes:** code compiled in from other projects, among them Eigen (MPL-2.0), listed with their

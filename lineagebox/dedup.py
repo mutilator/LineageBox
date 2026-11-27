@@ -3,12 +3,15 @@
 Every member must be within MAX_DISTANCE of the group's representative (the largest image), so groups cannot
 chain across a slowly changing sequence. image.dup_group_id is the representative's id for every member;
 singletons stay NULL. Descriptions are made once per group and shared.
+
+Historical papers are never grouped (historical.py): printed forms and typed letters look alike to a perceptual hash,
+and a day's scans of a family's papers would be put together as one. Each is a paper of its own, found once by its words.
 """
 import sqlite3
 
 import numpy as np
 
-from lineagebox.catalog import VISIBLE
+from lineagebox.catalog import NOT_PAPER, VISIBLE
 
 # Measured on the library LineageBox was developed on: edited copies (X.jpg / X-2.jpg) are at distance 0-2, burst shots
 # of one scene at 3-10, unrelated photos almost never below 18.
@@ -20,7 +23,8 @@ def group(con: sqlite3.Connection) -> tuple[int, int]:
     """Recompute all groups of photos still in the library (removed ones drop out). Returns (groups, images)."""
     rows = con.execute(f"""SELECT i.id, i.phash, substr(i.taken_at, 1, 10) AS day, i.taken_at_source,
                                   coalesce(i.width * i.height, 0) AS pixels
-                           FROM image i WHERE i.phash IS NOT NULL AND i.media = 'photo' AND {VISIBLE}""").fetchall()
+                           FROM image i WHERE i.phash IS NOT NULL AND i.media = 'photo' AND {VISIBLE}
+                             AND {NOT_PAPER}""").fetchall()
     if not rows:
         return 0, 0
     ids = np.array([r["id"] for r in rows])

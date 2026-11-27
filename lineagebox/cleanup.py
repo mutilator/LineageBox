@@ -207,8 +207,8 @@ def forget_deleted(con: sqlite3.Connection, cfg: Config) -> int:
 
 
 def drop_derivatives(con: sqlite3.Connection, cfg: Config) -> int:
-    """Delete what LineageBox made from photos gone for good: preview, thumbnail, video frames, face crops and a
-    video's 720p copy. Gone means no file of the photo is in the library, in a Removed folder (it can be put back) or
+    """Delete what LineageBox made from photos gone for good: preview, thumbnail, video frames, face crops, a
+    video's 720p copy and a paper file's drawn pages. Gone means no file of the photo is in the library, in a Removed folder (it can be put back) or
     still on disk (a folder no longer watched). Nothing is deleted while a watched folder can't be reached. The
     photo's faces, tags and description stay; if a file of it comes back, ingest makes the rest again. Returns how
     many photos."""
@@ -227,7 +227,10 @@ def drop_derivatives(con: sqlite3.Connection, cfg: Config) -> int:
             "SELECT idx FROM video_frame WHERE image_id = ?", (r["id"],))]
         for (face_id,) in con.execute("SELECT id FROM face WHERE image_id = ?", (r["id"],)):
             made += cfg.face_crops(face_id)
-        if r["media"] != "photo":  # a video's 720p copy, or a recording's copy that browsers play
+        if r["media"] == "document":  # a paper file's pages, drawn as they were shown (historical.py)
+            made += [cfg.page_path(r["sha256"], n) for (n,) in con.execute(
+                "SELECT n FROM paper_page WHERE paper_id = ? AND n > 1", (r["id"],))]
+        elif r["media"] != "photo":  # a video's 720p copy, or a recording's copy that browsers play
             made += [video.copy_path(p) for p in paths]
         for path in made:
             path.unlink(missing_ok=True)

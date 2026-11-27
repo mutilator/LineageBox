@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}{% trans %}Historical{% endtrans %}{% endblock %}
+{% block main %}
+<h1>{% trans %}Historical{% endtrans %}</h1>
+<p class="meta">{% trans %}The family's papers: letters, cards, certificates, awards, deeds, clippings and notes. Each one's words
+are copied out so that they can be read here and found by searching.{% endtrans %}</p>
+
+{% if not facets.total %}
+<div class="note">
+  <p>{% trans %}There are no documents here yet.{% endtrans %}</p>
+  {%- if viewer.admin %}
+  <p>{% trans %}Scan them, or photograph them, into a folder of their own in the photo folders: one folder for each box or
+  binder they came from ("Grandma's letters", "Deeds to the farm"). PDF, Word, text and email files work too. The AI
+  finds the documents among the photos, and copies out the words of each page. A document of several pages scanned
+  one page at a time is put together on its page here.{% endtrans %}</p>
+  <p>{% trans %}Scanning at 300 dots an inch, in grayscale or color, lets the AI read faint ink and handwriting; black
+  and white alone loses them.{% endtrans %}</p>
+  {%- endif %}
+</div>
+{% else %}
+
+<form class="historical-search" action="/historical" role="search">
+  <label class="vh" for="historical-q">{% trans %}Search the documents' words{% endtrans %}</label>
+  <input id="historical-q" type="search" name="q" value="{{ q }}" placeholder="{{ _('Search their words: a name, a place, the farm…') }}" maxlength="300">
+  <button type="submit">{% trans %}Search{% endtrans %}</button>
+</form>
+
+{% if intro %}
+{#- one paper from their own family's history, until they open it or ask for another (introductions.py) #}
+<section class="panel introduction" aria-labelledby="introduction-h">
+  <h2 id="introduction-h">{% trans %}From your family's history{% endtrans %}</h2>
+  <a class="introduction-card" href="/historical/{{ intro.id }}">
+    <img src="/t/{{ intro.sha256 }}" alt="" width="120" height="156">
+    <span class="paper-what">
+      <span class="paper-title">{{ intro.title }}</span>
+      <span class="meta">{{ intro.kind }}{% if intro.written %} · {{ intro.written }}{% endif %}{% if intro.anniversary %} · <b>{% trans %}written on this day{% endtrans %}</b>{% endif %}</span>
+      {%- if intro.about %}
+      <span class="introduction-about">
+        {%- for a in intro.about %}{% if not loop.first %}, {% endif %}{% if a.kin and a.kin != "you" %}{% trans kin=a.kin, name=a.name %}your {{ kin }} {{ name }}{% endtrans %}{% elif a.kin == "you" %}{% trans %}you{% endtrans %}{% else %}{{ a.name }}{% endif %}{% if a.years %} <span class="meta">({{ a.years }})</span>{% endif %}{% endfor %}</span>
+      {%- endif %}
+      <span class="introduction-words">{{ intro.summary or intro.opening }}</span>
+    </span>
+  </a>
+  <p class="introduction-tools"><a class="button primary" href="/historical/{{ intro.id }}">{% trans %}Read it{% endtrans %}</a>
+    <button type="button" class="quiet" data-api="/api/historical/introduction/{{ intro.id }}/skip" data-reload>{% trans %}Show me another{% endtrans %}</button></p>
+</section>
+{% endif %}
+
+{% if to_read %}
+<p class="hint">{% trans count=to_read, n=to_read|number %}{{ n }} page is waiting for the AI to copy out its words.{% pluralize %}{{ n }} pages are waiting for the AI to copy out their words.{% endtrans %}
+  <a href="/status#progress">{% trans %}Status{% endtrans %}</a></p>
+{% endif %}
+
+<div class="historical-facets">
+  {%- if facets.to_check %}
+  <div class="search-group" role="group" aria-label="{{ _('To check') }}">
+    <span class="facet-label">{% trans %}To check{% endtrans %}</span>
+    <a class="search-chip" href="{{ href(check=None if check else 1) }}"{% if check %} aria-current="true"{% endif %} title="{{ _('Documents with lines the AI was not sure it read right: check them against the page') }}">{% trans %}Lines the AI wasn't sure of{% endtrans %} <small>{{ facets.to_check|number }}</small></a>
+  </div>
+  {%- endif %}
+  {%- if facets.collections|length > 1 %}
+  <div class="search-group" role="group" aria-label="{{ _('Collections') }}">
+    <span class="facet-label">{% trans %}Collections{% endtrans %}</span>
+    {%- for c in facets.collections %}
+    <a class="search-chip" href="{{ href(folder=c.id) }}"{% if folder == c.id %} aria-current="true"{% endif %} title="{{ c.path }}">{{ c.name }} <small>{{ c.count|number }}</small></a>
+    {%- endfor %}
+  </div>
+  {%- endif %}
+  {%- if facets.kinds|length > 1 %}
+  <div class="search-group" role="group" aria-label="{{ _('Kinds') }}">
+    <span class="facet-label">{% trans %}Kinds{% endtrans %}</span>
+    {%- for name, n in facets.kinds %}
+    <a class="search-chip" href="{{ href(kind=name) }}"{% if kind == name %} aria-current="true"{% endif %}>{{ name }} <small>{{ n|number }}</small></a>
+    {%- endfor %}
+  </div>
+  {%- endif %}
+  {%- if facets.decades|length > 1 %}
+  <div class="search-group" role="group" aria-label="{{ _('Decades') }}">
+    <span class="facet-label">{% trans %}Written{% endtrans %}</span>
+    {%- for d, n in facets.decades %}
+    <a class="search-chip" href="{{ href(decade=d) }}"{% if decade == d %} aria-current="true"{% endif %}>{% if d == undated %}{% trans %}No date{% endtrans %}{% else %}{{ d }}s{% endif %} <small>{{ n|number }}</small></a>
+    {%- endfor %}
+  </div>
+  {%- endif %}
+</div>
+
+{% if here %}
+<div class="search-chips" role="group" aria-label="{{ _('Showing only') }}">
+  {%- if folder_name %}<a class="search-chip on" href="{{ href(folder='') }}">{{ folder_name }} <span aria-hidden="true">×</span><span class="vh"> {% trans %}(take off){% endtrans %}</span></a>{% endif %}
+  {%- if kind %}<a class="search-chip on" href="{{ href(kind='') }}">{{ kind }} <span aria-hidden="true">×</span><span class="vh"> {% trans %}(take off){% endtrans %}</span></a>{% endif %}
+  {%- if decade %}<a class="search-chip on" href="{{ href(decade='') }}">{% if decade == undated %}{% trans %}No date{% endtrans %}{% else %}{{ decade }}s{% endif %} <span aria-hidden="true">×</span><span class="vh"> {% trans %}(take off){% endtrans %}</span></a>{% endif %}
+  <a class="search-chip quiet" href="/historical">{% trans %}Show all{% endtrans %}</a>
+</div>
+{% endif %}
+
+<p class="meta">{% trans count=total, n=total|number %}{{ n }} document{% pluralize %}{{ n }} documents{% endtrans %} ·
+  {%- for value, label in (("written", _("oldest written first")), ("added", _("newest added first")), ("title", _("by title"))) %}
+  {% if sort == value %}<b>{{ label }}</b>{% else %}<a href="{{ href(sort=value) }}">{{ label }}</a>{% endif %}{% if not loop.last %} ·{% endif %}
+  {%- endfor %}</p>
+
+{% if q and not papers %}
+<p class="note">{% trans %}No document's words match that. Fewer words find more; a name may be spelled another way in an old
+paper, or read wrong by the AI.{% endtrans %}</p>
+{% endif %}
+<ul class="papers">
+  {%- for p in papers %}
+  <li>
+    <a class="paper-card" href="/historical/{{ p.id }}{% if p.hits %}#page-{{ p.hits[0].n }}{% elif check and p.first_unsure %}#page-{{ p.first_unsure }}{% endif %}">
+      <img src="/t/{{ p.sha256 }}" alt="" loading="lazy" width="80" height="104">
+      <span class="paper-what">
+        <span class="paper-title">{{ p.title }}</span>
+        <span class="meta">{{ p.kind }}
+          {%- if p.written %} · {{ p.written }}{% endif %}
+          {%- if p.sender %} · {% trans who=p.sender %}from {{ who }}{% endtrans %}{% endif %}
+          {%- if p.recipient %} · {% trans who=p.recipient %}to {{ who }}{% endtrans %}{% endif %}
+          {%- if p.pages > 1 %} · {% trans n=p.pages %}{{ n }} pages{% endtrans %}{% endif %}
+          {%- if p.folder_id in collection_names and not folder %} · {{ collection_names[p.folder_id] }}{% endif %}</span>
+        {%- for h in p.hits or [] %}
+        <span class="paper-snippet">{% if p.pages > 1 %}<span class="meta">{% trans n=h.n %}page {{ n }}:{% endtrans %}</span> {% endif %}{{ h.snippet|safe }}</span>
+        {%- endfor %}
+        {%- if p.summary and not p.hits %}<span class="hint">{{ p.summary }}</span>{% endif %}
+        {%- if p.unreadable %}<span class="hint">{% trans %}Its words can't be read here: open it to download it.{% endtrans %}</span>
+        {%- elif p.unread %}<span class="hint">{% trans count=p.unread %}{{ count }} page not read yet{% pluralize %}{{ count }} pages not read yet{% endtrans %}</span>{% endif %}
+      </span>
+    </a>
+  </li>
+  {%- endfor %}
+</ul>
+{% if pages > 1 %}
+<nav class="pager" aria-label="{{ _('Pages') }}">
+  {%- if pg > 1 %}<a href="{{ href(sort=sort, page=pg - 1) }}" rel="prev">{% trans %}‹ Before{% endtrans %}</a>{% endif %}
+  <span>{% trans pg=pg, pages=pages %}Page {{ pg }} of {{ pages }}{% endtrans %}</span>
+  {%- if pg < pages %}<a href="{{ href(sort=sort, page=pg + 1) }}" rel="next">{% trans %}Next ›{% endtrans %}</a>{% endif %}
+</nav>
+{% endif %}
+{% endif %}
+{% endblock %}

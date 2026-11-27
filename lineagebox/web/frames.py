@@ -20,7 +20,7 @@ import time
 from datetime import date, timedelta
 
 from lineagebox import access, accounts, albums, comments, devices, memories, tours
-from lineagebox.catalog import VISIBLE
+from lineagebox.catalog import NOT_PAPER, VISIBLE
 
 PREFIX = "/d/"
 TOKEN = "lineagebox.device_token"  # where DevicePath leaves the token, in the request's scope
@@ -169,7 +169,7 @@ def memory_photos(c, today: date, blurry: float | None) -> list[dict]:
                    for k in range(-memories.AROUND, memories.AROUND + 1)})
     years = sorted({int(y) for (y,) in c.execute(f"""
         SELECT DISTINCT substr(i.taken_at, 1, 4) FROM image i
-        WHERE i.taken_at IS NOT NULL AND {memories.PRECISE} AND {VISIBLE}
+        WHERE i.taken_at IS NOT NULL AND {memories.PRECISE} AND {VISIBLE} AND {NOT_PAPER}
           AND substr(i.taken_at, 6, 5) IN (SELECT value FROM json_each(?))""", (json.dumps(days),))
                     if y and y.isdecimal()}, reverse=True)
     chosen: list[dict] = []

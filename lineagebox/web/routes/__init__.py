@@ -14,6 +14,7 @@ from lineagebox.web.routes import first_run  # the first steps on a new LineageB
 from lineagebox.web.routes import language  # the language picked in this browser (i18n.py)
 from lineagebox.web.routes import reorganize  # the photo folders moved into year and month folders
 from lineagebox.web.routes import private  # Cleanup → Private papers: identity cards, tax forms and the like to hide
+from lineagebox.web.routes import historical  # the family's historical papers: letters, certificates, deeds
 
 MODULES = (browse, details, places, gedcom, reading, family, tours, faces, naming, cleanup,
            photos, comments, folders, status, settings, files, uploads, sharing, home, signin, passkeys, accounts,
@@ -22,3 +23,4 @@ MODULES = (browse, details, places, gedcom, reading, family, tours, faces, namin
 MODULES += (first_run,)
 MODULES += (language,)
 MODULES += (reorganize,)
+MODULES += (historical,)

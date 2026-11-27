@@ -21,7 +21,7 @@ from datetime import date, datetime, timedelta
 from urllib.parse import urlencode
 
 from lineagebox import favorites, tours
-from lineagebox.catalog import ORIGIN, VISIBLE
+from lineagebox.catalog import NOT_PAPER, ORIGIN, VISIBLE
 
 LEAST = 4       # photos a memory needs
 AROUND = 3      # days either side of today's date that count as "this week", in earlier years
@@ -83,7 +83,7 @@ def years_ago(con, today: date, blurry_below: float | None = None, people: list[
     days of today's date, the latest year first. people: only photos of them (a member's own family)."""
     mine = f"AND {of_people()}" if people is not None else ""
     days = dict(con.execute(f"""SELECT substr(i.taken_at, 1, 10) AS day, COUNT(*) FROM image i
-                                WHERE i.taken_at IS NOT NULL AND {PRECISE} AND {VISIBLE}
+                                WHERE i.taken_at IS NOT NULL AND {PRECISE} AND {VISIBLE} AND {NOT_PAPER}
                                   AND (i.dup_group_id IS NULL OR i.dup_group_id = i.id) {mine}
                                 GROUP BY day""", {"people": json.dumps(people or [])}))
     ranked = []
@@ -196,7 +196,7 @@ def runs(con, today: date, people: list[int] | None = None, year: int | None = N
     mine = f"AND {of_people()}" if people is not None else ""
     rows = con.execute(f"""SELECT i.id, substr(i.taken_at, 1, 10) AS day FROM image i
                            WHERE i.taken_at IS NOT NULL AND i.taken_at < :tomorrow AND i.taken_at >= :start
-                             AND i.taken_at < :end AND {PRECISE} AND {VISIBLE}
+                             AND i.taken_at < :end AND {PRECISE} AND {VISIBLE} AND {NOT_PAPER}
                              AND (i.dup_group_id IS NULL OR i.dup_group_id = i.id) {mine}""",
                        {"people": json.dumps(people or []), "tomorrow": (today + timedelta(days=1)).isoformat(),
                         "start": f"{year:04d}" if year else "", "end": f"{year + 1:04d}" if year else "~"}).fetchall()

@@ -30,7 +30,8 @@
   <h3>{% trans %}Every page{% endtrans %}</h3>
   <dl class="pages-list">
     {%- for href, name, what in help_menu() if href not in (member_pages if viewer.admin else admin_pages)
-          and (signed_in or href != "/upload") %}<dt><a href="{{ href }}">{{ name }}</a></dt><dd>{{ what }}</dd>{% endfor %}
+          and (signed_in or href != "/upload")
+          and (href != "/historical" or viewer.admin or (has_papers is defined and has_papers())) %}<dt><a href="{{ href }}">{{ name }}</a></dt><dd>{{ what }}</dd>{% endfor %}
   </dl>
   {#- The AGPL's "Appropriate Legal Notices" (its sections 0 and 5d): the copyright, that there is no warranty, that
       LineageBox may be shared under the license and where to read it. A changed copy has to keep showing them. #}

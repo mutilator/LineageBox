@@ -34,7 +34,7 @@ KEYS = {"face": ("id",), "image": ("id",), "image_tag": ("image_id", "tag_id"), 
 # rows a merge points at the person kept
 COLUMNS = {"face": "id, image_id, person_id, assigned_by, assign_score, assign_lead, cluster_id, named_by",
            "image": ("id, taken_at, taken_at_source, date_text, date_from, date_to, auto_taken_at, auto_taken_at_source, "
-                     "camera_taken_at, hidden"),
+                     "camera_taken_at, hidden, page_of"),
            "account": "id, person_id", "tour": "id, spec", "tour_type": "id, spec",
            "folder": "id, kind, place, place_type, event, people_hint, year, month, day, source"}
 UPDATE_ONLY = {"face", "image", "account", "tour", "tour_type", "folder"}  # never added or deleted by a change
@@ -56,6 +56,15 @@ ORDER += ["story", "transcript"]
 # Photos and folders put on the map by hand (places.py)
 KEYS.update(image_place=("image_id",), folder_place=("folder_id",))
 ORDER += ["image_place", "folder_place"]
+# Historical papers (historical.py): their pages, as people group them and correct their words, and whether a photo is
+# one. What the worker reads of a page (the AI's copy, which model, when) is its own, as a face's group is: see
+# _unchanged.
+KEYS.update(paper_page=("paper_id", "n"), paper_check=("image_id",), paper_person=("paper_id", "person_id"))
+COLUMNS["paper_page"] = "paper_id, n, image_id, text, text_source, unsure, blank, edited_at"
+ORDER.insert(ORDER.index("document") + 1, "paper_page")
+ORDER += ["paper_check", "paper_person"]
+PAPER_READ = {"text", "text_source", "unsure", "blank"}  # what the worker writes on a page it reads
+PAPER_CARD = {"kind", "title", "written", "written_from", "written_to", "sender", "recipient", "language"}
 # The AI's words that mean another tag now (tags renamed, merged or taken off every photo: tagging.rename): after the
 # tags they point at
 KEYS["tag_alias"] = ("name",)
@@ -280,7 +289,17 @@ def _unchanged(table: str, now: dict | None, then: dict | None) -> bool:
     and score, or a recognized name on a face that no person had named or set aside then, nor since."""
     if now == then:
         return True
-    if table != "face" or now is None or then is None:
+    if now is None or then is None:
+        return False
+    if table == "paper_page":  # read by the worker since, where no person had written its words then, nor since
+        return ("user" not in (now["text_source"], then["text_source"])
+                and {k: v for k, v in now.items() if k not in PAPER_READ}
+                == {k: v for k, v in then.items() if k not in PAPER_READ})
+    if table == "document":  # what the AI said it is, where no person had said so
+        return (now.get("source") == then.get("source") == "auto"
+                and {k: v for k, v in now.items() if k not in PAPER_CARD}
+                == {k: v for k, v in then.items() if k not in PAPER_CARD})
+    if table != "face":
         return False
     if now["assigned_by"] not in CHOSEN and then["assigned_by"] not in CHOSEN:
         return True

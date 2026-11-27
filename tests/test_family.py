@@ -291,28 +291,36 @@ def test_the_everyone_connected_page(con, cfg, fam):
     assert '<input type="hidden" name="everyone" value="1">' in page and "· 17 people</option>" in page
 
 
-def test_roots(con, cfg, fam):
-    """A trimmed Everyone connected from one person: every family on their generation and above (their wife's too)
-    with all its descendants, but below them those who married in come without their own families: Daniel's roots
-    have his son's wife, not her father. From the son's roots, his wife's father is there."""
+def test_bloodline(con, cfg, fam):
+    """One person's blood relatives: their ancestors and everyone descended from those, with their partners, but not
+    the partners' own parents and families."""
     ned = people.person_id(con, "Ned")
     family.link(con, fam["Nora"], "father", ned)
     con.commit()
     g = family.load(con)
     names = lambda ids: {g.name(p) for p in ids if p > 0}
-    assert names(family.roots(g, fam["Daniel"])) == set(fam) - {"Jake"}  # all of Everyone connected but Ned
-    assert ned in family.connected(g, fam["Daniel"])
-    assert ned in family.roots(g, fam["Owen"]) and names(family.roots(g, fam["Owen"])) == set(fam) - {"Jake"} | {"Ned"}
+    married_in = {"Katherine", "Diane", "Rosa", "Nora"}  # wives and an ex-wife, with or without children
+    assert names(family.bloodline(g, fam["Daniel"])) == {
+        "Grandpa", "Grandma", "Daniel", "Mike", "Linda", "Owen", "Lucas", "Kyle", "Emma", "Finn"} | married_in
+    # not Rosa's daughter, Nora's father or Katherine's sister: their blood, not Daniel's. From his son's, his
+    # mother's side is blood too
+    assert names(family.bloodline(g, fam["Owen"])) == {
+        "Owen", "Lucas", "Daniel", "Katherine", "Grandpa", "Grandma", "Mike", "Linda", "Kyle", "Emma", "Finn", "Ana",
+        "Leo"} | married_in
+    # a stepfather is there as the mother's husband, but not his family: Ava is Rosa's daughter, Mike Rosa's husband
+    assert names(family.bloodline(g, fam["Ava"])) == {"Ava", "Rosa", "Mike"}
+
     client = TestClient(webapp.create_app(cfg), client=LAN)
-    page = client.get(f"/family/tree?person={fam['Daniel']}&roots=1").text
-    assert "<h1>Roots of Daniel</h1>" in page and f'data-root="{fam["Daniel"]}"' in page and 'data-mode="roots"' in page
-    assert f'data-id="{ned}"' not in page
-    for name in ("Katherine", "Leo", "Nora", "Ava"):  # a click shows their own roots
+    page = client.get(f"/family/tree?person={fam['Daniel']}&bloodline=1").text
+    assert "<h1>Bloodline of Daniel</h1>" in page and f'data-root="{fam["Daniel"]}"' in page
+    assert 'data-mode="bloodline"' in page and f'data-id="{ned}"' not in page and f'data-id="{fam["Ava"]}"' not in page
+    for name in ("Katherine", "Owen", "Emma"):  # a click shows their own bloodline
         pid = fam[name]
-        assert f'href="/family/tree?root={pid}&amp;person={pid}&amp;roots=1" data-id="{pid}" data-line="{pid}"' in page
+        assert (f'href="/family/tree?root={pid}&amp;person={pid}&amp;bloodline=1" data-id="{pid}" '
+                f'data-line="{pid}"') in page
     assert f'data-id="{ned}"' in client.get(f"/family/tree?person={fam['Daniel']}&everyone=1").text
-    # one person's roots are theirs alone, whoever their partner is
-    assert "<h1>Roots of Owen</h1>" in client.get(f"/family/tree?root={fam['Owen']}&person={fam['Owen']}&roots=1").text
+    owen = client.get(f"/family/tree?root={fam['Owen']}&person={fam['Owen']}&bloodline=1").text
+    assert "<h1>Bloodline of Owen</h1>" in owen
 
 
 def test_family_pages_and_api(con, cfg, fam):

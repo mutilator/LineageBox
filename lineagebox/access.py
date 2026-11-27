@@ -48,6 +48,13 @@ SCOPED = {
     "video_frame": "image_id IN temp.seen_image",
     "transcript": "image_id IN temp.seen_image",
     "document": "image_id IN temp.seen_image",
+    # a historical paper's pages and words (historical.py), and whether a photo is one: with the paper's first page
+    "paper_page": "paper_id IN temp.seen_image",
+    "paper_check": "image_id IN temp.seen_image",
+    # who a paper names, of those they see (paper_cards.py); the papers they opened and were offered (introductions.py)
+    "paper_person": "paper_id IN temp.seen_image AND person_id IN temp.seen_person",
+    "paper_seen": "account_id = {account}",
+    "paper_offer": "account_id = {account}",
     "comment": "image_id IN temp.seen_image",
     "video_chapters": "image_id IN temp.seen_image",
     "image_place": "image_id IN temp.seen_image",  # placed on the map by hand (places.py)
@@ -232,13 +239,14 @@ def hidden(con: sqlite3.Connection) -> tuple[str, list]:
 def images_for(con: sqlite3.Connection, people: set[int], account_id: int | None, upload_folder: str | None,
                alone: bool = False) -> set[int]:
     """The photos a member sees: someone they see is in it, by a face named by hand or recognized or added by hand,
-    unless hidden by an admin; and their own uploads, hidden or not. alone (a demo, demo.py): never what other
+    or (a historical paper) named in it, linked by its card or by hand, unless hidden by an admin; and their own uploads, hidden or not. alone (a demo, demo.py): never what other
     accounts uploaded, whoever is in it."""
     not_shown, args = hidden(con)
     of_people = con.execute(f"""
         WITH seen(id) AS (SELECT value FROM json_each(?))
         SELECT image_id FROM face WHERE person_id IN seen AND assigned_by IN ('user', 'auto')
         UNION SELECT image_id FROM image_person WHERE person_id IN seen
+        UNION SELECT paper_id FROM paper_person WHERE person_id IN seen AND state IN ('auto', 'user')
         EXCEPT {not_shown}""", (json.dumps(sorted(people)), *args))
     out = {r[0] for r in of_people}
     if alone:
@@ -451,9 +459,12 @@ def compute(con: sqlite3.Connection, account: dict, shared: bool = True, alone: 
     others = shared_with(con, account["id"], partners=not alone) if shared else Shared()
     granted = others.images - images
     images |= granted
-    # the clip of each Live Photo they see, which its page plays (live.py); no page lists one
+    # the clip of each Live Photo they see, which its page plays (live.py), and the later pages of each paper they
+    # see, which its page shows (historical.py); no page lists one
     images |= {clip for clip, still in con.execute("SELECT id, live_of FROM image WHERE live_of IS NOT NULL"
                                                    " AND NOT hidden") if still in images}
+    images |= {page for page, first in con.execute("SELECT id, page_of FROM image WHERE page_of IS NOT NULL"
+                                                   " AND NOT hidden") if first in images}
     shas = {r[0] for r in con.execute("SELECT sha256 FROM image WHERE id IN (SELECT value FROM json_each(?))",
                                       (json.dumps(sorted(images)),))}
     folders = folders_for(con, images, account["upload_folder"], others.folders)

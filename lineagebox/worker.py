@@ -30,6 +30,8 @@ from lineagebox import chapters, stories
 from lineagebox import changes, outbox
 from lineagebox import scan_dates  # the dates written on scanned documents, read by the AI
 from lineagebox import headcount  # the AI's careful count of the people in a photo, for the lists of faces missed
+from lineagebox import paper_reading  # the words of historical papers, copied out by the AI
+from lineagebox import paper_cards  # what each historical paper is and whom it names, read from its words
 from lineagebox import progress  # what is left of each kind of work, noted for the Status page's time left
 from lineagebox.activity import log, note_problem
 from lineagebox.config import Config
@@ -106,6 +108,9 @@ ASKED_MINUTES = 20
 # every photo given the closer look a photo's page gives (faces.look_again_all): its first pass takes about 16 hours
 # on a small router for 38,000 photos, this long a pass at most, so the other stages go on meanwhile
 ROUND_MINUTES = 30
+# the words of historical papers read per pass at most (paper_reading.py): a box of letters is hundreds of pages, each
+# half a minute to a minute on a graphics card, so the other stages go on meanwhile
+PAPER_MINUTES = 30
 
 
 def _for_minutes(minutes: float, stop: Stopper | None, describing: bool = False):
@@ -320,6 +325,17 @@ def run_once(con: sqlite3.Connection, cfg: Config, stop: Stopper | None = None) 
         if n := stage("count people", lambda: headcount.count_waiting(
                 con, cfg, ollama, stop=_for_minutes(ASKED_MINUTES, stop, describing=True))):
             log(con, f"count people: the AI counted the people in {n} photo{'' if n == 1 else 's'}")
+    # the words of historical papers, page by page, and which photos described as documents are papers
+    if ai_now and cfg.describe_enabled:
+        if (r := stage("read papers", lambda: paper_reading.read_waiting(
+                con, cfg, stop=_for_minutes(PAPER_MINUTES, stop, describing=True)))) and any(r):
+            log(con, f"read papers: {r[0]} page{'' if r[0] == 1 else 's'} read, {r[1]} photo"
+                     f"{'' if r[1] == 1 else 's'} looked at for papers")
+    # each paper's card once its pages are read: what it is, when written, whom it names (paper_cards.py)
+    if ai_now and cfg.describe_enabled and problem is None:
+        if n := stage("sum up papers", lambda: paper_cards.make_waiting(
+                con, ollama, stop=_for_minutes(ASKED_MINUTES, stop, describing=True))):
+            log(con, f"sum up papers: {n} document{'' if n == 1 else 's'} read for what they are")
 
     if not cfg.describe_enabled:
         pass

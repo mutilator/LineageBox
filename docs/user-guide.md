@@ -193,11 +193,10 @@ step-family) relative to the person marked **This is me**. Those words work in s
   **Everyone connected**, beside **One line** at its top, shows instead every family linked to this one by parents,
   children and partners on one chart, each person once: those who married in with their own parents and lines, a row
   for each generation. Your own family by blood has the bold frame, and the lines of the families others married in
-  from are lighter. A large family makes a wide chart: zoom out, or save it as a picture. **Roots**, between the two,
-  is the same chart trimmed to one person's history: every family on their generation and above (their partner's
-  too), with all their descendants, but below their generation those who married in come without their own parents
-  and families. From a grandfather's roots, his daughter's husband is there; the husband's parents aren't. It starts
-  with you; click someone to see the tree from their roots instead.
+  from are lighter. A large family makes a wide chart: zoom out, or save it as a picture. **Bloodline**, between the
+  two, shows only one person's blood relatives: their ancestors and everyone descended from those, with their
+  partners, but not the partners' own parents and families. An aunt's husband is there; his parents aren't. It starts
+  with you; click someone to see their bloodline instead.
 
   ![The classic tree: a click on a grandfather who married in brings his own family's tree, and a click on a grandson brings him to the middle](screenshots/family-tree-clicks.webp)
 - **Life events** (births, weddings, moves, graduations, adoption, bar and bat mitzvahs, censuses, probate and more,
@@ -589,6 +588,70 @@ Which place a photo shows: one put there by hand wins (a phone's GPS can be wron
 nearest folder, up from its own, that is placed by hand or whose name gives a place. Places put there by hand go into
 the photo's XMP sidecar, when those are on ([other photo programs](#other-photo-programs)), and into the file itself
 only when an admin asks on its page; a folder's, only for its photos the camera gave no position.
+
+## Historical papers
+
+**Historical** in the menu holds the family's papers: letters, cards, certificates, awards, diplomas, deeds and
+other property papers, clippings, diaries and notes. They are read for their words, so that they can be read on
+their page and found by searching, and they stay out of the places for photos: Home, memories, the Timeline, year
+pages, the map, tours and photo frames. Family members see the papers they would see as photos: those about people
+in their part of the family, those they uploaded, and those shared with them.
+
+### Adding papers
+
+Put them in the photo folders, or upload them on **Add photos**:
+
+- **Scans and photos of papers.** Scan them into a folder of their own, one folder for each box, binder or album they
+  came from ("Grandma's letters", "Deeds to the farm"): the Historical page lists them by that folder, as a
+  collection, and Reorganize folders leaves them where they are. 300 dots an inch in grayscale or color lets the AI
+  read faint ink and handwriting; black and white loses them. The AI finds the documents among the photos (it says
+  which are letters or certificates rather than screenshots), and copies out each page's words.
+- **Files.** PDFs (scanned or typed, any number of pages), Word (.docx) and OpenDocument (.odt) files, RTF, plain
+  text and emails (.eml) are read for their own words; a saved web page too, from the photo folders. An old Word
+  file (.doc), WordPerfect, Works, Outlook's .msg and Apple Pages files are kept to download, but their words can't
+  be read here: save them as .docx or PDF to have them searched. A text file with too few words to be a paper (a
+  camera's readme) is left out.
+
+A letter scanned one page at a time is a document of several pages once its pages are put together: open its first
+page, and under **Add pages** tick the scans that follow it in its folder. On a page, ↑ and ↓ move it, and **Take
+this page out** makes it a document of its own again. A photo the AI took for a document that isn't one: open it
+(**Open as a photo**) and say **Not a document**; one it missed: **Is this a document?** on its photo page.
+
+### Reading a paper
+
+A paper's page shows each page beside its words. What it is (its kind, title, when it was written, by whom and to
+whom) and a sentence or two of what it says come from the AI's reading of its words, until someone saves them under
+**What it is**; whoever is named in it is matched to the family tree. Someone the AI is sure of is linked at once,
+as a recognized face is; one it isn't sure of is asked about ("Is “Ben Baker” Ben Baker?"), and anyone can be added
+by name. Letters between the same two people are listed together.
+
+The AI copies out every word, but old handwriting, faint print and odd spellings can trip it: the lines it wasn't
+sure it read right are marked. **Correct the words** under a page to put them right, or to type the words of a page
+it couldn't read. What someone corrects or types is kept, and the AI never reads it again; **Let the AI read it
+again** is for a page it read badly, after a better model was picked (Settings → AI: the model for reading
+documents). Corrections, like other changes, can be undone.
+
+### Searching the papers
+
+The search box at the top finds papers by their words too: they are listed under **Historical**, between the people
+and the photos, each with the lines that matched, the words marked, and the page they are on. A name finds the
+papers of that person by any of their names, and the search's people and years narrow these as well. The Historical
+page has a search box of its own, for its papers alone, and narrows them by collection, kind and the decade they were
+written.
+
+### From your family's history
+
+The Historical page starts with one paper from your own family's history, chosen for you: your parents' and
+grandparents' first, the nearer generations before the further ones, then the rest of the family; letters, cards and
+clippings before deeds and tax papers, and one written on this day in an earlier year first that day. **Read it**
+opens it; once opened, from anywhere, it isn't offered to you again. **Show me another** puts it behind the rest.
+With a few papers you meet each one once; with hundreds, one at a time, and a mark by **Historical** in the menu says
+one is waiting, once a day at most (Settings → Browsing → From the family's history: once a day, once a week or
+never).
+
+Someone whose account isn't anyone with family in the tree (a friend of the family) gets no introductions, unless an
+admin has shown them someone "with their family" on their account (Settings → Family accounts): then papers of that
+family. New for you says when new documents of your family have been read.
 
 ## Other photo programs
 

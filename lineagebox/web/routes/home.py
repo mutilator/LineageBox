@@ -65,14 +65,14 @@ def home_page(request: Request, v: access.Viewer, c) -> HTMLResponse:
     stream, older = latest(c, today, leave_out=[r["id"] for r in ours])
     shown = {r["id"] for r in stream} | {r["id"] for r in ours}
     recent = c.execute(f"""SELECT i.id, i.sha256, i.taken_at, i.taken_at_source, i.media, i.duration FROM image i
-                           WHERE {catalog.VISIBLE} AND (i.dup_group_id IS NULL OR i.dup_group_id = i.id)
+                           WHERE {catalog.VISIBLE} AND {catalog.NOT_PAPER} AND (i.dup_group_id IS NULL OR i.dup_group_id = i.id)
                            ORDER BY i.id DESC LIMIT 48""").fetchall()
     added = [r for r in recent if r["id"] not in shown][:12]  # taken longer ago (scans, old folders), or undated
     mine = []
     if v.account_id is not None:
         folder = (v.account or {}).get("upload_folder") or "\0"
         mine = c.execute(f"""SELECT i.id, i.sha256, i.taken_at, i.taken_at_source, i.media, i.duration FROM image i
-                             WHERE {catalog.VISIBLE} AND (i.id IN (SELECT image_id FROM upload WHERE account_id = ?)
+                             WHERE {catalog.VISIBLE} AND {catalog.NOT_PAPER} AND (i.id IN (SELECT image_id FROM upload WHERE account_id = ?)
                                   OR i.id IN (SELECT image_id FROM file WHERE path LIKE ? ESCAPE '!'))
                              ORDER BY i.id DESC LIMIT 12""", (v.account_id, catalog.under(folder))).fetchall()
     you = c.execute("SELECT name FROM person WHERE id = ?", (v.me,)).fetchone()
@@ -97,7 +97,7 @@ def faces_of(c, people: list[int]) -> list[dict]:
     """These people, in this order, with the face to show for each (their clearest named one), for Home's buttons."""
     rows = {r["id"]: dict(r) for r in c.execute(f"""
         SELECT p.id, p.name, (SELECT f.id FROM face f JOIN image i ON i.id = f.image_id
-                              WHERE f.person_id = p.id AND {catalog.VISIBLE}
+                              WHERE f.person_id = p.id AND {catalog.VISIBLE} AND {catalog.NOT_PAPER}
                               ORDER BY f.assigned_by = 'user' DESC, f.quality DESC LIMIT 1) AS face
         FROM person p WHERE p.id IN (SELECT value FROM json_each(?))""", (json.dumps(people),))}
     return [rows[p] for p in people if p in rows]
@@ -149,7 +149,7 @@ def latest(c, today: date, people: list[int] | None = None, about: int = LATEST,
     rows = c.execute(f"""SELECT i.id, i.sha256, i.taken_at, i.taken_at_source, i.media, i.duration, i.width, i.height
                          FROM image i
                          WHERE i.taken_at IS NOT NULL AND i.taken_at < :tomorrow AND {memories.PRECISE}
-                           AND {catalog.VISIBLE} AND (i.dup_group_id IS NULL OR i.dup_group_id = i.id){where}
+                           AND {catalog.VISIBLE} AND {catalog.NOT_PAPER} AND (i.dup_group_id IS NULL OR i.dup_group_id = i.id){where}
                          ORDER BY i.taken_at DESC, i.id DESC LIMIT :most""",
                      {"tomorrow": (before or today + timedelta(days=1)).isoformat(), "people": json.dumps(people or []),
                       "leave_out": json.dumps(list(leave_out)), "most": most + 1}).fetchall()
@@ -166,7 +166,7 @@ def not_by_day(c, person_id: int, today: date, most: int = MORE_MOST) -> tuple[l
     there are in all. The days keep to photos dated to the day (memories.PRECISE): a date from when the file was
     copied, or from a folder's or file's name, would put an old photo under a recent day. Those photos are still
     theirs, though, and someone whose photos are all like that had nothing on their Home at all before this."""
-    where = (f"{memories.of_people()} AND {catalog.VISIBLE} AND (i.dup_group_id IS NULL OR i.dup_group_id = i.id) "
+    where = (f"{memories.of_people()} AND {catalog.VISIBLE} AND {catalog.NOT_PAPER} AND (i.dup_group_id IS NULL OR i.dup_group_id = i.id) "
              f"AND NOT (i.taken_at IS NOT NULL AND i.taken_at < :tomorrow AND {memories.PRECISE})")
     args = {"people": json.dumps([person_id]), "tomorrow": (today + timedelta(days=1)).isoformat(), "most": most}
     rows = c.execute(f"""SELECT i.id, i.sha256, i.taken_at, i.taken_at_source, i.media, i.duration, i.width, i.height
@@ -279,7 +279,7 @@ def kept_memories(s: Site, v: access.Viewer, c, formers: bool) -> list[dict]:
     if (memories.due(found["made_at"], now, cfg.memories_keep, cfg.memories_unit)
             or seen != found["photos"] and (now - found["made_at"]).total_seconds() >= REMAKE_AFTER):
         s.later(("memories", v.account_id, formers), lambda: _remake(s, v, formers))
-    covers = {r[0] for r in c.execute(f"""SELECT i.sha256 FROM image i WHERE {catalog.VISIBLE}
+    covers = {r[0] for r in c.execute(f"""SELECT i.sha256 FROM image i WHERE {catalog.VISIBLE} AND {catalog.NOT_PAPER}
                                           AND i.sha256 IN (SELECT value FROM json_each(?))""",
                                       (json.dumps([x["cover"] for x in found["cards"]]),))}
     return [x for x in found["cards"] if x["cover"] in covers]  # a photo gone since: its memory waits for the new ones

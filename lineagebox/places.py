@@ -31,7 +31,7 @@ from datetime import datetime
 import httpx
 
 from lineagebox import __version__, activity, errors, events, settings, towns
-from lineagebox.catalog import ORIGIN, VISIBLE
+from lineagebox.catalog import NOT_PAPER, ORIGIN, VISIBLE
 from lineagebox.config import Config
 
 AGENT = f"LineageBox/{__version__} (self-hosted family archive)"
@@ -153,7 +153,7 @@ def map_data(con: sqlite3.Connection, year: int | None = None) -> dict:
     one_each = "(i.dup_group_id IS NULL OR i.dup_group_id = i.id)"
     years = defaultdict(lambda: {"dated": 0, "undated": 0})
     for y, dated, n in con.execute(f"""SELECT substr(i.taken_at, 1, 4), i.taken_at_source != 'mtime', count(*)
-                                       FROM image i WHERE {VISIBLE} AND {one_each} AND i.taken_at IS NOT NULL
+                                       FROM image i WHERE {VISIBLE} AND {NOT_PAPER} AND {one_each} AND i.taken_at IS NOT NULL
                                        GROUP BY 1, 2"""):
         years[int(y)]["dated" if dated else "undated"] += n
     in_year, args = "", []
@@ -185,7 +185,7 @@ def map_data(con: sqlite3.Connection, year: int | None = None) -> dict:
     for r in con.execute(f"""SELECT i.id, i.sha256, i.gps_lat, i.gps_lon, min(f.folder_id) AS folder_id,
                                     min({ORIGIN}) AS origin FROM image i
                              JOIN file f ON f.image_id = i.id AND NOT f.missing
-                             WHERE {VISIBLE} AND {one_each} {in_year} GROUP BY i.id ORDER BY i.taken_at DESC""", args):
+                             WHERE {VISIBLE} AND {NOT_PAPER} AND {one_each} {in_year} GROUP BY i.id ORDER BY i.taken_at DESC""", args):
         if (own := hand.photos.get(r["id"])) is not None:
             lat, lon = round(own[0], 4), round(own[1], 4)  # each spot someone picked: about 10 m
             add(("placed", lat, lon), town(round(own[0], 2), round(own[1], 2), "Placed by hand"), lat, lon, r)

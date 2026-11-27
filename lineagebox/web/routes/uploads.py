@@ -56,7 +56,7 @@ def upload_page(request: Request, c=Depends(con), w=Depends(writer), s: Site = D
     return page(request, "upload.html", nav="upload", account=account, counts=counts, mine=mine,
                 folder_id=folder_id, max_size=uploads.size_text(most), demo_left=left, demo_most=now.demo_uploads,
                 no_uploads=no_uploads,
-                extensions=sorted({*now.image_extensions, *now.video_extensions, *now.audio_extensions}))
+                extensions=sorted(uploads.wanted(now)))
 
 
 @router.post("/api/upload", dependencies=[Depends(from_app)])
@@ -93,7 +93,7 @@ async def upload_file(request: Request, path: str = Query(min_length=1, max_leng
                 raise uploads.Problem("The photo folder can't be reached just now. Is its disk or share connected? "
                                       "Try again later.")
             return uploads.destination(s.cfg.share_root, into, folder, path,
-                                       {*now.image_extensions, *now.video_extensions, *now.audio_extensions},
+                                       uploads.wanted(now),
                                        now.ignore_dirs)
 
     try:

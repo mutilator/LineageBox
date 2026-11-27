@@ -19,6 +19,7 @@ dependencies = [
     "numpy>=2.0",
     "pillow>=11.0",
     "pillow-heif>=1.0",   # HEIC photos (iPhones); its wheels bring libheif, libde265 and x265
+    "pypdfium2>=4.30",    # PDFs among the historical papers: their pages and words (papers.py); brings PDFium
     "rawpy>=0.24",
     "scikit-learn>=1.5",
     "segno>=1.6",

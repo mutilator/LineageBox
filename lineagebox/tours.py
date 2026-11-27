@@ -15,7 +15,7 @@ from datetime import date, datetime, timedelta
 from markupsafe import Markup, escape
 
 from lineagebox import comments, dates, errors, events, family, favorites, settings
-from lineagebox.catalog import VISIBLE
+from lineagebox.catalog import NOT_PAPER, VISIBLE
 
 SEASONS = dates.SEASONS
 WHO = {"anyone": "Anyone", "person": "One person", "people": "Several people", "relation": "People by relationship",
@@ -273,7 +273,7 @@ def photos(con: sqlite3.Connection, spec: dict, blurry_below: float | None = Non
     targets = target_people(con, spec)
     if targets is not None and not targets:
         return []
-    where, args = [VISIBLE, "i.taken_at IS NOT NULL"], []
+    where, args = [VISIBLE, NOT_PAPER, "i.taken_at IS NOT NULL"], []  # papers only when picked by hand
     if spec["media"] != "both":
         where.append("i.media = ?")
         args.append("photo" if spec["media"] == "photos" else "video")

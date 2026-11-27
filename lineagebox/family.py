@@ -1018,38 +1018,22 @@ def charts(g: Graph) -> list[tuple[int, str, int]]:
     return sorted(out, key=lambda c: -c[2])
 
 
-def roots(g: Graph, focus: int) -> set[int]:
-    """Who is on focus's Roots chart, a trimmed Everyone connected: everyone linked to focus on their generation and
-    above (their ancestors and their partner's, and every branch of those families), the descendants of all of those,
-    and below focus's generation the partners of those descendants, but not the partners' own parents and families.
-    From Russell's roots, his daughter's husband is there; the husband's parents and their line aren't."""
+def bloodline(g: Graph, focus: int) -> set[int]:
+    """Who is on focus's Bloodline chart: their blood relatives (their ancestors and everyone descended from those),
+    each with their partners and the other parent of their children, but none of those partners' own parents and
+    families. From a boy's bloodline, his aunt's husband is there; the husband's parents and their line aren't."""
     full = connected(g, focus)
-    gen = _generations(g, full, focus)
-    upper, todo = {focus}, [focus]
-    while todo:  # linked through focus's generation and those above it only
-        p = todo.pop()
-        for q in (*g.effective_parents.get(p, ()), *g.effective_children.get(p, ()), *g.partners.get(p, {})):
-            if q in full and q not in upper and gen[q] <= gen[focus]:
-                upper.add(q)
-                todo.append(q)
-    keep, todo = set(upper), list(upper)
-    while todo:  # and their descendants: children born to them, not a partner's from elsewhere
-        p = todo.pop()
-        for k in g.effective_children.get(p, ()):
-            if k in full and k not in keep:
-                keep.add(k)
-                todo.append(k)
-    for p in keep - upper:  # the partners of those below, on their own
-        keep |= {q for q in g.partners.get(p, {}) if q in full}
-    return keep
+    blood = _blood(g, full, focus)
+    married_in = {q for p in blood for q in (*g.partners.get(p, {}), *g.effective_parents.get(p, ()))}
+    return blood | (married_in & full)
 
 
 def chart(g: Graph, start: int, focus: int | None = None, among: set[int] | None = None) -> dict:
-    """Everyone connected to start (or only those among, as roots() picks them), laid out: {"nodes": [{"id", "x", "y",
-    "direct", "how"}], "lines": [{"x", "y", "w", "h", "dashed", "faint"}], "width", "height", "people"}. x and y are a
-    card's top left corner, in px; a line is a box of one side, across (h 0) or down (w 0). direct: focus's own blood
-    (someone sharing an ancestor with them, or descended from them), drawn bold as the line is on the one line's chart;
-    focus is start when not given."""
+    """Everyone connected to start (or only those among, as bloodline() picks them), laid out: {"nodes": [{"id", "x",
+    "y", "direct", "how"}], "lines": [{"x", "y", "w", "h", "dashed", "faint"}], "width", "height", "people"}. x and y
+    are a card's top left corner, in px; a line is a box of one side, across (h 0) or down (w 0). direct: focus's own
+    blood (someone sharing an ancestor with them, or descended from them), drawn bold as the line is on the one line's
+    chart; focus is start when not given."""
     people = connected(g, start) if among is None else among
     gen = _generations(g, people, start)
     blood = _blood(g, people, focus if focus in people else start)

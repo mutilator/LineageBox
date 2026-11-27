@@ -237,7 +237,8 @@ def test_documents_are_sources(fam, cfg):
     assert con.execute("SELECT kept_at FROM image WHERE id = ?", (image,)).fetchone()[0]  # out of cleanup's lists
     assert [d["title"] for d in documents.for_person(con, ids["Owen Miller"])] == ["Owen's birth certificate"]
     assert "Owen Miller: Born June 15, 2011" in c.get(f"/image/{image}").text
-    assert "Documents" in c.get(f"/person/{ids['Owen Miller']}").text
+    assert f'data-later="/person/{ids["Owen Miller"]}/papers"' in c.get(f"/person/{ids['Owen Miller']}").text
+    # (its Papers part lists the papers still in the library: this one has no file, see test_historical_more.py)
     recs = gedcom.parse(gedcom.export(con, cfg)[0])
     by = {r.xref: r for r in recs if r.xref}
     owen = next(r for r in recs if r.tag == "INDI" and r.value("NAME") == "Owen /Miller/")

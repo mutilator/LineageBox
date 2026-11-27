@@ -5,7 +5,7 @@ import json
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
-from lineagebox import catalog, changes, documents, events, family, people
+from lineagebox import catalog, changes, documents, events, family, historical, people
 from lineagebox.web.common import (MEMBER, CitationBody, DetailsBody, DocumentBody, EventBody, GroupBody, LinkBody,
                                    NamePartsBody, OtherNameBody, PortraitBody, SexBody, SourceBody, SourceEditBody,
                                    StoryBody, added_by, document_spec, family_spec, from_app, images_or_404,
@@ -64,18 +64,24 @@ def link_person(person_id: int, body: LinkBody, v=Depends(viewer), c=Depends(con
 def save_document(image_id: int, body: DocumentBody, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     if catalog.image(c, image_id) is None:
         raise HTTPException(404, "No such image")
+    paper = historical.paper_of(c, image_id)
     with changes.tracking(w, v, "documents", f"Marked a photo as a document ({body.kind})",
-                          document_spec(image_id)):
-        documents.save(w, image_id, body.kind, body.title)
-    return {"message": "Saved."}
+                          document_spec(image_id)) as kept:
+        if paper is not None and paper == image_id:  # a paper already: its kind and title, as the Historical page has
+            row = historical.get(w, image_id)
+            historical.set_details(w, image_id, historical.Details(body.kind, body.title, row["written"] or "",
+                                                                   row["sender"] or "", row["recipient"] or ""))
+        else:
+            historical.mark(w, image_id, body.kind, body.title)
+    return {"message": "Saved.", "undo": kept.id}
 
 
 @router.post("/api/images/{image_id}/document/remove", dependencies=[Depends(from_app)])
 def remove_document(image_id: int, v=Depends(viewer), c=Depends(con), w=Depends(writer)):
     images_or_404(c, v, [image_id])
-    with changes.tracking(w, v, "documents", "Said a photo is not a document", document_spec(image_id)):
-        documents.remove(w, image_id)
-    return {}
+    with changes.tracking(w, v, "documents", "Said a photo is not a document", document_spec(image_id)) as kept:
+        historical.not_a_paper(w, image_id)
+    return {"undo": kept.id}
 
 
 @router.post("/api/images/{image_id}/citations", dependencies=[Depends(from_app)])

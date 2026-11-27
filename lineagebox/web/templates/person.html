@@ -278,12 +278,9 @@
   instead: open it and mark it as one. Family tree programs get both as sources.{% endtrans %}</p>
 </details>
 
-{% if docs %}
-<h2>{% trans %}Documents{% endtrans %} <small>{{ docs|length }}</small></h2>
-<div class="grid">
-  {%- for d in docs %}<a href="/image/{{ d.image_id }}" title="{{ d.kind }}: {{ d.title }}"><img src="/t/{{ d.sha256 }}" alt="{{ d.title }}" loading="lazy"></a>{% endfor %}
-</div>
-{% endif %}
+{#- their historical papers (routes/historical.py person_papers): about them, by or to them, naming them, a record of
+    them; loaded after the page, and nothing when there are none #}
+<div class="person-papers-part" data-later="/person/{{ person.id }}/papers"></div>
 
 {#- Their life by age (life.py): each group's events, with what bears them out, and its photos, loaded when opened.
     A few photos in all are shown at once. #}

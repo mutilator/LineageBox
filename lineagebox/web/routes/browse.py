@@ -633,13 +633,12 @@ def _unplaced(c, named, linked: set) -> list[dict]:
 
 @router.get("/family/tree", response_class=HTMLResponse)
 def family_tree_page(request: Request, root: int | None = None, person: int | None = None, everyone: bool = False,
-                     roots: bool = False, c=Depends(con)):
+                     bloodline: bool = False, c=Depends(con)):
     """The whole line down from one ancestor, on a page of its own: to move around and zoom in a large family, and to
     save as one picture. person: shown first (from the Family page, the one in the middle; from a person's page,
     them). everyone: instead, everyone the line is linked to by parents, children and partners, each family they
-    married into with its own line, on one chart (family.chart). roots: person's (or yours, or the top's) roots on
-    one chart: every family on their generation and above with its descendants, but not the families of those who
-    married in below them (family.roots)."""
+    married into with its own line, on one chart (family.chart). bloodline: person's (or yours, or the top's) blood
+    relatives on one chart, with their partners but not the partners' families (family.bloodline)."""
     g = family.load(c)
     ego = family.me(c)
     tops = family.tops(g)
@@ -651,11 +650,11 @@ def family_tree_page(request: Request, root: int | None = None, person: int | No
     chart = charts = None
     mode = "line"
     focus = person if person is not None else ego if ego in g.people else root if root in g.people else None
-    if roots and focus is not None:
-        mode, root = "roots", focus
-        chart = family.chart(g, focus, focus, family.roots(g, focus))
+    if bloodline and focus is not None:
+        mode, root = "bloodline", focus
+        chart = family.chart(g, focus, focus, family.bloodline(g, focus))
         top_names[root] = g.name(root)  # one person's, not a line's top couple
-        tree, lines = None, {n["id"]: n["id"] for n in chart["nodes"] if n["id"] > 0}  # a click: their own roots
+        tree, lines = None, {n["id"]: n["id"] for n in chart["nodes"] if n["id"] > 0}  # a click: their own bloodline
     elif everyone and root is not None:
         mode = "everyone"
         linked = family.connected(g, root)
@@ -672,6 +671,6 @@ def family_tree_page(request: Request, root: int | None = None, person: int | No
     return page(request, "family_tree.html", nav="family", g=g, ego=ego,
                 kin=family.relations_to(g, ego) if ego else {}, tops=tops, root=root, top_names=top_names,
                 tree=tree, chart=chart, charts=charts, mode=mode, lines=lines,
-                person=focus if mode == "roots" else person,
-                line_root=family.tree_root(g, focus) if mode == "roots" else root,  # One line, from there
+                person=focus if mode == "bloodline" else person,
+                line_root=family.tree_root(g, focus) if mode == "bloodline" else root,  # One line, from there
                 covers=cover_faces(catalog.people(c)))

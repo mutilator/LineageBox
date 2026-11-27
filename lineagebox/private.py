@@ -13,6 +13,9 @@ checks, insurance cards, immunization records, a child's birth certificate. On t
 (PEOPLE_TYPES) they were mostly something else (an identification badge on a lanyard at the zoo, a marriage license
 signed at a wedding), so a phrase counts only on other kinds. A number set out like a Social Security number or a
 card's counts on any.
+
+Historical papers (historical.py) are looked at by their words too, all their pages, and by the kind of document they
+are (PAPER_KINDS); a paper written longer ago than GONE_AFTER years is no living person's certificate.
 """
 import json
 import re
@@ -52,6 +55,9 @@ READ = [("id", "a number set out like a Social Security number", re.compile(r"\b
         ("id", "a driver's license's words", re.compile(r"\bdriver'?s? licen[cs]e\b", re.I), False),
         ("id", "a date of birth", re.compile(r"\b(?:dob|date of birth)\b", re.I), False)]
 PEOPLE_TYPES = {"candid", "posed group", "portrait", "selfie", "landscape"}
+# a historical paper of these kinds (documents.KINDS) is private by what it is
+PAPER_KINDS = {"Passport or ID": "id", "Money or tax paper": "money", "Medical record": "health",
+               "Birth certificate": "certificates", "Marriage certificate": "certificates"}
 OK_KEY = "private_ok"  # settings: photos an admin said are fine to show
 GONE_AFTER = 110  # years: someone born longer ago than this, with no death entered, has died all the same
 
@@ -113,6 +119,7 @@ def suggestions(con: sqlite3.Connection) -> list[dict]:
         if what := looks_private(r["caption"], r["raw_json"], r["text_visible"], r["photo_type"]):
             found.append({**{k: r[k] for k in ("id", "sha256", "taken_at", "taken_at_source", "caption")},
                           "kind": what[0], "why": what[1]})
+    found += _papers(con, {f["id"] for f in found} | ok | hidden)
     gone = _all_gone(con, [f["id"] for f in found if f["kind"] == "certificates"])
     found = [f for f in found if f["id"] not in gone]
     named = {r[0] for r in con.execute("""
@@ -124,6 +131,41 @@ def suggestions(con: sqlite3.Connection) -> list[dict]:
     for f in found:
         f["named"] = f["id"] in named
     return sorted(found, key=lambda f: (not f["named"], order.index(f["kind"]), -_day(f["taken_at"]), -f["id"]))
+
+
+def paper_private(kind: str | None, words: str | None, written_to: str | None) -> tuple[str, str] | None:
+    """(kind, why) when a historical paper looks private by its kind or its words (READ), else None. A certificate
+    written longer ago than GONE_AFTER years is no living person's."""
+    what = None
+    if kind in PAPER_KINDS:
+        what = (PAPER_KINDS[kind], f"a document of the kind {kind.lower()}")
+    else:
+        what = next(((k, why) for k, why, rx, _ in READ if words and rx.search(words)), None)
+    if what and what[0] == "certificates" and written_to and written_to < f"{date.today().year - GONE_AFTER:04d}":
+        return None
+    return what
+
+
+def ok_ids(con: sqlite3.Connection) -> list:
+    """The photos and papers an admin said are fine to show."""
+    return list(settings.get(con, OK_KEY, []))
+
+
+def _papers(con: sqlite3.Connection, leave_out: set[int]) -> list[dict]:
+    """Historical papers that look private (paper_private), but those in leave_out (found already, hidden, or fine
+    to show)."""
+    out = []
+    for r in con.execute(f"""SELECT i.id, i.sha256, i.taken_at, i.taken_at_source, d.kind, d.title, d.written_to,
+                                    (SELECT group_concat(p.text, char(10)) FROM paper_page p
+                                     WHERE p.paper_id = d.image_id) AS words
+                             FROM document d JOIN image i ON i.id = d.image_id WHERE {VISIBLE}"""):
+        if r["id"] in leave_out:
+            continue
+        if what := paper_private(r["kind"], r["words"], r["written_to"]):
+            out.append({"id": r["id"], "sha256": r["sha256"], "taken_at": r["taken_at"],
+                        "taken_at_source": r["taken_at_source"], "caption": r["title"], "kind": what[0],
+                        "why": what[1]})
+    return out
 
 
 def _day(taken_at: str | None) -> int:

@@ -27,7 +27,7 @@ accounts.{% endtrans %}</p>
   {#- The pickers' boxes are hidden from sight only: Tab reaches them, and Space or Enter opens the browser's picker #}
   <div class="drop" data-drop>
     <p><b>{% trans %}Drop them here{% endtrans %}</b></p>
-    <p><label class="button file-pick">{% trans %}Pick photos{% endtrans %} <input type="file" multiple accept="{{ extensions|join(',') }},image/*,video/*" data-pick></label>
+    <p><label class="button file-pick">{% trans %}Pick photos or documents{% endtrans %} <input type="file" multiple accept="{{ extensions|join(',') }},image/*,video/*" data-pick></label>
       <label class="button file-pick">{% trans %}Pick a folder{% endtrans %} <input type="file" webkitdirectory multiple data-pick></label></p>
     <p class="hint">{% trans extensions=extensions|join(", ")|upper|replace(".", "") %}{{ extensions }} · up to {{ max_size }} a file{% endtrans %}</p>
   </div>

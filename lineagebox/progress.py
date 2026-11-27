@@ -4,7 +4,7 @@ import sqlite3
 from datetime import datetime, timedelta
 
 from lineagebox import chapters, copies, downloads, retry, settings, speech
-from lineagebox import describe, embeddings, headcount
+from lineagebox import describe, embeddings, headcount, paper_reading
 from lineagebox.catalog import ON_SHARE, VISIBLE
 from lineagebox.config import Config
 from lineagebox.describe import count_pending
@@ -74,6 +74,10 @@ def counts(con: sqlite3.Connection, cfg: Config) -> dict:
             row("describe again", "Photos asked to be described again (AI)", describe.count_requests(con)),
             row("headcount", "Photos whose faces don't add up, to count the people in (AI)",
                 len(headcount.waiting(con, cfg.ollama_model))),
+            row("papers", "Pages of documents to read (AI, Historical)", len(paper_reading.pages_waiting(con)),
+                one("SELECT count(*) FROM paper_page")),
+            row("paper checks", "Photos described as documents, to look at for letters and other papers (AI)",
+                len(paper_reading.candidates(con))),
             row("meaning", "Descriptions to read for search by meaning (AI)", meaning,
                 embedded + meaning if cfg.ollama_embed_model else None),
             row("transcribe", "Videos, recordings and stories to transcribe (Whisper)", speech.count_pending(con),

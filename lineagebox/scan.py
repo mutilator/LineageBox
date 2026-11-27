@@ -1,5 +1,5 @@
-"""Stage 1: walk the watched folders and record folders, photos, videos and sound recordings. No file contents are
-read.
+"""Stage 1: walk the watched folders and record folders, photos, videos, sound recordings and papers (PDFs, Word
+files...: papers.py). No file contents are read.
 
 Paths are relative to the share, so every watched folder's files sit in one folder tree: the share is the root folder
 (''), with the watched folders, and any folders on the way to them, below it.
@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from lineagebox import video
+from lineagebox import papers, video
 from lineagebox.catalog import under
 from lineagebox.config import Config
 
@@ -95,7 +95,7 @@ def scan(con: sqlite3.Connection, cfg: Config) -> ScanStats:
     own = own_folders(cfg)  # the catalog's and the face models' folders, if they are in the photo folders
     own_ids = _own_ids(cfg)
     found_files = []                         # (path, folder path, size, mtime)
-    wanted = {*cfg.image_extensions, *cfg.video_extensions, *cfg.audio_extensions}
+    wanted = {*cfg.image_extensions, *cfg.video_extensions, *cfg.audio_extensions, *cfg.document_extensions}
     for watched in cfg.folders:
         parent, parts = "", watched.split("/")
         for depth in range(1, len(parts)):  # folders between the share and the watched folder
@@ -127,11 +127,13 @@ def scan(con: sqlite3.Connection, cfg: Config) -> ScanStats:
                     if not entry.is_file(follow_symlinks=False):
                         continue
                     if os.path.splitext(entry.name)[1].lower() not in wanted or video.is_copy(entry.name):
-                        continue  # not a photo or video, or the 720p copy LineageBox made of one
+                        continue  # not a photo, video or paper, or the 720p copy LineageBox made of a video
                     st = entry.stat()
                 except OSError as e:
                     stats.errors.append(f"{entry.path}: {e}")
                     continue
+                if papers.too_small(entry.name, st.st_size):
+                    continue  # a text file too small to be a paper: as if it were no paper's kind of file
                 stats.files += 1
                 found_files.append((f"{rel}/{entry.name}", rel, st.st_size, st.st_mtime))
         found = len(found_files) - before

@@ -1,7 +1,7 @@
 {# A person's card, and the tree of one person's descendants: on the Family page and the whole line's page. Imported
    with context: they read g, covers, kin and ego from the page, and on the whole line's page lines (family.lines):
    there a card shows its person's line (app.js glides onto them, or brings in the family they come from), and a
-   double click opens their page. On one person's Roots each card leads to their own (mode roots), and with everyone on
+   double click opens their page. On one person's Bloodline each card leads to their own (mode bloodline), and with everyone on
    one chart (mode everyone) everyone's line is the chart's. #}
 {% macro card(pid, former=false, note="", step=false, direct=false, how="") %}
   {%- if pid < 0 %}

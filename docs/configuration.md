@@ -48,6 +48,7 @@ it differs.
 | `[scan] image_extensions` | `.jpg .jpeg .jpe .jfif .png .tif .tiff .heic .heif .hif` and cameras' raw files (`.nef .nrw .cr2 .cr3 .crw .arw .srf .sr2 .dng .raf .orf .rw2 .rwl .pef .srw .3fr .iiq .mos .mef .mrw .erf .kdc .dcr`) | | Photo file types to catalog: every kind LineageBox reads. Leave a kind out to skip those files. |
 | `[scan] video_extensions` | `.mts .m2ts .mp4 .m4v .mov .3gp .3g2 .avi .wmv .mpg .mpeg .mkv .webm` | | Video file types. A video file with sound and no picture (a phone's voice note) is cataloged as a sound recording. Whatever a file is named, it is read only as one of the usual kinds of video or sound file (MP4 and QuickTime, MPEG-TS and AVCHD, MPEG, AVI, Windows Media, Matroska and WebM, FLV, DV, MP3, AAC, WAV, Ogg, FLAC, AMR, AIFF); another kind is listed as a file that can't be read. |
 | `[scan] audio_extensions` | `.mp3 .m4a .aac .wav .wma .ogg .oga .opus .flac .amr .aif .aiff` | | Sound recordings to catalog: digitized cassettes, voice memos. A file tagged as a song from an album (artist, album and track number) is left out as music. Set it to an empty list (`[]`) to catalog no sound files. |
+| `[scan] document_extensions` | `.pdf .docx .odt .rtf .txt .eml .htm .html .doc .wpd .wps .msg .pages` | | Historical papers that are files of their own ([the user guide](user-guide.md#historical-papers)): read for their words, but the last five (old Word, WordPerfect, Works, Outlook and Pages files), which are kept to download. A text file or web page with fewer than 30 words is left out. Members can upload all of these but web pages. |
 | `[scan] ignore_dirs` | `Thumbs Previews .thumbnails` (Docker adds NAS recycle bins and thumbnail folders) | Page | Folder names (case-insensitive patterns) whose files are listed but never read. |
 
 ### Reading photos
@@ -71,6 +72,7 @@ it differs.
 | `[ollama] workers` | 3 (Docker: 2) | Page | Photos sent at a time. One more than Ollama's `OLLAMA_NUM_PARALLEL` keeps it busy. |
 | `[ollama] image_size` | 1024 | | Longest side sent to the model (about 1,500 prompt tokens). |
 | `[ollama] keep_alive` | `30m` | | How long Ollama keeps the model loaded between photos. |
+| `[ollama] read_model` | `""` | Page | The model that copies out the words of historical papers, page by page; it needs vision. `""` uses `[ollama] model`. A larger one reads handwriting and small print better. Changing it doesn't read again what is read already ("Let the AI read it again" on a page does). |
 | `[ollama] embed_model` | `""` (Docker and `config.example.toml`: `nomic-embed-text`) | Page | Search by meaning: the model that reads descriptions and searches ([docs/ollama.md](ollama.md#search-by-meaning)). `""` finds words only. Changing it reads every description again. |
 | `[whisper] enabled` | true | Page | Transcripts of videos, sound recordings and recorded stories. |
 | `[whisper] url` | none | Page | The speech-to-text service's address, e.g. `http://pc:9300`. |
@@ -109,6 +111,7 @@ is then 5 June, and a folder named "Party 5.6.98" is from 5 June 1998 (unticked,
 | `[web] trusted_proxies` | none | Page | Reverse proxies whose `X-Forwarded-For` and `X-Forwarded-Proto` are believed. |
 | `[web] tls_cert`, `[web] tls_key` | none | Page | HTTPS without a proxy: certificate (full chain) and key, PEM. Both or neither. |
 | `[web] hover_preview_ms` | 500 | Page | Milliseconds of pointing at a photo before it shows larger; 0 never. |
+| `[web] introduce_every` | `day` | Page | How often the menu marks Historical when a paper of someone's family is waiting to be introduced to them: `day`, `week` or `never` (the Historical page still offers one). |
 | `[web] memories_keep`, `[web] memories_unit` | 1, `days` | Page | How long each person's memories on Home are kept before new ones are made: 1 to 999 `minutes`, `hours`, `days` or `weeks`. Days and weeks go by the calendar (1 day: new memories each day, from the first visit). New photos for someone to see also make theirs new, at most once an hour. |
 | `[web] language` | none (English) | | Once a translation is installed ([translating](translating.md)): the pages' language for a browser that asks for none LineageBox has (`de`, `pt_BR`). A browser's own choice (the round button → Language) and its languages come first. |
 

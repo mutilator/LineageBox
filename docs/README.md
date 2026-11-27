@@ -28,7 +28,7 @@ photos and home videos they appear in, and shared with relatives who sign in wit
 ## Using LineageBox
 
 - [User guide](user-guide.md): the first steps, the menu, light or dark and printing; search (by words and by
-  meaning), people, the family tree and its book, New for you,
+  meaning), people, the family tree and its book, historical papers (letters, certificates, deeds), New for you,
   the app on a phone, photo frames, the map and putting photos on it, other photo programs (their names brought in,
   XMP sidecars), dates, tags, tours, albums and favorites, journeys, cleanup, Status and Settings.
 

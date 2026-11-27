@@ -262,7 +262,7 @@ def test_photos_that_cant_be_described_dont_hold_up_the_rest(con, cfg, library, 
     monkeypatch.setattr(describing, "Ollama", OnlineFake)
     worker.scan(con, cfg)
     worker.ingest(con, cfg, show_progress=False)
-    newest = [r[0] for r in con.execute("SELECT sha256 FROM image ORDER BY id DESC LIMIT 12")]
+    newest = [r[0] for r in con.execute("SELECT sha256 FROM image WHERE error IS NULL ORDER BY id DESC LIMIT 12")]
     for sha in newest:
         cfg.preview_path(sha).unlink()
     s = describing.describe(con, cfg, show_progress=False)

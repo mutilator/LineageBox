@@ -11,6 +11,7 @@
   "timeline": "M3.5 5h13v11.5h-13zM3.5 8.5h13M7 3v3.5M13 3v3.5",
   "map": "M10 17.5s5.5-5.2 5.5-9.3a5.5 5.5 0 0 0-11 0c0 4.1 5.5 9.3 5.5 9.3zM10 10.2a2 2 0 1 0 0-4 2 2 0 0 0 0 4z",
   "tags": "M3 3.5h6.5l7.5 7.5-6 6-7.5-7.5zM6.5 7.2a.6.6 0 1 0 0-1.2.6.6 0 0 0 0 1.2z",
+  "historical": "M5 2.5h7l3.5 3.5v11.5H5zM12 2.5V6h3.5M7.5 10h5.5M7.5 13h5.5",
   "heart": "M10 16.5S3 12.4 3 7.6A3.6 3.6 0 0 1 10 6a3.6 3.6 0 0 1 7 1.6c0 4.8-7 8.9-7 8.9z",
   "albums": "M5.5 6.5h11.5v10H5.5zM3 4h11.5M3 4v10",
   "tours": "M3 4.5h14v11H3zM8.5 7.5v5l4-2.5z",
@@ -28,7 +29,9 @@
   (_("Library"), [("/" if viewer.admin else "/folders", _("Folders"), "folder", nav == "folders"),
                   ("/timeline", _("Timeline"), "timeline", nav == "timeline"),
                   ("/map", _("Map"), "map", nav == "map"),
-                  ("/tags", _("Tags"), "tags", nav == "tags")]),
+                  ("/tags", _("Tags"), "tags", nav == "tags")]
+                 + ([("/historical", _("Historical"), "historical", nav == "historical")]
+                    if viewer.admin or (has_papers is defined and has_papers()) else [])),
   (_("Collections"), [("/favorites", _("Favorites"), "heart", menu_path == "/favorites"),
                       ("/albums", _("Albums"), "albums", menu_path.startswith("/album")),
                       ("/tours", _("Tours"), "tours", nav == "tours" and not menu_path.startswith("/album")
@@ -49,8 +52,10 @@
   <div class="side-group"{% if heading %} role="group" aria-labeledby="side-{{ loop.index }}"{% endif %}>
     {%- if heading %}<span class="side-heading" id="side-{{ loop.index }}">{{ heading }}</span>{% endif %}
     {%- for href, name, icon, here in links %}
-    <a href="{{ href }}"{% if here %} aria-current="page"{% endif %} title="{{ name }}">
-      <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="{{ side_icons[icon] }}"/></svg><span class="label">{{ name }}</span></a>
+    {%- set waiting = href == "/historical" and not here and papers_waiting is defined and papers_waiting() %}
+    <a href="{{ href }}"{% if here %} aria-current="page"{% endif %} title="{{ _("%(name)s: something from the family's history to see", name=name) if waiting else name }}"{% if waiting %} class="side-waiting"{% endif %}>
+      <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="{{ side_icons[icon] }}"/></svg><span class="label">{{ name }}</span>
+      {%- if waiting %}<span class="side-dot" aria-hidden="true"></span><span class="vh">{% trans %}(something new to see){% endtrans %}</span>{% endif %}</a>
     {%- endfor %}
     {%- if heading and viewer.admin and update_ready and loop.last %}
     <a href="/status#updates" class="update-ready" title="{{ _('LineageBox %(version)s is out', version=update_ready.version) }}">

@@ -102,9 +102,12 @@ Siblings entered without parents share a stand-in parent (a negative id), so the
 friends and other relationships are outside the tree unless the member added them.
 
 The photos are those with a face of a visible person (named by hand or by recognition, not merely suggested), or a
-visible person added to the photo by hand, plus the member's own uploads, minus photos and folders an admin hid. Then
-come the photos other accounts shared with them (below). Everything else follows from these two sets: tags, places,
-events, documents, tours, search and counts.
+visible person added to the photo by hand, plus the member's own uploads, minus photos and folders an admin hid. A
+historical paper (`historical.py`) is one more photo: seen also when it names a visible person, as its card linked
+them (`paper_person` 'auto', as recognition does) or someone confirmed; its later pages (`image.page_of`) come with
+it, as a Live Photo's clip comes with its still. Then come the photos other accounts shared with them (below).
+Everything else follows from these two sets: tags, places, events, documents and their pages and words, tours,
+search and counts.
 
 ### Shared photos
 

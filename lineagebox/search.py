@@ -60,6 +60,8 @@ def index_image(con: sqlite3.Connection, image_id: int, folders: FolderIndex) ->
         tags.append("video")
     elif img["media"] == "audio":  # a sound recording (video.py): found as one, and by what is said in it
         tags += ["recording", "sound recording", "audio"]
+    elif img["media"] == "document":  # a paper that is a file of its own (papers.py)
+        tags += ["document", "paper"]
     if renamed := _aliases(con):  # tags renamed, merged or taken off every photo, as they are now (tagging.rename)
         tags = [renamed.get(catalog.tag_name(t), t) if t and catalog.tag_name(t) in renamed else t for t in tags]
     by_hand = con.execute("""SELECT t.name, it.source FROM image_tag it JOIN tag t ON t.id = it.tag_id
@@ -103,6 +105,8 @@ def index_image(con: sqlite3.Connection, image_id: int, folders: FolderIndex) ->
                  " ".join([*ctx.places, *ctx.events, raw.get("event") or ""]),
                  " ".join(folder_words(f) for f in ctx.folders), date_text, speech[0] if speech else "",
                  "\n".join(comments), raw.get("text_visible") or "", "\n".join(document)))
+    from lineagebox import paper_search  # it needs this module first
+    paper_search.index_paper(con, image_id)  # a historical paper's words, page by page, in an index of their own
 
 
 def _aliases(con: sqlite3.Connection) -> dict[str, str | None]:
@@ -143,6 +147,7 @@ def index_new(con: sqlite3.Connection) -> int:
 def rebuild(con: sqlite3.Connection) -> int:
     folders = FolderIndex(con)
     con.execute("DELETE FROM search_fts")
+    con.execute("DELETE FROM paper_fts")
     ids = [r[0] for r in con.execute(f"SELECT i.id FROM image i WHERE {catalog.VISIBLE}")]
     for image_id in ids:
         index_image(con, image_id, folders)
@@ -328,7 +333,8 @@ def _select(con: sqlite3.Connection, text: str, f: Filters, words: _Words | None
         match = f"{match} AND {place}" if match else place
     if match is None and not f.narrowed:
         return None
-    where, args = ["(i.dup_group_id IS NULL OR i.dup_group_id = i.id)", catalog.VISIBLE], []
+    # historical papers are found by paper_search, in a section of their own
+    where, args = ["(i.dup_group_id IS NULL OR i.dup_group_id = i.id)", catalog.VISIBLE, catalog.NOT_PAPER], []
     source = "image i"
     if match:
         source = "search_fts s JOIN image i ON i.id = s.rowid"
@@ -411,7 +417,8 @@ def _with_meaning(con: sqlite3.Connection, rows: list, text: str, f: Filters, wo
         return rows
     found = _select(con, " ".join(must), f, words)
     if found is None:  # no names, no filters: any photo search shows
-        sql, args = f"FROM image i WHERE (i.dup_group_id IS NULL OR i.dup_group_id = i.id) AND {catalog.VISIBLE}", []
+        sql, args = (f"FROM image i WHERE (i.dup_group_id IS NULL OR i.dup_group_id = i.id) AND {catalog.VISIBLE} "
+                     f"AND {catalog.NOT_PAPER}"), []
     else:
         sql, args, _ = found
     meant = {r["id"]: r for r in con.execute(

@@ -61,7 +61,14 @@ _SIGNATURES = {
     **{ext: [(0, b"OggS")] for ext in (".ogg", ".oga", ".opus")}, ".flac": [(0, b"fLaC"), (0, b"ID3")],
     ".amr": [(0, b"#!AMR")], **{ext: [((0, b"FORM"), (8, b"AIFF")), ((0, b"FORM"), (8, b"AIFC"))]
                                 for ext in (".aif", ".aiff")},
+    # historical papers (papers.py): PDFs; Word, OpenDocument and Pages files are zips; old Office files (.doc,
+    # .wps, .msg) are OLE files; WordPerfect's own. Text and emails have none: see _text().
+    ".pdf": [(0, b"%PDF-")], **{ext: [(0, b"PK\x03\x04")] for ext in (".docx", ".odt", ".pages")},
+    **{ext: [(0, b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1")] for ext in (".doc", ".wps", ".msg")},
+    ".wpd": [(0, b"\xffWPC")], ".rtf": [(0, b"{\\rtf")],
 }
+TEXT_KINDS = {".txt", ".eml"}  # held to looking like words, not to their first bytes (_text)
+NOT_UPLOADED = {".htm", ".html"}  # a web page may hold scripts: such papers come from the photo folders, not uploads
 
 
 class Problem(errors.Problem):
@@ -102,6 +109,12 @@ def _shorten(name: str) -> str:
     return stem.encode()[:NAME_BYTES - len(suffix.encode())].decode(errors="ignore").rstrip(". ") + suffix
 
 
+def wanted(cfg) -> set[str]:
+    """The kinds of file that may be uploaded: photos, videos, recordings and papers (papers.py), as the scan reads,
+    but web pages (NOT_UPLOADED)."""
+    return {*cfg.image_extensions, *cfg.video_extensions, *cfg.audio_extensions, *cfg.document_extensions} - NOT_UPLOADED
+
+
 def destination(share_root: Path, upload_folder: str, folder: str, path: str, extensions,
                 skipped: tuple[str, ...] = ()) -> tuple[Path, str]:
     """Where an uploaded file goes: (the path on the share, the same from the share's root, '/' separated). folder:
@@ -111,7 +124,7 @@ def destination(share_root: Path, upload_folder: str, folder: str, path: str, ex
     if not parts:
         raise Problem("The file has no name.")
     if Path(parts[-1]).suffix.lower() not in extensions:
-        raise Problem(f"{parts[-1]}: only photos and videos ({', '.join(sorted(extensions))}).")
+        raise Problem(f"{parts[-1]}: only photos, videos, recordings and documents ({', '.join(sorted(extensions))}).")
     for part in parts[:-1]:
         if is_ignored(part, skipped) or part.lower().endswith("-removed"):
             raise Problem(f"Photos in a folder called {part} are never shown here: use another name for it.")
@@ -158,7 +171,21 @@ def _digest(path: Path) -> bytes:
     return h.digest()
 
 
+def _text(name: str, head: bytes) -> bool:
+    """A text file or an email: words, not a program's bytes (no NUL bytes but in UTF-16), and an email starts with
+    its first header ("From: ...", "Received: ...")."""
+    utf16 = head.startswith((b"\xff\xfe", b"\xfe\xff"))
+    if not head or (b"\x00" in head and not utf16):
+        return False
+    if Path(name).suffix.lower() == ".eml":
+        return bool(re.match(rb"[!-9;-~]+:", head.lstrip(b"\xef\xbb\xbf")))
+    return True
+
+
 def looks_like(name: str, head: bytes) -> bool:
+    if Path(name).suffix.lower() in TEXT_KINDS:
+        return _text(name, head)
+
     def fits(entry) -> bool:
         return all(head[at:at + len(sig)] == sig for at, sig in (entry if isinstance(entry[0], tuple) else [entry]))
     return any(fits(entry) for entry in _SIGNATURES.get(Path(name).suffix.lower(), []))

@@ -40,6 +40,8 @@ MENU = (("/upload", N_("Add photos"), N_("photos and videos from this computer o
         ("/timeline", N_("Timeline"), N_("photos by the year and month they were taken")),
         ("/map", N_("Map"), N_("where photos were taken and where family lived, year by year")),
         ("/tags", N_("Tags"), N_("keywords given by the AI or by you; open one to work on its photos")),
+        ("/historical", N_("Historical"), N_("the family's papers: letters, certificates, deeds and clippings, with the "
+                                             "words of each page")),
         ("/favorites", N_("Favorites"), N_("the photos you gave a heart")),
         ("/albums", N_("Albums"), N_("photos picked by hand, in your own order, with captions")),
         ("/tours", N_("Tours"), N_("slideshows picked by rules: a person, a season, anniversaries")),
@@ -423,9 +425,9 @@ PAGES = {
         N_("Everyone connected, beside One line, shows every family linked to this one by parents, children and "
            "partners on one chart instead: those who married in with their own parents and lines, a row for each "
            "generation. Bold is your own family by blood."),
-        N_("Roots, between the two, trims that to one person's history: every family on their generation and above, "
-           "with all their descendants, but below them those who married in come without their own parents and "
-           "families. It starts with you; click someone to see the tree from their roots instead."),
+        N_("Bloodline, between the two, shows only one person's blood relatives: their ancestors and everyone "
+           "descended from those, with their partners but not the partners' own families. It starts with you; click "
+           "someone to see their bloodline instead."),
         N_("Drag the tree to move around it, or use the arrow keys once it is clicked. Scroll or pinch to zoom in and "
            "out; Show it all fits the whole tree in the frame."),
         N_("Click someone to put them in the middle, marked. Click someone who married in, and the tree changes to the "
@@ -733,6 +735,23 @@ PAGES = {
     "news_photos": Page(N_("New photos"), (
         N_("The new photos one line of New for you is about, those you can see, newest first by the day they were "
            "taken. Open one to see it, name the faces in it or write on it."),)),
+    "historical": Page(N_("Historical"), (
+        N_("The family's papers: letters, cards, certificates, awards, deeds, clippings and notes, by the collection "
+           "they came from (their folder), by kind and by the decade they were written. Open one to read it."),
+        N_("The AI finds the documents among the scans and photos, and copies out the words of every page, so that a "
+           "search finds a letter by a word in it. PDF, Word, text and email files are read for their own words."),
+        N_("Documents are not shown on Home, in memories, tours or photo frames, nor on the Timeline or the map: they "
+           "are here. You see the ones you could see as photos."))),
+    "paper": Page(N_("A document"), (
+        N_("Each page of the document beside its words. Lines the AI wasn't sure it read right are marked: check them "
+           "against the page, and correct the words under it. What someone corrects or types is kept, and the AI "
+           "never reads it again."),
+        N_("What it is says its kind, its title, when it was written, by whom and to whom; the AI fills these in "
+           "from its first page until someone saves them."),
+        N_("Scanned one page at a time? Add pages puts the scans that follow it in its folder after its last page; "
+           "↑ and ↓ move a page, and Take this page out makes it a document of its own again."),
+        N_("Open as a photo has its faces, tags, comments and sharing; Download the original gives the file as it "
+           "is."))),
     "photo_frame": Page(N_("Photo frame"), (
         N_("Memories, a tour or an album, one photo at a time, full screen, with its date and caption small at the "
            "foot: for an old tablet, a TV or a Home Assistant dashboard. Touch the screen or move the mouse for Full "

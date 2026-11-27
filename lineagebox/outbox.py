@@ -5,7 +5,8 @@ Each event is written once, by the code that knows of it:
 - sharing.share: something shared with someone (or with everyone);
 - routes/home.py: "Who is this?" asked about a face, for everyone who sees its photo;
 - comments.add_comment: a comment on a photo, for whoever uploaded it, whoever is in it and whoever wrote on it before;
-- the worker (after_pass): new photos, once their faces are looked for; and, for admins, files found damaged, a disk
+- the worker (after_pass): new photos, once their faces are looked for; new historical papers, once read; and, for
+  admins, files found damaged, a disk
   nearly full, Ollama away for days, a newer release and photos that look like private papers (private.py);
 - activity.note_problem: a service with a problem (the model missing, describing failing...), for admins.
 
@@ -37,6 +38,8 @@ DAMAGE_AFTER = "outbox_damage_after"  # settings: damaged files told of, by when
 OLLAMA_UP = "outbox_ollama_up"  # settings: when Ollama last answered the worker
 DISKS_ON = "outbox_disks_on"  # settings: the day the disks were last looked at
 PRIVATE_TOLD = "outbox_private_told"  # settings: the photos of private papers admins were told of
+PAPERS_TOLD, PAPERS_WAITING = "outbox_papers_told", "outbox_papers_waiting"  # settings: historical papers told up to
+                                                                             # when they were made, and those not read
 ALERTS = ("damaged", "disk_low", "service", "update", "private")
 
 
@@ -113,7 +116,7 @@ def after_pass(con: sqlite3.Connection, cfg) -> int:
     """What the worker tells after its pass: new photos, and admins' alerts. Then events older than KEEP_DAYS go.
     Returns how many events were written. Commits."""
     n = (new_photos(con, cfg) + damaged_files(con) + disks(con, cfg) + ollama_away(con, cfg) + update(con)
-         + private_papers(con))
+         + private_papers(con) + new_papers(con))
     con.execute("DELETE FROM main.outbox WHERE at < ?", ((datetime.now() - timedelta(days=KEEP_DAYS)).isoformat(),))
     con.commit()
     return n
@@ -144,6 +147,34 @@ def new_photos(con: sqlite3.Connection, cfg) -> int:
     con.commit()
     settings.put(con, PHOTOS_WAITING, still)
     settings.put(con, PHOTOS_AFTER, max(newest, after))
+    return written
+
+
+def new_papers(con: sqlite3.Connection) -> int:
+    """New historical papers (historical.py), once read and summed up (their words and card: what they are, whom they
+    name, so that members whose family they are about are told), in events of PHOTOS_MOST at most. Those still being
+    read wait for a later pass; the first time, nothing is told."""
+    told = settings.get(con, PAPERS_TOLD)
+    now = clock.now()
+    if not told:
+        settings.put(con, PAPERS_TOLD, now)
+        return 0
+    waiting = settings.get(con, PAPERS_WAITING) or []
+    rows = con.execute(f"""SELECT d.image_id AS id, d.card_at IS NOT NULL OR d.unreadable IS NOT NULL OR NOT EXISTS
+                                  (SELECT 1 FROM paper_page p WHERE p.paper_id = d.image_id AND p.text IS NULL
+                                   AND NOT p.blank) AS ready
+                           FROM document d JOIN image i ON i.id = d.image_id
+                           WHERE (d.created_at > :told OR d.image_id IN (SELECT value FROM json_each(:waiting)))
+                             AND {VISIBLE} ORDER BY d.image_id""",
+                       {"told": told, "waiting": json.dumps(waiting)}).fetchall()
+    ready = [r["id"] for r in rows if r["ready"]]
+    still = [r["id"] for r in rows if not r["ready"]][-WAITING_MOST:]
+    written = 0
+    for start in range(0, len(ready), PHOTOS_MOST):
+        written += add(con, "new_papers", data={"ids": ready[start:start + PHOTOS_MOST]}) is not None
+    con.commit()
+    settings.put(con, PAPERS_WAITING, still)
+    settings.put(con, PAPERS_TOLD, now)
     return written
 
 
@@ -347,6 +378,8 @@ class _Checks:
             return self.who_is_this(r)
         if kind == "new_photos":
             return self.new_photos(r, data)
+        if kind == "new_papers":
+            return self.new_papers(r, data)
         if kind == "comment":
             return self.comment(r, data)
         if kind in ALERTS:
@@ -398,7 +431,10 @@ class _Checks:
                                                      AND image_id IN (SELECT value FROM json_each(?))""",
                                                   (self.v.account_id, json.dumps(ids)))}
             ids = [i for i in ids if i not in own]
-        pictures = self.pictures(ids)
+        papers = {i for (i,) in self.con.execute("""SELECT image_id FROM main.document
+                                                    WHERE image_id IN (SELECT value FROM json_each(?))""",
+                                                 (json.dumps(ids),))}
+        pictures = self.pictures([i for i in ids if i not in papers])  # papers are told of as papers (new_papers)
         if not pictures:
             return None
         n, videos = len(pictures), sum(p["media"] == "video" for p in pictures)
@@ -408,6 +444,24 @@ class _Checks:
         text = f"{what} of your family" if self.v.limited else what
         return {"text": text, "href": f"/news/{r['id']}", "photos": pictures[:SHOWN], "more": max(0, n - SHOWN),
                 "faces": [], "ids": [p["id"] for p in pictures]}
+
+    def new_papers(self, r, data) -> dict | None:
+        """New historical papers the viewer sees, but those they uploaded themselves."""
+        ids = list(data.get("ids") or [])
+        if self.v.account_id is not None and ids:
+            own = {i for (i,) in self.con.execute("""SELECT image_id FROM main.upload WHERE account_id = ?
+                                                     AND image_id IN (SELECT value FROM json_each(?))""",
+                                                  (self.v.account_id, json.dumps(ids)))}
+            ids = [i for i in ids if i not in own]
+        pictures = self.pictures(ids)
+        if not pictures:
+            return None
+        n = len(pictures)
+        what = "a new document" if n == 1 else f"{n:,} new documents"
+        text = f"{what} of your family's history" if self.v.limited else f"{what} in Historical"
+        href = f"/historical/{pictures[0]['id']}" if n == 1 else "/historical?sort=added"
+        return {"text": text[0].upper() + text[1:], "href": href, "photos": pictures[:SHOWN],
+                "more": max(0, n - SHOWN), "faces": []}
 
     def comment(self, r, data) -> dict | None:
         # the comment it was, by whom: a comment taken away leaves its number to the next one written (by anyone, or a

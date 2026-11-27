@@ -1,18 +1,18 @@
 {% extends "base.html" %}
-{#- mode: line (one line down from its top, family.tree), roots (one person's roots and descendants, family.roots) or
+{#- mode: line (one line down from its top, family.tree), bloodline (one person's blood relatives, family.bloodline) or
     everyone (every family linked to one, family.chart) -#}
-{% block title %}{% if mode == "roots" %}{{ _("Roots of %(name)s", name=top_names[root]) }}{% elif mode == "everyone" %}{{ _("Everyone connected to %(name)s", name=top_names[root]) }}{% elif tree %}{{ _("The whole line down from %(name)s", name=top_names[root]) }}{% else %}{{ _("The whole line down from one ancestor") }}{% endif %}{% endblock %}
+{% block title %}{% if mode == "bloodline" %}{{ _("Bloodline of %(name)s", name=top_names[root]) }}{% elif mode == "everyone" %}{{ _("Everyone connected to %(name)s", name=top_names[root]) }}{% elif tree %}{{ _("The whole line down from %(name)s", name=top_names[root]) }}{% else %}{{ _("The whole line down from one ancestor") }}{% endif %}{% endblock %}
 {% block main %}
 {% from "_family_macros.html" import node, card with context %}
-<nav class="crumbs"><a href="/family">{% trans %}Family{% endtrans %}</a><span class="sep">/</span><h1>{% if mode == "roots" %}{{ _("Roots of %(name)s", name=top_names[root]) }}{% elif mode == "everyone" %}{{ _("Everyone connected") }}{% else %}{{ _("The whole line down from one ancestor") }}{% endif %}</h1></nav>
+<nav class="crumbs"><a href="/family">{% trans %}Family{% endtrans %}</a><span class="sep">/</span><h1>{% if mode == "bloodline" %}{{ _("Bloodline of %(name)s", name=top_names[root]) }}{% elif mode == "everyone" %}{{ _("Everyone connected") }}{% else %}{{ _("The whole line down from one ancestor") }}{% endif %}</h1></nav>
 {% if tree or chart %}
 {%- set here = "?root=%s"|format(line_root) ~ ("&person=%s"|format(person) if person else "") %}
 <nav class="tree-mode" aria-label="{{ _('What the tree shows') }}">
   <a href="/family/tree{{ here }}"{% if mode == "line" %} aria-current="page"{% endif %} title="{{ _('Everyone descended from one ancestor, with their partners') }}">{% trans %}One line{% endtrans %}</a>
-  <a href="/family/tree{{ here }}&amp;roots=1"{% if mode == "roots" %} aria-current="page"{% endif %} title="{{ _("One person's roots: every family on their generation and above, and their descendants, without the families of those who married in below them") }}">{% trans %}Roots{% endtrans %}</a>
+  <a href="/family/tree{{ here }}&amp;bloodline=1"{% if mode == "bloodline" %} aria-current="page"{% endif %} title="{{ _("One person's blood relatives: their ancestors and everyone descended from them, with their partners") }}">{% trans %}Bloodline{% endtrans %}</a>
   <a href="/family/tree{{ here }}&amp;everyone=1"{% if mode == "everyone" %} aria-current="page"{% endif %} title="{{ _('Every family linked to this one by parents, children and partners, each with its own line, on one chart') }}">{% trans %}Everyone connected{% endtrans %}</a>
 </nav>
-{%- if mode != "roots" %}
+{%- if mode != "bloodline" %}
 <form class="tree-pick" action="/family/tree" data-autosubmit>
   {%- if mode == "everyone" %}
   <input type="hidden" name="everyone" value="1">
@@ -35,7 +35,7 @@
   <button type="button" data-zoom="in" data-key="+" data-key-label="{{ _('Zoom in') }}" aria-label="{{ _('Zoom in') }}">+</button>
   <button type="button" data-zoom="fit" data-key="0" data-key-label="{{ _('Show the whole tree') }}">{% trans %}Show it all{% endtrans %}</button>
   <button type="button" data-tree-picture data-key="p" data-key-label="{{ _('Save the tree as a picture') }}"
-    data-file="{% if mode == "roots" %}{{ _('Family tree - roots of %(root)s.png', root=top_names[root]) }}{% elif mode == "everyone" %}{{ _('Family tree - everyone connected to %(root)s.png', root=top_names[root]) }}{% else %}{{ _('Family tree - %(root)s.png', root=top_names[root]) }}{% endif %}">{% trans %}Save as a picture (PNG){% endtrans %}</button>
+    data-file="{% if mode == "bloodline" %}{{ _('Family tree - bloodline of %(root)s.png', root=top_names[root]) }}{% elif mode == "everyone" %}{{ _('Family tree - everyone connected to %(root)s.png', root=top_names[root]) }}{% else %}{{ _('Family tree - %(root)s.png', root=top_names[root]) }}{% endif %}">{% trans %}Save as a picture (PNG){% endtrans %}</button>
   <span class="hint inline" data-tree-note>{% trans %}Drag to move around; scroll, pinch or + and − to zoom.{% endtrans %}</span>
 </div>
 <div class="tree-frame" tabindex="0" data-pan-zoom data-root="{{ root }}"{% if person %} data-person="{{ person }}"{% endif %}{% if mode != "line" %} data-mode="{{ mode }}"{% endif %}
@@ -51,11 +51,11 @@
   {%- endif %}
 </div>
 <div data-tree-hints>
-{%- if mode == "roots" %}
-<p class="hint">{% trans n=chart.people|number, name=top_names[root] %}{{ n }} people: every family on {{ name }}'s generation and
-above, with their descendants. Below {{ name }}'s generation, those who married in are shown without their own
-parents and families. Click someone to see the tree from their roots instead; double-click someone, or click the one
-marked, to open their page.{% endtrans %}</p>
+{%- if mode == "bloodline" %}
+<p class="hint">{% trans n=chart.people|number, name=top_names[root] %}{{ n }} people: {{ name }}'s blood relatives, their
+ancestors and everyone descended from those, with their partners (without the partners' own parents and families).
+Click someone to see their bloodline instead; double-click someone, or click the one marked, to open their
+page.{% endtrans %}</p>
 {%- elif mode == "everyone" %}
 <p class="hint">{% trans n=chart.people|number %}{{ n }} people: every family linked to this one by parents, children and
 partners, each with its own line, a row for each generation. Click someone to bring them to the middle; double-click
@@ -64,7 +64,7 @@ someone, or click the one marked, to open their page.{% endtrans %}</p>
 <p class="hint">{% trans %}Click someone to put them in the middle; for someone who married in, the tree changes to the family
 they come from. Double-click someone, or click the one marked, to open their page.{% endtrans %}</p>
 {%- endif %}
-{%- if mode == "roots" %}
+{%- if mode == "bloodline" %}
 <p class="hint">{% trans name=top_names[root] %}Bold frame: {{ name }}'s own family by blood; plain: married in. A line joins
 partners, dashed for a former partner, and runs down from them to their children. Adopted and foster children are
 marked so, and † marks someone who has died.{% endtrans %}</p>

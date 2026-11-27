@@ -288,7 +288,11 @@
     {% endif %}
     <div class="like-part" data-later="/image/{{ img.id }}/like"></div>{# More like this: _like_this.html #}
 
-    {% if not is_audio %}
+    {% if img.page_of %}
+    <p class="note">{% trans %}This is a page of a document of several pages.{% endtrans %}
+      <a href="/historical/{{ img.page_of }}">{% trans %}Read the whole document{% endtrans %}</a></p>
+    {% elif not is_audio %}
+    {%- if doc %}<p><a class="button" href="/historical/{{ img.id }}">{% trans %}Read it on the Historical page{% endtrans %}</a></p>{% endif %}
     <details class="document-panel"{% if doc %} open{% endif %}>
       <summary><h2>{% if doc %}{% trans title=doc.title %}Document: {{ title }}{% endtrans %}{% else %}{% trans %}Is this a document?{% endtrans %}{% endif %}</h2></summary>
       <form class="inline-facts" data-api="/api/images/{{ img.id }}/document" data-settings data-reload>

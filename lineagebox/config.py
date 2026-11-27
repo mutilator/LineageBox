@@ -31,6 +31,7 @@ RANGES = {"ingest_threads": (1, 16), "worker_interval_minutes": (5, 1440), "llm_
           "hover_preview_ms": (0, 5000), "backup_keep_daily": (1, 90), "backup_keep_weekly": (0, 104),
           "demo_uploads": (0, 1000), "demo_upload_max_mb": (1, 4096), "memories_keep": (1, 999)}
 MEMORY_UNITS = ("minutes", "hours", "days", "weeks")  # what memories_keep counts
+INTRODUCE_EVERY = ("day", "week", "never")  # how often the menu marks a paper waiting to be introduced
 
 
 class ConfigError(ValueError):
@@ -54,6 +55,11 @@ class Config:
     # like a phone's .3gp voice note, is one too). A song tagged as one from an album is left out (ingest.py).
     audio_extensions: tuple[str, ...] = (".mp3", ".m4a", ".aac", ".wav", ".wma", ".ogg", ".oga", ".opus", ".flac",
                                          ".amr", ".aif", ".aiff")
+    # Papers that are files of their own (media 'document', papers.py): PDFs, Word and OpenDocument files, RTF, plain
+    # text, emails and saved web pages, read for their words; and old formats that can't be read here, kept to download.
+    # A text file or web page with too few words to be a paper (a camera's readme) is left out.
+    document_extensions: tuple[str, ...] = (".pdf", ".docx", ".odt", ".rtf", ".txt", ".eml", ".htm", ".html",
+                                            ".doc", ".wpd", ".wps", ".msg", ".pages")
     ignore_dirs: tuple[str, ...] = ("Thumbs", "Previews", ".thumbnails")
     ingest_threads: int = 8
     video_threads: int = 2                            # videos read at a time (of ingest_threads): each is a long read
@@ -73,6 +79,8 @@ class Config:
     ollama_keep_alive: str = "30m"
     ollama_embed_model: str = ""                      # search by meaning (embeddings.py), e.g. "nomic-embed-text";
                                                       # "" finds words only
+    ollama_read_model: str = ""                       # copying out the words of papers (paper_reading.py): a model
+                                                      # with vision; "" uses ollama_model
     models_dir: Path = Path.home() / ".insightface"   # holds models/buffalo_l
     share_path: str = ""                              # share_root as people's PCs see it; default share_root
     # Folders of the media root that people's PCs find somewhere else, most often one per source:
@@ -88,6 +96,9 @@ class Config:
     # by the calendar), or until they see new photos; then new ones are made (web/routes/home.py)
     memories_keep: int = 1
     memories_unit: str = "days"
+    # The menu marks Historical when a paper from someone's family is waiting to be introduced to them, at most once
+    # a day or a week (introductions.py): "day", "week" or "never" (the page still offers one)
+    introduce_every: str = "day"
     language: str = ""                                # pages' language for browsers asking none installed (i18n.py)
     # Family accounts (accounts.py, access.py): off, the web UI answers the home network only, with no sign-in
     accounts_enabled: bool = False
@@ -177,6 +188,10 @@ class Config:
         """A video's sampled frames; its preview is a copy of the clearest one."""
         return self.data_dir / "frames" / sha256[:2] / f"{sha256}_{idx:02d}.jpg"
 
+    def page_path(self, sha256: str, n: int) -> Path:
+        """A page of a paper that is a file (a PDF's page 2 and on), drawn when it is first shown or read."""
+        return self.data_dir / "pages" / sha256[:2] / f"{sha256}_{n:04d}.jpg"
+
     def picture_path(self, sha256: str, frame: int | None) -> Path:
         """What a face was found on: the photo's preview, or one of a video's frames."""
         return self.preview_path(sha256) if frame is None else self.frame_path(sha256, frame)
@@ -204,6 +219,7 @@ KEYS = {
     ("", "media_root"): "share_root", ("", "share_root"): "share_root", ("", "data_dir"): "data_dir",
     ("scan", "folders"): "folders", ("scan", "image_extensions"): "image_extensions",
     ("scan", "video_extensions"): "video_extensions", ("scan", "audio_extensions"): "audio_extensions",
+    ("scan", "document_extensions"): "document_extensions",
     ("scan", "ignore_dirs"): "ignore_dirs",
     ("ingest", "threads"): "ingest_threads", ("ingest", "video_threads"): "video_threads",
     ("ingest", "thumb_size"): "thumb_size", ("ingest", "preview_size"): "preview_size",
@@ -215,13 +231,14 @@ KEYS = {
     ("xmp", "sidecars"): "sidecars_enabled", ("xmp", "import"): "import_enabled",
     ("ollama", "url"): "ollama_url", ("ollama", "model"): "ollama_model", ("ollama", "workers"): "llm_workers",
     ("ollama", "image_size"): "llm_image_size", ("ollama", "keep_alive"): "ollama_keep_alive",
-    ("ollama", "embed_model"): "ollama_embed_model",
+    ("ollama", "embed_model"): "ollama_embed_model", ("ollama", "read_model"): "ollama_read_model",
     ("faces", "models_dir"): "models_dir",
     ("web", "share_path"): "share_path", ("web", "network_paths"): "network_paths",
     ("web", "allowed_networks"): "allowed_networks", ("web", "allowed_hosts"): "allowed_hosts",
     ("web", "trusted_proxies"): "trusted_proxies", ("web", "tls_cert"): "tls_cert", ("web", "tls_key"): "tls_key",
     ("web", "hover_preview_ms"): "hover_preview_ms", ("web", "language"): "language",
     ("web", "memories_keep"): "memories_keep", ("web", "memories_unit"): "memories_unit",
+    ("web", "introduce_every"): "introduce_every",
     ("worker", "interval_minutes"): "worker_interval_minutes",
     ("cleanup", "blurry_below"): "blurry_below", ("cleanup", "turn_suggest"): "turn_suggest",
     ("whisper", "url"): "whisper_url", ("whisper", "language"): "whisper_language",
@@ -279,6 +296,8 @@ def load(path: str | os.PathLike | None = None) -> Config:
     if "whisper_language" in values and not language_ok(values["whisper_language"]):
         raise ConfigError(f"whisper_language is {values['whisper_language']!r}: it can be auto, or a language's "
                           "two- or three-letter code like en or de")
+    if values.get("introduce_every", "day") not in INTRODUCE_EVERY:
+        raise ConfigError(f"introduce_every is {values['introduce_every']!r}: it can be {', '.join(INTRODUCE_EVERY)}")
     if values.get("memories_unit", "days") not in MEMORY_UNITS:
         raise ConfigError(f"memories_unit is {values['memories_unit']!r}: it can be {', '.join(MEMORY_UNITS)}")
     if bool(values.get("tls_cert")) != bool(values.get("tls_key")):

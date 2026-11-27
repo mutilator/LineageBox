@@ -6,6 +6,22 @@ copies it there when the version is tagged ([releases](docs/development.md#relea
 A **catalog update** adds to the catalog's tables. LineageBox copies the catalog before it updates it, and earlier
 versions can't open the updated one.
 
+## 1.13.0 (2026-11-26)
+
+**Catalog update** (migration 042).
+
+### New
+
+- **Historical: the family's papers.** Letters, cards, certificates, awards, deeds, clippings and notes, scanned or
+  photographed, or as PDF, Word, OpenDocument, RTF, text and email files, are listed in **Historical** by the folder
+  they came from, by kind and by the decade they were written, and kept out of Home, memories, the Timeline, the map,
+  tours and photo frames. The AI finds them among the photos and copies out every page's words, marking the lines it
+  wasn't sure it read right; anyone who can see a paper can correct them. It also says what each paper is, who wrote
+  it and to whom, and whom it names, matched to the family tree. Pages scanned one at a time are put together as one
+  document. Search finds papers by their words, with the lines that matched, and each person's page lists their
+  papers. The Historical page introduces each person to one paper of their own family's history at a time, their
+  ancestors' first, until they have opened them all. ([User guide](docs/user-guide.md#historical-papers))
+
 ## 1.12.2 (2026-11-26)
 
 ### Updated
@@ -16,9 +32,9 @@ versions can't open the updated one.
   ([User guide](docs/user-guide.md#the-family-tree))
 - **Picking a suggested name uses it at once.** A click or a tap names the face or adds the person, with no Enter
   after it; Enter alone, or **Or someone new**, adds the name as typed. ([User guide](docs/user-guide.md#naming-faces))
-- **Everyone connected, and Roots, in the classic family tree.** Beside **One line**, one chart of every family linked
-  by parents, children and partners, each person once, a row for each generation; **Roots** trims it to one person's
-  history, without the families of those who married in below them. ([User guide](docs/user-guide.md#the-family-tree))
+- **Everyone connected, and Bloodline, in the classic family tree.** Beside **One line**, one chart of every family linked
+  by parents, children and partners, each person once, a row for each generation; **Bloodline** shows only one
+  person's blood relatives, with their partners. ([User guide](docs/user-guide.md#the-family-tree))
 - **Holidays as dates:** type `Christmas 1987`, `Easter 1962` or `Thanksgiving 1987` under **Taken**.
   ([User guide](docs/user-guide.md#dates))
 - **Pictures in the guides**, with short clips where a page moves.

@@ -19,6 +19,8 @@ Where each one goes, in the watched folder it is in (a rename: a file never leav
   the 720p copy LineageBox made of a video, and other files of its name beside it (IMG_1234.AAE).
 - everything else in the folders (a PSD, another program's files, Thumbs.db, a photo or video that can't be read)
   goes to Other files/<the path it had>, so the old folders go away and nothing is lost or renamed.
+- historical papers stay where they are, with what belongs to them: a paper's folder is the collection it came from
+  (a box of letters, a binder of deeds), which the Historical page shows them by (historical.py).
 - left as they are: the folders the scan ignores ([scan] ignore_dirs), the family's uploads folders, the Removed
   folders, LineageBox's own, Other files, a folder on another disk mounted inside, and a folder with photos or videos
   the worker hasn't read yet (until it has: run it again then).
@@ -42,7 +44,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from lineagebox import clock, errors, scan, video
+from lineagebox import clock, errors, papers, scan, video
 from lineagebox.config import Config
 
 KINDS = {"photo": "Photos", "scan": "Scans", "video": "Videos", "audio": "Recordings"}  # the folders at the top
@@ -136,14 +138,16 @@ def plan(con: sqlite3.Connection, cfg: Config, by_type: bool, remove_junk: bool 
     beat = beat or (lambda: None)
     out = Plan()
     images = {r["id"]: r for r in con.execute(
-        "SELECT id, media, taken_at, taken_at_source, date_from, date_to, live_of, error FROM image")}
+        """SELECT id, media, taken_at, taken_at_source, date_from, date_to, live_of, error,
+                  page_of IS NOT NULL OR EXISTS (SELECT 1 FROM document d WHERE d.image_id = image.id) AS paper
+           FROM image""")}
     files = {r["path"]: r for r in con.execute(
         "SELECT id, path, folder_id, from_folder_id, image_id, error FROM file WHERE NOT missing")}
     taken = {r[0].lower() for r in con.execute("SELECT path FROM file")}  # removed and missing files keep theirs too
     scans = _scans(con) if by_type else set()
     year_only = _year_only(con, images)
     leave = _left_alone(con, cfg)
-    wanted = {*cfg.image_extensions, *cfg.video_extensions, *cfg.audio_extensions}
+    wanted = {*cfg.image_extensions, *cfg.video_extensions, *cfg.audio_extensions, *cfg.document_extensions}
     listed: dict[str, set[str]] = {}  # folder -> the lower-case names in it now, as they are looked for
     shared = [r[0] for r in con.execute("SELECT DISTINCT d.path FROM share s JOIN folder d ON d.id = s.folder_id")] \
         if _has_table(con, "share") else []
@@ -235,7 +239,8 @@ def plan(con: sqlite3.Connection, cfg: Config, by_type: bool, remove_junk: bool 
                                                          or (images.get(row["image_id"]) or {"error": 1})["error"]):
                     junk.append(path)
                     continue
-                if ext in wanted and not video.is_copy(e.name):
+                if ext in wanted and not video.is_copy(e.name) and not (
+                        ext in papers.WORDS_NEEDED and papers.too_small(e.name, e.stat().st_size)):
                     img = images.get(row["image_id"]) if row is not None and row["image_id"] is not None else None
                     if img is not None and img["error"] is None:
                         media.append((e.name, row, img))
@@ -265,7 +270,8 @@ def plan(con: sqlite3.Connection, cfg: Config, by_type: bool, remove_junk: bool 
                     belongs[name].append(others.pop(found)[0])
             groups: dict[tuple[str, str], list] = defaultdict(list)  # (new folder, name without extension) -> files
             for name, row, img in media:
-                to = target_folder(watched, img["id"])
+                # a historical paper stays where it is: its folder is the collection it came from (historical.py)
+                to = rel if img["paper"] else target_folder(watched, img["id"])
                 if to == rel:
                     out.in_place += img["live_of"] is None
                     out.tops[_top(watched, to)] += img["live_of"] is None

@@ -1,11 +1,13 @@
 """What routes take with Depends(): the Site (site.py), who is looking, the catalog as they may see it and where their
 changes go; and page() and answer(), which render through the Site's templates."""
 import dataclasses
+import sqlite3
 
 from fastapi import Depends, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 
 from lineagebox import access, accounts, db, demo, outbox
+from lineagebox.catalog import VISIBLE
 from lineagebox.config import Config
 from lineagebox.web import frames, tiles
 from lineagebox.web.common import PAGE_SIZES, SEE_AS, Paging, cookie_name
@@ -92,6 +94,11 @@ def page(request: Request, name: str, **context) -> HTMLResponse:
         context.setdefault("update_ready", s.update_ready())
     if not context["signed_out"] and context["viewer"].device is None:  # the count by New for you, at the top
         context.setdefault("news_count", lambda: news_count(s, context["viewer"]))
+        # whether the menu has Historical for them: papers they see (historical.py); admins always have it
+        context.setdefault("has_papers", lambda: has_papers(s, context["viewer"], getattr(request.state, "catalog", None)))
+        # and a mark by it: a paper of their family waiting to be introduced to them (introductions.py)
+        context.setdefault("papers_waiting", lambda: papers_waiting(s, context["viewer"],
+                                                                    getattr(request.state, "catalog", None)))
     with tiles.reading(getattr(request.state, "catalog", None)):  # who is in the grids' photos, as the viewer sees
         response = s.templates.TemplateResponse(request, name, context)
     if (paging := context.get("paging")) and paging.chosen:  # remembered for this list
@@ -111,6 +118,34 @@ def news_count(s: Site, v: access.Viewer) -> int:
         with s.own_con() as c:
             return outbox.unseen(c, v)
     return s.kept.get(_news_key(v), NEWS_KEPT, work)
+
+
+def has_papers(s: Site, v: access.Viewer, c) -> bool:
+    """Whether the viewer sees any historical paper, for the menu: kept NEWS_KEPT seconds, worked out on their own
+    connection (a member's holds only what they may see)."""
+    if v.admin:
+        return True
+    if c is None:
+        return False
+    try:  # an error page is drawn after its request's connection has closed: no menu entry there is worth failing it
+        return s.kept.get(("has papers", v.account_id or 0), NEWS_KEPT, lambda: c.execute(
+            f"SELECT EXISTS (SELECT 1 FROM document d JOIN image i ON i.id = d.image_id WHERE {VISIBLE})"
+        ).fetchone()[0] == 1)
+    except sqlite3.Error:
+        return False
+
+
+def papers_waiting(s: Site, v: access.Viewer, c) -> bool:
+    """Whether the menu marks Historical for the viewer (introductions.waiting_mark), kept NEWS_KEPT seconds."""
+    from lineagebox import introductions
+    if c is None or v.seeing_as:
+        return False
+    every = s.shared_cfg().introduce_every
+    try:  # as has_papers: never worth failing a page for
+        return s.kept.get(("papers waiting", introductions.key(v)), NEWS_KEPT,
+                          lambda: introductions.waiting_mark(c, v, every))
+    except sqlite3.Error:
+        return False
 
 
 def forget_news_count(s: Site, v: access.Viewer) -> None:

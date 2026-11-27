@@ -68,7 +68,7 @@ def test_the_menu_at_the_side_has_every_page_in_sections(cfg, con):
     html = client.get("/timeline").text
     nav = nav_of(html)
     assert '<nav id="menu" class="side"' in html and "side-add" not in nav
-    assert sections_of(nav) == [("", ["/home"]), ("Library", ["/", "/timeline", "/map", "/tags"]),
+    assert sections_of(nav) == [("", ["/home"]), ("Library", ["/", "/timeline", "/map", "/tags", "/historical"]),
                                 ("Collections", ["/favorites", "/albums", "/tours"]),
                                 ("People", ["/people", "/family"]), ("Tidy up", ["/people/name", "/cleanup"]),
                                 ("Admin", ["/status", "/settings"])]

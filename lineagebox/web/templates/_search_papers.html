@@ -1,0 +1,26 @@
+{#- The search page's Historical part (routes/historical.py search_papers): the papers whose words match, each with the
+    lines that did, their words marked (paper_search: escaped, then <mark>). Nothing at all when none match. #}
+{%- if papers %}
+<section class="search-papers" aria-labelledby="search-papers-h">
+  <h2 id="search-papers-h">{% trans %}Historical{% endtrans %} <small>{{ total|number }}</small></h2>
+  <ul class="paper-hits">
+    {%- for p in papers %}
+    <li>
+      <a class="paper-card" href="/historical/{{ p.id }}{% if p.hits %}#page-{{ p.hits[0].n }}{% endif %}">
+        <img src="/t/{{ p.sha256 }}" alt="" loading="lazy" width="80" height="104">
+        <span class="paper-what">
+          <span class="paper-title">{{ p.title }}</span>
+          <span class="meta">{{ p.kind }}{% if p.written %} · {{ p.written }}{% endif %}{% if p.pages > 1 %} · {% trans n=p.pages %}{{ n }} pages{% endtrans %}{% endif %}</span>
+          {%- for h in p.hits %}
+          <span class="paper-snippet">{% if p.pages > 1 %}<span class="meta">{% trans n=h.n %}page {{ n }}:{% endtrans %}</span> {% endif %}{{ h.snippet|safe }}</span>
+          {%- endfor %}
+        </span>
+      </a>
+    </li>
+    {%- endfor %}
+  </ul>
+  {%- if total > papers|length %}
+  <p><a href="/historical?{{ {'q': q}|urlencode }}">{% trans n=total|number %}All {{ n }} documents that match{% endtrans %}</a></p>
+  {%- endif %}
+</section>
+{%- endif %}
